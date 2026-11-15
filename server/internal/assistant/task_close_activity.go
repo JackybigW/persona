@@ -123,10 +123,3 @@ func (s *Service) sessionActivityReason(ctx context.Context, machine, session st
 	}
 	return ""
 }
-
-// ownerOnSession: the owner is viewing agent machine/session, or messaged, read or left it within taskUserIdle. Activity
-// that could not be read counts as absent here: the caller keeps its usual behavior (closedTurnReopens).
-func (s *Service) ownerOnSession(ctx context.Context, machine, session string, now time.Time) bool {
-	why := s.sessionActivityReason(ctx, machine, session, now)
-	return why != "" && why != activityUnknown
-}

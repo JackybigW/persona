@@ -682,6 +682,9 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 				s.leaderTaskReviewed(lead, t.ID, verdict, v)
 			}
 		}
+		if verdict == reviewAccepted {
+			s.sendsAccepted(ctx, t.ID, time.Now()) // what was sent its agent before is answered: closed already, too (#7539)
+		}
 		if verdict == reviewCancelled {
 			return fmt.Sprintf("Worker task %s is cancelled and closed; its conversation stays usable until its Agent is idle "+
 				"and the user has been inactive for 10 minutes, then it is stopped and archived (its terminal stays).", t.ID), nil

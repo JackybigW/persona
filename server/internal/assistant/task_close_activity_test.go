@@ -269,8 +269,16 @@ func TestAcceptedPlannedTaskStaysClosedWhenOwnerChatsDirectly(t *testing.T) {
 	}
 
 	// agent_send from the task's conversation records itself first (tools.go), as the card's routeToTask does.
-	s.noteAgentSend("conv1", "box", "s1")
+	ctx := context.Background()
+	note, err := s.noteAgentSend(ctx, "conv1", "box", "s1", "", "More for the completed task")
+	if err != nil {
+		t.Fatal(err)
+	}
 	agentTurn(s, f, proto.StatusWorking, "", 0)
+	if got := todoNow(s, todo.ID); got.DoneAt == nil {
+		t.Fatalf("the task reopened before the send was acknowledged: %+v", got)
+	}
+	note.sent(ctx, nil)
 	if got := todoNow(s, todo.ID); got.DoneAt != nil || got.ReopenedAt == nil {
 		t.Fatalf("the task's conversation sending more did not reopen it: %+v", got)
 	}

@@ -11,6 +11,44 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
+func TestClosedTaskJudgmentIsDroppedBeforeOwnerActivityHold(t *testing.T) {
+	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
+		for _, activity := range []string{"message", "view"} {
+			t.Run(verdict+"/"+activity, func(t *testing.T) {
+				s, f, todo := newSupervisedService(t)
+				ctx := context.Background()
+				items := turnPage("finished-before-close", "The change is finished.", true)
+				f.setItems(items...)
+				row := turnRow(proto.StatusDone, 3, "The change is finished.")
+				nodeListed(s, f, row)
+				end, _ := turnEndOf(items)
+				work := todo.CreatedAt.Add(time.Millisecond)
+				s.takeTurn(ctx, todo, row, items, end, true, work, turnDone)
+				if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed before the judgment returned", verdict == reviewAccepted); err != nil || !ok {
+					t.Fatalf("close: %v %v", ok, err)
+				}
+				closed := todoNow(s, todo.ID)
+				if activity == "view" {
+					setTaskViewer(t, s, row.MachineID, row.SessionID, true)
+				} else {
+					s.rememberSessionActivity(ctx, row.MachineID, row.SessionID)
+				}
+
+				// The judge still holds its open copy; that old work must be dropped, not deferred for a new retry.
+				s.applyTaskDone(ctx, todo, work, true, taskDoneCheck{Verdict: verdictDone, WouldClose: true, Reason: "Late result"}, nil)
+				if e, ok := s.turnOf(ctx, todo.ID); !ok || e.Judged == nil || e.Judged.Skip != "done" {
+					t.Fatalf("owner activity kept a closed task's old judgment retryable: %+v", e)
+				}
+				now := todoNow(s, todo.ID)
+				if now.DoneAt == nil || !now.DoneAt.Equal(*closed.DoneAt) || now.DoneBy != closed.DoneBy ||
+					now.Check != nil || now.Supervision.State != closed.Supervision.State {
+					t.Fatalf("a late judgment changed the closed task: before=%+v after=%+v", closed, now)
+				}
+			})
+		}
+	}
+}
+
 // Activity holds completion judgments, not the independent lifecycle of a start that never linked an Agent.
 func TestTaskJudgmentActivityHoldDoesNotBlockStartRemedy(t *testing.T) {
 	for _, activity := range []string{"message", "view"} {
