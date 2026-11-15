@@ -10,9 +10,9 @@ it("keeps closed-task notices and recovery controls outside the first screen", a
   expect(source).toMatch(/lazy\(\(\) => import\("\.\/StoppedAgentLine"\)/);
   expect(source).not.toMatch(/^import[^;]*from\s+["']\.\/StoppedAgentLine["']/m);
   expect(source).toMatch(/lazy\(\(\) => import\("\.\.\/\.\.\/ui\/ArchivedNotice"\)\)/);
-  expect(namespaces).not.toContain("chat-closed-task");
+  expect(namespaces).not.toContain("chat-closed");
   const startup = JSON.parse(readFileSync(new URL("../../i18n/locales/en/chat-chatview.json", import.meta.url), "utf8"));
-  const deferred = JSON.parse(readFileSync(new URL("../../i18n/locales/en/chat-closed-task.json", import.meta.url), "utf8"));
+  const deferred = JSON.parse(readFileSync(new URL("../../i18n/locales/en/chat-closed.json", import.meta.url), "utf8"));
   expect(startup).not.toHaveProperty("archived_notice");
   expect(startup).not.toHaveProperty("resume");
   expect(startup).not.toHaveProperty("resume_failed");

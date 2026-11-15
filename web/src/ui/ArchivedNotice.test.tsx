@@ -19,7 +19,7 @@ it("keeps the archived notice and Restore action unchanged when loaded on demand
   const session = { machine_id: "mac", session_id: "archived-example" } as Session;
   try {
     act(() => root.render(<ArchivedNotice session={session} />));
-    expect(host.querySelector("[data-archived-notice]")?.textContent).toContain(t("chat-closed-task.archived"));
+    expect(host.querySelector("[data-archived-notice]")?.textContent).toContain(t("chat-closed.archived"));
     const button = host.querySelector<HTMLButtonElement>("button")!;
     expect(button.textContent).toContain(t("agents-archives.restore"));
     act(() => button.click());
