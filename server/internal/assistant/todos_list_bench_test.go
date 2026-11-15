@@ -198,10 +198,8 @@ func taskStepEvents(tb testing.TB) (steps []string, events []int) {
 	waitFor(tb, "pending review again", func() bool { return todoNow(s, todo.ID).Supervision.State == reviewPending })
 	step("its turn ends: judged, waits for review")
 	if out, bad := tool(tb, s, "task_review", map[string]any{"todo_id": todo.ID, "verdict": "accepted", "note": "merged",
-		"checks": []ReviewCheck{
-			{Criterion: "PR merged to main", Met: true, Evidence: "Merged https://github.com/o/r/pull/901 into main."},
-			{Criterion: "a test covers landscape", Met: true, Evidence: "The PR includes a landscape UI regression test."},
-		}}); bad {
+		"checks": []ReviewCheck{{Criterion: "PR merged to main", Met: true, Evidence: "https://github.com/o/r/pull/901 merged"},
+			{Criterion: "a test covers landscape", Met: true, Evidence: "the PR's landscape UI test"}}}); bad {
 		tb.Fatalf("accepted: %s", out)
 	}
 	step("task_review accepted: to-do closed")
