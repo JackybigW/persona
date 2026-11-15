@@ -27,6 +27,11 @@ it("keeps the archived notice and Restore action unchanged when loaded on demand
     expect(button.getAttribute("aria-busy")).toBe("true");
     await act(async () => { finish(); });
     expect(button.getAttribute("aria-busy")).not.toBe("true");
+    const reason = "Stopped because its to-do was completed.";
+    act(() => root.render(<ArchivedNotice session={{ ...session, read_only_reason: reason }} />));
+    expect(host.textContent).toContain(reason);
+    expect(host.textContent).not.toContain(t("chat-closed.archived"));
+    expect(host.querySelector("button")?.textContent).toContain(t("agents-archives.restore"));
   } finally {
     act(() => root.unmount());
     host.remove();
