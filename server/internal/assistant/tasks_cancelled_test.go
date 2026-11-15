@@ -69,7 +69,7 @@ func TestCancelledTaskStaysClosed(t *testing.T) {
 					}
 				case "agent_send":
 					// The owner has resumed the agent; a follow-up still must not reopen the cancelled task.
-					f.setSessions("box", boxAgent("s1000000"))
+					f.setSessions("box", boxAgent(sid))
 					if _, err := runJSON(t, s, "conv1", "agent_send", map[string]any{
 						"machine": "box", "session_id": sid, "text": "Revert the changes.",
 					}); err != nil {

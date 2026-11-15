@@ -127,14 +127,16 @@ func (h *Hub) terminalSubscribe(ctx context.Context, c *client, machineID, sessi
 	asked := machineID
 	machineID = m.cfg.ID
 	key := [2]string{machineID, sessionID}
+	t := &h.terms
+	t.mu.Lock()
+	// Keep the viewer record in step with the relay while holding its lock. terminalEnded uses the same lock when it
+	// clears ended relays, so a late cleanup cannot remove a replacement subscription.
 	c.mu.Lock()
 	if c.termSubs == nil {
 		c.termSubs = map[[3]string]bool{}
 	}
 	c.termSubs[[3]string{machineID, sessionID, asked}] = true
 	c.mu.Unlock()
-	t := &h.terms
-	t.mu.Lock()
 	if t.relays == nil {
 		t.relays = map[[2]string]*termRelay{}
 	}
@@ -490,19 +492,16 @@ func (h *Hub) terminalUnwatch(m *Machine, key [2]string) {
 
 // terminalDrop unsubscribes a client that went away from every terminal it watched.
 func (h *Hub) terminalDrop(c *client) {
-	t := &h.terms
-	t.mu.Lock()
 	type sub struct {
 		key   [2]string
 		asked string
 	}
 	var subs []sub
-	for k, r := range t.relays {
-		for asked := range r.subs[c] {
-			subs = append(subs, sub{k, asked})
-		}
+	c.mu.Lock()
+	for key := range c.termSubs {
+		subs = append(subs, sub{[2]string{key[0], key[1]}, key[2]})
 	}
-	t.mu.Unlock()
+	c.mu.Unlock()
 	// By the relay's own key: an id the app asked by may no longer reach the computer.
 	for _, s := range subs {
 		h.terminalLeave(c, h.localMachine(s.key[0]), s.key, s.asked)
@@ -605,7 +604,17 @@ func (h *Hub) terminalEnded(machineID, sessionID, why string, only *termRelay) {
 		return
 	}
 	delete(t.relays, key)
+	// A terminal's viewer entry outlives its relay unless it is removed here. Do this under the relay lock so a new
+	// subscription for this key cannot be mistaken for the ended relay's subscription.
+	for c, ids := range r.subs {
+		c.mu.Lock()
+		for id := range ids {
+			delete(c.termSubs, [3]string{machineID, sessionID, id})
+		}
+		c.mu.Unlock()
+	}
 	t.mu.Unlock()
+	h.fleetClientsChanged()
 	if m := h.localMachine(machineID); m != nil && r.synced != nil {
 		go h.terminalUnwatch(m, key) // the node may still drive it (a watch that timed out here but started there)
 	}

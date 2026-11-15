@@ -457,6 +457,13 @@ func (s *Service) autoFinishTask(t Todo, work time.Time, worked bool) {
 // stretch of work. A supervised task waits for its supervisor's review (never closed here); another is closed when
 // the judge found it done. autoFinishTask and Re-check with apply (doneCheckRoute) end here.
 func (s *Service) applyTaskDone(ctx context.Context, t Todo, work time.Time, worked bool, c taskDoneCheck, err error) {
+	if err == nil && c.WouldClose {
+		if active := s.taskCloseActivityError(ctx, t, time.Now()); active != nil {
+			s.deferTurnJudgment(ctx, t.ID)
+			s.logf("task %s: judgment deferred: %v", t.ID, active)
+			return
+		}
+	}
 	if ai.IsNotConfigured(err) {
 		// A missing provider is not a transient judge failure: keep the same localized explanation the settings row shows.
 		c = taskDoneCheck{Verdict: verdictWaiting, Reason: mc(s.lang(ctx), s.noAPIStatus(ctx))}

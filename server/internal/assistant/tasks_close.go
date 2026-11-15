@@ -173,7 +173,7 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 			continue
 		}
 		if s.retireAgent(ctx, refused, "task "+a.todo, a.machine, c, now) {
-			s.archiveRetiredTaskAgent(ctx, c)
+			s.archiveRetiredTaskAgent(ctx, a, c)
 		}
 	}
 }
@@ -236,7 +236,19 @@ func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who
 	return false
 }
 
-func (s *Service) archiveRetiredTaskAgent(ctx context.Context, c proto.Session) {
+func (s *Service) archiveRetiredTaskAgent(ctx context.Context, a doneTaskAgent, c proto.Session) {
+	// session.stop can take seconds; new ownership or owner activity wins over
+	// archiving the session the earlier snapshot said was safe to retire.
+	t, ok := s.todoNow(a.todo)
+	if !ok || t.DoneAt == nil || !t.DoneAt.Equal(a.doneAt) {
+		return
+	}
+	if open, _ := s.openTaskOf([2]string{a.machine, a.session}); open {
+		return
+	}
+	if s.sessionActivityReason(ctx, a.machine, a.session, time.Now()) != "" {
+		return
+	}
 	c.ReadOnlyReason = i18n.T(s.lang(ctx), "hub-agent_archives.task_closed")
 	if err := s.noteAgentArchive(ctx, c, true); err != nil {
 		s.logf("closed task agent %s/%s: archive: %v", c.MachineID, short(c.SessionID), err)

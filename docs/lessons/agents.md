@@ -1050,6 +1050,12 @@ Agent was never retired (#6819). Attribute such a turn with the owner's presence
 within the idle window) and keep an explicit task send (`noteAgentSend`) as the only override; test the direct-chat
 turn, not just `agent_send`.
 
+An owner-activity hold must leave the completion turn unjudged and retryable, including unsupervised tasks and saved
+judgments replayed after a later start. Do not spend failed-judgment retries while waiting for the owner to leave.
+Recheck task ownership, its closure timestamp and owner activity after a stop RPC too: a check before that call
+cannot protect a session linked or reopened while it is in flight. Ended terminal relays must remove their clients'
+terminal viewer entries and publish the departure without clearing independent chat subscriptions.
+
 ## Stopped-session ownership is not recovery permission (#8214)
 
 A `codex_history` source can be node-resumable while still rejecting ordinary messages. Keep the generic source-owned read-only guard; admit only the node-qualified terminal row to the explicit supervised Resume path. Persist user stops and fail closed on missing provenance instead of interpreting an old start time or a localized reason string as permission. A cached eligible row also needs a node-side recheck serialized with closes, and a new running observation must clear old eligibility. Keep this metadata in capabilities rather than enlarging the frequently copied Session row past its allocation size class.
