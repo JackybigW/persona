@@ -317,7 +317,12 @@ func overlayAgentArchives(machine string, list []proto.Session, records map[stri
 			if list[i].Archived && !rec.ClosedAt.IsZero() && rec.Session.ReadOnlyReason != "" && !agentArchiveBusy(list[i]) {
 				list[i].ReadOnlyReason = rec.Session.ReadOnlyReason
 				list[i].Status, list[i].State = proto.StatusOffline, proto.StateOffline
-				list[i].Capabilities = &proto.SessionCapabilities{Read: true, Terminal: list[i].PaneID != ""}
+				caps := &proto.SessionCapabilities{Read: true, Terminal: list[i].PaneID != ""}
+				if current := list[i].Capabilities; current != nil {
+					caps.Terminal = caps.Terminal || current.Terminal
+					caps.StopCause = current.StopCause
+				}
+				list[i].Capabilities = caps
 			}
 		}
 	}

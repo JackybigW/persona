@@ -237,8 +237,27 @@ func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who
 }
 
 func (s *Service) archiveRetiredTaskAgent(ctx context.Context, a doneTaskAgent, c proto.Session) {
+	// The inventory row predates session.stop. Read the node's saved result before
+	// native archival removes that row; neither the request nor task closure proves a stop cause.
+	var info struct {
+		StopCause proto.StopCause `json:"stop_cause"`
+	}
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	err := s.call(cctx, a.machine, "session.info", map[string]any{"session_id": a.session}, &info)
+	cancel()
+	caps := &proto.SessionCapabilities{Read: true}
+	if c.Capabilities != nil {
+		caps.Terminal = c.Capabilities.Terminal
+	}
+	if err == nil {
+		caps.StopCause = info.StopCause
+	} else {
+		s.logf("closed task agent %s/%s: stop provenance unavailable: %v", a.machine, short(a.session), err)
+	}
+	c.Capabilities = caps
+
 	// session.stop can take seconds; new ownership or owner activity wins over
-	// archiving the session the earlier snapshot said was safe to retire.
+	// archiving the session the earlier snapshot said was safe to retire, including during the provenance read.
 	t, ok := s.todoNow(a.todo)
 	if !ok || t.DoneAt == nil || !t.DoneAt.Equal(a.doneAt) {
 		return

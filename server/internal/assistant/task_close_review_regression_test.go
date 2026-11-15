@@ -90,12 +90,17 @@ func TestTaskJudgmentDefersAndRetriesOwnerActivity(t *testing.T) {
 
 type taskRetirementBarrier struct {
 	Hub
+	method  string
 	entered chan struct{}
 	release chan struct{}
 }
 
 func (h *taskRetirementBarrier) DeviceCall(ctx context.Context, p DeviceCall) (json.RawMessage, error) {
-	if p.Method == deviceSessionStop {
+	method := h.method
+	if method == "" {
+		method = deviceSessionStop
+	}
+	if p.Method == method {
 		close(h.entered)
 		select {
 		case <-h.release:
@@ -107,87 +112,89 @@ func (h *taskRetirementBarrier) DeviceCall(ctx context.Context, p DeviceCall) (j
 }
 
 func TestClosedTaskRetirementRechecksAfterStop(t *testing.T) {
-	for _, change := range []string{"new task", "reopen", "reclose", "view", "message"} {
-		t.Run(change, func(t *testing.T) {
-			ft, row := closeTestService(t, nil)
-			ft.f.setSessions("mac", row)
-			s, ctx := ft.s, context.Background()
-			gate := &taskRetirementBarrier{Hub: s.hub, entered: make(chan struct{}), release: make(chan struct{})}
-			s.hub = gate
-			todo, err := s.createTodo(ctx, "Disposable task", "Check the result", "conv1", "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := s.linkTodoAgent(ctx, todo.ID, "mac", row.SessionID, row.Title, "/code", "claude"); err != nil {
-				t.Fatal(err)
-			}
-			if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed", true); err != nil || !ok {
-				t.Fatalf("close: %v %v", ok, err)
-			}
-			s.todos.mu.Lock()
-			old := time.Now().Add(-time.Hour)
-			s.todos.todos[todo.ID].DoneAt = &old
-			s.todos.mu.Unlock()
-			finished := make(chan struct{})
-			go func() {
-				defer close(finished)
-				s.closeDoneTaskAgents(ctx, taskCloseRefused{})
-			}()
-			defer func() {
-				close(gate.release)
-				select {
-				case <-finished:
-				case <-time.After(5 * time.Second):
-					t.Error("retirement did not finish")
-				}
-			}()
-			select {
-			case <-gate.entered:
-			case <-time.After(5 * time.Second):
-				t.Fatal("session.stop was not reached")
-			}
-			switch change {
-			case "new task":
-				next, err := s.createTodo(ctx, "Next task", "Keep talking", "conv1", "")
+	for _, method := range []string{deviceSessionStop, "session.info"} {
+		for _, change := range []string{"new task", "reopen", "reclose", "view", "message"} {
+			t.Run(method+"/"+change, func(t *testing.T) {
+				ft, row := closeTestService(t, nil)
+				ft.f.setSessions("mac", row)
+				s, ctx := ft.s, context.Background()
+				gate := &taskRetirementBarrier{Hub: s.hub, method: method, entered: make(chan struct{}), release: make(chan struct{})}
+				s.hub = gate
+				todo, err := s.createTodo(ctx, "Disposable task", "Check the result", "conv1", "")
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := s.linkTodoAgent(ctx, next.ID, "mac", row.SessionID, row.Title, "/code", "claude"); err != nil {
+				if err := s.linkTodoAgent(ctx, todo.ID, "mac", row.SessionID, row.Title, "/code", "claude"); err != nil {
 					t.Fatal(err)
 				}
-			case "reopen", "reclose":
-				if err := s.reopenTodo(ctx, todo.ID); err != nil {
-					t.Fatal(err)
+				if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed", true); err != nil || !ok {
+					t.Fatalf("close: %v %v", ok, err)
 				}
-				if change == "reclose" {
-					if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed again", true); err != nil || !ok {
-						t.Fatalf("reclose: %v %v", ok, err)
+				s.todos.mu.Lock()
+				old := time.Now().Add(-time.Hour)
+				s.todos.todos[todo.ID].DoneAt = &old
+				s.todos.mu.Unlock()
+				finished := make(chan struct{})
+				go func() {
+					defer close(finished)
+					s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+				}()
+				defer func() {
+					close(gate.release)
+					select {
+					case <-finished:
+					case <-time.After(5 * time.Second):
+						t.Error("retirement did not finish")
 					}
+				}()
+				select {
+				case <-gate.entered:
+				case <-time.After(5 * time.Second):
+					t.Fatalf("%s was not reached", method)
 				}
-			case "view":
-				setTaskViewer(t, s, "mac", row.SessionID, true)
-			case "message":
-				s.rememberSessionActivity(ctx, "mac", row.SessionID)
-			}
-			// Let session.stop succeed after the concurrent change, before checking archive state.
-			select {
-			case gate.release <- struct{}{}:
-			case <-finished:
-				t.Fatal("session.stop ended before the fixture released it")
-			case <-time.After(5 * time.Second):
-				t.Fatal("session.stop did not wait for the fixture")
-			}
-			select {
-			case <-finished:
-			case <-time.After(5 * time.Second):
-				t.Fatal("session.stop did not return")
-			}
-			if len(retiredOf(ft)) != 1 {
-				t.Fatal("fixture did not complete its stop RPC")
-			}
-			if archivedIDs(t, s)[row.SessionID] {
-				t.Fatal("archived an Agent after ownership or activity changed during session.stop")
-			}
-		})
+				switch change {
+				case "new task":
+					next, err := s.createTodo(ctx, "Next task", "Keep talking", "conv1", "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := s.linkTodoAgent(ctx, next.ID, "mac", row.SessionID, row.Title, "/code", "claude"); err != nil {
+						t.Fatal(err)
+					}
+				case "reopen", "reclose":
+					if err := s.reopenTodo(ctx, todo.ID); err != nil {
+						t.Fatal(err)
+					}
+					if change == "reclose" {
+						if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed again", true); err != nil || !ok {
+							t.Fatalf("reclose: %v %v", ok, err)
+						}
+					}
+				case "view":
+					setTaskViewer(t, s, "mac", row.SessionID, true)
+				case "message":
+					s.rememberSessionActivity(ctx, "mac", row.SessionID)
+				}
+				// Let the blocked RPC succeed after the concurrent change, before checking archive state.
+				select {
+				case gate.release <- struct{}{}:
+				case <-finished:
+					t.Fatalf("%s ended before the fixture released it", method)
+				case <-time.After(5 * time.Second):
+					t.Fatalf("%s did not wait for the fixture", method)
+				}
+				select {
+				case <-finished:
+				case <-time.After(5 * time.Second):
+					t.Fatalf("%s did not return", method)
+				}
+				if len(retiredOf(ft)) != 1 {
+					t.Fatal("fixture did not complete its stop RPC")
+				}
+				if archivedIDs(t, s)[row.SessionID] {
+					t.Fatalf("archived an Agent after ownership or activity changed during %s", method)
+				}
+			})
+		}
 	}
 }
