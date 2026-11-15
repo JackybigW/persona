@@ -266,7 +266,7 @@ it("keeps a remembered Agent chat on screen when its refresh fails", () => {
   const html = renderToStaticMarkup(<ChatView mid="hub" sid="c1" />);
   expect(html).toContain("Kept reply");
   expect(html).toContain(t("chat-chatview.refresh_failed"));
-  expect(html).not.toContain(t("chat-chatview.retry"));
+  expect(html).not.toContain(t("app.retry"));
 });
 
 describe("the line under the composer (#3533, #5324)", () => {
