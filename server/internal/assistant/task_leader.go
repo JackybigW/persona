@@ -598,7 +598,13 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 		}
 	}
 	verdict, note, over := a.Verdict, clip(a.Note, 2000), false
+	var criteriaErr error
 	v, _, err := s.updateSupervision(ctx, t.ID, func(v *Supervision) bool {
+		if verdict == reviewAccepted {
+			if criteriaErr = completeReviewCriteriaError(v.DoneWhen, a.Checks); criteriaErr != nil {
+				return false
+			}
+		}
 		if verdict == reviewRework && v.Round >= maxReworkRounds {
 			verdict, over = reviewNeedsUser, true
 		}
@@ -616,6 +622,9 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 	})
 	if err != nil {
 		return "", err
+	}
+	if criteriaErr != nil {
+		return "", criteriaErr
 	}
 	if verdict == reviewNeedsUser && up == "" {
 		up = s.settings(ctx).Main // reworked too often with nobody above the leader: the main conversation
