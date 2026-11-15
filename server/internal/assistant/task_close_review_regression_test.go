@@ -4,11 +4,88 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/proto"
 )
+
+// Activity holds completion judgments, not the independent lifecycle of a start that never linked an Agent.
+func TestTaskJudgmentActivityHoldDoesNotBlockStartRemedy(t *testing.T) {
+	for _, activity := range []string{"message", "view"} {
+		for _, finish := range []string{"supervisor turn", "tab expiry"} {
+			t.Run(activity+"/"+finish, func(t *testing.T) {
+				s, f, todo := newSupervisedService(t)
+				ctx := context.Background()
+				items := turnPage("finished-turn", "The change is finished.", true)
+				f.setItems(items...)
+				row := turnRow(proto.StatusDone, 3, "The change is finished.")
+				nodeListed(s, f, row)
+				end, _ := turnEndOf(items)
+				s.takeTurn(ctx, todo, row, items, end, true, todo.CreatedAt.Add(time.Millisecond), turnDone)
+				if activity == "view" {
+					setTaskViewer(t, s, row.MachineID, row.SessionID, true)
+				} else {
+					s.rememberSessionActivity(ctx, row.MachineID, row.SessionID)
+				}
+				if s.recoverTurn(ctx, todo, row) {
+					t.Fatal("owner activity did not hold the completion judgment")
+				}
+
+				failed, plan := remedyingTask(t, s, f, keptRefusal(proto.CodeShellWaiting))
+				waitFor(t, "the failed-start supervision message", func() bool { return len(f.notices()) == 1 })
+				if len(failed.Agents) != 0 || s.taskCloseActivityError(ctx, failed, time.Now()) != nil {
+					t.Fatal("a start without a linked Agent inherited another task's activity")
+				}
+				s.watchTurn(ctx, failed, nil)
+				if e, ok := s.turnOf(ctx, failed.ID); ok {
+					t.Fatalf("a start without an Agent entered completion recovery: %+v", e)
+				}
+				if _, _, _, r, err := s.remedyTool(ctx, "conv1", failed.ID); err != nil || r.State != remedying {
+					t.Fatalf("the pending start lost its remedy controls: start=%+v err=%v", r, err)
+				}
+				by := "assistant"
+				if finish == "supervisor turn" {
+					s.remedyTurnEnded(ctx, "conv1")
+				} else {
+					if err := s.patchPlanTask(ctx, plan.ID, 0, func(pt *PlanTask) {
+						pt.Start.Until = time.Now().Add(-time.Second)
+					}); err != nil {
+						t.Fatal(err)
+					}
+					s.remedyWatch(ctx, todoNow(s, failed.ID), time.Now())
+					by = "hub"
+				}
+				if now := todoNow(s, failed.ID); now.DoneAt == nil || now.StartError == "" {
+					t.Fatalf("the completion hold blocked failed-start finalization: %+v", now)
+				}
+				if r := remedyState(t, s, plan.ID); r == nil || r.State != remedyFailed || r.By != by {
+					t.Fatalf("failed-start finalization: %+v", r)
+				}
+				history := remedyHistory(t, s, failed.ID)
+				if !slices.Contains(history, feedReceipt) || !slices.Contains(history, feedStartRemedy+"/gave_up/"+by) {
+					t.Fatalf("failed-start finalization lost its receipt: %v", history)
+				}
+				if s.recoverTurn(ctx, todo, row) {
+					t.Fatal("failed-start finalization released the owner's completion hold")
+				}
+				if now := todoNow(s, todo.ID); now.DoneAt != nil || now.Check != nil || now.Supervision.State == reviewPending {
+					t.Fatalf("failed-start finalization changed the active task: %+v", now)
+				}
+				if e, _ := s.turnOf(ctx, todo.ID); e.Judged != nil {
+					t.Fatalf("the active task's pending judgment was consumed: %+v", e.Judged)
+				}
+				f.mu.Lock()
+				judged := f.judged
+				f.mu.Unlock()
+				if judged != 0 {
+					t.Fatalf("owner activity called the completion judge %d times", judged)
+				}
+			})
+		}
+	}
+}
 
 func TestTaskJudgmentDefersAndRetriesOwnerActivity(t *testing.T) {
 	for _, supervised := range []bool{false, true} {
