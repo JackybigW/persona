@@ -1919,7 +1919,8 @@ scroll area, so a long conversation cannot hide it. It names the completed/cance
 while the session remains writable it says the user can keep chatting. Active task ownership suppresses this historical
 line. A stopped Agent instead gives its explicit stop reason beside the existing Terminal and Resume actions, never a
 promise that another message can be sent. There is no new setting, style, notification, count or automatic confirmation.
-The ownership notice loads only when needed, keeping it out of the first-screen startup budget.
+The ownership notice and stopped/archived-session recovery controls load only when needed, keeping them out of the
+first-screen startup budget without changing their layout, text or actions. Session-detail load errors stay eager.
 
 ## UI change self-check
 

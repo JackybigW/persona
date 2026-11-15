@@ -14,17 +14,19 @@ export function StoppedAgentLine({ mid, sid, onTerminal, reason }: { mid: string
       <Icon name="stop" size={13} className="shrink-0 text-ink-3" />
       <span className="min-w-0 flex-1 basis-48 break-words">{reason || t("chat-chatview.stopped_line")}</span>
       <span className="flex shrink-0 items-center gap-1.5">
-        <Button tone="quiet" icon="terminal" onClick={onTerminal}>{t("chat-chatview.terminal")}</Button>
+        <Button tone="quiet" icon="terminal" onClick={onTerminal}>{t("lib-terminals.terminal")}</Button>
         <Button
           tone="secondary"
           icon="play"
           busy={resume.phase === "resuming"}
           onClick={() => void resumeInTerminal(mid, sid, onTerminal)}
         >
-          {t("chat-chatview.resume")}
+          {t("chat-closed-task.resume")}
         </Button>
       </span>
-      {resume.phase === "failed" && <p role="alert" className="w-full break-words text-red">{t("chat-chatview.resume_failed", { error: resume.error })}</p>}
+      {resume.phase === "failed" && <p role="alert" className="w-full break-words text-red">{t("chat-closed-task.resume_failed", { error: resume.error })}</p>}
     </div>
   );
 }
+
+export default StoppedAgentLine;
