@@ -70,7 +70,7 @@ function CommandEvidence({ items, loading, retry }: { items: CloseoutCommandEvid
       <ul className="flex min-w-0 flex-col gap-2">
         {items.map((item) => <CommandEvidenceLine key={item.claim} item={item} />)}
       </ul>
-      {retry && <Button size="sm" tone="quiet" icon="retry" busy={loading} onClick={retry}>{t("app.retry")}</Button>}
+      {retry && <Button size="sm" tone="quiet" icon="retry" busy={loading} onClick={retry}>{t("chat-chatview.retry")}</Button>}
     </div>
   );
 }

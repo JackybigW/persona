@@ -28,7 +28,7 @@ export function FailureNote({ session, onRetry }: { session: Session; onRetry: (
       actions={
         <>
           <Button icon="retry" size="sm" className="touch-hit" testId="chat-failure-retry" title={t("chat-lines.retry_title")} onClick={onRetry}>
-            {t("app.retry")}
+            {t("chat-chatview.retry")}
           </Button>
           {link && (
             <Button icon="external" size="sm" className="touch-hit" testId="chat-failure-lark" href={link}>

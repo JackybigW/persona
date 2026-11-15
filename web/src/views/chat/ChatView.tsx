@@ -504,7 +504,7 @@ export function ChatView({ mid, sid, assistant, starting: launching, onToggleSid
   const refusedNoRow = noRow && !isMain;
   const unknownGate = useRef({ isMain, gone: detail.missing });
   unknownGate.current = { isMain, gone: detail.missing };
-  const noRowBlock = useMemo(() => (refusedNoRow ? { label: t(gone ? "chat-chatview.session_gone" : "sidebar.connecting") } : undefined), [refusedNoRow, gone]);
+  const noRowBlock = useMemo(() => (refusedNoRow ? { label: t(gone ? "chat-chatview.session_gone" : "chat-chatview.connecting") } : undefined), [refusedNoRow, gone]);
   // A Persona conversation without a title yet is "New chat", as All chats and the sidebar call it, not its folder's name (#1697)
   const named = session ?? archivedHere;
   // the hub has no such chat and nothing of it is here (no row, no cached lines, no message kept in this browser):
@@ -1958,7 +1958,7 @@ export function ChatView({ mid, sid, assistant, starting: launching, onToggleSid
               <div className="flex flex-col items-center gap-3 py-16 text-center">
                 <p className="text-[13px] text-ink-2">{tr.error}</p>
                 <Button onClick={tr.reload} icon="retry">
-                  {t("app.retry")}
+                  {t("chat-chatview.retry")}
                 </Button>
               </div>
             )}

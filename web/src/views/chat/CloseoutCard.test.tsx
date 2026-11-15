@@ -91,7 +91,7 @@ describe("CloseoutCard command evidence", () => {
     expect(expand).toHaveBeenCalledWith(fold);
     expect(host.querySelector("[data-closeout-command-evidence='unavailable']")).not.toBeNull();
     expect(host.querySelector("[data-closeout-command-evidence='not_found']")).toBeNull();
-    const retry = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === t("app.retry"));
+    const retry = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === t("chat-chatview.retry"));
     expect(retry).toBeDefined();
     await act(async () => retry!.click());
     expect(expand).toHaveBeenCalledTimes(2);
@@ -106,7 +106,7 @@ describe("CloseoutCard command evidence", () => {
     await draw({ ...exchange("npm run build"), id: segment.id }, expand);
     expect(host.querySelector("[data-closeout-command-evidence='unavailable']")).not.toBeNull();
     expect(host.querySelector("[data-closeout-command-evidence='not_found']")).toBeNull();
-    const retry = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === t("app.retry"));
+    const retry = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === t("chat-chatview.retry"));
     await act(async () => retry!.click());
     expect(expand).toHaveBeenLastCalledWith(fold);
     await draw(exchange(), expand);

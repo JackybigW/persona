@@ -220,7 +220,7 @@ export default memo(function EarlierStretches({ mid, sid, scope, history, live, 
       {error && (
         <div role="alert" className="flex flex-col items-center gap-2 py-2 text-center" data-engine-stretch-error>
           <p className="text-[13px] text-ink-2 [overflow-wrap:anywhere]">{t("chat-engine.earlier_failed", { error })}</p>
-          <Button onClick={retry} icon="retry">{t("app.retry")}</Button>
+          <Button onClick={retry} icon="retry">{t("chat-chatview.retry")}</Button>
         </div>
       )}
       {stretches.map((s, i) => <StretchLines key={s.key} mid={mid} stretch={s} lines={stretchRows[i].lines} skipDays={skipByStretch[i]} offscreen={offscreen} />)}
