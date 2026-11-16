@@ -92,7 +92,7 @@ func TestTaskJudgmentActivityHoldDoesNotBlockStartRemedy(t *testing.T) {
 					}); err != nil {
 						t.Fatal(err)
 					}
-					s.remedyWatch(ctx, todoNow(s, failed.ID), time.Now())
+					s.remedyWatch(ctx, todoNow(s, failed.ID), time.Now(), s.planHistoryOnce())
 					by = "hub"
 				}
 				if now := todoNow(s, failed.ID); now.DoneAt == nil || now.StartError == "" {

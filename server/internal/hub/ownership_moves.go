@@ -227,7 +227,6 @@ func (h *Hub) readOwnersMoving(ctx context.Context) error {
 // withdraws the other managers' cards on it, cuts the relays another manager has for it (Persona Link comes back to
 // to), tells the managers their mutes, and hands every manager its machines again.
 func (h *Hub) machineHandedOver(mid, to string) {
-	h.fleetClientsRefresh()
 	h.withdrawCardsOn(mid, to)
 	h.cutRelays("", mid)
 	defer h.mutesChanged()
@@ -242,6 +241,7 @@ func (h *Hub) machineHandedOver(mid, to string) {
 		h.sessionsChanged(m)
 	}
 	h.devicesConfigChanged()
+	h.fleetClientsRefresh()
 }
 
 // releaseMachines gives the machines removed manager id carried back to the carrier. Called under removingManager.
