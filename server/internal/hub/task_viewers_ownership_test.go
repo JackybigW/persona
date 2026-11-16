@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
@@ -116,101 +118,121 @@ func TestTaskViewerRefreshWaitsForMachineHandover(t *testing.T) {
 	a, b := assistantwire.AssistantID, "m-0b0b0b"
 	for _, from := range []string{a, b} {
 		t.Run("from "+from, func(t *testing.T) {
-			to := b
-			if from == b {
-				to = a
-			}
-			h := newTestHub(t)
-			h.bus.idents = &memIdents{}
-			h.cfg.Machines = []MachineConfig{{ID: "box", Name: "Box", Kind: "local"}}
-			m := newMachine(h, h.cfg.Machines[0])
-			m.owner, m.online, m.connected = from, true, true
-			registerMachine(h, m)
-			view := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
-			h.clients[&client{subs: map[[2]string]bool{{"box", "agent"}: true}}] = struct{}{}
-			// The page has not changed, so the handover must force a new scoped report.
-			h.reported.clients = assistantwire.Clients{Viewing: view}
-			h.reported.clientsSent = true
-			type report struct {
-				manager, assigned, cached string
-				online, connected         bool
-				viewing                   []assistantwire.SessionRef
-			}
-			reports := make(chan report, 8)
-			allow := make(chan struct{})
-			unblock := sync.OnceFunc(func() { close(allow) })
-			for _, id := range []string{a, b} {
-				c := rosterConn(h, id, writerFunc(func(raw []byte) (int, error) {
-					var event struct {
-						Event  string
-						Params assistantwire.Clients
+			var updated atomic.Int32
+			// Keep the handover's delayed manager/config notifications inside this fixture's lifetime.
+			synctest.Test(t, func(t *testing.T) {
+				to := b
+				if from == b {
+					to = a
+				}
+				h := newTestHub(t)
+				h.bus.idents = &memIdents{}
+				h.cfg.Machines = []MachineConfig{{ID: "box", Name: "Box", Kind: "local"}}
+				m := newMachine(h, h.cfg.Machines[0])
+				m.owner, m.online, m.connected = from, true, true
+				registerMachine(h, m)
+				view := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
+				addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
+				// The page has not changed, so the handover must force a new scoped report.
+				h.reported.clients = assistantwire.Clients{Viewing: view}
+				h.reported.clientsSent = true
+				type report struct {
+					manager, assigned, cached string
+					online, connected         bool
+					viewing                   []assistantwire.SessionRef
+				}
+				reports := make(chan report, 8)
+				notifications := make(chan struct{}, 2)
+				allow := make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(allow) })
+				for _, id := range []string{a, b} {
+					c := rosterConn(h, id, writerFunc(func(raw []byte) (int, error) {
+						var event struct {
+							Event  string
+							Params assistantwire.Clients
+						}
+						if err := json.Unmarshal(raw, &event); err != nil {
+							return 0, err
+						}
+						if event.Event == assistantwire.EventClients {
+							got := report{manager: id, assigned: h.entryOwner("box"), viewing: event.Params.Viewing}
+							m.mu.Lock()
+							got.cached, got.online, got.connected = m.owner, m.online, m.connected
+							m.mu.Unlock()
+							reports <- got
+							// Stop at the first write: a later notification cannot hide an incomplete handover.
+							<-allow
+						}
+						if event.Event == assistantwire.EventUpdated {
+							updated.Add(1)
+							notifications <- struct{}{}
+						}
+						return len(raw), nil
+					}))
+					c.presence = busPresence{ID: id, Role: bus.RoleManager}
+				}
+				// moveMachineMoving commits the assignment before handing over the cached machine.
+				h.devices.assign = map[string]string{"box": to}
+				done := make(chan struct{})
+				go func() {
+					h.machineHandedOver("box", to)
+					close(done)
+				}()
+				defer func() {
+					unblock()
+					select {
+					case <-done:
+					case <-time.After(3 * time.Second):
+						t.Error("handover did not finish after unblocking its notification")
 					}
-					if err := json.Unmarshal(raw, &event); err != nil {
-						return 0, err
-					}
-					if event.Event == assistantwire.EventClients {
-						got := report{manager: id, assigned: h.entryOwner("box"), viewing: event.Params.Viewing}
-						m.mu.Lock()
-						got.cached, got.online, got.connected = m.owner, m.online, m.connected
-						m.mu.Unlock()
-						reports <- got
-						// Stop at the first write: a later notification cannot hide an incomplete handover.
-						<-allow
-					}
-					return len(raw), nil
-				}))
-				c.presence = busPresence{ID: id, Role: bus.RoleManager}
-			}
-			// moveMachineMoving commits the assignment before handing over the cached machine.
-			h.devices.assign = map[string]string{"box": to}
-			done := make(chan struct{})
-			go func() {
-				h.machineHandedOver("box", to)
-				close(done)
-			}()
-			defer func() {
+				}()
+				var first report
+				select {
+				case first = <-reports:
+				case <-time.After(3 * time.Second):
+					t.Fatal("handover did not refresh the unchanged global viewer set")
+				}
 				unblock()
 				select {
 				case <-done:
 				case <-time.After(3 * time.Second):
-					t.Error("handover did not finish after unblocking its notification")
+					t.Fatal("handover did not finish")
 				}
-			}()
-			var first report
-			select {
-			case first = <-reports:
-			case <-time.After(3 * time.Second):
-				t.Fatal("handover did not refresh the unchanged global viewer set")
-			}
-			unblock()
-			select {
-			case <-done:
-			case <-time.After(3 * time.Second):
-				t.Fatal("handover did not finish")
-			}
-			got := []report{first}
-			for len(reports) > 0 {
-				got = append(got, <-reports)
-			}
-			if len(got) != 2 {
-				t.Fatalf("one handover sent %d viewer reports, want one per manager", len(got))
-			}
-			seen := map[string]bool{}
-			for _, r := range got {
-				if seen[r.manager] {
-					t.Errorf("duplicate viewer report to %s", r.manager)
+				got := []report{first}
+				for len(reports) > 0 {
+					got = append(got, <-reports)
 				}
-				seen[r.manager] = true
-				if r.assigned != to || r.cached != to || r.online || r.connected {
-					t.Errorf("viewer report preceded the completed handover: %+v, want owner %s and offline", r, to)
+				if len(got) != 2 {
+					t.Fatalf("one handover sent %d viewer reports, want one per manager", len(got))
 				}
-				var want []assistantwire.SessionRef
-				if r.manager == to {
-					want = view
+				seen := map[string]bool{}
+				for _, r := range got {
+					if seen[r.manager] {
+						t.Errorf("duplicate viewer report to %s", r.manager)
+					}
+					seen[r.manager] = true
+					if r.assigned != to || r.cached != to || r.online || r.connected {
+						t.Errorf("viewer report preceded the completed handover: %+v, want owner %s and offline", r, to)
+					}
+					var want []assistantwire.SessionRef
+					if r.manager == to {
+						want = view
+					}
+					if !reflect.DeepEqual(r.viewing, want) {
+						t.Errorf("%s viewer scope = %+v, want %+v", r.manager, r.viewing, want)
+					}
 				}
-				if !reflect.DeepEqual(r.viewing, want) {
-					t.Errorf("%s viewer scope = %+v, want %+v", r.manager, r.viewing, want)
+				for range 2 {
+					select {
+					case <-notifications:
+					case <-time.After(3 * time.Second):
+						t.Fatal("handover's downstream manager notification did not finish")
+					}
 				}
+				synctest.Wait()
+			})
+			if got := updated.Load(); got != 2 {
+				t.Fatalf("fixture returned before downstream manager notifications finished: got %d, want 2", got)
 			}
 		})
 	}

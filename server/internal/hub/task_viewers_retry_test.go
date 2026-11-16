@@ -21,7 +21,7 @@ func TestTaskViewerReportsRetryAfterAllManagersFail(t *testing.T) {
 			owners := []string{"manager-a", "manager-b"}
 			h.devices.kept = map[string]string{"box": owners[0]}
 			view := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
-			h.clients[&client{subs: map[[2]string]bool{{"box", "agent"}: true}}] = struct{}{}
+			addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
 			failing := true
 			attempts := 0
 			reports := map[string]assistantwire.Clients{}

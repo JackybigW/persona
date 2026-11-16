@@ -11,6 +11,56 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
+func TestTaskReworkWaitsForOwnerBeforeIndependentReviewRound(t *testing.T) {
+	shortTurnRetries(t, time.Nanosecond)
+	s, f, todo := newSupervisedService(t)
+	ctx := context.Background()
+	waitsForReview(t, s, f, todo.ID, "Choose how the change should roll out.")
+	if _, err := reviewErr(s, todo.ID, rolloutDecision()); err != nil {
+		t.Fatal(err)
+	}
+	oldDecision := askOf(s, todo.ID)
+	s.UserSpoke(ctx, SessionRef{MachineID: "box", SessionID: "s1"})
+	if got := askOf(s, todo.ID); got.AgentReply == nil {
+		t.Fatal("the first round's decision was not paused")
+	}
+	if _, err := reviewErr(s, todo.ID, map[string]any{"verdict": reviewRework, "note": "Revise the rollout plan."}); err != nil {
+		t.Fatal(err)
+	}
+	current := todoNow(s, todo.ID)
+	items := turnPage("after-supervised-rework", "The revised change is ready.", true)
+	f.setItems(items...)
+	row := turnRow(proto.StatusDone, 4, "The revised change is ready.")
+	nodeListed(s, f, row)
+	end, _ := turnEndOf(items)
+	work := time.Now()
+	s.takeTurn(ctx, current, row, items, end, true, work, turnDone)
+	feed := feedKinds(s, todo.Origin)
+	s.applyTaskDone(ctx, current, work, true, taskDoneCheck{Verdict: verdictDone, WouldClose: true, Reason: "Rework checked"}, nil)
+	sweeps(t, s, todo.ID, turnJudgeTries+2)
+	if e, _ := s.turnOf(ctx, todo.ID); e.Judged != nil {
+		t.Fatalf("recent owner activity settled the rework's judgment: %+v", e.Judged)
+	}
+	if got := todoNow(s, todo.ID); got.DoneAt != nil || got.Supervision.State != reviewRework ||
+		got.Supervision.Round != 1 || feedKinds(s, todo.Origin) != feed {
+		t.Fatalf("recent activity advanced the rework's review round: %+v", got.Supervision)
+	}
+	s.taskActivity.mu.Lock()
+	s.taskActivity.times[runtimeListID("box", "s1")] = time.Now().Add(-taskUserIdle - time.Second)
+	s.taskActivity.mu.Unlock()
+	sweeps(t, s, todo.ID, 2)
+	if got := todoNow(s, todo.ID); got.DoneAt != nil || got.Supervision.State != reviewPending || got.Supervision.Round != 1 {
+		t.Fatalf("inactivity did not release the rework's independent review: %+v", got.Supervision)
+	}
+	if _, err := reviewErr(s, todo.ID, rolloutDecision()); err != nil {
+		t.Fatal(err)
+	}
+	if got := askOf(s, todo.ID); got == nil || got.AgentReply != nil || !got.DueAt.IsZero() ||
+		got.AskedAt.Equal(oldDecision.AskedAt) {
+		t.Fatalf("the earlier decision pause leaked into the new round: %+v", got)
+	}
+}
+
 func TestClosedTaskJudgmentIsDroppedBeforeOwnerActivityHold(t *testing.T) {
 	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
 		for _, activity := range []string{"message", "view"} {
