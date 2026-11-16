@@ -131,8 +131,9 @@ final class TerminalFeed {
     }
 
     func stop(_ model: AppModel) {
-        if mode == .stream { model.terminalUnsubscribe(key) }
+        model.terminalUnsubscribe(key)
         subscribed = false
+        unsupported = false // a retained page registers again when it becomes visible
         waitingSince = nil // back on screen it asks afresh, with a wait of its own
     }
 
@@ -172,7 +173,7 @@ final class TerminalFeed {
     }
 
     private func subscribe(_ model: AppModel, continuing: Bool) {
-        let drive = willDrive(model)
+        let drive = !unsupported && willDrive(model)
         if drive, control == .off { control = .starting }
         // Answered for sure: a stream from its whole frame, and taking it over (terminal_control). One continuing from
         // the frame it has may hear nothing of an idle pane, which is no failure.
@@ -306,7 +307,7 @@ final class TerminalFeed {
             // until the next try is answered (with "Wrap" between tries, it read as a mirror that had given up, #6327).
             if offline, control == .active || control == .starting { control = .off } else if control == .active { control = .starting }
         case .reconnected:
-            if mode == .stream { subscribe(model, continuing: true) }
+            if mode == .stream || unsupported { subscribe(model, continuing: true) }
         case .control(let state, _, _, let why):
             controlChanged(state, why: why)
         }

@@ -500,8 +500,9 @@ func (h *Hub) clientsSettle(c *busConn) {
 	}()
 }
 
-// fleetConnected: the manager's handshake went through: it is told what of the apps it needs.
-func (h *Hub) fleetConnected() {
+// fleetClientsRefresh also tells connected managers after an ownership change: their scoped viewers can change
+// even when the global viewer set does not.
+func (h *Hub) fleetClientsRefresh() {
 	f := &h.reported
 	f.mu.Lock()
 	f.clientsSent = false

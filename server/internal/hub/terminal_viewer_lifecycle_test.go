@@ -40,7 +40,7 @@ func waitTerminalViewerReport(t *testing.T, h *Hub, want []assistantwire.Session
 	t.Fatalf("fleet viewer report = %+v, want %+v", terminalViewerReport(h), want)
 }
 
-func TestTerminalWatchFailureClearsOnlyEndedViewerAndRefreshesReport(t *testing.T) {
+func TestTerminalWatchFailureKeepsPagesUntilTheyLeave(t *testing.T) {
 	h := newTestHub(t)
 	boardNode(t, h, "m1", func(_ context.Context, method string, params json.RawMessage) (any, error) {
 		if method != "terminal.watch" {
@@ -77,8 +77,17 @@ func TestTerminalWatchFailureClearsOnlyEndedViewerAndRefreshesReport(t *testing.
 	}
 
 ended:
-	want := []assistantwire.SessionRef{{MachineID: "m1", SessionID: "chat"}, {MachineID: "m1", SessionID: "survivor"}}
+	want := []assistantwire.SessionRef{
+		{MachineID: "m1", SessionID: "chat"},
+		{MachineID: "m1", SessionID: "failed"},
+		{MachineID: "m1", SessionID: "survivor"},
+	}
 	waitTerminalViewerReport(t, h, want)
+	h.terminalUnsubscribe(c, "m1", "failed")
+	waitTerminalViewerReport(t, h, []assistantwire.SessionRef{
+		{MachineID: "m1", SessionID: "chat"},
+		{MachineID: "m1", SessionID: "survivor"},
+	})
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.termSubs[[3]string{"m1", "failed", "m1"}] {
@@ -92,7 +101,7 @@ ended:
 	}
 }
 
-func TestTerminalsEndedClearsMachineViewersAndKeepsChat(t *testing.T) {
+func TestTerminalsEndedKeepsPagesAndTheirIndependentChat(t *testing.T) {
 	h := newTestHub(t)
 	boardNode(t, h, "m1", func(context.Context, string, json.RawMessage) (any, error) {
 		return map[string]any{"control": false}, nil
@@ -102,8 +111,14 @@ func TestTerminalsEndedClearsMachineViewersAndKeepsChat(t *testing.T) {
 	h.terminalSubscribe(context.Background(), c, "m1", "two", "", 0, nil, false)
 	h.terminalsEnded("m1", "machine disconnected")
 
-	want := []assistantwire.SessionRef{{MachineID: "m1", SessionID: "chat"}}
+	want := []assistantwire.SessionRef{
+		{MachineID: "m1", SessionID: "chat"},
+		{MachineID: "m1", SessionID: "one"},
+		{MachineID: "m1", SessionID: "two"},
+	}
 	waitTerminalViewerReport(t, h, want)
+	h.terminalDrop(c)
+	waitTerminalViewerReport(t, h, []assistantwire.SessionRef{{MachineID: "m1", SessionID: "chat"}})
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.termSubs) != 0 {
@@ -114,7 +129,7 @@ func TestTerminalsEndedClearsMachineViewersAndKeepsChat(t *testing.T) {
 	}
 }
 
-func TestTerminalEndedPublishesDepartureWithConnectedViewers(t *testing.T) {
+func TestTerminalEndedKeepsConnectedPagesUntilTheirLastDeparture(t *testing.T) {
 	h := newTestHub(t)
 	boardNode(t, h, "m1", func(context.Context, string, json.RawMessage) (any, error) {
 		return map[string]any{"control": false}, nil
@@ -128,13 +143,17 @@ func TestTerminalEndedPublishesDepartureWithConnectedViewers(t *testing.T) {
 		{MachineID: "m1", SessionID: "ended"},
 	})
 	h.terminalEnded("m1", "ended", "stream ended", nil)
-	waitTerminalViewerReport(t, h, []assistantwire.SessionRef{{MachineID: "m1", SessionID: "chat"}})
+	want := []assistantwire.SessionRef{
+		{MachineID: "m1", SessionID: "chat"},
+		{MachineID: "m1", SessionID: "ended"},
+	}
+	waitTerminalViewerReport(t, h, want)
 	for _, c := range clients {
 		c.mu.Lock()
 		remaining := len(c.termSubs)
 		c.mu.Unlock()
-		if remaining != 0 {
-			t.Fatal("ended terminal left a viewer on a connected client")
+		if remaining != 1 {
+			t.Fatal("ending the stream removed the still-connected terminal page")
 		}
 		h.mu.Lock()
 		_, connected := h.clients[c]
@@ -143,6 +162,50 @@ func TestTerminalEndedPublishesDepartureWithConnectedViewers(t *testing.T) {
 			t.Fatal("fixture disconnected the WebSocket instead of clearing its terminal")
 		}
 	}
+	h.terminalUnsubscribe(clients[0], "m1", "ended")
+	waitTerminalViewerReport(t, h, want)
+	h.terminalDrop(clients[1])
+	waitTerminalViewerReport(t, h, []assistantwire.SessionRef{{MachineID: "m1", SessionID: "chat"}})
+}
+
+func TestUnsupportedTerminalStreamKeepsItsTerminalOnlyViewer(t *testing.T) {
+	h := newTestHub(t)
+	boardNode(t, h, "m1", func(context.Context, string, json.RawMessage) (any, error) {
+		return nil, errors.New("unknown method: terminal.watch")
+	})
+	c := terminalViewerClient(h)
+	c.mu.Lock()
+	c.subs = nil
+	c.mu.Unlock()
+	h.terminalSubscribe(context.Background(), c, "m1", "polling", "", 0, nil, false)
+
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case raw := <-c.out:
+			var msg struct {
+				Error       string `json:"error"`
+				Unsupported bool   `json:"unsupported"`
+			}
+			_ = json.Unmarshal(raw, &msg)
+			if msg.Unsupported && msg.Error != "" {
+				goto polling
+			}
+		case <-deadline:
+			t.Fatal("the connected terminal page was not told to poll")
+		}
+	}
+
+polling:
+	h.terms.mu.Lock()
+	relay := h.terms.relays[[2]string{"m1", "polling"}]
+	h.terms.mu.Unlock()
+	if relay != nil {
+		t.Fatal("unsupported terminal left its stream running")
+	}
+	waitTerminalViewerReport(t, h, []assistantwire.SessionRef{{MachineID: "m1", SessionID: "polling"}})
+	h.terminalUnsubscribe(c, "m1", "polling")
+	waitTerminalViewerReport(t, h, nil)
 }
 
 func TestTerminalDropCleansViewerWhenRelayIsAlreadyGone(t *testing.T) {

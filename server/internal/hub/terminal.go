@@ -129,8 +129,8 @@ func (h *Hub) terminalSubscribe(ctx context.Context, c *client, machineID, sessi
 	key := [2]string{machineID, sessionID}
 	t := &h.terms
 	t.mu.Lock()
-	// Keep the viewer record in step with the relay while holding its lock. terminalEnded uses the same lock when it
-	// clears ended relays, so a late cleanup cannot remove a replacement subscription.
+	// Page presence outlives the stream: an unsupported stream keeps being viewed through screen polling.
+	// Only terminalLeave (unsubscribe or client disconnect) removes this record.
 	c.mu.Lock()
 	if c.termSubs == nil {
 		c.termSubs = map[[3]string]bool{}
@@ -604,17 +604,7 @@ func (h *Hub) terminalEnded(machineID, sessionID, why string, only *termRelay) {
 		return
 	}
 	delete(t.relays, key)
-	// A terminal's viewer entry outlives its relay unless it is removed here. Do this under the relay lock so a new
-	// subscription for this key cannot be mistaken for the ended relay's subscription.
-	for c, ids := range r.subs {
-		c.mu.Lock()
-		for id := range ids {
-			delete(c.termSubs, [3]string{machineID, sessionID, id})
-		}
-		c.mu.Unlock()
-	}
 	t.mu.Unlock()
-	h.fleetClientsChanged()
 	if m := h.localMachine(machineID); m != nil && r.synced != nil {
 		go h.terminalUnwatch(m, key) // the node may still drive it (a watch that timed out here but started there)
 	}

@@ -90,6 +90,7 @@ class TerminalViewModel(val key: SessionKey, private val transport: TerminalTran
     suspend fun run(): Unit = coroutineScope {
         check(!running)
         running = true
+        unsupported = false; retryAt = 0 // a retained page registers again when it becomes visible
         val receiver = launch(start = CoroutineStart.UNDISPATCHED) {
             transport.events.collect { event ->
                 when (event) {

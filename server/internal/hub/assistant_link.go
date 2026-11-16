@@ -575,8 +575,8 @@ func (h *Hub) assistantConnected() {
 	var res struct {
 		Tools []proto.Tool `json:"tools"`
 	}
-	h.managerConnected() // agents_link.go
-	h.fleetConnected()   // what of the apps it needs (fleet_link.go)
+	h.managerConnected()    // agents_link.go
+	h.fleetClientsRefresh() // what of the apps it needs (fleet_link.go)
 	if err := h.callBus(ctx, assistantwire.AssistantID, assistantwire.MethodTools, nil, &res); err != nil {
 		h.logf("assistant: tools: %v", err)
 		return

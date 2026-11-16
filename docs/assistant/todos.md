@@ -506,7 +506,10 @@ refuse to close an open task while the owner has viewed or messaged a still-link
 connected app still subscribes to its conversation. The refusal explains why and asks the supervisor to retry later;
 it does not record a review or clear the task's pending decision. Live subscriptions keep a quiet page protected without
 periodic client heartbeats; another app leaving cannot clear the remaining viewer. Leaving the last view starts the
-ten-minute inactivity window. Recent reads use durable seen timestamps; input and view-exit activity use a separate
+ten-minute inactivity window. A terminal page remains a view when its stream ends and it polls the screen instead;
+only leaving the page or disconnecting ends that presence. Machine ownership changes refresh every manager's scoped
+viewer report even if the global set of viewed sessions did not change, including machines kept in a manager's own list.
+Recent reads use durable seen timestamps; input and view-exit activity use a separate
 durable record, so they neither mark a future answer read nor suppress its notification. A manager restart forgets neither.
 The owner may still explicitly complete a task in the UI; that does not stop its Agent.
 

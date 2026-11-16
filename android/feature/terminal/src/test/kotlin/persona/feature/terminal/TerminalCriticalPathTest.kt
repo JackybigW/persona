@@ -12,6 +12,31 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TerminalCriticalPathTest {
+    @Test fun aPollingPageUnsubscribesAndRegistersAgainWhenShown() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        try {
+            val transport = FakeTerminal()
+            val model = TerminalViewModel(SessionKey("machine", "session"), transport, dispatcher)
+            val first = launch { model.run() }
+            runCurrent()
+            model.grid(TerminalSize(40, 20)); advanceTimeBy(250); runCurrent()
+            assertEquals(1, transport.subscriptions.size)
+            transport.events.emit(TerminalEvent("machine", "session", error = "unsupported stream", unsupported = true))
+            advanceTimeBy(250); runCurrent()
+            assertTrue(transport.screens > 0)
+            assertEquals(1, transport.subscriptions.size)
+            first.cancelAndJoin()
+            assertEquals(1, transport.unsubscribes)
+            transport.subscriptions.clear()
+            val second = launch { model.run() }
+            runCurrent()
+            try { assertEquals(1, transport.subscriptions.size) }
+            finally { second.cancelAndJoin() }
+            assertEquals(2, transport.unsubscribes)
+        } finally { Dispatchers.resetMain() }
+    }
+
     @Test fun resumesFramesRecoversGapsReleasesControlAndBatchesWheel() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
