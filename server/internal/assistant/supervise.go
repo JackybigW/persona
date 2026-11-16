@@ -199,7 +199,7 @@ func (v *Supervision) state(t Todo) string {
 type supervisionStore interface {
 	ListTodoSupervision(ctx context.Context) ([]db.TodoSupervisionRow, error)
 	PutTodoSupervision(ctx context.Context, r db.TodoSupervisionRow) error
-	ReviewDoneTodo(ctx context.Context, id, reason string, accepted bool, at time.Time) (*db.TodoRow, bool, error)
+	ReviewTodo(ctx context.Context, id, reason string, accepted bool, at time.Time, ledger *db.TodoSupervisionRow, guard func() error) (*db.TodoRow, bool, error)
 	LinkTodoReviewer(ctx context.Context, todoID, machineID, sessionID, title, cwd, via string, at time.Time) error
 }
 
@@ -282,6 +282,18 @@ func pendingSince(before, after string, since *time.Time, now time.Time) *time.T
 // updateSupervision changes todo id's ledger (a new one when it has none) with change, which says whether it changed
 // anything; the ledger as it is then. Writes are one at a time.
 func (s *Service) updateSupervision(ctx context.Context, id string, change func(*Supervision) bool) (Supervision, bool, error) {
+	return s.updateSupervisionWithClose(ctx, id, change, nil)
+}
+
+type taskReviewClose struct {
+	reason   string
+	accepted bool
+	closed   bool
+}
+
+// updateSupervisionWithClose validates on a private ledger, then commits it with a terminal review's closure before
+// the caller records any review effects. A late activity refusal therefore leaves no review on the open task.
+func (s *Service) updateSupervisionWithClose(ctx context.Context, id string, change func(*Supervision) bool, closing *taskReviewClose) (Supervision, bool, error) {
 	b := &s.supervise
 	b.writeMu.Lock()
 	defer b.writeMu.Unlock()
@@ -300,7 +312,16 @@ func (s *Service) updateSupervision(ctx context.Context, id string, change func(
 	v.Criteria = db.AlignTodoCriteria(v.DoneWhen, v.Criteria)
 	v.UpdatedAt = time.Now().UTC()
 	v.PendingSince = pendingSince(before, v.State, v.PendingSince, v.UpdatedAt)
-	if st := s.supervisionDB(); st != nil && s.todoDB() != nil {
+	if closing != nil && !t.isConcern() {
+		var err error
+		closing.closed, err = s.reviewDoneTodoWithSupervision(ctx, id, closing.reason, closing.accepted, v)
+		if err != nil {
+			return Supervision{}, false, err
+		}
+		if closing.closed {
+			return *v, true, nil // the row and ledger were published together
+		}
+	} else if st := s.supervisionDB(); st != nil && s.todoDB() != nil {
 		if err := st.PutTodoSupervision(ctx, v.row(id)); err != nil {
 			return Supervision{}, false, err
 		}

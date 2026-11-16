@@ -168,8 +168,16 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	judgedDone := false    // it was waiting for review: the judge had found it done
 	var criteriaErr error
 	var v Supervision
+	var closing *taskReviewClose
+	if verdict == reviewAccepted || verdict == reviewCancelled {
+		reason := cmp.Or(clip(oneLine(note), 80), "验收通过")
+		if verdict == reviewCancelled {
+			reason = "取消：" + cmp.Or(clip(oneLine(note), 80), "不做了")
+		}
+		closing = &taskReviewClose{reason: reason, accepted: verdict == reviewAccepted}
+	}
 	if ledger {
-		v, _, err = s.updateSupervision(ctx, t.ID, func(v *Supervision) bool {
+		v, _, err = s.updateSupervisionWithClose(ctx, t.ID, func(v *Supervision) bool {
 			if verdict == reviewAccepted && t.DoneAt == nil && v.Waits != nil {
 				w := *v.Waits
 				waiting = &w
@@ -233,7 +241,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 				v.Reviews = v.Reviews[len(v.Reviews)-20:]
 			}
 			return true
-		})
+		}, closing)
+	} else if closing != nil {
+		closing.closed, err = s.reviewDoneTodo(ctx, t.ID, closing.reason, closing.accepted)
 	}
 	if err != nil {
 		return "", err
@@ -290,16 +300,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	conclusion := conclusionInput{Outcome: cmp.Or(a.Outcome, outcomeDone), Reason: a.Reason, Link: a.Link, Note: note, Checks: checks}
 	switch verdict {
 	case reviewAccepted, reviewCancelled:
-		reason := cmp.Or(clip(oneLine(note), 80), "验收通过")
-		if verdict == reviewCancelled {
-			reason = "取消：" + cmp.Or(clip(oneLine(note), 80), "不做了")
-		}
+		reason, closed := closing.reason, closing.closed
 		carded := false
 		if t.DoneAt == nil || t.StartError != "" {
-			closed, err := s.reviewDoneTodo(ctx, t.ID, reason, verdict == reviewAccepted)
-			if err != nil {
-				return "", err
-			}
 			if t.DoneAt == nil {
 				if closed && verdict == reviewAccepted { // accepted and closed (availability_supervision.go)
 					s.taskReviewed(ctx, self, t.ID, verdict, v)
@@ -504,19 +507,34 @@ type reviewFeedBody struct {
 // accepted task's outcome is recorded, as when it closes by itself or the user closes it (todo_outcome.go, #2820); a
 // cancelled one came to nothing and records none.
 func (s *Service) reviewDoneTodo(ctx context.Context, id, reason string, accepted bool) (bool, error) {
-	if t, ok := s.todoNow(id); ok {
-		if err := s.taskCloseActivityError(ctx, t, time.Now()); err != nil {
-			return false, err
+	return s.reviewDoneTodoWithSupervision(ctx, id, reason, accepted, nil)
+}
+
+func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason string, accepted bool, ledger *Supervision) (bool, error) {
+	s.todos.writing.Lock() // check activity after any competing task writer, not before waiting for it
+	guard := func() error {
+		if t, ok := s.todoNow(id); ok {
+			return s.taskCloseActivityError(ctx, t, time.Now())
 		}
+		return nil
+	}
+	if err := guard(); err != nil {
+		s.todos.writing.Unlock()
+		return false, err
 	}
 	if t, ok := s.todoNow(id); ok && t.isConcern() {
+		s.todos.writing.Unlock()
 		return false, nil // only its report closes a concern (concerns.go)
 	}
-	s.todos.writing.Lock() // memory takes the rows in the order the store committed them (todoBook.writing)
 	now := time.Now().UTC()
 	var row db.TodoRow
 	if st := s.supervisionDB(); st != nil && s.todoDB() != nil {
-		r, ok, err := st.ReviewDoneTodo(ctx, id, reason, accepted, now)
+		var review *db.TodoSupervisionRow
+		if ledger != nil {
+			r := ledger.row(id)
+			review = &r
+		}
+		r, ok, err := st.ReviewTodo(ctx, id, reason, accepted, now, review, guard)
 		if err != nil || !ok {
 			s.todos.writing.Unlock()
 			return false, err
@@ -540,6 +558,13 @@ func (s *Service) reviewDoneTodo(ctx context.Context, id, reason string, accepte
 	_, doneKeys, ok := s.setTodoRow(id, row, func(t *Todo) bool {
 		if t.DoneAt == nil || t.StartError != "" || s.supervisionDB() != nil {
 			before = copyTodoLocked(t) // its agents as they worked on it, before done releases them
+			if ledger != nil {
+				next := ledger.clone()
+				if t.Supervision != nil {
+					next.Progress = t.Supervision.clone().Progress
+				}
+				t.Supervision = next
+			}
 			return true
 		}
 		return false

@@ -1,0 +1,198 @@
+package assistant
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/nwverse/persona/server/internal/db"
+)
+
+func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
+	for _, reviewer := range []string{"conversation", "leader", "no ledger"} {
+		for _, verdict := range []string{reviewAccepted, reviewCancelled} {
+			for _, activity := range []string{"message", "view"} {
+				for _, boundary := range []string{"ledger", "closure"} {
+					if reviewer == "no ledger" && boundary == "ledger" {
+						continue
+					}
+					t.Run(strings.Join([]string{reviewer, verdict, activity, boundary}, "/"), func(t *testing.T) {
+						ctx := context.Background()
+						var s *Service
+						var todo Todo
+						var lead TodoAgent
+						switch reviewer {
+						case "conversation":
+							s, _, todo = newSupervisedService(t)
+						case "leader":
+							svc, f := newQuietService(t)
+							s = svc
+							leader := startTaskLeader(t, s, f)
+							lead = leader.Agents[0]
+							todo = planWorker(t, s, f, nil)
+						case "no ledger":
+							svc, f := newTaskService(t)
+							s = svc
+							todo = startedTask(t, s, f)
+							if todo.Supervision != nil {
+								t.Fatal("the fixture unexpectedly has a supervision ledger")
+							}
+						}
+						if _, err := s.ensureTaskBrief(ctx, todo); err != nil {
+							t.Fatal(err)
+						}
+						s.accept.mu.Lock()
+						s.accept.loaded = true
+						s.accept.asks = map[string]*acceptAsk{todo.ID: {
+							Conclusion: true, Outcome: outcomeDecide, AskedAt: time.Now().UTC(), Recommend: "Wait for approval",
+						}}
+						s.accept.mu.Unlock()
+						agent := todo.Agents[0]
+						args := map[string]any{"todo_id": todo.ID, "verdict": verdict}
+						if todo.Supervision != nil {
+							checks := []ReviewCheck{}
+							for _, criterion := range todo.Supervision.DoneWhen {
+								checks = append(checks, ReviewCheck{Criterion: criterion, Met: true, Evidence: "Verified"})
+							}
+							args["checks"] = checks
+						}
+						raw, _ := json.Marshal(args)
+						before := todoNow(s, todo.ID)
+						feedBefore := feedKinds(s, todo.Origin)
+						decisionBefore := askOf(s, todo.ID)
+						briefBefore, _ := s.briefOfTodo(todo.ID)
+
+						lock, method := &s.supervise.writeMu, "updateSupervision"
+						if boundary == "closure" {
+							lock, method = &s.todos.writing, "reviewDoneTodo"
+						}
+						lock.Lock()
+						unlock := sync.OnceFunc(lock.Unlock)
+						defer unlock()
+						done := make(chan struct{})
+						var reviewErr error
+						go func() {
+							if reviewer == "leader" {
+								_, reviewErr = s.leaderReview(ctx, lead, raw)
+							} else {
+								_, reviewErr = s.toolTaskReview(ctx, "conv1", raw)
+							}
+							close(done)
+						}()
+						defer func() {
+							unlock()
+							select {
+							case <-done:
+							case <-time.After(5 * time.Second):
+								t.Error("review did not finish after releasing its write boundary")
+							}
+						}()
+						// Observe the actual mutex wait: the initial activity guard has returned, but the commit cannot run.
+						waitFor(t, "the review at its "+boundary+" write boundary", func() bool {
+							for _, stack := range goroutineStacks() {
+								if strings.Contains(stack, "[sync.Mutex.Lock]") &&
+									strings.Contains(stack, "(*Service)."+method) &&
+									strings.Contains(stack, "TestTaskReviewLateOwnerActivityCommitsNothing.func") {
+									return true
+								}
+							}
+							return false
+						})
+						if activity == "view" {
+							setTaskViewer(t, s, agent.MachineID, agent.SessionID, true)
+						} else {
+							s.UserSpoke(ctx, SessionRef{MachineID: agent.MachineID, SessionID: agent.SessionID})
+							// A message can update decision bookkeeping in its own right; the refused review must leave that alone.
+							decisionBefore = askOf(s, todo.ID)
+						}
+						unlock()
+						select {
+						case <-done:
+						case <-time.After(5 * time.Second):
+							t.Fatal("review did not return")
+						}
+						if reviewErr == nil || !strings.Contains(reviewErr.Error(), "cannot be closed") {
+							t.Errorf("late activity did not refuse the review: %v", reviewErr)
+						}
+						after := todoNow(s, todo.ID)
+						if after.DoneAt != nil || !reflect.DeepEqual(after.Supervision, before.Supervision) {
+							t.Errorf("refused review changed task state: before=%+v after=%+v", before.Supervision, after.Supervision)
+						}
+						if got := feedKinds(s, todo.Origin); got != feedBefore {
+							t.Errorf("refused review added a feed entry: before=%q after=%q", feedBefore, got)
+						}
+						briefAfter, _ := s.briefOfTodo(todo.ID)
+						if !reflect.DeepEqual(briefAfter.Result, briefBefore.Result) {
+							t.Errorf("refused review committed a brief result: %+v", briefAfter.Result)
+						}
+						if got := askOf(s, todo.ID); !reflect.DeepEqual(got, decisionBefore) {
+							t.Errorf("refused review changed the pending decision: before=%+v after=%+v", decisionBefore, got)
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+type reviewActivityStore struct {
+	*db.DB
+	beforeCommit func()
+}
+
+func (st *reviewActivityStore) ReviewTodo(ctx context.Context, id, reason string, accepted bool, at time.Time, ledger *db.TodoSupervisionRow, guard func() error) (*db.TodoRow, bool, error) {
+	return st.DB.ReviewTodo(ctx, id, reason, accepted, at, ledger, func() error {
+		st.beforeCommit()
+		return guard()
+	})
+}
+
+func TestTaskReviewActivityDuringDatabaseWriteRollsBack(t *testing.T) {
+	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
+		for _, activity := range []string{"message", "view"} {
+			t.Run(verdict+"/"+activity, func(t *testing.T) {
+				ctx := context.Background()
+				st := &reviewActivityStore{DB: todoTestDB(t)}
+				s, _, todo := newSupervisedServiceOn(t, st)
+				before := todoNow(s, todo.ID)
+				feedBefore := feedKinds(s, todo.Origin)
+				st.beforeCommit = func() {
+					// The ledger and closure have been written in the transaction, but neither is visible yet.
+					if activity == "view" {
+						setTaskViewer(t, s, "box", "s1", true)
+					} else {
+						s.UserSpoke(ctx, SessionRef{MachineID: "box", SessionID: "s1"})
+					}
+				}
+				checks := []ReviewCheck{}
+				for _, criterion := range todo.Supervision.DoneWhen {
+					checks = append(checks, ReviewCheck{Criterion: criterion, Met: true, Evidence: "Verified"})
+				}
+				_, err := runJSON(t, s, "conv1", "task_review", map[string]any{
+					"todo_id": todo.ID, "verdict": verdict, "checks": checks,
+				})
+				if err == nil || !strings.Contains(err.Error(), "cannot be closed") {
+					t.Fatalf("activity during the transaction did not refuse the review: %v", err)
+				}
+				after := todoNow(s, todo.ID)
+				if after.DoneAt != nil || !reflect.DeepEqual(after.Supervision, before.Supervision) ||
+					feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(after) != nil {
+					t.Fatal("a rolled-back review escaped into memory, the feed, or the brief")
+				}
+				stored, err := st.GetTodo(ctx, todo.ID)
+				if err != nil || stored.DoneAt != nil {
+					t.Fatalf("the closure was not rolled back: %+v %v", stored, err)
+				}
+				rows, err := st.ListTodoSupervision(ctx)
+				if err != nil || len(rows) != 1 || rows[0].State != before.Supervision.State ||
+					string(rows[0].Reviews) != "[]" {
+					t.Fatalf("the review ledger was not rolled back: %+v %v", rows, err)
+				}
+			})
+		}
+	}
+}

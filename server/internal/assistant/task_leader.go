@@ -565,9 +565,10 @@ func (s *Service) leaderTaskReview(ctx context.Context, machine, session string,
 	return proto.TextResult(res, false)
 }
 
-// leaderReview is the leader agent's task_review on one of its direct workers: accepted closes it, cancelled closes and
-// stops it, rework sends what is missing back to the worker (two rounds, then it goes up), needs_user sends the
-// question to whoever handed the leader its task. No conclusion card, "Please verify" or other card goes to the user,
+// leaderReview is the leader agent's task_review on one of its direct workers: accepted or cancelled closes it and
+// leaves its agent usable until idle after owner inactivity. Rework sends what is missing back to the worker (two
+// rounds, then it goes up); needs_user sends the question to whoever handed the leader its task.
+// No conclusion card, "Please verify" or other card goes to the user,
 // and no other task is reachable: it is the leader's direct worker (its ledger names this leader) or nothing.
 func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.RawMessage) (string, error) {
 	var a struct {
@@ -623,7 +624,15 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 	}
 	verdict, note, over := a.Verdict, clip(a.Note, 2000), false
 	var criteriaErr error
-	v, _, err := s.updateSupervision(ctx, t.ID, func(v *Supervision) bool {
+	var closing *taskReviewClose
+	if verdict == reviewAccepted || verdict == reviewCancelled {
+		reason := cmp.Or(clip(oneLine(note), 80), "验收通过") // i18n-ignore: done_reason, as a conversation's review writes it
+		if verdict == reviewCancelled {
+			reason = "取消：" + cmp.Or(clip(oneLine(note), 80), "不做了") // i18n-ignore: done_reason, as a conversation's review writes it
+		}
+		closing = &taskReviewClose{reason: reason, accepted: verdict == reviewAccepted}
+	}
+	v, _, err := s.updateSupervisionWithClose(ctx, t.ID, func(v *Supervision) bool {
 		if verdict == reviewAccepted {
 			if criteriaErr = completeReviewCriteriaError(v.DoneWhen, a.Checks); criteriaErr != nil {
 				return false
@@ -643,7 +652,7 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 			v.Reviews = v.Reviews[len(v.Reviews)-20:]
 		}
 		return true
-	})
+	}, closing)
 	if err != nil {
 		return "", err
 	}
@@ -668,17 +677,9 @@ func (s *Service) leaderReview(ctx context.Context, lead TodoAgent, args json.Ra
 	b.mu.Unlock()
 	switch verdict {
 	case reviewAccepted, reviewCancelled:
-		reason := cmp.Or(clip(oneLine(note), 80), "验收通过") // i18n-ignore: done_reason, as a conversation's review writes it
-		if verdict == reviewCancelled {
-			reason = "取消：" + cmp.Or(clip(oneLine(note), 80), "不做了") // i18n-ignore: done_reason, as a conversation's review writes it
-		}
 		if t.DoneAt == nil || t.StartError != "" {
 			wasOpen := t.DoneAt == nil
-			closed, err := s.reviewDoneTodo(ctx, t.ID, reason, verdict == reviewAccepted)
-			if err != nil {
-				return "", err
-			}
-			if wasOpen && closed && verdict == reviewAccepted { // a failed start was closed already: no acceptance to count
+			if wasOpen && closing.closed && verdict == reviewAccepted { // a failed start was closed already: no acceptance to count
 				s.leaderTaskReviewed(lead, t.ID, verdict, v)
 			}
 		}
