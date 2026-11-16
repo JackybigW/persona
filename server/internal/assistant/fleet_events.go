@@ -18,6 +18,12 @@ func (s *Service) NodeEvent(machine, event string, params json.RawMessage) bool 
 	if err := s.conversationParamsAvailable(context.Background(), machine, params); err != nil {
 		return false
 	}
+	var hook map[string]any
+	if event == "hook.event" && json.Unmarshal(params, &hook) == nil {
+		if sid, _ := hook["session_id"].(string); sid != "" {
+			s.agentDecisionPrompt(machine, sid, hook)
+		}
+	}
 	if !s.fleetOn() {
 		return true
 	}
@@ -67,8 +73,7 @@ func (s *Service) NodeEvent(machine, event string, params json.RawMessage) bool 
 		s.syncCodexInteractions(machine, params)
 		return false
 	case "hook.event":
-		var p map[string]any
-		if json.Unmarshal(params, &p) == nil {
+		if p := hook; p != nil {
 			if sid, _ := p["session_id"].(string); sid != "" {
 				// A report-only hook (node/globalhooks.go) is not Persona's hooks running in the session: it asks for
 				// no card, so it must not hold the screen's back (hasHooks). Its Stop still counts for stopDuplicate.
@@ -203,7 +208,7 @@ func (s *Service) FleetUp(ctx context.Context) {
 	s.fleetStart(context.WithoutCancel(ctx))
 	defer s.boardFleetUp() // the pending cards are read: the board may have changed while the assistant was away
 	s.fleet.sentMu.Lock()
-	s.fleet.sent = nil
+	s.fleet.sent, s.fleet.archived = nil, nil
 	s.fleet.sentMu.Unlock()
 	s.hub.Tell(assistantwire.EventFleetInteractions, assistantwire.FleetInteractions{Interactions: s.pendingInteractions()})
 	for _, m := range s.fleetMachines() {

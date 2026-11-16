@@ -144,8 +144,9 @@ func TestClosedTaskArchiveOverlayPreservesCurrentProvenance(t *testing.T) {
 					c.Capabilities = nil
 					want = &proto.SessionCapabilities{Read: true, Terminal: pane != ""}
 				}
-				rows := overlayAgentArchives("box", []proto.Session{c},
-					map[string]agentArchive{runtimeListID("box", c.SessionID): rec}, nil, 0, true)
+				rows := []proto.Session{c}
+				markAgentArchives("box", rows,
+					map[string]agentArchive{runtimeListID("box", c.SessionID): rec}, nil, 0)
 				if len(rows) != 1 {
 					t.Fatalf("closed-task overlay returned %d rows", len(rows))
 				}
