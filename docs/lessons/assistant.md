@@ -721,3 +721,15 @@ both the stored ledger and memory at the ledger, closure and final transaction b
 Lifecycle tests wait for the operation they exercise: acknowledge `task_review` before sending the next owner turn,
 and wait for `fleet.clients` notifications until the viewer snapshot matches. A terminal error can arrive before that
 snapshot. Fixed delays hide this ordering and grow the sleep ratchet; keep bounded failure deadlines, not guessed sleeps.
+
+## Reserve a conversation for replacement in the same step as the check that nothing goes in (#7315)
+
+The background supervisor is replaced when its rounds outgrow it, and the first version checked that no queued message
+was going into the old one, released the relay book's lock, and only then started the replacement, which takes seconds.
+A session list pushed in that gap could drain the old one's queue into it (found in review): that round would run in a
+conversation archived moments later and no longer the background supervisor, so its `task_review` of a main-chat task
+would be refused, and a message queued before a manager restart, whose signals were not in memory, would leave the queue
+as delivered instead of moving to the replacement. A check that a resource is free is only good while the lock it was read under is held:
+mark the conversation as being replaced under that same lock (`relayBook.replacing`), have every drain and every direct
+delivery respect the mark (the direct ones queue), and clear it only where what waited has moved or the replacement
+failed, draining it again then (`TestNothingGoesIntoABackgroundSupervisorBeingReplaced`).
