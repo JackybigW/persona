@@ -141,7 +141,15 @@ func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
 
 type reviewActivityStore struct {
 	*db.DB
-	beforeCommit func()
+	beforeCommit       func()
+	beforeActivitySave func()
+}
+
+func (st *reviewActivityStore) PutSetting(ctx context.Context, key string, value any) error {
+	if key == taskActivityKey && st.beforeActivitySave != nil {
+		st.beforeActivitySave()
+	}
+	return st.DB.PutSetting(ctx, key, value)
 }
 
 func (st *reviewActivityStore) ReviewTodo(ctx context.Context, id, reason string, accepted bool, at time.Time, ledger *db.TodoSupervisionRow, guard func() error) (*db.TodoRow, bool, error) {
@@ -153,46 +161,40 @@ func (st *reviewActivityStore) ReviewTodo(ctx context.Context, id, reason string
 
 func TestTaskReviewActivityDuringDatabaseWriteRollsBack(t *testing.T) {
 	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
-		for _, activity := range []string{"message", "view"} {
-			t.Run(verdict+"/"+activity, func(t *testing.T) {
-				ctx := context.Background()
-				st := &reviewActivityStore{DB: todoTestDB(t)}
-				s, _, todo := newSupervisedServiceOn(t, st)
-				before := todoNow(s, todo.ID)
-				feedBefore := feedKinds(s, todo.Origin)
-				st.beforeCommit = func() {
-					// The ledger and closure have been written in the transaction, but neither is visible yet.
-					if activity == "view" {
-						setTaskViewer(t, s, "box", "s1", true)
-					} else {
-						s.UserSpoke(ctx, SessionRef{MachineID: "box", SessionID: "s1"})
-					}
-				}
-				checks := []ReviewCheck{}
-				for _, criterion := range todo.Supervision.DoneWhen {
-					checks = append(checks, ReviewCheck{Criterion: criterion, Met: true, Evidence: "Verified"})
-				}
-				_, err := runJSON(t, s, "conv1", "task_review", map[string]any{
-					"todo_id": todo.ID, "verdict": verdict, "checks": checks,
-				})
-				if err == nil || !strings.Contains(err.Error(), "cannot be closed") {
-					t.Fatalf("activity during the transaction did not refuse the review: %v", err)
-				}
-				after := todoNow(s, todo.ID)
-				if after.DoneAt != nil || !reflect.DeepEqual(after.Supervision, before.Supervision) ||
-					feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(after) != nil {
-					t.Fatal("a rolled-back review escaped into memory, the feed, or the brief")
-				}
-				stored, err := st.GetTodo(ctx, todo.ID)
-				if err != nil || stored.DoneAt != nil {
-					t.Fatalf("the closure was not rolled back: %+v %v", stored, err)
-				}
-				rows, err := st.ListTodoSupervision(ctx)
-				if err != nil || len(rows) != 1 || rows[0].State != before.Supervision.State ||
-					string(rows[0].Reviews) != "[]" {
-					t.Fatalf("the review ledger was not rolled back: %+v %v", rows, err)
-				}
+		t.Run(verdict+"/view", func(t *testing.T) {
+			ctx := context.Background()
+			st := &reviewActivityStore{DB: todoTestDB(t)}
+			s, _, todo := newSupervisedServiceOn(t, st)
+			before := todoNow(s, todo.ID)
+			feedBefore := feedKinds(s, todo.Origin)
+			st.beforeCommit = func() {
+				// Messages use the concurrent BusHub test; a view changes only the final guard's cached input.
+				setTaskViewer(t, s, "box", "s1", true)
+			}
+			checks := []ReviewCheck{}
+			for _, criterion := range todo.Supervision.DoneWhen {
+				checks = append(checks, ReviewCheck{Criterion: criterion, Met: true, Evidence: "Verified"})
+			}
+			_, err := runJSON(t, s, "conv1", "task_review", map[string]any{
+				"todo_id": todo.ID, "verdict": verdict, "checks": checks,
 			})
-		}
+			if err == nil || !strings.Contains(err.Error(), "cannot be closed") {
+				t.Fatalf("activity during the transaction did not refuse the review: %v", err)
+			}
+			after := todoNow(s, todo.ID)
+			if after.DoneAt != nil || !reflect.DeepEqual(after.Supervision, before.Supervision) ||
+				feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(after) != nil {
+				t.Fatal("a rolled-back review escaped into memory, the feed, or the brief")
+			}
+			stored, err := st.GetTodo(ctx, todo.ID)
+			if err != nil || stored.DoneAt != nil {
+				t.Fatalf("the closure was not rolled back: %+v %v", stored, err)
+			}
+			rows, err := st.ListTodoSupervision(ctx)
+			if err != nil || len(rows) != 1 || rows[0].State != before.Supervision.State ||
+				string(rows[0].Reviews) != "[]" {
+				t.Fatalf("the review ledger was not rolled back: %+v %v", rows, err)
+			}
+		})
 	}
 }

@@ -511,10 +511,12 @@ func (s *Service) reviewDoneTodo(ctx context.Context, id, reason string, accepte
 }
 
 func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason string, accepted bool, ledger *Supervision) (bool, error) {
+	s.loadSeen(ctx)
+	_ = s.loadTaskActivity(ctx)
 	s.todos.writing.Lock() // check activity after any competing task writer, not before waiting for it
 	guard := func() error {
 		if t, ok := s.todoNow(id); ok {
-			return s.taskCloseActivityError(ctx, t, time.Now())
+			return s.taskCloseActivitySnapshotError(t, time.Now())
 		}
 		return nil
 	}
