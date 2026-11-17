@@ -159,6 +159,15 @@ func (st *reviewActivityStore) ReviewTodo(ctx context.Context, id, reason string
 	})
 }
 
+func (st *reviewActivityStore) AutoDoneTodo(ctx context.Context, id, reason string, at, work time.Time, guard func() error) (*db.TodoRow, bool, error) {
+	return st.DB.AutoDoneTodo(ctx, id, reason, at, work, func() error {
+		if st.beforeCommit != nil {
+			st.beforeCommit()
+		}
+		return guard()
+	})
+}
+
 func TestTaskReviewActivityDuringDatabaseWriteRollsBack(t *testing.T) {
 	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
 		t.Run(verdict+"/view", func(t *testing.T) {

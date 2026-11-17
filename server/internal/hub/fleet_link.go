@@ -45,7 +45,7 @@ type fleetCache struct {
 	live         *assistantwire.FleetLive            // the assistant's
 	lives        map[string]*assistantwire.FleetLive // the other managers' (manager_state.go)
 	clients      assistantwire.Clients               // what fleet.clients said last
-	clientsSent  bool
+	clientsSent  map[string]*busConn                 // the connections that received the current clients snapshot
 	// clientsSend holds one fleet.clients from working out what is true to telling it (fleetClientsChanged).
 	clientsSend sync.Mutex
 }
@@ -456,23 +456,31 @@ func (h *Hub) fleetClientsChanged() {
 	c := assistantwire.Clients{Elicitation: h.hasElicitationClient(), ElicitationPush: h.push.pushesElicitation(h.desktopOnline()),
 		Viewing: h.viewedSessions()}
 	f.mu.Lock()
-	same := f.clientsSent && f.clients.Elicitation == c.Elicitation && f.clients.ElicitationPush == c.ElicitationPush &&
+	same := f.clients.Elicitation == c.Elicitation && f.clients.ElicitationPush == c.ElicitationPush &&
 		slices.Equal(f.clients.Viewing, c.Viewing)
-	f.clients, f.clientsSent = c, true
+	delivered := f.clientsSent
+	f.clients = c
 	f.mu.Unlock()
-	if !same {
-		sent := false
-		for _, p := range h.busRoster() {
-			if p.Role == bus.RoleManager && h.notifyBus(p.ID, assistantwire.EventClients, h.clientsForManager(c, p.ID)) == nil {
-				sent = true
-			}
+	next := map[string]*busConn{}
+	for _, p := range h.busRoster() {
+		if p.Role != bus.RoleManager {
+			continue
 		}
-		if !sent {
-			f.mu.Lock()
-			f.clientsSent = false
-			f.mu.Unlock()
+		conn := h.busConnOf(p.ID)
+		if conn == nil {
+			continue
+		}
+		if same && delivered[p.ID] == conn {
+			next[p.ID] = conn
+			continue
+		}
+		if conn.peer.Notify(assistantwire.EventClients, h.clientsForManager(c, p.ID)) == nil {
+			next[p.ID] = conn
 		}
 	}
+	f.mu.Lock()
+	f.clientsSent = next
+	f.mu.Unlock()
 }
 
 func (h *Hub) viewedSessions() []assistantwire.SessionRef {
@@ -532,7 +540,17 @@ func (h *Hub) clientsSettle(c *busConn) {
 		clients := f.clients
 		f.mu.Unlock()
 		if h.busCurrent(c) {
-			_ = c.peer.Notify(assistantwire.EventClients, h.clientsForManager(clients, c.ident.ID))
+			err := c.peer.Notify(assistantwire.EventClients, h.clientsForManager(clients, c.ident.ID))
+			f.mu.Lock()
+			if err != nil {
+				delete(f.clientsSent, c.ident.ID)
+			} else {
+				if f.clientsSent == nil {
+					f.clientsSent = map[string]*busConn{}
+				}
+				f.clientsSent[c.ident.ID] = c
+			}
+			f.mu.Unlock()
 		}
 	}()
 }
@@ -541,9 +559,11 @@ func (h *Hub) clientsSettle(c *busConn) {
 // even when the global viewer set does not.
 func (h *Hub) fleetClientsRefresh() {
 	f := &h.reported
+	f.clientsSend.Lock()
 	f.mu.Lock()
-	f.clientsSent = false
+	f.clientsSent = nil
 	f.mu.Unlock()
+	f.clientsSend.Unlock()
 	h.fleetClientsChanged()
 }
 

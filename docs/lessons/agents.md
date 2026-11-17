@@ -1365,3 +1365,14 @@ can contain multiple workspaces sharing a directory; importing a pin into `pins.
 the timestamp on the workspace catalog and match machine, source and source ID. An unpin must also release retained
 old sessions even if pin and unpin happen before the coalesced catalog push: a session push can observe the temporary
 pin while the final catalog bytes equal the earlier unpinned snapshot.
+
+## Check owner activity at the closure commit boundary (#6819)
+
+Checking before a write lock does not protect a slow write: messages and viewers update independently of task writes.
+Automatic closure needs the same transaction-final activity guard as a reviewed closure, and an activity hold must
+leave the turn unjudged so the sweep can retry. A memory-only review checks under the todo lock immediately before
+changing either the closure or its review ledger, not only before assembling the replacement row.
+
+Delivery of `fleet.clients` belongs to each manager connection, not to a shared success bit. Retain only successful
+recipients, retry failed ones even when the global viewer snapshot is unchanged, and send again after reconnection.
+Serialize ownership-refresh invalidation with sends so an in-flight report cannot hide the refresh.

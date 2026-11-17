@@ -135,7 +135,7 @@ func TestTaskViewerRefreshWaitsForMachineHandover(t *testing.T) {
 				addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
 				// The page has not changed, so the handover must force a new scoped report.
 				h.reported.clients = assistantwire.Clients{Viewing: view}
-				h.reported.clientsSent = true
+				h.reported.clientsSent = map[string]*busConn{}
 				type report struct {
 					manager, assigned, cached string
 					online, connected         bool
@@ -170,6 +170,7 @@ func TestTaskViewerRefreshWaitsForMachineHandover(t *testing.T) {
 						return len(raw), nil
 					}))
 					c.presence = busPresence{ID: id, Role: bus.RoleManager}
+					h.reported.clientsSent[id] = c
 				}
 				// moveMachineMoving commits the assignment before handing over the cached machine.
 				h.devices.assign = map[string]string{"box": to}

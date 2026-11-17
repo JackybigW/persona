@@ -3,6 +3,7 @@ package assistant
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -78,7 +79,8 @@ func TestAutomaticTaskCloseDefersOwnerActivity(t *testing.T) {
 			} else {
 				setTaskViewer(t, s, "box", "s1", true)
 			}
-			if ok, err := s.autoDoneTodo(ctx, todo.ID, "Finished", time.Time{}); err != nil || ok {
+			var hold *taskCloseHoldError
+			if ok, err := s.autoDoneTodo(ctx, todo.ID, "Finished", time.Time{}); ok || !errors.As(err, &hold) {
 				t.Fatalf("automatic close: %v %v", ok, err)
 			}
 			if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Cancelled automatically", false); err == nil || ok {

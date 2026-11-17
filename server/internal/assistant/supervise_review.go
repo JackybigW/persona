@@ -546,7 +546,9 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 	}
 	now := time.Now().UTC()
 	var row db.TodoRow
-	if st := s.supervisionDB(); st != nil && s.todoDB() != nil {
+	st := s.supervisionDB()
+	persisted := st != nil && s.todoDB() != nil
+	if persisted {
 		var review *db.TodoSupervisionRow
 		if ledger != nil {
 			r := ledger.row(id)
@@ -573,7 +575,13 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		t.keepPlan(&row)
 	}
 	var before Todo
+	var activityErr error
 	_, doneKeys, ok := s.setTodoRow(id, row, func(t *Todo) bool {
+		if !persisted {
+			if activityErr = s.taskCloseActivitySnapshotError(*t, time.Now()); activityErr != nil {
+				return false
+			}
+		}
 		if t.DoneAt == nil || t.StartError != "" || s.supervisionDB() != nil {
 			before = copyTodoLocked(t) // its agents as they worked on it, before done releases them
 			if ledger != nil {
@@ -588,6 +596,9 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		return false
 	})
 	s.todos.writing.Unlock()
+	if activityErr != nil {
+		return false, activityErr
+	}
 	if ok {
 		s.todoRowSet(ctx, doneKeys)
 	}
