@@ -3,6 +3,7 @@ package assistant
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -89,7 +90,13 @@ func (s *Service) superviseJudged(ctx context.Context, t Todo, work time.Time, c
 		detail := c.Reason
 		if c.AutoCheck.passed() && !s.agentSupervised(t) { // the judge's own check passed (supervise_sample.go); a leader's worker is reviewed by its leader
 			if pct := s.reviewSamplePercent(ctx); !spotCheck(t.ID, key, pct) {
-				if s.judgeClose(ctx, t, key, c.Reason, c.AutoCheck) {
+				closed, err := s.judgeClose(ctx, t, key, c.Reason, c.AutoCheck)
+				if closed {
+					return
+				}
+				var hold *taskCloseHoldError
+				if errors.As(err, &hold) {
+					s.deferTurnJudgment(ctx, t.ID)
 					return
 				}
 			} else {
