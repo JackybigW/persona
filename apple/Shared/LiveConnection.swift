@@ -739,6 +739,7 @@ final class LiveConnection {
             }
             let event = data.flatMap(ServerEvent.decode)
             let meta = data.map(FrameMeta.read) ?? FrameMeta()
+            if let data { DevProbe.frame(type: meta.type, bytes: data.count) }
             if let event { prepare?(event) }
             Task { @MainActor in
                 guard let self, gen == self.generation else { return }
@@ -750,6 +751,7 @@ final class LiveConnection {
                     if meta.type != "extension_ui_stream" { self.note(meta) } // private sessions have no broadcast cursor
                     if case .hello(let hello)? = event { self.personaContracts = hello.features.contains(HubNaming.feature) }
                     if first {
+                        DevProbe.socket(.connected)
                         self.state = .connected
                         self.sayHello()
                         self.backoff = 1
@@ -761,6 +763,7 @@ final class LiveConnection {
                     if let event { self.onEvent?(event) }
                     self.receive(t, gen)
                 case .failure(let err):
+                    DevProbe.socket(.dropped)
                     self.personaContracts = false
                     let planned = self.restartNotice || (!self.closedQuiet && t.closeCode == .goingAway)
                     self.dropped(restart: planned)
@@ -903,9 +906,19 @@ final class LiveConnection {
     /// device for the assistant (`AppVersion`). Older hubs ignore unknown fields and keep their existing defaults.
     private func sayHello() {
         let client = RequestClientMetadata.current
-        send(["type": "client_hello", "locale": LanguageStore.shared.launched, "features": Self.helloFeatures(client),
+        send(["type": "client_hello", "locale": LanguageStore.shared.launched,
+              "features": Self.helloFeatures(client) + (followsMessaging ? [Self.larkViaMessagingFeature] : []),
               "platform": client.platform, "version": client.version, "os": AppVersion.helloOS])
     }
+
+    /// The app's Feishu screens follow the hub's `messaging` events (a messaging source, #2138), so the legacy `lark`
+    /// event, which `AppModel.handle` drops then, need not come: said in `client_hello` (`lark_via_messaging`), and
+    /// said again in a new one when it changes (#9591). A busy Feishu account sent 40–50 of them a minute.
+    var followsMessaging = false {
+        didSet { if followsMessaging != oldValue, state == .connected { sayHello() } }
+    }
+
+    nonisolated static let larkViaMessagingFeature = "lark_via_messaging"
 
     /// `elicitation` (MCP forms and links, `ElicitationForm`) from the iOS app alone: the frozen Mac app and visionOS
     /// don't declare it, so the hub hands those cards to the terminal when they are the only apps open.

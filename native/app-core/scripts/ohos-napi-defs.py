@@ -51,6 +51,8 @@ SIGNATURES = {
     "coreProjectStreamChunks": [("input", "string")],
     "coreProjectStreamRepair": [("input", "string")],
     "coreProjectPlainOpenFence": [("input", "string")],
+    "coreProjectViewedImages": [("input", "string")],
+    "coreProjectRecents": [("input", "string")],
     "coreProjectTaskIndex": [("input", "string")],
     "coreProjectTurns": [("input", "string")],
 }

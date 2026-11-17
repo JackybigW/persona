@@ -105,6 +105,16 @@ mod binding {
     }
 
     #[napi(catch_unwind)]
+    pub fn core_project_viewed_images(input: String) -> Result<String> {
+        to_json(&persona_core::viewed_images::project(&from_json(&input)?))
+    }
+
+    #[napi(catch_unwind)]
+    pub fn core_project_recents(input: String) -> Result<String> {
+        to_json(&persona_core::recents::input_fixture(&from_json(&input)?))
+    }
+
+    #[napi(catch_unwind)]
     pub fn core_project_task_index(input: String) -> Result<String> {
         to_json(&persona_core::task_index::project(&from_json(&input)?))
     }
