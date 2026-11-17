@@ -27,7 +27,7 @@ func setTaskViewer(t *testing.T, s *Service, machine, session string, viewing bo
 
 func TestTaskReviewRefusesOwnerActivityWithoutSideEffects(t *testing.T) {
 	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
-		for _, activity := range []string{"message", "view", "recent read"} {
+		for _, activity := range []string{"message", "message bus", "view", "recent read"} {
 			t.Run(verdict+"/"+activity, func(t *testing.T) {
 				s, f := newTaskService(t)
 				todo := startedTask(t, s, f)
@@ -35,6 +35,17 @@ func TestTaskReviewRefusesOwnerActivityWithoutSideEffects(t *testing.T) {
 				switch activity {
 				case "message":
 					s.UserSpoke(ctx, SessionRef{MachineID: "box", SessionID: "s1"})
+				case "message bus":
+					raw, err := json.Marshal(assistantwire.UserSpokeParams{
+						SessionRef: SessionRef{MachineID: "box", SessionID: "s1"},
+						Text:       "Please keep this conversation open.",
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := (&BusHub{svc: s}).event(ctx, busEvent{name: assistantwire.EventUserSpoke, params: raw}); err != nil {
+						t.Fatal(err)
+					}
 				case "view":
 					setTaskViewer(t, s, "box", "s1", true)
 				case "recent read":
