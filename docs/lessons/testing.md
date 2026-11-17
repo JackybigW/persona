@@ -1,5 +1,10 @@
 # Lessons: testing and validation
 
+- An intentional UI removal also changes dependent integration assertions. After the meeting header became hidden,
+  the photo test still expected a `joined` row and stopped before checking image credentials and deletion. Compare an
+  untouched upstream snapshot, keep the intended rendering and all photo checks, and correct the stale expected rows;
+  do not restore removed UI or loosen timeouts to make the integration test pass.
+
 - Fixture teardown is part of a test's elapsed time (#5730). A scripted terminal whose shell is ready immediately
   does not need a fixed startup pause. When a test has finished its assertions, cancel background prompt checks
   owned by that fixture and join them before restoring package settings or closing sockets. Delivery/recovery tests
