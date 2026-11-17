@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,11 +160,11 @@ func TestUsageBackfillWeeks(t *testing.T) {
 	}
 
 	// The first week's read of the long file stopped soon after the week's end.
-	p := filepath.Join(project, "s1.jsonl")
-	st, _ := os.Stat(p)
+	f := testUsagePath(t, filepath.Join(project, "s1.jsonl"))
+	st := f.st
 	m := newUsageMeter()
 	m.step, m.until, m.seen = 3600, w2, map[uint64]struct{}{}
-	read, err := m.scanSlice(context.Background(), p, st, w1, w2, lim)
+	read, err := m.scanSlice(context.Background(), f, w1, w2, lim)
 	if err != nil || read >= st.Size()/2 || read == 0 {
 		t.Fatalf("read %d of %d bytes for the first week (%v)", read, st.Size(), err)
 	}
@@ -183,7 +184,7 @@ func TestBackfillStartAndOverlap(t *testing.T) {
 			t.Fatal(err)
 		}
 		st, _ := os.Stat(p)
-		return backfillFile{usagePath: usagePath{p, st}, first: firstTime([]byte(body))}
+		return backfillFile{usagePath: usagePath{p, st, claudeUsage{}}, first: firstTime([]byte(body))}
 	}
 	a := mk("a.jsonl", claudeReply(time.Date(2026, 10, 3, 9, 30, 0, 0, time.UTC), "a", "m", 0, 0, 1, 1), time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC))
 	b := mk("b.jsonl", claudeReply(time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC), "b", "m", 0, 0, 1, 1), time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC))
@@ -212,5 +213,46 @@ func TestBackfillStartAndOverlap(t *testing.T) {
 	}
 	if s, e := week(2026, 10, 10); !none.overlaps(s, e) {
 		t.Fatal("a file of unknown start not read")
+	}
+}
+
+// What to read of each agent: an older manager's one range for every agent; a newer one's per agent, an agent it did
+// not answer for or one that is done left out; from the earliest start to the latest end.
+func TestBackfillPlan(t *testing.T) {
+	names := []string{"claude", "codex", "pi"}
+	old := backfillStatus{backfillRange: backfillRange{Since: 100, Before: 900}}
+	ranges, since, before, ok := backfillPlan(names, old)
+	if !ok || len(ranges) != 3 || ranges["pi"] != old.backfillRange || since.Unix() != 100 || before.Unix() != 900 {
+		t.Fatalf("an older manager: %v %v %v %v", ranges, since, before, ok)
+	}
+	st := backfillStatus{backfillRange: backfillRange{Done: true}, Agents: map[string]backfillRange{
+		"claude": {Done: true}, "codex": {Done: true}, "pi": {Since: 300, Before: 900}}}
+	ranges, since, _, ok = backfillPlan(append(names, "omp"), st)
+	if !ok || len(ranges) != 1 || ranges["pi"].Since != 300 || since.Unix() != 300 {
+		t.Fatalf("by agent: %v %v %v", ranges, since, ok)
+	}
+	if _, _, _, ok := backfillPlan(names, backfillStatus{backfillRange: backfillRange{Done: true}}); ok {
+		t.Fatal("nothing to read")
+	}
+	var decoded backfillStatus
+	if err := json.Unmarshal([]byte(`{"done":true,"agents":{"pi":{"done":false,"since":3600,"before":7200}}}`), &decoded); err != nil ||
+		!decoded.Done || decoded.Agents["pi"].Before != 7200 {
+		t.Fatalf("decoded %+v, %v", decoded, err)
+	}
+}
+
+// A week keeps each agent's buckets within its range and names the agents whose range it reads.
+func TestBackfillWeek(t *testing.T) {
+	ranges := map[string]backfillRange{"claude": {Since: 0, Before: 10000}, "pi": {Since: 7200, Before: 10000}}
+	// The scan gives a week's buckets only.
+	first := []proto.UsageBucket{{Minute: 3600, Agent: "claude"}, {Minute: 3600, Agent: "pi"}}
+	second := []proto.UsageBucket{{Minute: 7200, Agent: "pi"}, {Minute: 7200, Agent: "omp"}}
+	keep, agents := backfillWeek(first, ranges, time.Unix(0, 0), time.Unix(7200, 0))
+	if len(keep) != 1 || keep[0].Agent != "claude" || len(agents) != 1 || agents[0] != "claude" {
+		t.Fatalf("first week: %+v %v", keep, agents)
+	}
+	keep, agents = backfillWeek(second, ranges, time.Unix(7200, 0), time.Unix(10000, 0))
+	if len(keep) != 1 || keep[0].Agent != "pi" || keep[0].Minute != 7200 || len(agents) != 2 {
+		t.Fatalf("second week: %+v %v", keep, agents)
 	}
 }
