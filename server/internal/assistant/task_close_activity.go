@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -84,6 +85,15 @@ func (s *Service) taskUserActivityAt(ctx context.Context, machine, session strin
 	return b.times[runtimeListID(machine, session)], nil
 }
 
+type taskCloseHoldError struct {
+	todo, why string
+}
+
+func (e *taskCloseHoldError) Error() string {
+	return fmt.Sprintf("task %s cannot be closed: %s. Leave the task open and retry after the user leaves the "+
+		"conversation and has been inactive for 10 minutes; do not stop or archive its Agent", e.todo, e.why)
+}
+
 func (s *Service) taskCloseActivityError(ctx context.Context, t Todo, now time.Time) error {
 	if t.DoneAt != nil {
 		return nil
@@ -93,11 +103,52 @@ func (s *Service) taskCloseActivityError(ctx context.Context, t Todo, now time.T
 			continue
 		}
 		if why := s.sessionActivityReason(ctx, a.MachineID, a.SessionID, now); why != "" {
-			return fmt.Errorf("task %s cannot be closed: %s. Leave the task open and retry after the user leaves the "+
-				"conversation and has been inactive for 10 minutes; do not stop or archive its Agent", t.ID, why)
+			return &taskCloseHoldError{todo: t.ID, why: why}
 		}
 	}
 	return nil
+}
+
+// A refused close retracts the completed turn's review, not the turn itself. The sweep can judge it again after
+// inactivity. Serialize with new work so an old review cannot invalidate a later turn or undo a concurrent closure.
+// Call after releasing the review's write locks.
+func (s *Service) deferTaskReview(ctx context.Context, id string, err error) error {
+	var hold *taskCloseHoldError
+	if !errors.As(err, &hold) {
+		return err
+	}
+	s.tasks.completionMu.Lock()
+	defer s.tasks.completionMu.Unlock()
+	t, ok := s.todoNow(id)
+	if !ok || t.DoneAt != nil || t.Supervision == nil || t.Supervision.State != reviewPending {
+		return err
+	}
+	e, ok := s.turnOf(ctx, id)
+	if !ok || e.State != turnDone || e.Judged != nil &&
+		(e.Judged.Check.Verdict != verdictDone || e.Judged.Skip != "" || e.Judged.Err != "") {
+		return err
+	}
+	_, changed, resetErr := s.updateSupervision(ctx, id, func(v *Supervision) bool {
+		if v.State != reviewPending || s.closedSince(id, e.Work) {
+			return false
+		}
+		v.State = ""
+		if v.Round > 0 {
+			v.State = reviewRework
+		}
+		return true
+	})
+	if resetErr != nil {
+		return errors.Join(err, fmt.Errorf("could not defer the pending review: %w", resetErr))
+	}
+	if changed {
+		s.deferTurnJudgment(ctx, id)
+		b := &s.supervise
+		b.mu.Lock()
+		delete(b.pending, id+"|"+sigReview)
+		b.mu.Unlock()
+	}
+	return err
 }
 
 func (s *Service) sessionActivityReason(ctx context.Context, machine, session string, now time.Time) string {

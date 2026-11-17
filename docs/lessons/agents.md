@@ -1244,6 +1244,10 @@ turn, not just `agent_send`.
 
 An owner-activity hold must leave the completion turn unjudged and retryable, including unsupervised tasks and saved
 judgments replayed after a later start. Do not spend failed-judgment retries while waiting for the owner to leave.
+A terminal review can encounter activity after the judge already published `pending_review`. Both conversation and
+leader reviews must retract that turn's judgment, review state and queued review signal, including a refusal at the
+final write boundary. Clear the saved signal too, or the sweep can replay it while the owner is still present. Keep
+the turn and rework history so inactivity alone restores review without another Agent turn.
 Recheck task ownership, its closure timestamp and owner activity after a stop RPC too: a check before that call
 cannot protect a session linked or reopened while it is in flight. Ended terminal relays must remove their clients'
 terminal viewer entries and publish the departure without clearing independent chat subscriptions.

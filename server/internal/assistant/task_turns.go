@@ -500,6 +500,9 @@ func (s *Service) deferTurnJudgment(ctx context.Context, todo string) {
 	}
 	if e, ok := b.doc.Turns[todo]; ok && e.State == turnDone {
 		e.Judged = nil
+		if e.Signal != nil && e.Signal.Kind == sigReview {
+			e.Signal = nil
+		}
 		b.doc.Turns[todo] = e
 		delete(b.looked, todo)
 		delete(b.retry, todo)

@@ -144,7 +144,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	}
 	if verdict == reviewAccepted || verdict == reviewCancelled {
 		if err := s.taskCloseActivityError(ctx, t, time.Now()); err != nil {
-			return "", err
+			return "", s.deferTaskReview(ctx, t.ID, err)
 		}
 	}
 	if verdict == reviewAccepted { // done_needs_delivery: its PR is live first (supervise_review_delivery.go)
@@ -246,7 +246,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 		closing.closed, err = s.reviewDoneTodo(ctx, t.ID, closing.reason, closing.accepted)
 	}
 	if err != nil {
-		return "", err
+		return "", s.deferTaskReview(ctx, t.ID, err)
 	}
 	if criteriaErr != nil {
 		return "", criteriaErr
