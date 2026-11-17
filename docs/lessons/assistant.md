@@ -705,3 +705,15 @@ answer retryable. Tests must check both the in-memory receipt and stored one, pl
 
 Restore the previous `DueAt` on acceptance-save failure, not an empty time: an owner message in the Agent chat uses
 that marker to pause the default. A later rejected answer must preserve both that pause and the dismissal.
+
+## Task-close guards must not wait for activity storage (#6819)
+
+Publish owner input in the activity cache before saving it, and keep the cache mutex out of database I/O. A review's
+transaction can hold the connection that an activity save is waiting for: its final guard must read caches only, not
+wait for that save. Serialize activity snapshots separately so a slower save cannot overwrite newer input.
+
+The judge's unsampled acceptance and a leaderless worker's cancellation need the same atomic ledger-and-closure
+commit as `task_review`. A refused close must leave no accepted/cancelled ledger or checked criteria on an open task.
+Defer the judge's completed turn on late owner activity so it can be judged again after inactivity; return a
+cancellation only when it actually committed. Regress the real owner bus event while storage is blocked, and check
+both the stored ledger and memory at the ledger, closure and final transaction boundaries.

@@ -833,15 +833,18 @@ func (s *Service) rehomeWorker(ctx context.Context, t Todo) (cur Todo, cancelled
 			return t, false
 		}
 		reason := "its task leader is gone, and there is no conversation above it to take it over" // i18n-ignore: done_reason
-		s.logf("task %s: %s; cancelled", t.ID, reason)
-		if _, _, err := s.updateSupervision(ctx, t.ID, func(v *Supervision) bool { v.State = reviewCancelled; return true }); err != nil {
+		closing := &taskReviewClose{reason: reason}
+		if _, _, err := s.updateSupervisionWithClose(ctx, t.ID,
+			func(v *Supervision) bool { v.State = reviewCancelled; return true }, closing); err != nil {
 			s.logf("task %s: rehome: %v", t.ID, err)
-		}
-		if _, err := s.reviewDoneTodo(ctx, t.ID, reason, false); err != nil {
-			s.logf("task %s: rehome: %v", t.ID, err)
+			cur, _ = s.todoNow(t.ID)
+			return cur, false
 		}
 		cur, _ = s.todoNow(t.ID)
-		return cur, true
+		if closing.closed {
+			s.logf("task %s: %s; cancelled", t.ID, reason)
+		}
+		return cur, closing.closed
 	}
 	s.logf("task %s: its task leader is gone; %s takes it over", t.ID, up)
 	if _, err := s.editTodo(ctx, t.ID, db.TodoEdit{Origin: &up}); err != nil {
