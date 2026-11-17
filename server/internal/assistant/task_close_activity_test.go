@@ -260,11 +260,24 @@ func TestAcceptedPlannedTaskStaysClosedWhenOwnerChatsDirectly(t *testing.T) {
 		t.Fatal("fixture is not a planned task")
 	}
 	agentTurn(s, f, proto.StatusIdle, "READY", 0)
-	reviewTask(t, s, todo.ID, map[string]any{"verdict": reviewAccepted, "note": "Disposable lifecycle probe"})
+	reviewed := make(chan error, 1)
+	raw, _ := json.Marshal(map[string]any{"todo_id": todo.ID, "verdict": reviewAccepted, "note": "Disposable lifecycle probe"})
+	go func() {
+		_, err := s.runTool(context.Background(), "server", "conv1", "task_review", raw)
+		reviewed <- err
+	}()
+	// Acknowledge the committed review before probing the owner's next turn, not an elapsed delay.
+	select {
+	case err := <-reviewed:
+		if err != nil {
+			t.Fatalf("accepting the planned task: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the accepted review did not finish")
+	}
 	if closed := todoNow(s, todo.ID); closed.DoneAt == nil || closed.DoneBy != db.DoneByReview {
 		t.Fatalf("accepted review did not close the task: %+v", closed)
 	}
-	time.Sleep(5 * time.Millisecond)
 
 	setTaskViewer(t, s, "box", "s1", true) // the owner opens the Agent page and types there
 	agentTurn(s, f, proto.StatusWorking, "", 0)

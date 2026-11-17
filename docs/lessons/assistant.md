@@ -717,3 +717,7 @@ commit as `task_review`. A refused close must leave no accepted/cancelled ledger
 Defer the judge's completed turn on late owner activity so it can be judged again after inactivity; return a
 cancellation only when it actually committed. Regress the real owner bus event while storage is blocked, and check
 both the stored ledger and memory at the ledger, closure and final transaction boundaries.
+
+Lifecycle tests wait for the operation they exercise: acknowledge `task_review` before sending the next owner turn,
+and wait for `fleet.clients` notifications until the viewer snapshot matches. A terminal error can arrive before that
+snapshot. Fixed delays hide this ordering and grow the sleep ratchet; keep bounded failure deadlines, not guessed sleeps.
