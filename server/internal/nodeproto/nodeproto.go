@@ -32,6 +32,10 @@ const ManagerUpdateInventory = "manager_update_inventory_v1"
 // stopping anything; callers must never fall back to unconditional session.stop.
 const StopIfIdle = "session.stop_if_idle"
 
+// ExternalLauncherInventory is optional source-scoped discovery from a trusted node-local adapter registration.
+// It is announced dynamically only while that registration is enabled, never as execution authority.
+const ExternalLauncherInventory = "external_launcher_inventory_v1"
+
 // Version is the node protocol this code speaks. Raise it only for a change an older peer cannot follow (a method
 // whose params or results changed meaning); additions go in as capabilities instead.
 //
