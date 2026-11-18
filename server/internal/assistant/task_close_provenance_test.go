@@ -88,7 +88,7 @@ func TestClosedTaskArchiveUsesPostStopProvenance(t *testing.T) {
 				ft.d.setSessions(c.MachineID, nil)
 				return map[string]any{"native": nativeArchiveDone}, nil
 			})
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, doneSeen{{c.MachineID, c.SessionID}: {done: old, running: old}})
 			if native := s.nativeArchiveAwaited(ctx, c.MachineID, c.SessionID); native == nil || native.State != nativeArchiveDone {
 				t.Fatalf("native archive did not complete: %+v", native)
 			}

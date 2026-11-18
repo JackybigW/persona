@@ -187,7 +187,8 @@ func TestClosedTaskAgentWaitsForOwnerThenArchivesWithReason(t *testing.T) {
 			if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed", accepted); err != nil || !ok {
 				t.Fatalf("close: %v %v", ok, err)
 			}
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			seen := doneSeen{}
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, seen)
 			if len(retiredOf(ft)) != 0 || archivedIDs(t, s)[row.SessionID] {
 				t.Fatal("task closure immediately stopped or archived its Agent")
 			}
@@ -198,15 +199,16 @@ func TestClosedTaskAgentWaitsForOwnerThenArchivesWithReason(t *testing.T) {
 			old := time.Now().Add(-time.Hour)
 			s.todos.todos[todo.ID].DoneAt = &old
 			s.todos.mu.Unlock()
+			seen = doneSeen{{"mac", row.SessionID}: {done: old, running: old}}
 
 			// Even an old, idle closed task stays usable while the owner is there.
 			setTaskViewer(t, s, "mac", row.SessionID, true)
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, seen)
 			if len(retiredOf(ft)) != 0 {
 				t.Fatal("stopped an Agent whose page is open")
 			}
 			setTaskViewer(t, s, "mac", row.SessionID, false)
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, seen)
 			if len(retiredOf(ft)) != 0 {
 				t.Fatal("stopped immediately after leaving the page")
 			}
@@ -219,12 +221,12 @@ func TestClosedTaskAgentWaitsForOwnerThenArchivesWithReason(t *testing.T) {
 			working := row
 			working.Status, working.State = proto.StatusWorking, proto.StateWorking
 			ft.d.setSessions("mac", []proto.Session{working})
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, seen)
 			if len(retiredOf(ft)) != 0 {
 				t.Fatal("stopped the Agent before it became idle")
 			}
 			ft.d.setSessions("mac", []proto.Session{row})
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, seen)
 			if len(retiredOf(ft)) != 1 || !archivedIDs(t, s)[row.SessionID] {
 				t.Fatalf("idle, inactive Agent was not stopped and archived: %v", retiredOf(ft))
 			}

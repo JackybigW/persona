@@ -297,7 +297,7 @@ func TestCancelDefersStoppingAndArchivingAgents(t *testing.T) {
 	if err != nil || !strings.Contains(res, "cancelled and closed") {
 		t.Fatalf("cancel: %s %v", res, err)
 	}
-	s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+	s.closeDoneTaskAgents(ctx, taskCloseRefused{}, doneSeen{})
 	if len(retiredOf(ft)) != 0 || archivedIDs(t, s)[row.SessionID] {
 		t.Fatal("closing a task stopped or archived a live conversation")
 	}
@@ -375,7 +375,7 @@ func TestCancelLeavesAnotherTasksAgent(t *testing.T) {
 	if err := s.linkTodoAgent(ctx, todo.ID, "mac", row.SessionID, "open", "/code", "claude"); err != nil {
 		t.Fatal(err)
 	}
-	s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+	s.closeDoneTaskAgents(ctx, taskCloseRefused{}, doneSeen{})
 	ft.f.mu.Lock()
 	n := len(closed)
 	ft.f.mu.Unlock()
@@ -416,7 +416,7 @@ func TestClosedTaskRetirementRefusalKeepsAgent(t *testing.T) {
 			at := time.Now().Add(-time.Hour)
 			s.todos.todos[todo.ID].DoneAt = &at
 			s.todos.mu.Unlock()
-			s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+			s.closeDoneTaskAgents(ctx, taskCloseRefused{}, doneSeen{{"mac", row.SessionID}: {done: at, running: at}})
 			if archivedIDs(t, s)[row.SessionID] {
 				t.Fatal("a refused retirement was archived")
 			}

@@ -30,7 +30,7 @@ func TestClosedTaskRetirementCancelsBeforeStopOnOwnerActivity(t *testing.T) {
 			finished := make(chan struct{})
 			go func() {
 				defer close(finished)
-				s.closeDoneTaskAgents(ctx, taskCloseRefused{})
+				s.closeDoneTaskAgents(ctx, taskCloseRefused{}, doneSeen{{"mac", row.SessionID}: {done: old, running: old}})
 			}()
 			defer func() {
 				close(gate.release)
