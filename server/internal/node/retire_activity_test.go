@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -14,6 +15,14 @@ import (
 )
 
 func TestAutomaticStopDoesNotOvertakeInputDuringStop(t *testing.T) {
+	for _, closeTerminal := range []bool{false, true} {
+		t.Run(fmt.Sprint("close_terminal=", closeTerminal), func(t *testing.T) {
+			testAutomaticStopDoesNotOvertakeInput(t, closeTerminal)
+		})
+	}
+}
+
+func testAutomaticStopDoesNotOvertakeInput(t *testing.T, closeTerminal bool) {
 	n, f, home := herdrNode(t)
 	cwd := mkdir(t, filepath.Join(home, "project"))
 	n.state.put(sidA, sessionState{Launcher: "cc", Cwd: cwd})
@@ -38,8 +47,12 @@ func TestAutomaticStopDoesNotOvertakeInputDuringStop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	stopped := make(chan error, 1)
+	args, err := json.Marshal(map[string]any{"session_id": sidA, "retire": true, "stop_cause": "task_completed", "close_terminal": closeTerminal})
+	if err != nil {
+		t.Fatal(err)
+	}
 	go func() {
-		_, err := n.handle(ctx, nodeproto.StopIfIdle, json.RawMessage(`{"session_id":"`+sidA+`","retire":true,"stop_cause":"task_completed"}`))
+		_, err := n.handle(ctx, nodeproto.StopIfIdle, args)
 		stopped <- err
 	}()
 	select {
@@ -77,6 +90,7 @@ func TestAutomaticStopDoesNotOvertakeInputDuringStop(t *testing.T) {
 	if st, _ := n.state.get(sidA); st.StopCause.AllowsSupervisorResume() {
 		t.Fatal("a refused stop granted automatic recovery")
 	}
+	closesNothing(t, f)
 }
 
 func TestAutomaticStopRechecksFreshRuntimeAndInputGrace(t *testing.T) {

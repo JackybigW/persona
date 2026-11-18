@@ -44,22 +44,114 @@ var (
 )
 
 // retire stops session id's agent when it is still and keeps its pane, or closes the pane when closeTerminal (the
-// user's "Archive and close"); done false (and no error) when it was not running.
-func (n *Node) retire(ctx context.Context, id string, closeTerminal bool) (done bool, err error) {
+// user's "Archive and close", or the owner's setting to close an Agent's terminal when its session ends, #10355);
+// done false (and no error) when it was not running. With afterExit, an Agent that already quit has the marked, idle
+// shell it left closed too (closeAfterExit: Herdr only, refused when anything else is in it). cause is what the
+// close records: an automatic one (idle, task_completed) keeps the supervisor's resume, anything else is the user's;
+// an after-exit close keeps the cause the Agent stopped with.
+func (n *Node) retire(ctx context.Context, id string, closeTerminal, afterExit bool, cause proto.StopCause) (done bool, err error) {
 	if !closeTerminal {
 		return n.stopWithCause(ctx, id, true, proto.StopUnknown)
 	}
 	release := n.recovery.lock(id)
 	defer release()
 	unlock, _, ok, err := n.stoppable(id, true)
-	if err != nil || !ok {
+	if err != nil {
 		return false, err
 	}
+	if !ok {
+		if !afterExit {
+			return false, nil
+		}
+		return n.closeExited(ctx, id)
+	}
 	defer unlock()
-	if err := n.close(ctx, id); err != nil {
+	if !cause.AllowsSupervisorResume() || cause == proto.StopRestart {
+		cause = proto.StopUser
+	}
+	if err := n.closeWithCause(ctx, id, cause); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// closeExited closes the shell session id's agent left when it quit (closeAfterExit), under the recovery lock its
+// caller holds; done false when there is no such shell. Its stop cause stays as it was.
+func (n *Node) closeExited(ctx context.Context, id string) (bool, error) {
+	return n.closeExitedChecked(ctx, id, nil)
+}
+
+// closeIdleTerminal applies the owner's close-on-end setting without bypassing automatic retirement's guard.
+// The running Agent's Close and an already exited Agent's shell both recheck input at their irreversible boundaries.
+func (n *Node) closeIdleTerminal(ctx context.Context, id string, cause proto.StopCause) (stopped, closed bool, err error) {
+	release := n.recovery.lock(id)
+	defer release()
+	if err := ctx.Err(); err != nil {
+		return false, false, err
+	}
+	if err := n.refreshHosts(ctx); err != nil {
+		return false, false, err
+	}
+	before := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !n.typing.inputIdle(id, stopInputIdle) {
+			return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)
+		}
+		return nil
+	}
+	unlock, _, running, err := n.stoppable(id, true)
+	if err != nil {
+		return false, false, err
+	}
+	if running {
+		defer unlock()
+		err = n.closeWithCauseChecked(ctx, id, cause, before)
+		stopped, closed = err == nil, err == nil
+	} else {
+		closed, err = n.closeExitedChecked(ctx, id, before)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return false, false, ctxErr
+	}
+	return stopped, closed, err
+}
+
+func (n *Node) closeExitedChecked(ctx context.Context, id string, before func() error) (bool, error) {
+	if !validID(id) {
+		return false, fmt.Errorf("invalid session id %q", id)
+	}
+	if err := n.switchingRefusal(id); err != nil {
+		return false, err
+	}
+	unlock := n.typing.lock(id)
+	defer unlock()
+	if before != nil {
+		if err := before(); err != nil {
+			return false, err
+		}
+	}
+	if _, running := n.agent(id); running {
+		return false, refusal(notRetirable, "the agent is running again", nil)
+	}
+	st, mine := n.state.get(id)
+	if !mine {
+		return false, nil // not Persona's: never closed
+	}
+	pane := st.Pane
+	if pane == "" {
+		p, _ := n.keptPane(id)
+		pane = p.PaneID
+	}
+	if pane == "" || host.ParsePane(pane).Kind != host.Herdr {
+		return false, nil // no shell it left that Persona can tell apart safely: kept, as before
+	}
+	_, kept := n.keptPane(id) // in the hosts' last snapshots; closeAfterExit reads the engine again before closing
+	if err := n.closeAfterExit(ctx, id, st, before); err != nil {
+		return false, err
+	}
+	return kept, nil
 }
 
 // stop quits session id's agent and keeps its pane (retire: only one that is still); stopped false (and no error)
@@ -427,8 +519,9 @@ func (n *Node) resumeCodex(ctx context.Context, launch host.Launcher, id string,
 }
 
 // newTab opens a tab in workspace ws for cwd, named tabName (or agent-<n>); with no workspace, a new one named after
-// the directory, whose first tab it is. The pane is marked as Persona's (personaTabToken, the session id when it is
-// already known): once its agent exits, the tab stays with the shell, linked to the session (personatab.go).
+// the directory, whose first tab it is. Its shell starts with startShellEnv where the engine takes one (startenv.go).
+// The pane is marked as Persona's (personaTabToken, the session id when it is already known): once its agent exits,
+// the tab stays with the shell, linked to the session (personatab.go).
 func (n *Node) newTab(ctx context.Context, launch host.Launcher, cwd, ws, tabName, id string) (*host.Created, error) {
 	if c := adoptedPane(ctx); c != nil { // "Run Agent Here": the pane the user picked, not a new tab (panes_actions.go)
 		return c, nil
@@ -438,18 +531,8 @@ func (n *Node) newTab(ctx context.Context, launch host.Launcher, cwd, ws, tabNam
 	}
 	var created *host.Created
 	var err error
-	createSpace, createSlot := launch.CreateSpace, launch.CreateSlot
-	if el, ok := launch.(host.EnvLauncher); ok { // the shell starts marked as an Agent's (agentenv.go agentMarkEnv)
-		env := []string{agentMarkEnv}
-		createSpace = func(ctx context.Context, cwd, label string) (*host.Created, error) {
-			return el.CreateSpaceEnv(ctx, cwd, label, env)
-		}
-		createSlot = func(ctx context.Context, space, cwd, label string) (*host.Created, error) {
-			return el.CreateSlotEnv(ctx, space, cwd, label, env)
-		}
-	}
 	if ws == "" {
-		if created, err = createSpace(ctx, cwd, filepath.Base(cwd)); err == nil && created.SlotID != "" {
+		if created, err = createStartSpace(ctx, launch, cwd, filepath.Base(cwd)); err == nil && created.SlotID != "" {
 			var taken map[string]bool
 			if _, ok := launch.(*herdrCoreHost); ok {
 				taken = n.tabLabels(ctx, launch, created.SpaceID) // CreateSpace can reuse an app space by its folder.
@@ -457,7 +540,7 @@ func (n *Node) newTab(ctx context.Context, launch host.Launcher, cwd, ws, tabNam
 			_ = renameSlot(ctx, launch, created.SlotID, tabLabel(tabName, taken))
 		}
 	} else {
-		created, err = createSlot(ctx, ws, cwd, tabLabel(tabName, n.tabLabels(ctx, launch, ws)))
+		created, err = createStartSlot(ctx, launch, ws, cwd, tabLabel(tabName, n.tabLabels(ctx, launch, ws)))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("创建终端标签页失败：%w", err)

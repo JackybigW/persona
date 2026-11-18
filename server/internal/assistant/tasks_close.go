@@ -67,6 +67,7 @@ func (s *Service) taskCloseLoop(ctx context.Context) {
 	refused := taskCloseRefused{}
 	doneSeen := doneSeen{}
 	idleSeen := idleSeen{}
+	endedSeen := endedSeen{}
 	var archived time.Time
 	for {
 		select {
@@ -76,7 +77,8 @@ func (s *Service) taskCloseLoop(ctx context.Context) {
 		}
 		s.closeDoneTaskAgents(ctx, refused, doneSeen)
 		s.closeIdleAgents(ctx, refused, idleSeen)
-		s.orphanWatch(ctx, time.Now()) // open to-dos whose agents are all gone (tasks_orphan.go)
+		s.closeEndedAgentTerminals(ctx, endedSeen) // Agents that quit, with close_ended_terminals on (agent_terminal_close.go)
+		s.orphanWatch(ctx, time.Now())             // open to-dos whose agents are all gone (tasks_orphan.go)
 		if now := time.Now(); now.Sub(archived) >= autoArchiveEvery {
 			archived = now
 			s.archiveClosedSessions(ctx, now) // closed sessions idle for days (agent_archive_auto.go)
@@ -266,12 +268,13 @@ func (s *Service) doneTaskAgentRow(ctx context.Context, lists map[string]map[str
 	return c, ok
 }
 
-// retireAgent asks c's node for a guarded automatic stop that keeps its terminal and remembers a
+// retireAgent asks c's node for a guarded automatic stop and remembers a
 // refusal; who names the reason in the log. True when the node confirmed the agent is no longer running.
 func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who, machine string, c proto.Session, now time.Time) bool {
 	key := [2]string{machine, c.SessionID}
 	var res struct {
 		Stopped bool `json:"stopped"`
+		Closed  bool `json:"closed"`
 	}
 	cctx, cancel := s.retirementContext(ctx, machine, c.SessionID)
 	defer cancel()
@@ -282,12 +285,22 @@ func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who
 	if cctx.Err() != nil {
 		return false
 	}
-	err := s.call(cctx, machine, nodeproto.StopIfIdle, map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": cause}, &res)
+	// A done task ends its Agent's session: with the owner's close-on-end setting its terminal goes too (#10355,
+	// agent_terminal_close.go), but never by bypassing the activity guard. An idle stop keeps its terminal either way.
+	closeIt := cause == proto.StopTaskCompleted && !agentCloseBusy(c) && s.closeEndedTerminals(ctx)
+	params := map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": cause}
+	if closeIt {
+		params["close_terminal"] = true
+	}
+	err := s.call(cctx, machine, nodeproto.StopIfIdle, params, &res)
 	var re *rpc.Error
 	switch {
 	case err == nil:
 		delete(refused, key)
-		if res.Stopped {
+		switch {
+		case res.Closed:
+			s.logf("%s: closed agent %s/%s and its terminal (close_ended_terminals)", who, machine, c.SessionID)
+		case res.Stopped:
 			s.logf("%s: stopped agent %s/%s (its terminal stays)", who, machine, c.SessionID)
 		}
 		return true

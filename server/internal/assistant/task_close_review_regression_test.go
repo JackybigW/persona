@@ -281,12 +281,21 @@ func (h *taskRetirementBarrier) DeviceCall(ctx context.Context, p DeviceCall) (j
 }
 
 func TestClosedTaskRetirementRechecksAfterStop(t *testing.T) {
+	for _, closeTerminal := range []bool{false, true} {
+		t.Run(map[bool]string{false: "terminal kept", true: "terminal cleanup"}[closeTerminal], func(t *testing.T) {
+			testClosedTaskRetirementRechecksAfterStop(t, closeTerminal)
+		})
+	}
+}
+
+func testClosedTaskRetirementRechecksAfterStop(t *testing.T, closeTerminal bool) {
 	for _, method := range []string{nodeproto.StopIfIdle, "session.info"} {
 		for _, change := range []string{"new task", "reopen", "reclose", "view", "message"} {
 			t.Run(method+"/"+change, func(t *testing.T) {
 				ft, row := closeTestService(t, nil)
 				ft.f.setSessions("mac", row)
 				s, ctx := ft.s, context.Background()
+				closeOnEnd(t, s, closeTerminal)
 				gate := &taskRetirementBarrier{Hub: s.hub, method: method, entered: make(chan struct{}), release: make(chan struct{})}
 				s.hub = gate
 				todo, err := s.createTodo(ctx, "Disposable task", "Check the result", "conv1", "")
