@@ -891,12 +891,15 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 		done, err := n.retire(ctx, p.SessionID, a.CloseTerminal)
 		return map[string]any{"closed": done}, err
 	}
-	if method == "session.stop" {
+	if method == "session.stop" || method == nodeproto.StopIfIdle {
 		var a struct {
 			Retire    bool            `json:"retire"`
 			StopCause proto.StopCause `json:"stop_cause"`
 		}
 		_ = json.Unmarshal(params, &a)
+		if method == nodeproto.StopIfIdle && (!a.Retire || !a.StopCause.AllowsSupervisorResume()) {
+			return nil, refusal(notRetirable, "an automatic stop needs retire and an automatic stop cause", nil)
+		}
 		cause := proto.StopUser
 		if a.Retire && a.StopCause.AllowsSupervisorResume() {
 			cause = a.StopCause

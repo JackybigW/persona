@@ -32,6 +32,8 @@ const (
 	notRetirable = "not_retirable"
 	noTerminal   = "no_terminal"
 	notStopped   = "not_stopped"
+	// The manager's owner-activity grace period, also enforced at the node's stop boundary.
+	stopInputIdle = 10 * time.Minute
 )
 
 // stopRounds and stopWait bound session.stop: each round presses Ctrl+C twice and waits up to stopWait for the agent
@@ -69,6 +71,15 @@ func (n *Node) stop(ctx context.Context, id string, retire bool) (stopped bool, 
 func (n *Node) stopWithCause(ctx context.Context, id string, retire bool, cause proto.StopCause) (stopped bool, err error) {
 	release := n.recovery.lock(id)
 	defer release()
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	automatic := retire && cause != proto.StopUser
+	if automatic {
+		if err := n.refreshHosts(ctx); err != nil {
+			return false, err
+		}
+	}
 	if cause == proto.StopUser {
 		if err := n.saveStopCause(ctx, id, proto.StopUser); err != nil {
 			return false, err
@@ -80,10 +91,22 @@ func (n *Node) stopWithCause(ctx context.Context, id string, retire bool, cause 
 		return false, err
 	}
 	defer unlock()
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if cause != proto.StopUser {
 		n.state.stopped(id, proto.StopUnknown) // An unconfirmed/failed automatic stop never grants recovery.
 	}
-	stopped, err = n.quitAgent(ctx, id, a.PaneID)
+	var before func() error
+	if automatic {
+		before = func() error {
+			if !n.typing.inputIdle(id, stopInputIdle) {
+				return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)
+			}
+			return nil
+		}
+	}
+	stopped, err = n.quitAgentChecked(ctx, id, a.PaneID, before)
 	if stopped && err == nil {
 		n.state.stopped(id, cause)
 	}
@@ -148,8 +171,12 @@ func (n *Node) stoppable(id string, retire bool) (unlock func(), a host.Agent, o
 // quitAgent presses Ctrl+C twice in pane until session id's agent is no longer in it (or in any pane), and never
 // closes the pane: the shell the agent ran in stays. An agent that does not quit is refused as not_stopped.
 func (n *Node) quitAgent(ctx context.Context, id, pane string) (bool, error) {
+	return n.quitAgentChecked(ctx, id, pane, nil)
+}
+
+func (n *Node) quitAgentChecked(ctx context.Context, id, pane string, before func() error) (bool, error) {
 	for range stopRounds {
-		stopped, err := n.quitAgentRound(ctx, id, pane, nil, false)
+		stopped, err := n.quitAgentRound(ctx, id, pane, nil, false, before)
 		if err != nil {
 			return false, err
 		}
@@ -163,7 +190,7 @@ func (n *Node) quitAgent(ctx context.Context, id, pane string) (bool, error) {
 // quitAgentRound is one quitAgent attempt: two Ctrl+C presses, then a bounded wait for the session to leave pane.
 // With only and requireFresh, an abandoned start uses the same primitive but every verification refresh must succeed
 // for that pane's host; the ordinary quitAgent keeps its tolerant multi-round refresh behavior.
-func (n *Node) quitAgentRound(ctx context.Context, id, pane string, only host.Host, requireFresh bool) (bool, error) {
+func (n *Node) quitAgentRound(ctx context.Context, id, pane string, only host.Host, requireFresh bool, before func() error) (bool, error) {
 	if requireFresh {
 		// Do not let a successful discovery followed by an outage turn the first Ctrl+C pair into an unverified interrupt,
 		// and do not send it to a shell after the agent has already left.
@@ -172,6 +199,16 @@ func (n *Node) quitAgentRound(ctx context.Context, id, pane string, only host.Ho
 		}
 		if a, ok := n.agent(id); !ok || a.PaneID != pane {
 			return true, nil
+		}
+	}
+	// The first key is irreversible. Cancellation before this boundary must send
+	// no interrupt at all, including after waiting for another input's lock.
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if before != nil {
+		if err := before(); err != nil {
+			return false, err
 		}
 	}
 	_ = n.sendKeys(ctx, pane, "ctrl+c")

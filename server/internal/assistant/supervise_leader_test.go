@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
@@ -360,7 +361,7 @@ func TestCancelLeavesAnotherTasksAgent(t *testing.T) {
 	ft, row := closeTestService(t, nil)
 	ft.f.setSessions("mac", row)
 	var closed []string
-	for _, m := range []string{"session.close", deviceSessionStop} {
+	for _, m := range []string{"session.close", deviceSessionStop, nodeproto.StopIfIdle} {
 		ft.f.answerNode(m, func(_ string, raw json.RawMessage) (any, error) {
 			closed = append(closed, string(raw))
 			return map[string]any{"ok": true}, nil
@@ -385,12 +386,16 @@ func TestCancelLeavesAnotherTasksAgent(t *testing.T) {
 
 // A refusal from the node never falls back to closing the terminal or archiving the Agent.
 func TestClosedTaskRetirementRefusalKeepsAgent(t *testing.T) {
-	for _, code := range []string{"no_terminal", "not_stopped", "not_retirable"} {
+	for _, code := range []string{"no_terminal", "not_stopped", "not_retirable", "unknown_method"} {
 		t.Run(code, func(t *testing.T) {
 			ft, row := closeTestService(t, nil)
 			ft.f.setSessions("mac", row)
-			ft.f.answerNode(deviceSessionStop, func(_ string, _ json.RawMessage) (any, error) {
+			ft.f.answerNode(nodeproto.StopIfIdle, func(_ string, _ json.RawMessage) (any, error) {
 				return nil, &rpc.Error{Code: code, Message: "refused"}
+			})
+			ft.f.answerNode(deviceSessionStop, func(_ string, _ json.RawMessage) (any, error) {
+				t.Error("fell back to an unconditional stop")
+				return nil, nil
 			})
 			ft.f.answerNode("session.close", func(_ string, _ json.RawMessage) (any, error) {
 				t.Error("automatically closed an Agent's terminal")

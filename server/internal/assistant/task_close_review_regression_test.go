@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -263,7 +264,7 @@ type taskRetirementBarrier struct {
 func (h *taskRetirementBarrier) DeviceCall(ctx context.Context, p DeviceCall) (json.RawMessage, error) {
 	method := h.method
 	if method == "" {
-		method = deviceSessionStop
+		method = nodeproto.StopIfIdle
 	}
 	if p.Method == method {
 		close(h.entered)
@@ -272,12 +273,15 @@ func (h *taskRetirementBarrier) DeviceCall(ctx context.Context, p DeviceCall) (j
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return h.Hub.DeviceCall(ctx, p)
 }
 
 func TestClosedTaskRetirementRechecksAfterStop(t *testing.T) {
-	for _, method := range []string{deviceSessionStop, "session.info"} {
+	for _, method := range []string{nodeproto.StopIfIdle, "session.info"} {
 		for _, change := range []string{"new task", "reopen", "reclose", "view", "message"} {
 			t.Run(method+"/"+change, func(t *testing.T) {
 				ft, row := closeTestService(t, nil)
@@ -341,10 +345,13 @@ func TestClosedTaskRetirementRechecksAfterStop(t *testing.T) {
 					s.rememberSessionActivity(ctx, "mac", row.SessionID)
 				}
 				// Let the blocked RPC succeed after the concurrent change, before checking archive state.
+				cancelled := method == nodeproto.StopIfIdle && (change == "message" || change == "view")
 				select {
 				case gate.release <- struct{}{}:
 				case <-finished:
-					t.Fatalf("%s ended before the fixture released it", method)
+					if !cancelled {
+						t.Fatalf("%s ended before the fixture released it", method)
+					}
 				case <-time.After(5 * time.Second):
 					t.Fatalf("%s did not wait for the fixture", method)
 				}
@@ -353,7 +360,11 @@ func TestClosedTaskRetirementRechecksAfterStop(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatalf("%s did not return", method)
 				}
-				if len(retiredOf(ft)) != 1 {
+				wantStops := 1
+				if cancelled {
+					wantStops = 0
+				}
+				if len(retiredOf(ft)) != wantStops {
 					t.Fatal("fixture did not complete its stop RPC")
 				}
 				if archivedIDs(t, s)[row.SessionID] {

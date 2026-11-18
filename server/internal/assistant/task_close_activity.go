@@ -19,10 +19,51 @@ const taskActivityKey = "assistant.task_activity"
 const activityUnknown = "the user's recent session activity could not be loaded"
 
 type taskActivityBook struct {
-	mu      sync.Mutex
-	writing sync.Mutex
-	loaded  bool
-	times   map[string]time.Time
+	mu       sync.Mutex
+	writing  sync.Mutex
+	loaded   bool
+	times    map[string]time.Time
+	retiring map[string]map[*taskRetirement]struct{}
+}
+
+type taskRetirement struct{ cancel context.CancelFunc }
+
+// Register before the final activity read so input cannot fall between the read
+// and the cancellable RPC. No storage or fleet mutex is held across the stop.
+func (s *Service) retirementContext(ctx context.Context, machine, session string) (context.Context, func()) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	r := &taskRetirement{cancel: cancel}
+	b, key := &s.taskActivity, runtimeListID(machine, session)
+	b.mu.Lock()
+	if b.retiring == nil {
+		b.retiring = map[string]map[*taskRetirement]struct{}{}
+	}
+	if b.retiring[key] == nil {
+		b.retiring[key] = map[*taskRetirement]struct{}{}
+	}
+	b.retiring[key][r] = struct{}{}
+	b.mu.Unlock()
+	if s.sessionActivityReason(ctx, machine, session, time.Now()) != "" {
+		cancel()
+	}
+	return ctx, func() {
+		cancel()
+		b.mu.Lock()
+		delete(b.retiring[key], r)
+		if len(b.retiring[key]) == 0 {
+			delete(b.retiring, key)
+		}
+		b.mu.Unlock()
+	}
+}
+
+func (s *Service) cancelSessionRetirement(machine, session string) {
+	b := &s.taskActivity
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for r := range b.retiring[runtimeListID(machine, session)] {
+		r.cancel()
+	}
 }
 
 // Read receipts cannot represent input or leaving a page: that would mark a later
@@ -72,6 +113,7 @@ func (s *Service) rememberSessionActivity(ctx context.Context, machine, session 
 	now := time.Now().UTC()
 	b.times[runtimeListID(machine, session)] = now
 	b.mu.Unlock()
+	s.cancelSessionRetirement(machine, session)
 	if err := s.loadTaskActivity(ctx); err != nil {
 		s.logf("task activity: load: %v (kept in memory)", err)
 		return now

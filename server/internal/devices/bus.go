@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nwverse/persona/server/internal/devicewire"
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
 
@@ -23,10 +24,13 @@ func (d *Devices) Request(ctx context.Context, method string, params json.RawMes
 		return nil
 	}
 	switch method {
-	case devicewire.MethodCall, devicewire.MethodFileCall:
+	case devicewire.MethodCall, devicewire.MethodFileCall, devicewire.MethodRetireCall:
 		var p devicewire.NodeCall
 		if err := decode(&p); err != nil {
 			return nil, true, err
+		}
+		if method == devicewire.MethodRetireCall && p.Method != nodeproto.StopIfIdle {
+			return nil, true, &rpc.Error{Code: "invalid_params", Message: "devices.retire_call requires session.stop_if_idle"}
 		}
 		out, err := d.Call(ctx, p)
 		return out, true, err

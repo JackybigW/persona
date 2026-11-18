@@ -82,6 +82,7 @@ func (s *Service) recordSessionSeen(ctx context.Context, machine, session string
 	}
 	s.fleet.seen[[2]string{machine, session}] = now
 	s.fleet.mu.Unlock()
+	s.cancelSessionRetirement(machine, session)
 	if st := s.fleetStore(); st != nil {
 		if err := st.MarkSeen(context.WithoutCancel(ctx), machine, session, now); err != nil {
 			s.logf("mark seen: %v", err)

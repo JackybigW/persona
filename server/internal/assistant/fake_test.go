@@ -23,6 +23,7 @@ import (
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/kb"
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
@@ -594,7 +595,7 @@ func (f *fakeHub) deviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 		f.retired = append(f.retired, a["session_id"].(string))
 		f.retireArgs = append(f.retireArgs, map[string]any{"method": p.Method, "close_terminal": a["close_terminal"]})
 		return json.RawMessage(`{"closed":true}`), nil
-	case deviceSessionStop:
+	case deviceSessionStop, nodeproto.StopIfIdle:
 		if f.retireErr != nil {
 			return nil, f.retireErr
 		}

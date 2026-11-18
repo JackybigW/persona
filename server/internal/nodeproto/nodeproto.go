@@ -28,6 +28,10 @@ const MCPWait = "mcp_wait_v1"
 // contract. A legacy peer remains compatible, but cannot produce idle evidence.
 const ManagerUpdateInventory = "manager_update_inventory_v1"
 
+// StopIfIdle is an additive automatic-stop RPC. Old peers refuse it before
+// stopping anything; callers must never fall back to unconditional session.stop.
+const StopIfIdle = "session.stop_if_idle"
+
 // Version is the node protocol this code speaks. Raise it only for a change an older peer cannot follow (a method
 // whose params or results changed meaning); additions go in as capabilities instead.
 //

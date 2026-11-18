@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -677,6 +678,12 @@ func (s *Service) taskJudging(todo string, n int) {
 // one left untold is told from the ledger alone.
 func (s *Service) watchTurn(ctx context.Context, t Todo, agents []proto.Session) {
 	agents = currentTaskAgents(agents, supersededAgents(t, agents))
+	// A deferred, already-receipted turn can outlive its inventory row.
+	// This is only a read address: recoverTurn must still verify the same closed turn.
+	pending, missing := s.missingPendingTurnAgent(ctx, t, agents)
+	if missing {
+		agents = append(slices.Clone(agents), pending)
+	}
 	probe := make([]proto.Session, len(agents))
 	var last proto.Session
 	now := time.Now()
@@ -690,6 +697,9 @@ func (s *Service) watchTurn(ctx context.Context, t Todo, agents []proto.Session)
 		if last.SessionID == "" || c.UpdatedAt.After(last.UpdatedAt) {
 			last = c
 		}
+	}
+	if missing {
+		last = pending
 	}
 	if !taskAgentsSettled(t, probe) {
 		return // one works, waits, or is not listed: its end comes later, by itself or by this look
@@ -760,6 +770,27 @@ func (s *Service) watchTurn(ctx context.Context, t Todo, agents []proto.Session)
 		r.at = time.Now().Add(turnRetryIn(r.n))
 		b.retry[t.ID] = r
 	}()
+}
+
+func (s *Service) missingPendingTurnAgent(ctx context.Context, t Todo, agents []proto.Session) (proto.Session, bool) {
+	e, ok := s.turnOf(ctx, t.ID)
+	if t.Supervision != nil || !ok || e.State != turnDone || e.Judged != nil || e.Key == "" ||
+		autoDoneSkip(t, e.Work, true) != "" {
+		return proto.Session{}, false
+	}
+	for _, c := range agents {
+		if c.MachineID == e.Machine && c.SessionID == e.Session {
+			return proto.Session{}, false // a current runtime row always outranks the ledger
+		}
+	}
+	for _, a := range t.Agents {
+		if a.MachineID == e.Machine && a.SessionID == e.Session && a.ReleasedAt == nil && a.DismissedAt == nil &&
+			!a.LinkedAt.After(e.At) {
+			return proto.Session{MachineID: e.Machine, SessionID: e.Session, Rev: e.Rev, UpdatedAt: e.Seen,
+				Status: proto.StatusDone}, true
+		}
+	}
+	return proto.Session{}, false
 }
 
 // recoverTurn reads the transcript of supervised task t's last agent and takes up a closed turn the ledger does not

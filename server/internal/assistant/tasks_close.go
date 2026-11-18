@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
@@ -203,20 +204,23 @@ func (s *Service) doneTaskAgentRow(ctx context.Context, lists map[string]map[str
 	return c, ok
 }
 
-// retireAgent asks c's node to stop its agent and keep its terminal (session.stop with retire) and remembers a
+// retireAgent asks c's node for a guarded automatic stop that keeps its terminal and remembers a
 // refusal; who names the reason in the log.
 func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who, machine string, c proto.Session, now time.Time) bool {
 	key := [2]string{machine, c.SessionID}
 	var res struct {
 		Stopped bool `json:"stopped"`
 	}
-	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	cctx, cancel := s.retirementContext(ctx, machine, c.SessionID)
+	defer cancel()
 	cause := proto.StopTaskCompleted
 	if who == "idle" {
 		cause = proto.StopIdle
 	}
-	err := s.call(cctx, machine, deviceSessionStop, map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": cause}, &res)
-	cancel()
+	if cctx.Err() != nil {
+		return false
+	}
+	err := s.call(cctx, machine, nodeproto.StopIfIdle, map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": cause}, &res)
 	var re *rpc.Error
 	switch {
 	case err == nil:
@@ -225,7 +229,7 @@ func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who
 			s.logf("%s: stopped agent %s/%s (its terminal stays)", who, machine, c.SessionID)
 			return true
 		}
-	case errors.As(err, &re): // the node refused (or is too old to know session.stop: nothing closed): not again for a while
+	case errors.As(err, &re): // a refusal, including an old peer without guarded stop: not again for a while
 		if prev, ok := refused[key]; !ok || prev.why != err.Error() {
 			s.logf("%s: agent %s/%s left open: %v", who, machine, c.SessionID, err)
 		}

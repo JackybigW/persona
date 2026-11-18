@@ -86,6 +86,31 @@ struct TerminalTakeoverTests {
         #expect(sent.of("terminal_unsubscribe").count == 1, "stopping the same page twice is harmless")
     }
 
+    @Test func anInitiallyPollingTerminalRegistersOnlyWhileVisibleAndAfterReconnect() async throws {
+        let (model, socket, sent) = try app()
+        deliver(socket, #"{"type":"hello","features":["terminal_control"]}"#)
+        let feed = feed(model)
+        await feed.tick(model)
+        let first = try #require(sent.of("terminal_subscribe").first, "a polling-only page must register its viewer")
+        #expect(first["control"] == nil && first["takeover"] as? Bool != true)
+        #expect(feed.mode == .poll && !feed.drives)
+        await feed.tick(model)
+        #expect(sent.of("terminal_subscribe").count == 1, "polling must not recreate the subscription every tick")
+        sent.messages = []
+        deliver(socket, #"{"type":"hello","features":["terminal_control"]}"#)
+        let reconnected = try #require(sent.of("terminal_subscribe").first, "reconnect must restore the polling viewer")
+        #expect(reconnected["control"] == nil && reconnected["takeover"] as? Bool != true)
+        feed.stop(model)
+        #expect(sent.of("terminal_unsubscribe").count == 1)
+        sent.messages = []
+        deliver(socket, #"{"type":"hello","features":["terminal_control"]}"#)
+        #expect(sent.of("terminal_subscribe").isEmpty, "a hidden page must not restore its viewer")
+        await feed.tick(model)
+        let returned = try #require(sent.of("terminal_subscribe").first, "returning to the page must register again")
+        #expect(returned["control"] == nil && returned["takeover"] as? Bool != true)
+        feed.stop(model)
+    }
+
     @Test func aPollingTerminalRestoresViewOnlyPresenceAfterReconnect() async throws {
         let (model, socket, sent) = try app()
         let feed = feed(model)

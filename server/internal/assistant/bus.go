@@ -24,6 +24,7 @@ import (
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/managerconf"
 	"github.com/nwverse/persona/server/internal/memtrim"
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
@@ -121,7 +122,7 @@ func NewBusHub(o BusOptions) *BusHub {
 	}
 	b.client = &bus.Client{
 		// The manager's extensions stop waiting for a card when their caller does (extmgr's interactions.wait).
-		Cancels: map[string]bool{assistantwire.MethodApp: true},
+		Cancels: map[string]bool{assistantwire.MethodApp: true, assistantwire.MethodDeviceRetire: true},
 		Hub:     o.Hub, Token: o.Token, HTTPClient: o.HTTPClient, Logf: o.Logf, Backoff: o.Backoff,
 		StopWhenRevoked: o.StopWhenRevoked, StopWhenRejected: o.StopWhenRejected,
 		// The hub's own manager (its child, or the built-in one's service dialing the hub's local address) is on the
@@ -379,7 +380,11 @@ func (b *BusHub) DeviceCall(ctx context.Context, p DeviceCall) (json.RawMessage,
 		return out, err
 	}
 	var out json.RawMessage
-	err := b.client.Call(ctx, assistantwire.MethodDevice, p, &out)
+	method := assistantwire.MethodDevice
+	if p.Method == nodeproto.StopIfIdle {
+		method = assistantwire.MethodDeviceRetire
+	}
+	err := b.client.Call(ctx, method, p, &out)
 	return out, busError(err)
 }
 

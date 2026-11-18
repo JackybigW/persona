@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -60,7 +61,7 @@ func TestClosedTaskArchiveUsesPostStopProvenance(t *testing.T) {
 			s.todos.todos[todo.ID].DoneAt = &old
 			s.todos.mu.Unlock()
 			stopped, reads := false, 0
-			f.answerNode(deviceSessionStop, func(_ string, raw json.RawMessage) (any, error) {
+			f.answerNode(nodeproto.StopIfIdle, func(_ string, raw json.RawMessage) (any, error) {
 				var args map[string]any
 				_ = json.Unmarshal(raw, &args)
 				if !maps.Equal(args, map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": string(proto.StopTaskCompleted)}) {

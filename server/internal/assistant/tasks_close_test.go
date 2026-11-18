@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/nodeproto"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
@@ -99,7 +100,7 @@ func TestDoneTaskAgentIsClosed(t *testing.T) {
 	f.mu.Lock()
 	args := f.retireArgs[0]
 	f.mu.Unlock()
-	if args["method"] != deviceSessionStop || args["retire"] != true { // its terminal stays (#4754)
+	if args["method"] != nodeproto.StopIfIdle || args["retire"] != true { // its terminal stays (#4754)
 		t.Fatalf("asked %v", args)
 	}
 	if a := todoNow(s, todo.ID).Agents; len(a) != 1 || a[0].SessionID != "s1" || a[0].ReleasedAt != nil {
@@ -134,7 +135,7 @@ func TestRefusedRetireIsNotRepeated(t *testing.T) {
 		defer f.mu.Unlock()
 		n := 0
 		for _, c := range f.calls {
-			if c.Method == deviceSessionStop {
+			if c.Method == nodeproto.StopIfIdle {
 				n++
 			}
 		}

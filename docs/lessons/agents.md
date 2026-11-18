@@ -1376,3 +1376,17 @@ changing either the closure or its review ledger, not only before assembling the
 Delivery of `fleet.clients` belongs to each manager connection, not to a shared success bit. Retain only successful
 recipients, retry failed ones even when the global viewer snapshot is unchanged, and send again after reconnection.
 Serialize ownership-refresh invalidation with sends so an in-flight report cannot hide the refresh.
+
+The post-stop archive guard cannot undo an interrupt. Register an in-flight retirement before its final activity read,
+cancel it on input, viewing or a read receipt, and propagate that cancellation across every RPC hop. Use the separate
+`session.stop_if_idle` route: an older peer must refuse, never fall back to an unconditional stop. Refresh the node's
+runtime and check pending/recent input under its typing lock immediately before the first irreversible Ctrl+C.
+Input that arrives after that boundary waits behind the committed stop; a cancelled or refused stop grants no recovery.
+
+A deferred unsupervised judgment can outlive its inventory row or its manager. Retry its durable session/turn identity,
+but verify the same closed transcript again before applying a judgment. A new/open turn, a released/relinked Agent,
+reopening, an unreachable node or another working Agent is not completion evidence. Absence alone proves nothing.
+
+Polling-only native terminal pages still need a read-only hub subscription, including when the first hello has no
+`terminal_stream`. Keep page presence separate from the stream's success: retain it on unsupported, release it on page
+exit, and restore it after reconnect or page return. Never request a grid or takeover for polling presence.

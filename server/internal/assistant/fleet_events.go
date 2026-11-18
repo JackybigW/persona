@@ -241,6 +241,9 @@ func (s *Service) FleetEvent(ctx context.Context, name string, params json.RawMe
 			before := s.fleet.clients.Viewing
 			s.fleet.clients = c
 			s.fleet.mu.Unlock()
+			for _, ref := range c.Viewing {
+				s.cancelSessionRetirement(ref.MachineID, ref.SessionID)
+			}
 			for _, ref := range before {
 				if !slices.Contains(c.Viewing, ref) {
 					// Leaving a quiet page is the last owner activity, not its old transcript time.
