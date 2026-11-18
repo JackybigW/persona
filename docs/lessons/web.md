@@ -6,6 +6,15 @@ Build closed-task banner links with the router's `href` and handle clicks with `
 in-app, modified clicks retain native navigation, and native destinations retain the reverse-proxy base path.
 Test the rendered anchor and its click behavior at both the root and a nested base path, not only the router helper.
 
+## A folded launcher must retain its identity (#10249)
+
+When replacing a launcher rail, do not promote the current launcher's models into a separate Recommended group or
+cap its rows in a second view: both hide the account behind another navigation step. Keep one disclosure per launcher,
+reuse the existing row/setup projection, and flatten search without duplicating recommended or favorite models.
+On touch screens the model-ID line may replace the usual second line; search must keep the launcher name as well,
+or identical model names from different accounts become indistinguishable. Test typed-ID picks against their named
+launcher, not only the ID, and keep failed picks out of Recent.
+
 ## A lazy waiting row needs a lazy ordering boundary (#9390)
 
 Ordering an unopened tray from its shared classifier imports the age computation on the first screen even when the
