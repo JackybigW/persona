@@ -124,6 +124,13 @@ func TestAutomaticStopRechecksFreshRuntimeAndInputGrace(t *testing.T) {
 				if err != nil || len(f.trace("pane.send_keys")) != 2 {
 					t.Fatalf("allowed stop: %v, keys=%v", err, f.trace("pane.send_keys"))
 				}
+				wantCause := proto.StopTaskCompleted
+				if change == "explicit stop" {
+					wantCause = proto.StopUser
+				}
+				if st, _ := n.state.get(sidA); st.StopCause != wantCause {
+					t.Fatalf("confirmed stop lost its provenance: %v, want %v", st.StopCause, wantCause)
+				}
 			} else {
 				if err == nil || len(f.trace("pane.send_keys")) != 0 {
 					t.Fatalf("refused stop sent an interrupt: %v, keys=%v", err, f.trace("pane.send_keys"))

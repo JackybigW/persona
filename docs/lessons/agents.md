@@ -1382,6 +1382,10 @@ cancel it on input, viewing or a read receipt, and propagate that cancellation a
 `session.stop_if_idle` route: an older peer must refuse, never fall back to an unconditional stop. Refresh the node's
 runtime and check pending/recent input under its typing lock immediately before the first irreversible Ctrl+C.
 Input that arrives after that boundary waits behind the committed stop; a cancelled or refused stop grants no recovery.
+Keep the new preflight on that guarded RPC: applying it to legacy stop/retire can rediscover a different engine and
+erase a retained session row before its established stop/recovery path runs. Verify those full-package regressions too.
+Install a test transport gate before linking or closing a task: both start background token/outcome work, so replacing
+the service's hub afterwards races that work even if the stop itself is synchronized.
 
 A deferred unsupervised judgment can outlive its inventory row or its manager. Retry its durable session/turn identity,
 but verify the same closed transcript again before applying a judgment. A new/open turn, a released/relinked Agent,

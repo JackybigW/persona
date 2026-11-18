@@ -11,6 +11,8 @@ func TestClosedTaskRetirementCancelsBeforeStopOnOwnerActivity(t *testing.T) {
 		t.Run(activity, func(t *testing.T) {
 			ft, row := closeTestService(t, nil)
 			s, ctx := ft.s, context.Background()
+			gate := &taskRetirementBarrier{Hub: s.hub, entered: make(chan struct{}), release: make(chan struct{})}
+			s.hub = gate
 			todo, err := s.createTodo(ctx, "Disposable task", "Check the result", "conv1", "")
 			if err != nil {
 				t.Fatal(err)
@@ -25,8 +27,6 @@ func TestClosedTaskRetirementCancelsBeforeStopOnOwnerActivity(t *testing.T) {
 			old := time.Now().Add(-time.Hour)
 			s.todos.todos[todo.ID].DoneAt = &old
 			s.todos.mu.Unlock()
-			gate := &taskRetirementBarrier{Hub: s.hub, entered: make(chan struct{}), release: make(chan struct{})}
-			s.hub = gate
 			finished := make(chan struct{})
 			go func() {
 				defer close(finished)

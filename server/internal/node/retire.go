@@ -69,13 +69,16 @@ func (n *Node) stop(ctx context.Context, id string, retire bool) (stopped bool, 
 }
 
 func (n *Node) stopWithCause(ctx context.Context, id string, retire bool, cause proto.StopCause) (stopped bool, err error) {
+	return n.stopWithGuard(ctx, id, retire, cause, false)
+}
+
+func (n *Node) stopWithGuard(ctx context.Context, id string, retire bool, cause proto.StopCause, guarded bool) (stopped bool, err error) {
 	release := n.recovery.lock(id)
 	defer release()
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	automatic := retire && cause != proto.StopUser
-	if automatic {
+	if guarded {
 		if err := n.refreshHosts(ctx); err != nil {
 			return false, err
 		}
@@ -98,7 +101,7 @@ func (n *Node) stopWithCause(ctx context.Context, id string, retire bool, cause 
 		n.state.stopped(id, proto.StopUnknown) // An unconfirmed/failed automatic stop never grants recovery.
 	}
 	var before func() error
-	if automatic {
+	if guarded {
 		before = func() error {
 			if !n.typing.inputIdle(id, stopInputIdle) {
 				return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)

@@ -904,7 +904,7 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 		if a.Retire && a.StopCause.AllowsSupervisorResume() {
 			cause = a.StopCause
 		}
-		stopped, err := n.stopWithCause(ctx, p.SessionID, a.Retire, cause)
+		stopped, err := n.stopWithGuard(ctx, p.SessionID, a.Retire, cause, method == nodeproto.StopIfIdle)
 		return map[string]any{"stopped": stopped}, err
 	}
 	if method == "session.restore_model" { // model_restore.go (#2528): closes an idle headless process, sends nothing
