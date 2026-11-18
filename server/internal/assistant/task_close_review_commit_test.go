@@ -192,7 +192,7 @@ func TestTaskReviewActivityDuringDatabaseWriteRollsBack(t *testing.T) {
 			}
 			after := todoNow(s, todo.ID)
 			if after.DoneAt != nil || !reflect.DeepEqual(after.Supervision, before.Supervision) ||
-				feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(after) != nil {
+				feedKinds(s, todo.Origin) != feedBefore || s.resultOfTodo(after.ID) != nil {
 				t.Fatal("a rolled-back review escaped into memory, the feed, or the brief")
 			}
 			stored, err := st.GetTodo(ctx, todo.ID)

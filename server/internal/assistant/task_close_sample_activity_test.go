@@ -57,7 +57,7 @@ func TestSampledJudgeLateOwnerActivityCommitsNothing(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(afterRows, beforeRows) {
 		t.Fatalf("the refused judge review persisted ledger changes: %+v %v", afterRows, err)
 	}
-	if feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(after) != nil {
+	if feedKinds(s, todo.Origin) != feedBefore || s.resultOfTodo(after.ID) != nil {
 		t.Fatal("the refused judge review published review effects")
 	}
 	if turn, ok := s.turnOf(ctx, todo.ID); !ok || turn.Judged != nil {

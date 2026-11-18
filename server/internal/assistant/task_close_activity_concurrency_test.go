@@ -100,7 +100,7 @@ func TestTaskReviewDoesNotWaitForOwnerActivityPersistence(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(afterRows, beforeRows) {
 				t.Fatalf("the refused review persisted ledger changes: %+v %v", afterRows, err)
 			}
-			if feedKinds(s, todo.Origin) != feedBefore || s.briefResultOfTodo(cur) != nil {
+			if feedKinds(s, todo.Origin) != feedBefore || s.resultOfTodo(cur.ID) != nil {
 				t.Fatal("the refused review published review effects")
 			}
 			stored, err := st.GetTodo(ctx, todo.ID)

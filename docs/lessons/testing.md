@@ -1232,6 +1232,9 @@ Tests that age a task to exercise the stop RPC must also seed that completion's 
 the first-sight floor skips the RPC and can hide a broken activity or post-stop guard. Keep the first-sight and resume
 regressions too, rather than shortening the production inactivity window to make the older tests reach their barrier.
 
+When an upstream result accessor is renamed, keep refused-review assertions on the same stored result
+(`resultOfTodo(id)`). Dropping the no-result assertion would hide review effects published before a refused commit.
+
 ## Raw TCP test listeners get the port probe too (2026-11-19, #10659)
 
 `TestProxyRouteCarriesTheLinkAndItsStreams` saw one more "direct attempt" than the link made. The extra connection was the
