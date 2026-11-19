@@ -1203,9 +1203,8 @@ Many main-chat rounds are not started by the user: another Persona conversation 
 They used to fill the main chat and push the user's own exchanges out of sight. Since #4314 the apps fold the first two
 the way quiet supervision rounds already were (#1988, `docs/assistant/unified-entry.md` "Supervision"). #6595 applies the
 same folding to the leader conversations (`AssistantInfo.leaders`, "Leader conversations" in
-`docs/assistant/unified-entry.md`): a leader's patrol, supervision and relayed (`conversation`) rounds, including its
-answers to them, fold by default with the same line, expand state and visibility rule as the main chat; the owner's own
-messages and the leader's answers to them, `ask_user` / `notify_user` rounds and `task_review` verdict cards stay open.
+`docs/assistant/unified-entry.md`): a leader's patrol, supervision and relayed (`conversation`) rounds use the same
+folding and visibility rule as the main chat. The owner's messages and the answers to them stay open.
 It is the same `assistant.main_background_folded` switch (on unless turned off); an ordinary side conversation is
 unchanged. The hub's mid-turn interject note (`prompts/assistant/interject.md`,
 `<persona-context kind="context" title="插话">`) is model instructions and never renders as a quote in the owner's
@@ -1226,7 +1225,11 @@ bubble on any client, while staying in the model's input:
 - **Not folded** (the visibility rule supervision rounds use, `supervisionVisible` / `fold.supervision_user` from
   `server/internal/transcript/fold_supervision.go`): a round that used `ask_user` or `notify_user` successfully, a pending
   `ask_user` while it runs, a `task_review` with an `accepted` or `needs_user` verdict card, or a `supervision_finish`
-  with user visibility.
+  with user visibility. A completed round with a nonblank final reply also stays open, even if delivery tools were
+  unavailable. The full reply uses the ordinary reply bubble so its formatting and links remain available. Its work
+  keeps the usual collapsed summary. Intermediate narration, generated quiet-heartbeat acknowledgements and empty
+  turns stay folded. A successful silent finish keeps its round folded unless an explicit user-visible action promoted it.
+  This changes the chat display only and sends no push.
 - **Needs you** keeps its entry and its count. While folding is on and its rows come from more than one supervising
   conversation (a task's `origin`), they are grouped under that conversation's title, this conversation's own first;
   the rows and their order within a group are unchanged.
@@ -1385,6 +1388,9 @@ operation then read as accepted and the bubble waited for the transcript and wen
   the Retry and the look), and the look always goes from the first try in doubt: `tried_at` is never moved later, so a
   line that try wrote before the node forgot its id is still found by its words. If the Retry's own try ends in doubt,
   it is again only looked for and then left to the owner.
+- **Device signed out** (#10708). The hub gives the manager the sending device's credential ID when it keeps a
+  message. Signing out that device fails its kept messages. Their rows say why and offer Delete. Messages kept
+  before the hub recorded the sending credential have no device to match.
 - **Between conversations.** `conversation_send` to a conversation that cannot take the message now no longer fails:
   the message goes into its relay queue and is tried again under the same `once_id`. A conversation that failed to
   take a relayed message is tried again after `relayRetryGap` (30 s), not on every session list.
@@ -1455,8 +1461,9 @@ manager that connects the computer holds it and sends it once the computer is ba
 - **Known gap** (#10702): a runtime Agent's row leaves the list when its node shuts down cleanly, or after the manager
   restarts while its computer is away; its held messages then have no row to show on until it is listed again. They
   are still sent.
-- **Limits**: a held message is sent with the provenance it was taken with, even if that device was signed out
-  meanwhile (#10708); the owner sees it on every device and can delete it. Held messages stay with the manager that
+- **Device signed out** (#10708). Signing out the sending device fails its held messages. The rows say why and
+  offer Delete. The manager checks with the hub before delivering a held message, including after reconnecting.
+- **Limits**: Held messages stay with the manager that
   held them: moving the computer to another manager (or one
   computer absorbed into another) while some are held leaves them unsent there. A message the computer refused does
   not hold back the later ones, so a Retry of it arrives after them. Two messages to one Agent sent at the same moment

@@ -6,6 +6,8 @@
 
 - A terminal task review must commit its closure before publishing review effects (#6819). Activity can arrive after the initial guard, while another writer holds the ledger or task lock, or during a database write. Validate on a private ledger, save the ledger and closure in one transaction, and recheck activity immediately before commit so a refusal rolls both back. Only then record the brief result, review feed, decision changes and supervision signals; apply the same boundary to a task leader's review and tasks without a ledger.
 
+- Persist a complete delivery round before its first external send (#10393). Saving only when the call returns handles a returned error but loses the result if the manager exits inside the call, after task acceptance has committed. Keep the original timestamp/key and acceptance metadata on disk while retaining an in-memory claim to block overlapping sends. Every other book save must preserve that prepared record too; retry must not send from memory when its preparation could not be saved. Use a child-process exit at the real provider boundary and a fresh manager on the same disposable database to prove recovery, with the returned-error case as a control.
+
 - A review wake is not a completion verdict (#8373). PR events and judged-done candidates share the same signal. Keep its wording neutral, preserve the actual reason and criterion evidence, and leave acceptance gates and display grouping unchanged.
 
 - Snapshot display projections must not initialize the knowledge base (#10108). Publication already holds
