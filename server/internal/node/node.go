@@ -719,7 +719,7 @@ func (n *Node) writeClaudeConfig() error { return writeGeneratedConfig(n.dir, n.
 // Until the authenticated hub's configuration arrives, keep the legacy MCP alias.
 func (n *Node) hubSupportsPersonaContracts() bool { return n.hubPersonaContracts.Load() }
 
-func (n *Node) handle(ctx context.Context, method string, params json.RawMessage) (any, error) {
+func (n *Node) handle(ctx context.Context, method string, params json.RawMessage) (result any, resultErr error) {
 	if n.reload != nil {
 		done, err := n.reload.enter()
 		if err != nil {
@@ -1346,6 +1346,28 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 	case "session.start.options":
 		return n.workSessionOptions(ctx, p.Name, p.ConfiguredAgent, p.Host, p.Configured, true)
 	case "session.start", devicewire.MethodStartWorkSession:
+		// Optional tool waits correlate the first input through the existing echo ledger.
+		// Capture the resume boundary before launching, so an identical historical input cannot match.
+		var echoOpts sendOpts
+		_ = json.Unmarshal(params, &echoOpts)
+		if echoOpts.ClientMsgID != "" {
+			sentAt := time.Now()
+			after := echoAfter{in: echoInTranscript}
+			if p.ResumeSessionID != "" {
+				after = n.echoBase(p.ResumeSessionID)
+			}
+			defer func() {
+				out, _ := result.(map[string]any)
+				session, _ := out["session"].(*proto.Session)
+				if resultErr == nil && session != nil {
+					r := echoRecord{SessionID: session.SessionID, ClientMsgID: echoOpts.ClientMsgID,
+						Text: p.Prompt, SentAt: sentAt, AfterSeq: after.seq, In: after.in}
+					if n.echoes.expect(r) {
+						n.notifyEcho(r)
+					}
+				}
+			}()
+		}
 		if p.ResumeSessionID != "" {
 			unlock := n.recovery.lock(p.ResumeSessionID)
 			defer unlock()
@@ -1563,6 +1585,7 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 		var opts sendOpts
 		_ = json.Unmarshal(params, &opts)
 		sctx = withClientMsgID(sctx, opts.ClientMsgID) // a runtime's message goes under it (assistant_runtime.go)
+		sctx = withSupervisionDelivery(sctx, p.MessageSource)
 		send := func() (string, error) {
 			return n.assistantSend(sctx, p.SessionID, p.Cwd, p.Launcher, p.Text, p.Images, p.PermissionMode, p.Effort, (modelExecution{PlanThen: p.PlanThen, Model: p.Model, Effort: p.Effort, ServiceTier: p.ServiceTier, UseEffort: p.ModelFingerprint != "", Fingerprint: p.ModelFingerprint, Runtime: n.externalRuntime(p.SessionID, p.Launcher, p.Runtime), External: p.External, IsMain: p.IsMain, MainCompactWindow: p.MainCompact, FollowsSetting: p.FollowsSetting, ConfigDir: p.ConfigDir, Origin: p.Origin, Interject: p.Interject, Interactive: p.Interactive}).withSupervision(p.SupervisionInstructions))
 		}
@@ -1660,6 +1683,7 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			}
 		}
 		ctx = context.WithValue(ctx, sendTraceKey{}, opts.ClientMsgID)
+		ctx = withSupervisionDelivery(ctx, p.MessageSource)
 		ctx, waits := withComputerWait(ctx) // claudebg.go: an outside Claude took it behind a dialog
 		ctx, queued := withSendQueued(ctx)  // codex_desktop_queue.go: it waits behind the turn under way
 		var owner *ownerDelivery
