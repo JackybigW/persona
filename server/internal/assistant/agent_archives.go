@@ -620,7 +620,7 @@ func (svc *Service) setAgentArchive(ctx context.Context, mid, sid string, archiv
 		return row, err
 	}
 	if archived && agentArchiveBusy(row) {
-		return row, archiveRefusal(http.StatusConflict, "agent_busy", i18n.Err("hub-agent_archives.running"))
+		return row, archiveBusyRefusal(row, false)
 	}
 	if err := svc.noteAgentArchive(ctx, row, archived); err != nil {
 		return row, err
