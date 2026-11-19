@@ -31,6 +31,9 @@ type stateFile struct {
 }
 
 type sessionState struct {
+	TaskInstructions        string          `json:"task_instructions,omitempty"`
+	TaskInstructionFile     string          `json:"task_instruction_file,omitempty"`
+	TaskInstructionChannel  string          `json:"task_instruction_channel,omitempty"`
 	CreationID              string          `json:"creation_id,omitempty"`
 	Incarnation             string          `json:"incarnation,omitempty"`
 	Pane                    string          `json:"pane,omitempty"`
@@ -38,7 +41,8 @@ type sessionState struct {
 	Model                   string          `json:"model,omitempty"`
 	ModelFingerprint        string          `json:"model_fingerprint,omitempty"`
 	ModelEffort             string          `json:"model_effort,omitempty"`
-	Origin                  string          `json:"origin,omitempty"` // manager-recorded conversation source, for model-call authorization
+	Origin                  string          `json:"origin,omitempty"`       // manager-recorded conversation source, for model-call authorization
+	OriginKnown             bool            `json:"origin_known,omitempty"` // manager explicitly decided origin; false on pre-upgrade records
 	ConfigDir               string          `json:"config_dir,omitempty"`
 	Cwd                     string          `json:"cwd"`
 	IsMain                  bool            `json:"is_main,omitempty"`

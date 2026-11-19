@@ -107,7 +107,7 @@ func (s *Service) setSessions(machine string, list []proto.Session) {
 		}
 	}
 	s.availSweep(machine, list, now) // the waits of conversations no longer listed (availability.go)
-	s.pruneGoneQuiet(machine) // the verdicts and Stops of task Agents no longer listed (silent_turns.go)
+	s.pruneGoneQuiet(machine)        // the verdicts and Stops of task Agents no longer listed (silent_turns.go)
 	s.fleetKeep(machine, list, connected, unsure)
 	for _, ref := range inlineUpdates {
 		s.inOrder(func() { go s.registerInlineTurn(context.Background(), ref) })
@@ -267,10 +267,16 @@ func (s *Service) publishList(machine string) []proto.Session {
 	list = s.deletionRows(context.Background(), machine, list, true)
 	// A review's reviewer is no agent of the user's (supervise_autoreview.go): its result is on the task it reviewed.
 	hide := s.reviewerSessions()
-	if len(hide) > 0 {
+	reviewWorktrees := map[string]bool{}
+	for _, e := range mustSessionReviews(s) {
+		if e.MachineID == machine && e.Worktree != "" {
+			reviewWorktrees[e.Worktree] = true
+		}
+	}
+	if len(hide) > 0 || len(reviewWorktrees) > 0 {
 		kept := make([]proto.Session, 0, len(list))
 		for _, sess := range list {
-			if !hide[[2]string{machine, sess.SessionID}] {
+			if !hide[[2]string{machine, sess.SessionID}] && !reviewWorktrees[cmp.Or(sess.WorkspaceCwd, sess.Cwd)] {
 				kept = append(kept, sess)
 			}
 		}
@@ -541,6 +547,9 @@ func (s *Service) decorateInventory(machine string, list []proto.Session, comple
 		decorateLimit(&list[i]) // a subscription's usage limit and when it resets (usage_limit.go)
 		list[i].TurnErrorCode = sessionTurnErrorCode(list[i])
 		if list[i].TurnError != "" {
+			if proto.UnrecoverableTurnErrorCode(list[i].TurnError) != "" {
+				list[i].TurnErrorKind = proto.TurnErrorUnrecoverable
+			}
 			if list[i].TurnErrorCode == proto.TurnErrorModelFallbackUnavailable {
 				list[i].TurnErrorKind = proto.TurnErrorUser
 			}
