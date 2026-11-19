@@ -1659,9 +1659,10 @@ nonisolated struct UndeliveredMessage: Codable, Hashable, Sendable, Identifiable
     var error: String? = nil
     var deleteOnly: Bool? = nil
 
+    /// The hub's names (`proto.UndeliveredMessage`): one enum, #10775 (`delete_only`) and #10440 (`next_at`) each added one.
     private enum CodingKeys: String, CodingKey {
-        case id, text, images, at, state, attempts, nextAt, error
-        case deleteOnly = "delete_only"
+        case id, text, images, at, state, attempts, error
+        case nextAt = "next_at", deleteOnly = "delete_only"
     }
 
     var gaveUp: Bool { state == "failed" }
@@ -1674,11 +1675,6 @@ nonisolated struct UndeliveredMessage: Codable, Hashable, Sendable, Identifiable
         guard let list, !list.isEmpty else { return [] }
         let skip = Set((landed + drawn).map { $0.lowercased() })
         return list.filter { !skip.contains($0.id.lowercased()) }
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, text, images, at, state, attempts, error
-        case nextAt = "next_at"
     }
 }
 
@@ -2677,6 +2673,8 @@ nonisolated struct Interaction: Codable, Identifiable, Hashable, Sendable {
     var planThen: String?
     var toolInput: JSONValue?
     var summary: String?
+    /// A script ask's opt-in reply-Markdown rendering; missing and unrecognized values stay literal (#10857).
+    var format: String?
     var screen: String?
     /// The screen's dialog as the hub read it (newer hubs): answer with `Resolution.option`.
     var dialog: ScreenDialog?
@@ -2778,7 +2776,7 @@ nonisolated struct Interaction: Codable, Identifiable, Hashable, Sendable {
     var screenDialog: ScreenParser.Dialog? { dialog?.parsed ?? screen.flatMap(ScreenParser.dialog) }
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, questions, plan, summary, screen, cwd, dialog, secret, fields, agent, reason, delegating, delegate, manager
+        case id, kind, questions, plan, summary, format, screen, cwd, dialog, secret, fields, agent, reason, delegating, delegate, manager
         case suggestion, canCancel = "can_cancel"
         case planThen = "plan_then"
         case machineID = "machine_id", sessionID = "session_id", sessionTitle = "session_title", taskTitle = "task_title",

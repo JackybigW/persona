@@ -102,6 +102,7 @@ The parts (the hub, the managers, the node on each computer, extensions) talk on
 | `connectorwire` | Inbox things and replies, conversation batches, posts and snapshots from connectors (`docs/protocol/connector-protocol.md`) |
 | `aiwire` | A model setting (`aiwire.Config`) |
 | `dialogwire` | A terminal dialog read off a screen, as the node and the apps see it |
+| `repositorywire` | A task's requested refs, repository layouts and the preparation snapshot a manager hands to a node, with the alias and ref rules both apply; `assistant/repository` aliases them |
 | `nodeproto` | The node protocol handshake: the protocol version and capability names a node announces (`docs/protocol/protocol.md` "Node handshake") |
 | `proto`, `rpc`, `relayproto` | The client API and node protocol types, the JSON-RPC framing, the push relay |
 | `sdk/go/wire` (the SDK's module) | The extension protocol's types generated from its schema (an error report the bus carries, say), shared with extensions written against the SDK |
@@ -127,6 +128,15 @@ Where the business type needs fields of its own, it stays a separate type with t
    (the last one, the live replies `MessageDisplay` hook, only while the machine's Settings › Claude Code › Live replies is on; older Claude Code: `--settings ~/.persona/claude-settings.json` instead of the plugins).
 3. The node waits for the agent to be ready (`agent wait`); if it is blocked (trust folder, etc.), the screen is pushed to the phone as a `screen` interaction. Once ready, the first message is sent.
 4. The node starts tailing the transcript, and events are pushed through the hub to subscribed apps.
+
+### Retrying a held Agent message
+
+The hub forwards the owner's Retry to the devices manager, which owns the held queue and claims each send in its
+database. If the last attempt may have arrived, the manager asks the node for echo evidence for that session and
+message ID. The node can confirm a match from its echo record. It can authorize another attempt when the live Agent
+is idle and the transcript covers the original send through a later turn end. The node rechecks with the session's
+input lock held before replacing an ambiguous send receipt. With an unknown result or an older node, the manager can
+still confirm delivery from a matching ID in recent turns.
 
 ### Answering questions / approving plans
 1. claude calls AskUserQuestion → PreToolUse lets Claude draw its terminal dialog → the following PermissionRequest connects `personad hook` to node.sock and sends an `interaction` → the node hands it to the manager (`interaction.create`), which records it and has the hub push it to the app / watch (including a local notification).

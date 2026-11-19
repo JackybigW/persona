@@ -161,6 +161,17 @@ describe("the side panel's terminal when the hub link drops", () => {
     expect(hub.sent).toEqual([{ type: "terminal_subscribe", machine_id: "m1", session_id: "s1" }]);
   });
 
+  it("uses the host's selected mono family each time the single-pane terminal mounts", async () => {
+    for (const family of ['"Menlo", monospace', '"Consolas", monospace']) {
+      feed = new TerminalFeed("m1", "s1");
+      const host = document.body.appendChild(document.createElement("div"));
+      host.style.fontFamily = family;
+      await feed.mount(host, document.createElement("div"));
+      expect(feed.snapshot().fontFamily).toBe(family);
+      feed.dispose(); host.remove();
+    }
+  });
+
   it("stops driving until the hub grants control again", async () => {
     feed = new TerminalFeed("m1", "s1");
     const host = document.createElement("div");

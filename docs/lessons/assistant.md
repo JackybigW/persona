@@ -50,6 +50,11 @@
   degrades to the persisted presence window. Update the time-window tests by shortening the new limits in lockstep
   with the presence timers instead of waiting real minutes.
 
+- A delivered Inbox note is not automatically a reason to wake its supervisor (#9916). Keep the routed task feed,
+  but suppress the successful copy only for active work, checking waits before and after the send. Preserve failed
+  delivery and parked/review fallbacks. Scope and claimed-owner requests need the Agent's full-thread judgment and
+  an urgent-by-default supervisor question, not a keyword classifier over a clipped preview.
+
 - Inbox handling chats are implementation details, not user-created conversations (#5723). `Untitled` suppresses
   automatic naming but does not hide a chat, and `titleFixed` still gives it the item's subject. Apply default
   archiving in the common session snapshot, not only after starting or finishing: restored chats and follow-up
@@ -161,6 +166,7 @@
 - Stage user-filing handling closure in the row being saved and publish it only after that row commits (#1313). Clearing drafts and pending notes on the live item before saving requires more than restoring its done marker, and a concurrent delivery pass can send the stop note before rollback. Exclude pending filing markers from unrelated saves, including delivery acknowledgements. A bulk unchanged acknowledgement also requires a committed state; return pending ids as failed so clients retry. Filters must include every pending open state that can still commit, including intermediate reopens between closed endpoints, and retain older pending ownership when a newer save fails. Give filing its own pending ownership so an unrelated parent edit cannot prevent rollback; keep concurrent chain entries and test batch fallback with mixed row failures, nested draft aliases and delivery during the write.
 
 - Schedule admission must be durable before dispatch (#1287). Save a separate candidate task list while holding the schedule lock, then publish it and broadcast only after success. A failed user edit or due-run marker leaves the prior tasks recoverable. Results and conversation ownership from work already sent are different: keep them in memory when persistence fails, preserve their history IDs so watchers can still update them, and retry the current lists on later saves. A late result still belongs only to its run; it must neither overwrite a newer run's status nor recreate a deleted task.
+- A durable timer needs a fixed deadline and a crash policy, not just a saved callback (#1811). Persist scheduled usage-limit retries and task receipt rechecks before arming their local timers, restore overdue work promptly, and fence dispatch with a compare-and-swap claim. Reset every captured result on each CAS retry: a loser whose first attempt claimed the document must not return success from that stale attempt. Once a scheduled retry may have been sent, recover its claim as unknown rather than resending; receipt rechecks can replay through the durable turn ledger, but only while their exact task-agent link and reopen generation still match. Keep the original settlement's unreachable result instead of probing twice—the second probe can succeed and wrongly discard the retry.
 
 - A list bounded by a retention window is not bounded (2026-11-12, #5549). `GET /api/v1/inbox` listed every item done within three days, so one Clean up all of a few thousand items made it about 10,000 items and 21 MB: every app downloaded it again on each `inbox` push, and Android's bounded reader (4 MiB, 100,000 structural tokens) turned it down. Cap the done side by count on a deterministic key (`done_at`, then id, the history's order: a just-filed item is always kept, and the same items give the same bytes for the merged validator), let the delta report what falls past the cut as `removed`, keep it reachable by id and through the history, and test with more items than the cap. Clients that took the window as complete without a page (iOS `listDoneSpan`, the web's former `LIST_DONE_MS`) under-show until they page it too.
 - A capped display list is not an idempotency record (2026-11-15, #8424). A connector's `replied` state report repeats until new messages come, and its dedupe looked for a `self_replied` chain entry at the report's `last`; the chain keeps the newest 50 entries for display, so a conversation's later steps at the same position could push that entry out and the same report counted as another owner reply: another entry, note and wake, and a reset follow-up, suggestion and draft. Keep the key a dedupe needs in a field of its own (`InboxItem.RepliedOf`), read the old marker only for rows stored before it, and test by evicting the marker before replaying the report.
@@ -648,10 +654,12 @@ The manager waits 90 s for a relayed message (`drainRelays`) and kept it queued 
 written it after the first of two session-list rebuilds inside the send and was still building the second when the
 time ran out, so every later drain wrote it again: one conversation read the same message 32 times in an hour, and the
 messages queued behind it waited. A send in doubt is not a failure. Relays now carry one `once_id` per message
-(`relayMsgID`), which the node sends once (`sentLog`); a try in doubt first looks for the message's line in the
-conversation's latest turns (`relayArrived`: context blocks left out, no line older than the try, the sending
-conversation as its source), and one not found then is looked for again before the next try (`relayLanded`), which
-covers a line that lands late and a node restarted in between; and the send pushes the session list in the background, waiting for it only briefly
+(`relayMsgID`), which the node sends once while it remembers the id (`sentLog`). Save the attempt with the queued
+message before sending (#10690). Look for its line in the latest turns (`relayArrived`) using its text, time and
+sending conversation. A context-only relay also carries its `once_id` in its message-source metadata, so it can be
+found even if the transcript reader removes its original context. A failed read or
+a late transcript write can hide the line, so check again on a bounded schedule before retrying. The send pushes
+the session list in the background, waiting for it only briefly
 (`notifySessionsSoon`, `listPushWait`). The id is deliberately not a `client_msg_id`: a line tied to one reads as the
 owner's own message everywhere (its source label, task briefs, user-input counts, extensions). The web had the same
 blind spot for the owner's own sends: a send answered 502 `delivered: "unknown"` stayed a failed bubble unless the hub
@@ -783,6 +791,16 @@ mark the conversation as being replaced under that same lock (`relayBook.replaci
 delivery respect the mark (the direct ones queue), and clear it only where what waited has moved or the replacement
 failed, draining it again then (`TestNothingGoesIntoABackgroundSupervisorBeingReplaced`).
 
+## A queued supervision digest is not a snapshot of work that still needs review (#10424)
+
+An interruption and an unjudged turn can wait behind a busy supervisor while that task recovers and is accepted.
+Replaying only the rendered text then starts obsolete work or retries a refusal forever. Persist the structured signals
+with the relay, recheck the loaded task ledger immediately before delivery, and render only the surviving entries.
+A failed ledger read or checkpoint is unknown: keep the original queue. Move a changed conversation destination and
+remove its source entries in the same saved relay state. Do not change an uncertain send's text or destination: its
+old once-only identity may already have reached the node. Test both an entirely obsolete digest and a mixed one,
+including a real database reload into a new service; the in-memory signal map alone does not survive restart.
+
 ## Manual compaction is not a main-only policy (#10064)
 
 The manual HTTP and node paths already accept side conversations, but all three client menus hid the action behind
@@ -800,3 +818,15 @@ again. Evidence about a model is about one request shape: resolve the probe's ta
 (`sendModel`, read-only), have the node build the check as the turn (`launchers.check` `assistant_turn`), and key the
 evidence and its reuse by machine, launcher and model, so a pass of something else, or of an older plain check, never
 outranks the real turn's failure (`TestReadinessProbeOtherModelDoesNotClearModelRoute`).
+
+## An agent's own slash command works only as the whole prompt (#10950)
+
+In an Antigravity conversation, sending `/compact` reached the model as `/compact/compact` and compacted nothing. The
+web composer was not at fault: the hub's `sent_messages` held `/compact` once for every send. The node put the
+`<persona-context>` block in front of the text, and `agy` runs a command only when it is the whole prompt; with a block
+before it, it records the line as plain text. Reproduced with `agy acp` alone: the block plus `/compact` is recorded as
+`/compact/compact`, the bare `/compact` writes a compaction checkpoint. `assistantSendRuntime` now sends a one-line
+slash-only message on its own, leaves the snapshot unsent for the next message, and after `/compact` forgets the
+snapshot the conversation has seen (`TestAssistantOnARuntimeSendsASlashCommandOnItsOwn`). The chat bubble showed the
+doubled text because the chat is drawn from the agent's own transcript: when a user bubble looks wrong, compare it with
+the hub's record of what was sent before looking at the client.
