@@ -8,11 +8,6 @@
 
 - A viewer's Close button existing, or being non-hittable, does not prove that its picture and tap recognizers are ready, or that a tap hid the chrome (#8562). The full-screen presentation may still be settling, the decoded page may still be a spinner, or a SpringBoard alert may cover the app. Dismiss the known icon-change alert, wait for the decoded `viewer-page-N` and a hittable Close before the first tap, and only then assert the hide/show sequence. A delayed-decode launch turns the old race into a deterministic failure; a longer poll after a mistimed tap only hides the synchronization gap.
 
-- An intentional UI removal also changes dependent integration assertions. After the meeting header became hidden,
-  the photo test still expected a `joined` row and stopped before checking image credentials and deletion. Compare an
-  untouched upstream snapshot, keep the intended rendering and all photo checks, and correct the stale expected rows;
-  do not restore removed UI or loosen timeouts to make the integration test pass.
-
 - Fixture teardown is part of a test's elapsed time (#5730). A scripted terminal whose shell is ready immediately
   does not need a fixed startup pause. When a test has finished its assertions, cancel background prompt checks
   owned by that fixture and join them before restoring package settings or closing sockets. Delivery/recovery tests
@@ -462,6 +457,16 @@ The `scripts/ci/` lanes are written for the hosted runners; on a Mac developer m
 - A test that needs Postgres skips without `PERSONA_TEST_DATABASE_URL`, and a plain `go test` prints `ok` for its package. #5031 changed what `task_plan` answers and checked `internal/hub` without a database, so `TestSupervisedTaskOverTheBus`, which drives that answer end to end, never ran and went red on `main` (#5182). Before a change that touches what a database test covers, run its package with `scripts/test/test-server.sh <package>`, or `go test -v` and check for `SKIP` lines.
 - Allocation budgets are set from numbers measured on the hub machine (linux/amd64). The same tests read about 2 KB lower on an arm64 Mac, so #5150 passed `TestReindexOneRevAllocation` and `TestIndexWholeListAllocation` there and failed them on the hub (#5188). Judge a budget only from a `test-server.sh` run. To find where a regression comes from, compare `allocated(...)` in a probe at both commits; the Mac shows the same difference, so a `pprof -sample_index=alloc_space` profile of the measured call can be taken there.
 
+## Retirement tests must pass the first-sight floor (2026-11-18, #6819, #10311)
+
+When merging the finished-task pass's resume history with owner-activity protection, keep one `doneSeen` across passes.
+Tests that age a task to exercise the stop RPC must also seed that completion's earlier running observation; otherwise
+the first-sight floor skips the RPC and can hide a broken activity or post-stop guard. Keep the first-sight and resume
+regressions too, rather than shortening the production inactivity window to make the older tests reach their barrier.
+
+When an upstream result accessor is renamed, keep refused-review assertions on the same stored result
+(`resultOfTodo(id)`). Dropping the no-result assertion would hide review effects published before a refused commit.
+
 ## "Not listed" holds for a transcript the list never shows (2026-11-12, #5054)
 
 The node's list leaves out offline Claude transcripts under 2 KB (a hook probe's, `scanOffline`), and the fixtures of
@@ -624,6 +629,11 @@ Ordinary `go test` and CI do not include `//go:build herdrlive`, so a node helpe
   Test scripts also verify listening ports with `lsof` after starting mock and fail immediately if absent.
 
 ## New UI tests
+
+- An intentional UI removal also changes dependent integration assertions. After the meeting header became hidden,
+  the photo test still expected a `joined` row and stopped before checking image credentials and deletion. Compare an
+  untouched upstream snapshot, keep the intended rendering and all photo checks, and correct the stale expected rows;
+  do not restore removed UI or loosen timeouts to make the integration test pass.
 
 - File-preview mock has two entry points (2026-11-03, #796): `MOCK_TREE` for the tree, `FILES` for full text/pagination. Update both for new Markdown fixtures, or names/sizes show new content but opening still loads the old long text and tests cannot find new links.
 - `socket.create_connection(timeout=3)` leaves the timeout on the returned socket too. Forwarding mocks must call `settimeout(None)` after connection, letting WebSocket disconnection end the stream. If the simulator pauses over 3 seconds before WebView creation / HTTP requests, the old mock closes TCP while waiting for responses, leaving a correctly opened drawer white. Do not loosen page-load assertions because of it.
@@ -797,7 +807,7 @@ Retain allow/deny assertions for data directories, private tmp, and proxy. Negat
 
 - Three-page-shell right-swipe regressions must end at the same height as the message row, not drag from a top row to window center. Header changes can make that path exceed 45°, testing vertical scrolling instead. Use a horizontal in-row path, then verify the target page; such failures do not prove missing paging capability.
 
-- New `proto.Features` capabilities also require updating shared hello/manifest wire samples (`go test ./internal/hub -run '^TestWireSamples$' -update`). Check the diff contains only intended flags; capability-handler-only tests miss protocol-snapshot failures.
+- A new or removed feature flag no longer changes the shared hello and health wire samples: they carry a fixed list (`wireFeatures` in `server/internal/hub/wire_samples_test.go`, #11022), and `TestHelloAndHealthCarryTheHubsFeatures` checks the real one. Other new hello or health fields still need `go test ./internal/hub -run '^TestWireSamples$' -update`; check the diff contains only the intended fields.
 
 - SwiftUI Form Toggle accessibility frames can span the row. Taps at row fractions 0.88 or 0.95 can still miss on different devices (no POST). Select internal `toggle.switches.firstMatch`, wait for enabled/hittable, tap center, and assert values after service response. After adding system-message fixtures, locate quoted messages by ID, not the last array item, so mock 500s are not blamed on live sync.
 - Collapsed shell status rows retain the previous toast for transition; XCUITest nodes can still `exists` while video shows nothing. To wait until later long presses are unobstructed, assert not `hittable`, not destroyed.
@@ -1246,16 +1256,6 @@ To check that a failure is this, move `dev.json` aside in the app's data contain
 - A lazy settings subtree needs its own `PageBoundary` inside the surrounding settings page. Reproduce a chunk failure by blocking the browser's actual module request, then verify that sibling settings remain editable and their drafts can still save. Restore the resource and use the existing Reload action to verify recovery of the module and persisted rules; a mocked component or a JSX-shape assertion cannot establish that behavior.
 
 - An export-only change in a deferred editor need not reduce the first screen. Measure it, revert an ineffective trial, and inspect the shared code that startup actually ships. Remove duplicated work there while retaining validation and request-lifetime guards; keep the original budget and verify the normal app/public build.
-
-## Retirement tests must pass the first-sight floor (2026-11-18, #6819, #10311)
-
-When merging the finished-task pass's resume history with owner-activity protection, keep one `doneSeen` across passes.
-Tests that age a task to exercise the stop RPC must also seed that completion's earlier running observation; otherwise
-the first-sight floor skips the RPC and can hide a broken activity or post-stop guard. Keep the first-sight and resume
-regressions too, rather than shortening the production inactivity window to make the older tests reach their barrier.
-
-When an upstream result accessor is renamed, keep refused-review assertions on the same stored result
-(`resultOfTodo(id)`). Dropping the no-result assertion would hide review effects published before a refused commit.
 
 ## Raw TCP test listeners get the port probe too (2026-11-19, #10659)
 

@@ -1,11 +1,6 @@
 # Lessons: assistant (headless Claude / Codex)
 
-- An opt-in terminal cleanup must not replace a guarded task retirement with an unconditional close (#6819, #10355).
-  Keep cancellation and the final input check through both irreversible boundaries: stopping the Agent and closing
-  the shell it left. Exercise the setting on and off, including input arriving during terminal inspection.
-
-- A terminal task review must commit its closure before publishing review effects (#6819). Activity can arrive after the initial guard, while another writer holds the ledger or task lock, or during a database write. Validate on a private ledger, save the ledger and closure in one transaction, and recheck activity immediately before commit so a refusal rolls both back. Only then record the brief result, review feed, decision changes and supervision signals; apply the same boundary to a task leader's review and tasks without a ledger.
-
+- A rendered prompt used as a source-snapshot fingerprint must compare with the call's captured language (#6272). Re-reading the current language while committing a valid model answer makes a preference change look like a concurrent source edit. Freeze the wrapper language, keep the source comparison, and test both a locale-only change and real source changes. Audit natural-language parsers too: a conservative Chinese uncertainty check must recognize uncertainty in newly supported English and Japanese outputs. Shared recording inputs must keep their recording-language contract rather than inheriting a non-recording wrapper accidentally.
 - Persist a complete delivery round before its first external send (#10393). Saving only when the call returns handles a returned error but loses the result if the manager exits inside the call, after task acceptance has committed. Keep the original timestamp/key and acceptance metadata on disk while retaining an in-memory claim to block overlapping sends. Every other book save must preserve that prepared record too; retry must not send from memory when its preparation could not be saved. Use a child-process exit at the real provider boundary and a fresh manager on the same disposable database to prove recovery, with the returned-error case as a control.
 
 - A review wake is not a completion verdict (#8373). PR events and judged-done candidates share the same signal. Keep its wording neutral, preserve the actual reason and criterion evidence, and leave acceptance gates and display grouping unchanged.
@@ -778,6 +773,12 @@ both the stored ledger and memory at the ledger, closure and final transaction b
 Lifecycle tests wait for the operation they exercise: acknowledge `task_review` before sending the next owner turn,
 and wait for `fleet.clients` notifications until the viewer snapshot matches. A terminal error can arrive before that
 snapshot. Fixed delays hide this ordering and grow the sleep ratchet; keep bounded failure deadlines, not guessed sleeps.
+
+- An opt-in terminal cleanup must not replace a guarded task retirement with an unconditional close (#6819, #10355).
+  Keep cancellation and the final input check through both irreversible boundaries: stopping the Agent and closing
+  the shell it left. Exercise the setting on and off, including input arriving during terminal inspection.
+
+- A terminal task review must commit its closure before publishing review effects (#6819). Activity can arrive after the initial guard, while another writer holds the ledger or task lock, or during a database write. Validate on a private ledger, save the ledger and closure in one transaction, and recheck activity immediately before commit so a refusal rolls both back. Only then record the brief result, review feed, decision changes and supervision signals; apply the same boundary to a task leader's review and tasks without a ledger.
 
 ## Reserve a conversation for replacement in the same step as the check that nothing goes in (#7315)
 
