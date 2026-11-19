@@ -548,8 +548,9 @@ func (s *Service) deferTurnJudgment(ctx context.Context, todo string) {
 			e.Signal = nil
 		}
 		b.doc.Turns[todo] = e
-		delete(b.looked, todo)
-		delete(b.retry, todo)
+		key := turnRecoveryKey{Todo: todo, Machine: e.Machine, Session: e.Session}
+		delete(b.looked, key)
+		delete(b.retry, key)
 		delete(b.tries, todo)
 		s.saveTurnsLocked(ctx)
 	}
