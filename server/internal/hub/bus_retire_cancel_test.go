@@ -63,7 +63,7 @@ func TestBusRetirementNeverFallsBackForOldManager(t *testing.T) {
 			return nil, &rpc.Error{Code: bus.CodeUnknownMethod, Message: "old manager"}
 		})
 		h.devices.mu.Lock()
-		h.devices.upOpen = true
+		h.devices.upOpen = map[string]bool{devicesOwner: true}
 		h.devices.mu.Unlock()
 		node := &busNode{h: h, id: "m1"}
 		if err := node.Call(context.Background(), nodeproto.StopIfIdle, map[string]any{}, nil); err == nil {
