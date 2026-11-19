@@ -176,6 +176,7 @@ type Service struct {
 	quotes       quoteBook            // relay_quote.go: the owner's messages relays carried, verified
 	avail        availBook            // availability.go
 	quiet        quietBook            // quiet.go
+	taskFileBook taskFileBook         // task_files.go: the files tasks handed over, by todo id
 	supervise    superviseBook        // supervise_signals.go
 	progress     progressBook         // supervise_progress.go
 	preempt      preemptBook          // owner_preempt.go
