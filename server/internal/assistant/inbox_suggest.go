@@ -167,7 +167,9 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		it = b.itemOfAgent(sessionID)
 		// A conversation that answers before its start returned (an agent runtime already running starts a turn at
 		// once): its item learns the conversation's id a moment later.
+		waitedForAssociation := false
 		for wait := time.Now().Add(inboxDraftWait); it == nil && b.agentStarting() && time.Now().Before(wait); {
+			waitedForAssociation = true
 			b.mu.Unlock()
 			time.Sleep(100 * time.Millisecond)
 			b.mu.Lock()
@@ -176,6 +178,24 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		if it == nil {
 			b.mu.Unlock()
 			return "", nil, nil, false, errNotProcessing
+		}
+		if waitedForAssociation && (in.Kind == SuggestReply || in.Kind == SuggestAgent) {
+			// The first fresh read can predate a 15-second association wait. Reread after the wait, without holding the
+			// inbox lock across the RPC, then re-resolve the item before authorizing publication.
+			itemID := it.ID
+			b.mu.Unlock()
+			cfg, err := s.inboxConfigFresh(ctx)
+			b.mu.Lock()
+			if err != nil {
+				b.mu.Unlock()
+				return "", nil, nil, false, errReplyPolicyDenied
+			}
+			it = b.items[itemID]
+			if it == nil {
+				b.mu.Unlock()
+				return "", nil, nil, false, errNotProcessing
+			}
+			replyPolicy = cfg.ReplyPolicy
 		}
 	}
 	if from == nil && in.ProcessingTurn != it.Agent.ProcessingTurn {

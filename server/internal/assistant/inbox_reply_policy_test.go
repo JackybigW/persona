@@ -199,6 +199,36 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 			t.Fatalf("freshly forbidden suggestion was stored: %+v", currentSuggestion(it))
 		}
 	})
+	t.Run("policy changes while a suggestion waits for agent association", func(t *testing.T) {
+		h := agentHub(t)
+		oldWait := inboxDraftWait
+		inboxDraftWait = time.Second
+		t.Cleanup(func() { inboxDraftWait = oldWait })
+		h.inbox.cfgMu.Lock()
+		h.inbox.cfg = assistantwire.InboxConfig{}
+		h.inbox.cfgAt = time.Now()
+		h.inbox.cfgMu.Unlock()
+		h.in.mu.Lock()
+		h.in.configQueue = []assistantwire.InboxConfig{{}, {ReplyPolicy: replyPolicyTestConfig()}}
+		h.in.mu.Unlock()
+		it := actionItem("lark:association-policy-race", time.Now())
+		it.Source = "lark"
+		it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
+		h.inbox.items[it.ID] = it
+		go func() {
+			time.Sleep(250 * time.Millisecond)
+			h.inbox.mu.Lock()
+			it.Agent.SessionID = "session-policy-association"
+			h.inbox.mu.Unlock()
+		}()
+		_, _, err := h.suggest(context.Background(), "session-policy-association", suggestIn{Kind: SuggestReply, Text: "Synthetic draft across a policy change"})
+		if !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("suggestion used the pre-wait policy, error = %v", err)
+		}
+		if currentSuggestion(it) != nil {
+			t.Fatalf("policy-enabled suggestion was published after the association wait: %+v", currentSuggestion(it))
+		}
+	})
 	t.Run("handback confirmation is not exempt", func(t *testing.T) {
 		h := agentHub(t)
 		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
