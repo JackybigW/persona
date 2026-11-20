@@ -79,7 +79,7 @@ func (s *Service) taskCloseLoop(ctx context.Context) {
 		case <-t.C:
 		}
 		s.closeDoneTaskAgents(ctx, refused, doneSeen)
-		s.closeIdleAgents(ctx, refused, idleSeen)
+		s.closeIdleAgents(ctx, refused, doneSeen, idleSeen)
 		s.closeEndedAgentTerminals(ctx, endedSeen) // Agents that quit, with close_ended_terminals on (agent_terminal_close.go)
 		s.orphanWatch(ctx, time.Now())             // open to-dos whose agents are all gone (tasks_orphan.go)
 		if now := time.Now(); now.Sub(archived) >= autoArchiveEvery {

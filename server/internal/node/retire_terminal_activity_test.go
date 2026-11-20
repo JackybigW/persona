@@ -15,9 +15,14 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
-func TestAutomaticTerminalCloseRechecksRunningAgent(t *testing.T) {
-	for _, afterKey := range []int32{0, 1, 2} {
-		t.Run(fmt.Sprint("input_after_key=", afterKey), func(t *testing.T) {
+func TestAutomaticRetirementRechecksRunningAgent(t *testing.T) {
+	for _, tc := range []struct {
+		closeTerminal bool
+		afterKey      int32
+	}{
+		{true, 0}, {true, 1}, {true, 2}, {false, 1},
+	} {
+		t.Run(fmt.Sprintf("close_terminal=%t/input_after_key=%d", tc.closeTerminal, tc.afterKey), func(t *testing.T) {
 			n, f, home := herdrNode(t)
 			cwd := mkdir(t, filepath.Join(home, "project"))
 			n.state.put(sidA, sessionState{Launcher: "cc", Cwd: cwd, Pane: "w1:p1"})
@@ -26,13 +31,16 @@ func TestAutomaticTerminalCloseRechecksRunningAgent(t *testing.T) {
 			}, nil))
 			listSessions(t, n)
 			f.reset()
+			if !tc.closeTerminal {
+				quitsOn(f, "w1:p1", sidA, nil, shellPane("w1:p1", "w1:t1", "w1", cwd, sidA))
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			var keys atomic.Int32
 			input := make(chan error, 1)
 			inspected := make(chan struct{})
 			f.after(func(c herdrCall) {
-				if c.Method != "pane.send_keys" || keys.Add(1) != afterKey {
+				if c.Method != "pane.send_keys" || keys.Add(1) != tc.afterKey {
 					return
 				}
 				go func() {
@@ -50,9 +58,9 @@ func TestAutomaticTerminalCloseRechecksRunningAgent(t *testing.T) {
 				close(inspected)
 			})
 			out, err := request(t, n, nodeproto.StopIfIdle, map[string]any{
-				"session_id": sidA, "retire": true, "stop_cause": "task_completed", "close_terminal": true,
+				"session_id": sidA, "retire": true, "stop_cause": "task_completed", "close_terminal": tc.closeTerminal,
 			})
-			if afterKey == 0 {
+			if tc.afterKey == 0 {
 				if err != nil || out["closed"] != true || len(f.trace("tab.close")) != 1 {
 					t.Fatalf("idle Agent's terminal was not closed: %v, %v", out, err)
 				}
@@ -71,8 +79,16 @@ func TestAutomaticTerminalCloseRechecksRunningAgent(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("queued input did not get its turn")
 			}
-			if err == nil || len(f.trace("pane.send_keys")) != int(afterKey) {
+			if err == nil || len(f.trace("pane.send_keys")) != int(tc.afterKey) {
 				t.Fatalf("cleanup passed renewed input: %v, %v", out, err)
+			}
+			if code, _ := refusalOf(t, err); code != notRetirable {
+				t.Fatalf("cleanup reported the wrong refusal: %s", code)
+			}
+			if !tc.closeTerminal {
+				if _, running := n.agent(sidA); !running {
+					t.Fatal("the Agent was stopped with input pending")
+				}
 			}
 			closesNothing(t, f)
 			if st, _ := n.state.get(sidA); st.StopCause.AllowsSupervisorResume() {

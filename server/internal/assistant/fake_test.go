@@ -670,7 +670,9 @@ func (f *fakeHub) deviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 		}
 		if retire, _ := a["retire"].(bool); retire {
 			f.retired = append(f.retired, a["session_id"].(string))
-			f.retireArgs = append(f.retireArgs, map[string]any{"method": p.Method, "retire": true})
+			f.retireArgs = append(f.retireArgs, map[string]any{
+				"method": p.Method, "retire": true, "stop_cause": a["stop_cause"], "close_terminal": a["close_terminal"],
+			})
 		} else {
 			f.stopped = append(f.stopped, a["session_id"].(string))
 		}

@@ -92,15 +92,7 @@ func (n *Node) closeIdleTerminal(ctx context.Context, id string, cause proto.Sto
 	if err := n.refreshHosts(ctx); err != nil {
 		return false, false, err
 	}
-	before := func() error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !n.typing.inputIdle(id, stopInputIdle) {
-			return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)
-		}
-		return nil
-	}
+	before := func() error { return n.checkAutomaticStop(ctx, id) }
 	unlock, _, running, err := n.stoppable(id, true)
 	if err != nil {
 		return false, false, err
@@ -116,6 +108,16 @@ func (n *Node) closeIdleTerminal(ctx context.Context, id string, cause proto.Sto
 		return false, false, ctxErr
 	}
 	return stopped, closed, err
+}
+
+func (n *Node) checkAutomaticStop(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !n.typing.inputIdle(id, stopInputIdle) {
+		return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)
+	}
+	return nil
 }
 
 func (n *Node) closeExitedChecked(ctx context.Context, id string, before func() error) (bool, error) {
@@ -194,12 +196,7 @@ func (n *Node) stopWithGuard(ctx context.Context, id string, retire bool, cause 
 	}
 	var before func() error
 	if guarded {
-		before = func() error {
-			if !n.typing.inputIdle(id, stopInputIdle) {
-				return refusal(notRetirable, "input is pending or was received within the last 10 minutes", nil)
-			}
-			return nil
-		}
+		before = func() error { return n.checkAutomaticStop(ctx, id) }
 	}
 	stopped, err = n.quitAgentChecked(ctx, id, a.PaneID, before)
 	if stopped && err == nil {
@@ -308,6 +305,11 @@ func (n *Node) quitAgentRound(ctx context.Context, id, pane string, only host.Ho
 	}
 	_ = n.sendKeys(ctx, pane, "ctrl+c")
 	time.Sleep(200 * time.Millisecond)
+	if before != nil {
+		if err := before(); err != nil {
+			return false, err
+		}
+	}
 	if err := n.sendKeys(ctx, pane, "ctrl+c"); err != nil {
 		return false, err
 	}

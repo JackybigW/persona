@@ -3,6 +3,7 @@ package assistant
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -11,6 +12,45 @@ import (
 
 	"github.com/nwverse/persona/server/internal/db"
 )
+
+func TestTaskReviewOfAlreadyClosedTaskSurvivesRestart(t *testing.T) {
+	for _, verdict := range []string{reviewAccepted, reviewCancelled} {
+		t.Run(verdict, func(t *testing.T) {
+			database := todoTestDB(t)
+			s, f, todo := newSupervisedServiceOn(t, database)
+			w := request(s, http.MethodPatch, "/api/v1/todos/"+todo.ID, `{"done":true}`)
+			if w.Code != http.StatusOK {
+				t.Fatalf("closing from the app: %d %s", w.Code, w.Body)
+			}
+			before := todoNow(s, todo.ID)
+			closed, err := database.GetTodo(t.Context(), todo.ID)
+			if err != nil || closed.DoneAt == nil {
+				t.Fatalf("the app did not persist the closure: %+v %v", closed, err)
+			}
+			const note = "Reviewed after the owner closed the task"
+			checks := completeReviewChecks(before)
+			reviewTask(t, s, todo.ID, map[string]any{"verdict": verdict, "note": note, "checks": checks})
+
+			restarted := New(Options{Hub: f, Store: func() Store { return database }, Logf: t.Logf})
+			if err := restarted.ensureTodosLoaded(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			stored := todoNow(restarted, todo.ID)
+			if stored.DoneAt == nil || !stored.DoneAt.Equal(*closed.DoneAt) || stored.DoneBy != closed.DoneBy {
+				t.Fatalf("the review changed the existing closure: before %v/%q, after %v/%q",
+					closed.DoneAt, closed.DoneBy, stored.DoneAt, stored.DoneBy)
+			}
+			ledger := stored.Supervision
+			if ledger == nil || ledger.State != verdict || len(ledger.Reviews) != len(before.Supervision.Reviews)+1 {
+				t.Fatalf("the review ledger did not survive restart: %+v", ledger)
+			}
+			last := ledger.Reviews[len(ledger.Reviews)-1]
+			if last.Verdict != verdict || last.Note != note || !reflect.DeepEqual(last.Checks, checks) {
+				t.Fatalf("the stored review did not match its verdict, note and checks: %+v", last)
+			}
+		})
+	}
+}
 
 func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
 	for _, reviewer := range []string{"conversation", "leader", "no ledger"} {

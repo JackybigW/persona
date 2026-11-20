@@ -165,7 +165,7 @@ func TestIdlePassDoesNotBypassClosedTaskGrace(t *testing.T) {
 	if ok, err := s.reviewDoneTodo(ctx, todo.ID, "Closed", true); err != nil || !ok {
 		t.Fatalf("close: %v %v", ok, err)
 	}
-	s.closeIdleAgents(ctx, taskCloseRefused{}, idleSeen{{"mac", row.SessionID}: row.UpdatedAt})
+	s.closeIdleAgents(ctx, taskCloseRefused{}, nil, idleSeen{{"mac", row.SessionID}: row.UpdatedAt})
 	if len(retiredOf(ft)) != 0 {
 		t.Fatal("the general idle pass bypassed the task's post-closure grace")
 	}

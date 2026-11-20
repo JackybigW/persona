@@ -1561,8 +1561,8 @@ Serialize ownership-refresh invalidation with sends so an in-flight report canno
 The post-stop archive guard cannot undo an interrupt. Register an in-flight retirement before its final activity read,
 cancel it on input, viewing or a read receipt, and propagate that cancellation across every RPC hop. Use the separate
 `session.stop_if_idle` route: an older peer must refuse, never fall back to an unconditional stop. Refresh the node's
-runtime and check pending/recent input under its typing lock immediately before the first irreversible Ctrl+C.
-Input that arrives after that boundary waits behind the committed stop; a cancelled or refused stop grants no recovery.
+runtime and check cancellation and pending/recent input under its typing lock before each Ctrl+C.
+Input recorded between keys prevents the second interrupt. A cancelled or refused stop grants no recovery.
 Keep the new preflight on that guarded RPC: applying it to legacy stop/retire can rediscover a different engine and
 erase a retained session row before its established stop/recovery path runs. Verify those full-package regressions too.
 Install a test transport gate before linking or closing a task: both start background token/outcome work, so replacing

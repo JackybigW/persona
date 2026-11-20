@@ -361,6 +361,7 @@ func (s *Service) updateSupervisionWithClose(ctx context.Context, id string, cha
 		if closing.closed {
 			return *v, true, nil // the row and ledger were published together
 		}
+		// ReviewTodo also commits the ledger when the task was already closed.
 	} else if st := s.supervisionDB(); st != nil && s.todoDB() != nil {
 		if err := st.PutTodoSupervision(ctx, v.row(id)); err != nil {
 			return Supervision{}, false, err

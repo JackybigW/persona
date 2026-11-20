@@ -99,9 +99,9 @@ unchanged. Guest allow lists remain restricted to their configured tools; namesp
 
 `session.stop_if_idle` is additive; the node protocol version and minimum remain 1. It takes
 `{session_id, retire:true, stop_cause}` and returns `{stopped}`. Only an automatic stop cause is accepted.
-The node refreshes runtime state and checks cancellation and pending/recent input before its first irreversible
-Ctrl+C, while holding the session's typing lock. Incoming input is recorded before waiting for that lock.
-Newer input after this boundary waits behind the committed stop.
+The node refreshes runtime state and checks cancellation and pending/recent input before each Ctrl+C while holding
+the session's typing lock. Incoming input is recorded before waiting for that lock. Input recorded between keys
+prevents the second interrupt.
 
 Managers use cancellation-enabled `device.retire` and `devices.retire_call` across the existing bus, only for this
 method. Ordinary `device.call`, `devices.call` and explicit user stops keep their completion semantics.
