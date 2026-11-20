@@ -190,11 +190,12 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 				b.mu.Unlock()
 				return "", nil, nil, false, errReplyPolicyDenied
 			}
-			it = b.items[itemID]
-			if it == nil {
+			associated := b.itemOfAgent(sessionID)
+			if associated == nil || associated.ID != itemID {
 				b.mu.Unlock()
 				return "", nil, nil, false, errNotProcessing
 			}
+			it = associated
 			replyPolicy = cfg.ReplyPolicy
 		}
 	}

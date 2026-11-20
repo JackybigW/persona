@@ -229,6 +229,49 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 			t.Fatalf("policy-enabled suggestion was published after the association wait: %+v", currentSuggestion(it))
 		}
 	})
+	t.Run("association cannot change during the post-wait fresh read", func(t *testing.T) {
+		h := agentHub(t)
+		oldWait := inboxDraftWait
+		inboxDraftWait = time.Second
+		t.Cleanup(func() { inboxDraftWait = oldWait })
+		h.inbox.cfgMu.Lock()
+		h.inbox.cfg = assistantwire.InboxConfig{}
+		h.inbox.cfgAt = time.Now()
+		h.inbox.cfgMu.Unlock()
+		h.in.mu.Lock()
+		h.in.configQueue = []assistantwire.InboxConfig{{}, {}}
+		reads := 0
+		h.in.configHook = func() {
+			reads++
+			if reads == 2 {
+				h.inbox.mu.Lock()
+				for _, item := range h.inbox.items {
+					if item.ID == "lark:association-binding-race" {
+						item.Agent.SessionID = "session-B"
+					}
+				}
+				h.inbox.mu.Unlock()
+			}
+		}
+		h.in.mu.Unlock()
+		it := actionItem("lark:association-binding-race", time.Now())
+		it.Source = "lark"
+		it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
+		h.inbox.items[it.ID] = it
+		go func() {
+			time.Sleep(250 * time.Millisecond)
+			h.inbox.mu.Lock()
+			it.Agent.SessionID = "session-A"
+			h.inbox.mu.Unlock()
+		}()
+		_, _, err := h.suggest(context.Background(), "session-A", suggestIn{Kind: SuggestReply, Text: "Delayed synthetic suggestion"})
+		if !errors.Is(err, errNotProcessing) {
+			t.Fatalf("suggestion lost its session binding during the fresh read, error = %v", err)
+		}
+		if currentSuggestion(it) != nil {
+			t.Fatalf("session A published against session B's item: %+v", currentSuggestion(it))
+		}
+	})
 	t.Run("handback confirmation is not exempt", func(t *testing.T) {
 		h := agentHub(t)
 		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
