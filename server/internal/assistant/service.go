@@ -178,6 +178,7 @@ type Service struct {
 	taskActivity     taskActivityBook      // task_close_activity.go: owner input/view activity, not read receipts
 	taskCloseStops   taskCloseStopBook     // tasks_close_stops.go: stopped Agents of completed tasks
 	prefs            settingsBook          // profile.go
+	guard            dispatchGuardBook     // dispatch_guard.go
 	main             mainBook              // start.go
 	archived         archiveBook           // conversations.go
 	tags             conversationTagsBook  // conversation_tags.go
@@ -357,6 +358,7 @@ func New(o Options) *Service {
 	s.reporterRoutes()
 	s.directionRoutes()
 	s.dispatchPolicyRoutes() // dispatch_policy_routes.go
+	s.dispatchGuardRoutes()  // dispatch_guard.go
 	s.startPresetRoutes()
 	s.startDefaultsRoutes() // start_defaults_routes.go
 	s.directionTreeRoutes()
