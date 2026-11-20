@@ -55,6 +55,8 @@ type InboxConfig struct {
 	Agent InboxAgentConfig `json:"agent,omitempty"`
 	// ReplyPolicy optionally restricts which classified items may become owner reply drafts.
 	ReplyPolicy *assistantwire.InboxReplyPolicyConfig `json:"reply_policy,omitempty"`
+	// Visibility keeps explicitly named chats, or all direct chats when enabled, out of AI handling and reads.
+	Visibility *assistantwire.InboxVisibilityConfig `json:"visibility,omitempty"`
 }
 
 // InboxAgentConfig is manager.json's inbox.agent, handed to the manager as it is.

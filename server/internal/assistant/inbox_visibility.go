@@ -13,18 +13,7 @@ import (
 )
 
 func inboxVisibilitySource(cfg *assistantwire.InboxVisibilityConfig, source string) bool {
-	if cfg == nil {
-		return false
-	}
-	if len(cfg.Sources) == 0 {
-		return source == "lark" || source == "larkcli"
-	}
-	for _, candidate := range cfg.Sources {
-		if candidate == source {
-			return true
-		}
-	}
-	return false
+	return cfg.AppliesTo(source)
 }
 
 // inboxVisibilityMatch evaluates only stored metadata. Explicit ids match groups and direct chats; the direct-chat
@@ -62,15 +51,26 @@ func inboxVisibilityExcluded(it *InboxItem, cfg *assistantwire.InboxVisibilityCo
 	return it != nil && (it.VisibilityExcluded || inboxVisibilityMatch(it, cfg))
 }
 
+// inboxVisibilityModelAllowed authorizes one item immediately before any model prompt is built from its content.
+// The display cache is not an authorization input. Existing items are quarantined in the same pass; callers handling
+// a not-yet-admitted item persist the excluded verdict themselves. A configuration error never permits a model read.
+func (s *Service) inboxVisibilityModelAllowed(ctx context.Context, it *InboxItem) (bool, error) {
+	cfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return false, err
+	}
+	if inboxVisibilityExcluded(it, cfg.Visibility) {
+		s.quarantineInboxVisibility(ctx, cfg.Visibility)
+		return false, nil
+	}
+	return true, nil
+}
+
 // inboxVisibilityToolRefusal is the manager-side veto for an explicitly listed target. It keeps the local manager
 // configuration effective even when an older source extension has no visibility preflight. A source that implements
 // the all-direct-chats switch still performs its own metadata check, so ordinary groups need not be guessed here.
 func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, session, origin, name string, args json.RawMessage) (proto.ToolResult, bool) {
 	if !s.isInboxModelCall(ctx, machine, session, origin) {
-		return proto.ToolResult{}, false
-	}
-	cfg := s.inboxConfig(ctx).Visibility
-	if cfg == nil || !cfg.DirectChats && len(cfg.Chats) == 0 {
 		return proto.ToolResult{}, false
 	}
 	source := ""
@@ -82,11 +82,20 @@ func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, sessi
 	default:
 		return proto.ToolResult{}, false
 	}
-	if !inboxVisibilitySource(cfg, source) {
-		return proto.ToolResult{}, false
-	}
 	denied := func() (proto.ToolResult, bool) {
 		return proto.TextResult("This chat is excluded from AI and knowledge-base reads.", true), true
+	}
+	// This is an authorization read, not a display read: a newly enabled boundary cannot wait for the cache to expire.
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return denied()
+	}
+	cfg := fullCfg.Visibility
+	if cfg == nil || !cfg.DirectChats && len(cfg.Chats) == 0 {
+		return proto.ToolResult{}, false
+	}
+	if !inboxVisibilitySource(cfg, source) {
+		return proto.ToolResult{}, false
 	}
 	if name == "lark_search" || name == "larkcli_search" {
 		// Result-level filtering cannot prove that a global search omitted an excluded body.

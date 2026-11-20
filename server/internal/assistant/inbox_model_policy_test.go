@@ -28,8 +28,17 @@ func (s originErrorStore) Setting(ctx context.Context, key string, out any) (boo
 // connector running. Embedding keeps this test double small while ToolAccess and CallTool are the policy boundary.
 type policyExtensions struct {
 	ExtensionTools
-	read  map[string]bool
-	calls []string
+	read       map[string]bool
+	connectors map[string]bool
+	calls      []string
+}
+
+func (e *policyExtensions) ConnectorTool(name string) bool {
+	if e.connectors != nil {
+		return e.connectors[name]
+	}
+	_, known := e.read[name]
+	return known
 }
 
 func (e *policyExtensions) ToolAccess(name string) (bool, bool) {
@@ -181,6 +190,27 @@ func TestSourceOnlyInboxToolPolicy(t *testing.T) {
 	res := h.mcpCallWithOrigin(t.Context(), "server", "s1", "lark_messages", json.RawMessage(`{"chat_id":"synthetic-group"}`), true, OriginInbox)
 	if res.IsError || toolText(res) != "read lark_messages" || len(ext.calls) != 1 {
 		t.Fatalf("allowlisted source read: %+v, calls=%v", res, ext.calls)
+	}
+}
+
+func TestSourceOnlyInboxToolPolicyRejectsSubscriptionReads(t *testing.T) {
+	h, _, it := handledHub(t)
+	ext := &policyExtensions{
+		read:       map[string]bool{"subscription_get": true},
+		connectors: map[string]bool{"subscription_get": false},
+	}
+	h.SetExtensions(ext)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.ReadProfile = "source_only"
+		c.Agent.ConnectorTools = []string{"subscription_get"}
+	})
+	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
+	res := h.mcpCallWithOrigin(t.Context(), "server", "s1", "subscription_get", json.RawMessage(`{}`), true, OriginInbox)
+	if !res.IsError {
+		t.Fatalf("source_only allowed a non-connector subscription read: %+v", res)
+	}
+	if len(ext.calls) != 0 {
+		t.Fatalf("refused subscription read executed: %v", ext.calls)
 	}
 }
 

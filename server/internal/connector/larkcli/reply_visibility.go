@@ -54,12 +54,16 @@ func directChatType(chatType, chatMode string) (direct, known bool) {
 }
 
 func (c *Connector) replyChatExcludedLocked(chatID, chatType, chatMode string) bool {
-	chatID = strings.TrimSpace(chatID)
-	_, listed := c.inboxExcludeChats[chatID]
-	if listed && chatID != "" {
+	if c.managedInboxVisibilityInvalid {
 		return true
 	}
-	if !c.inboxExcludeDirectChats {
+	chatID = strings.TrimSpace(chatID)
+	_, listed := c.inboxExcludeChats[chatID]
+	_, managedListed := c.managedInboxExcludeChats[chatID]
+	if (listed || managedListed) && chatID != "" {
+		return true
+	}
+	if !c.inboxExcludeDirectChats && !c.managedInboxExcludeDirectChats {
 		return false
 	}
 	direct, known := directChatType(chatType, chatMode)
@@ -100,10 +104,24 @@ func (c *Connector) replyThingExcludedLocked(thing connector.InboxThing) bool {
 	return c.replyChatExcludedLocked(chatID, kind, "")
 }
 
+// SetManagedInboxVisibility applies manager.json's central boundary without persisting it in connector options.
+// Invalid input fails the whole source closed: a malformed privacy boundary must not silently select legacy reads.
+func (c *Connector) SetManagedInboxVisibility(chats []string, direct bool) error {
+	raw, _ := json.Marshal(chats)
+	excluded, err := parseExcludedChatIDs(raw)
+	c.inboxMu.Lock()
+	c.managedInboxVisibilityInvalid = err != nil
+	c.managedInboxExcludeChats = excluded
+	c.managedInboxExcludeDirectChats = direct
+	c.inboxMu.Unlock()
+	return err
+}
+
 func (c *Connector) replyVisibilityEnabled() bool {
 	c.inboxMu.Lock()
 	defer c.inboxMu.Unlock()
-	return c.inboxExcludeDirectChats || len(c.inboxExcludeChats) > 0
+	return c.managedInboxVisibilityInvalid || c.inboxExcludeDirectChats || c.managedInboxExcludeDirectChats ||
+		len(c.inboxExcludeChats) > 0 || len(c.managedInboxExcludeChats) > 0
 }
 
 func (c *Connector) filterReplyChats(page adapter.ChatList) adapter.ChatList {
@@ -125,13 +143,16 @@ func (c *Connector) checkReplyChat(ctx context.Context, chatID string) error {
 	chatID = strings.TrimSpace(chatID)
 	c.inboxMu.Lock()
 	_, listed := c.inboxExcludeChats[chatID]
-	allDirect := c.inboxExcludeDirectChats
-	enabled := allDirect || len(c.inboxExcludeChats) > 0
+	_, managedListed := c.managedInboxExcludeChats[chatID]
+	listed = listed || managedListed
+	allDirect := c.inboxExcludeDirectChats || c.managedInboxExcludeDirectChats
+	invalid := c.managedInboxVisibilityInvalid
+	enabled := invalid || allDirect || len(c.inboxExcludeChats) > 0 || len(c.managedInboxExcludeChats) > 0
 	c.inboxMu.Unlock()
 	if !enabled {
 		return nil
 	}
-	if chatID == "" || listed {
+	if invalid || chatID == "" || listed {
 		return errReplyVisibilityDenied
 	}
 	if !allDirect {

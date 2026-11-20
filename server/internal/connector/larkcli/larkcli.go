@@ -39,6 +39,10 @@ type Connector struct {
 	// Private-chat visibility controls are opt-in and apply to collection, model tools and retained source things.
 	inboxExcludeChats       map[string]struct{}
 	inboxExcludeDirectChats bool
+	// The manager's central boundary is kept separate from the connector's own options so an options.set cannot clear it.
+	managedInboxExcludeChats       map[string]struct{}
+	managedInboxExcludeDirectChats bool
+	managedInboxVisibilityInvalid  bool
 	// triageRules are the user's triage rules for lark-cli's Inbox items, in their words (options.triage_rules): the
 	// Inbox's triage reads them instead of the global inbox.rules.
 	triageRules       string
@@ -211,6 +215,10 @@ func (c *Connector) chats(ctx context.Context, args json.RawMessage) (string, er
 		}
 		return marshal(page, err)
 	case "at_me":
+		if c.replyVisibilityEnabled() {
+			// ListChatsAtMe is implemented by a body-returning message search, not a metadata chat-list endpoint.
+			return "", errReplyVisibilityDenied
+		}
 		page, err := c.runner.ListChatsAtMe(ctx, a.Limit)
 		if err == nil {
 			page = c.filterReplyChats(page)

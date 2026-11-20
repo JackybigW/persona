@@ -237,7 +237,7 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	b.mu.Lock()
 	var todo []*InboxItem
 	for _, it := range b.items {
-		if !it.open() || !replyPolicyApplies(cfg, it.Source) {
+		if it.VisibilityExcluded || !it.open() || !replyPolicyApplies(cfg, it.Source) {
 			continue
 		}
 		// Classification runs before escalation. TwinFirst can enqueue an already-tiered FYI item, and an existing
@@ -255,10 +255,17 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	}
 	b.mu.Unlock()
 	for _, it := range todo {
+		allowed, visibilityErr := s.inboxVisibilityModelAllowed(ctx, it)
+		if visibilityErr == nil && !allowed {
+			continue
+		}
 		b.mu.Lock()
 		last, text := it.Last, it.Context
 		b.mu.Unlock()
-		category, err := s.classifyReplyPolicyText(ctx, cfg, text)
+		category, err := "unknown", visibilityErr
+		if visibilityErr == nil {
+			category, err = s.classifyReplyPolicyText(ctx, cfg, text)
+		}
 		if err != nil {
 			category = "unknown"
 		}

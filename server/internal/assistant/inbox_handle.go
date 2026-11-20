@@ -304,7 +304,7 @@ func (b *inboxBook) escalate(since, now time.Time) []*inboxWrite {
 	var changed []*inboxWrite
 	for _, it := range b.items {
 		a := it.Agent
-		if !it.open() || it.Context == "" || a != nil && (a.Of == it.Last || a.savingRetry) {
+		if it.VisibilityExcluded || !it.open() || it.Context == "" || a != nil && (a.Of == it.Last || a.savingRetry) {
 			continue
 		}
 		handled := it.handled()
@@ -360,7 +360,7 @@ func (s *Service) deliverPending(ctx context.Context) {
 	b.mu.Lock()
 	var todo []*InboxItem
 	for _, it := range b.items {
-		if a := it.Agent; a != nil && len(a.Pending) > 0 && a.SessionID != "" {
+		if a := it.Agent; !it.VisibilityExcluded && a != nil && len(a.Pending) > 0 && a.SessionID != "" {
 			todo = append(todo, it)
 		}
 	}
@@ -388,7 +388,13 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	mu := v.(*sync.Mutex)
 	mu.Lock()
 	defer mu.Unlock()
-	enabled := s.inboxConfig(ctx).Agent.Enabled
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		// Pending notes contain the item's full context. An unknown current boundary leaves them queued, never delivered.
+		return
+	}
+	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
+	enabled := fullCfg.Agent.Enabled
 	hello := s.hello(ctx)
 	owner, language := inboxPromptOwner(hello), answerLanguage(hello.Locale)
 	b.mu.Lock()
@@ -449,7 +455,7 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	for i, n := range notes {
 		texts[i] = renderNoteIn(n, owner, language)
 	}
-	err := s.sendToSession(ctx, machine, sid, inboxProcessingPrompt(turn, strings.Join(texts, "\n\n---\n\n")))
+	err = s.sendToSession(ctx, machine, sid, inboxProcessingPrompt(turn, strings.Join(texts, "\n\n---\n\n")))
 	gone := false
 	if err != nil {
 		// Gone only when its machine answers without it (an offline machine is tried again later).

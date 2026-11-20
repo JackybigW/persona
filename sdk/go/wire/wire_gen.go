@@ -976,9 +976,12 @@ type InitializeParams struct {
 	Extension *ExtensionInfo `json:"extension,omitempty"`
 	Plugin    *ExtensionInfo `json:"plugin,omitempty"`
 	// The configuration with the schema's defaults filled in.
-	Config  json.RawMessage   `json:"config,omitempty"`
-	Secrets map[string]string `json:"secrets,omitempty"`
-	Granted Permissions       `json:"granted"`
+	Config json.RawMessage `json:"config,omitempty"`
+	// The manager's source-privacy boundary, sent only to an extension contributing a selected connector. Runtime
+	// authorization input, not extension settings persisted in the extension registry.
+	InboxVisibility json.RawMessage   `json:"inbox_visibility,omitempty"`
+	Secrets         map[string]string `json:"secrets,omitempty"`
+	Granted         Permissions       `json:"granted"`
 	// The contributions this run is for, by extension point.
 	Active map[string][]string `json:"active,omitempty"`
 	// The contributions of the other extensions that are on to the points it exports, by its point id (event

@@ -50,6 +50,9 @@ func (s *Service) triageInbox(ctx context.Context) {
 	b.mu.Lock()
 	var todo, stale, ruled []*InboxItem
 	for _, it := range b.items {
+		if it.VisibilityExcluded {
+			continue
+		}
 		if it.open() && it.TriagedAt != it.Last && it.Context != "" {
 			if it.handled() { // what joins an event being handled follows it: its conversation decides (inbox_handle.go)
 				it.TriagedAt = it.Last
@@ -110,7 +113,7 @@ func (s *Service) triageInbox(ctx context.Context) {
 // change, settled (inbox_rollback.go); nil when the item was left as it was.
 func (s *Service) triage(ctx context.Context, it *InboxItem) *inboxWrite {
 	last, v := s.askTriage(ctx, it, 90*time.Second)
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || v.state == triageExcluded {
 		return nil
 	}
 	b := &s.inbox
@@ -248,6 +251,7 @@ const (
 	triageFailed       = "error"        // it failed or answered without a tier
 	triageTimeout      = "timeout"      // too slow
 	triageBehind       = "behind"       // not asked: the round had more new items than it triages (admitInbox)
+	triageExcluded     = "excluded"     // not asked: the source-privacy boundary leaves the item for the owner
 )
 
 var triageStates = []string{triageUnconfigured, triagePaused, triageFailed, triageTimeout, triageBehind}
@@ -265,6 +269,16 @@ type triageVerdict struct {
 // inbox.rules; the default criteria stay underneath). last is the Last it asked about.
 func (s *Service) askTriage(ctx context.Context, it *InboxItem, timeout time.Duration) (last string, v triageVerdict) {
 	b := &s.inbox
+	b.mu.Lock()
+	last = it.Last
+	b.mu.Unlock()
+	allowed, err := s.inboxVisibilityModelAllowed(ctx, it)
+	if err != nil {
+		return last, triageVerdict{state: triageFailed, why: i18n.T(s.lang(ctx), "assistant-inbox_triage.failed"), err: err}
+	}
+	if !allowed {
+		return last, triageVerdict{state: triageExcluded}
+	}
 	hello := s.hello(ctx)
 	language := answerLanguage(hello.Locale)
 	b.mu.Lock()

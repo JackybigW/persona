@@ -329,7 +329,11 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 	freshCfg, err := s.queryInboxConfig(ctx)
 	if err == nil {
 		b.mu.Lock()
-		err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		if inboxVisibilityExcluded(it, freshCfg.Visibility) {
+			err = errCannotReply
+		} else {
+			err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		}
 		b.mu.Unlock()
 	}
 	res := ""

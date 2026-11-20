@@ -147,15 +147,13 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	visibility := s.inboxConfig(ctx).Visibility
 	b := &s.inbox
 	replyPolicy := s.inboxConfig(ctx).ReplyPolicy
-	if in.Kind == SuggestReply || in.Kind == SuggestAgent {
-		cfg, err := s.inboxConfigFresh(ctx)
-		if err != nil {
-			// Publishing either kind of actionable card requires the current authorization, not a five-second-old one.
-			return "", nil, nil, false, errReplyPolicyDenied
-		}
-		replyPolicy = cfg.ReplyPolicy
-		visibility = cfg.Visibility
+	cfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		// Every publication observes the current source-privacy boundary; actionable cards also need the current reply policy.
+		return "", nil, nil, false, errReplyPolicyDenied
 	}
+	replyPolicy = cfg.ReplyPolicy
+	visibility = cfg.Visibility
 	b.mu.Lock()
 	var it *InboxItem
 	var from *SessionRef
@@ -181,7 +179,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			b.mu.Unlock()
 			return "", nil, nil, false, errNotProcessing
 		}
-		if waitedForAssociation && (in.Kind == SuggestReply || in.Kind == SuggestAgent) {
+		if waitedForAssociation {
 			// The first fresh read can predate a 15-second association wait. Reread after the wait, without holding the
 			// inbox lock across the RPC, then re-resolve the item before authorizing publication.
 			itemID := it.ID

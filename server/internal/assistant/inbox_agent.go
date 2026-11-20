@@ -207,7 +207,11 @@ func (s *Service) handInbox(ctx context.Context) {
 
 // handPass is one pass of handInbox, with b.handing held.
 func (s *Service) handPass(ctx context.Context) {
-	fullCfg := s.inboxConfig(ctx)
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		s.logf("inbox: fresh settings before model and delivery passes: %v", err)
+		return
+	}
 	cfg := fullCfg.Agent
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
@@ -326,6 +330,8 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		return
 	}
 	replyPolicy := fullCfg.ReplyPolicy
+	// Only the legacy empty profile receives automatic KB context. source_only and every unknown profile fail closed.
+	allowKBContext := fullCfg.Agent.ReadProfile == ""
 	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the same fresh visibility
 	// configuration as reply-policy admission, so a newly listed stored chat cannot start or keep an AI session.
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
@@ -393,7 +399,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
 		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
-		if cfg.ReadProfile != "source_only" {
+		if allowKBContext {
 			a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
 		}
 		turn := rand.Text()
@@ -414,7 +420,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	}
 	for _, j := range jobs {
 		var kbc *prompts.KBContext
-		if cfg.ReadProfile != "source_only" && j.chat != "" {
+		if allowKBContext && j.chat != "" {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)

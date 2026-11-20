@@ -107,7 +107,7 @@ func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, origi
 				if name != allowed {
 					continue
 				}
-				if s.ext != nil {
+				if s.ext != nil && s.ext.ConnectorTool(name) {
 					if known, readOnly := s.ext.ToolAccess(name); known && readOnly {
 						return proto.ToolResult{}, false
 					}

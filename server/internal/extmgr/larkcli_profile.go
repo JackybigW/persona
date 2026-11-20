@@ -199,6 +199,11 @@ func (h *Manager) newLarkCLIConnector(profile string) *larkcliconnector.Connecto
 	cli := h.cfg.Lark.CLI
 	lc := larkcliconnector.New(larkcliadapter.Config{Bin: cli.Bin, Profile: profile,
 		InboxPoll: cli.InboxPoll(), InboxPageLimit: cli.InboxPageLimit})
+	if visibility := h.cfg.Inbox.Visibility; visibility.AppliesTo(larkcliconnector.ID) {
+		if err := lc.SetManagedInboxVisibility(visibility.Chats, visibility.DirectChats); err != nil {
+			h.logf("lark-cli: invalid central inbox visibility; source reads fail closed: %v", err)
+		}
+	}
 	lc.SetStateStore(h.store)
 	lc.SetInboxSource(h.cfg.Lark.Prefer, func(ctx context.Context) bool {
 		gateway := h.connectors.Get(connector.Lark)

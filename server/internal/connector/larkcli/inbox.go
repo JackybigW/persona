@@ -174,7 +174,8 @@ func (c *Connector) pollChat(ctx context.Context) (bool, error) {
 	}
 	c.inboxMu.Unlock()
 
-	if !seeded {
+	visibilityEnabled := c.replyVisibilityEnabled()
+	if !seeded && !visibilityEnabled {
 		// Seed the topic set from the user's own history. Search is bounded just
 		// like the live round; later rounds extend it whenever a user message or
 		// mention is observed.
@@ -195,7 +196,9 @@ func (c *Connector) pollChat(ctx context.Context) (bool, error) {
 	pageToken := state.PageToken
 	nextPageToken := ""
 	var newest time.Time
-	for pageNo := 0; pageNo < pageLimit; pageNo++ {
+	for pageNo := 0; !visibilityEnabled && pageNo < pageLimit; pageNo++ {
+		// A global message search returns bodies before metadata filtering could run. With visibility controls enabled,
+		// collection uses only named-chat history reads whose target was vetted before the body request.
 		page, err := c.runner.SearchMessages(ctx, "", adapter.SearchOptions{
 			Start: start, PageToken: pageToken, Limit: 50,
 		})
@@ -276,10 +279,15 @@ func (c *Connector) pollChat(ctx context.Context) (bool, error) {
 		}
 		state.Cursor = candidate.Format(time.RFC3339)
 	}
-	state.PageToken = nextPageToken
+	if !visibilityEnabled {
+		// A visibility round performs no global search: leave its page and historical-seed progress untouched so
+		// restoring the legacy configuration resumes the same search instead of claiming a seed that never ran.
+		state.PageToken = nextPageToken
+		state.TopicsSeeded = true
+	}
 	c.inboxState.Cursor = state.Cursor
 	c.inboxState.PageToken = state.PageToken
-	c.inboxState.TopicsSeeded = true
+	c.inboxState.TopicsSeeded = state.TopicsSeeded
 	c.inboxCollecting = true
 	if err := c.saveInboxStateLocked(ctx); err != nil {
 		c.inboxMu.Unlock()
@@ -296,7 +304,7 @@ func (c *Connector) pollChat(ctx context.Context) (bool, error) {
 // results carry the chat's type and partner; history does not, so they are filled in from the chat list.
 func (c *Connector) sweepDirectChats(ctx context.Context) ([]adapter.Message, error) {
 	c.inboxMu.Lock()
-	allDirectExcluded := c.inboxExcludeDirectChats
+	allDirectExcluded := c.inboxExcludeDirectChats || c.managedInboxExcludeDirectChats || c.managedInboxVisibilityInvalid
 	c.inboxMu.Unlock()
 	if allDirectExcluded {
 		return nil, nil

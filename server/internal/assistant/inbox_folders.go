@@ -207,7 +207,7 @@ func (s *Service) fileFolders(ctx context.Context) {
 	cutoff := time.Now().Add(-inboxKeepDone)
 	var todo []*InboxItem
 	for _, it := range b.items {
-		if it.unfiled() && (it.DoneAt == nil || !it.DoneAt.Before(cutoff)) {
+		if !it.VisibilityExcluded && it.unfiled() && (it.DoneAt == nil || !it.DoneAt.Before(cutoff)) {
 			todo = append(todo, it)
 		}
 	}
@@ -234,13 +234,18 @@ func (s *Service) fileFolders(ctx context.Context) {
 // fileBatch asks the model about one batch and files what it answered; an item it gave no usable folder is marked
 // as asked (FolderOf) so the same content is not asked about again.
 func (s *Service) fileBatch(ctx context.Context, batch []*InboxItem) error {
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return err
+	}
+	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	b := &s.inbox
 	b.mu.Lock()
 	cfg := b.folderCfg
 	in := prompts.InboxFoldersInput{Folders: b.folderLines(), Examples: b.folderExamples()}
 	asked := make(map[string]string, len(batch))
 	for _, it := range batch {
-		if !it.unfiled() || b.items[it.ID] != it {
+		if inboxVisibilityExcluded(it, fullCfg.Visibility) || !it.unfiled() || b.items[it.ID] != it {
 			continue
 		}
 		asked[it.ID] = it.Last
@@ -254,12 +259,12 @@ func (s *Service) fileBatch(ctx context.Context, batch []*InboxItem) error {
 	hello := s.hello(ctx)
 	in.Language = answerLanguage(hello.Locale)
 	system := prompts.RenderInboxFolders(prompts.InboxFolders{Owner: hello.Owner, FolderRules: cfg.Rules,
-		Rules: s.inboxConfig(ctx).Rules, Language: answerLanguage(hello.Locale), MaxDepth: 4})
+		Rules: fullCfg.Rules, Language: answerLanguage(hello.Locale), MaxDepth: 4})
 	var out struct {
 		Folders map[string]string `json:"folders"`
 	}
 	cctx, cancel := context.WithTimeout(ctx, folderWait)
-	err := s.inboxModelJSON(cctx, purposeTriage, system, prompts.RenderInboxFoldersInput(in), 0, &out)
+	err = s.inboxModelJSON(cctx, purposeTriage, system, prompts.RenderInboxFoldersInput(in), 0, &out)
 	cancel()
 	if err != nil {
 		return err

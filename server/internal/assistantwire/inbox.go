@@ -386,6 +386,23 @@ type InboxVisibilityConfig struct {
 	DirectChats bool     `json:"direct_chats,omitempty"`
 }
 
+// AppliesTo scopes the boundary to its configured sources. The empty source list keeps the two Lark connectors'
+// legacy shorthand; naming sources never implicitly selects any other connector.
+func (c *InboxVisibilityConfig) AppliesTo(source string) bool {
+	if c == nil {
+		return false
+	}
+	if len(c.Sources) == 0 {
+		return source == "lark" || source == "larkcli"
+	}
+	for _, candidate := range c.Sources {
+		if candidate == source {
+			return true
+		}
+	}
+	return false
+}
+
 // InboxAgentConfig is manager.json's inbox.agent: the AI twin (docs/assistant/inbox.md).
 type InboxAgentConfig struct {
 	Enabled bool `json:"enabled"`

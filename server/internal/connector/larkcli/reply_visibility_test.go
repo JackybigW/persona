@@ -155,6 +155,84 @@ func TestReplyVisibilityDirectSweepAndSearch(t *testing.T) {
 	}
 }
 
+func TestReplyVisibilityPollSkipsBodySearch(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		cfg        string
+		wantSearch bool
+	}{
+		{name: "legacy configuration keeps search", cfg: `{}`, wantSearch: true},
+		{name: "explicit list disables body-returning search", cfg: `{"inbox_exclude_chats":["oc_example_dm"]}`},
+		{name: "all-direct switch disables body-returning search", cfg: `{"inbox_exclude_direct_chats":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			log := t.TempDir() + "/calls.log"
+			t.Setenv("LARKCLI_FAKE_LOG", log)
+			c := testConnector(t, "inbox_p2p")
+			setReplyVisibility(t, c, tc.cfg)
+			if _, err := c.pollChat(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			calls := fakeReplyCalls(t, log)
+			if got := strings.Contains(calls, "+messages-search"); got != tc.wantSearch {
+				t.Fatalf("body-returning search called=%v, want %v: %s", got, tc.wantSearch, calls)
+			}
+		})
+	}
+}
+
+func TestReplyVisibilityPollPreservesLegacySearchState(t *testing.T) {
+	c := testConnector(t, "inbox_p2p")
+	c.inboxState.PageToken = "saved-search-page"
+	c.inboxState.TopicsSeeded = false
+	c.inboxStateLoaded = true
+	setReplyVisibility(t, c, `{"inbox_exclude_chats":["oc_example_dm"]}`)
+	if _, err := c.pollChat(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if c.inboxState.PageToken != "saved-search-page" || c.inboxState.TopicsSeeded {
+		t.Fatalf("visibility-only round changed legacy search progress: %+v", c.inboxState)
+	}
+	setReplyVisibility(t, c, `{}`)
+	if _, err := c.pollChat(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !c.inboxState.TopicsSeeded {
+		t.Fatal("legacy polling never performed its historical topic seed after visibility was disabled")
+	}
+}
+
+func TestReplyVisibilityAtMeVetoBeforeBodySearch(t *testing.T) {
+	log := t.TempDir() + "/calls.log"
+	t.Setenv("LARKCLI_FAKE_LOG", log)
+	c := testConnector(t, "success")
+	setReplyVisibility(t, c, `{"inbox_exclude_chats":["oc_example_dm"]}`)
+	if _, err := c.Call(context.Background(), "larkcli_chats", json.RawMessage(`{"filter":"at_me"}`)); err == nil {
+		t.Fatal("at_me used a body-returning search with visibility controls enabled")
+	}
+	if calls := fakeReplyCalls(t, log); calls != "" {
+		t.Fatalf("at_me veto made downstream calls: %s", calls)
+	}
+}
+
+func TestManagedReplyVisibilitySurvivesConnectorOptions(t *testing.T) {
+	c := testConnector(t, "success")
+	if err := c.SetManagedInboxVisibility([]string{"oc_manager_private"}, true); err != nil {
+		t.Fatal(err)
+	}
+	// A connector options update cannot clear the manager's central authorization boundary.
+	setReplyVisibility(t, c, `{}`)
+	if !c.replyChatExcluded("oc_manager_private", "group", "") || !c.replyChatExcluded("oc_work_dm", "p2p", "") {
+		t.Fatal("connector options cleared the manager's visibility boundary")
+	}
+	if err := c.SetManagedInboxVisibility([]string{"duplicate", "duplicate"}, false); err == nil {
+		t.Fatal("invalid managed visibility was accepted")
+	}
+	if !c.replyChatExcluded("oc_ordinary_group", "group", "") {
+		t.Fatal("invalid managed visibility did not fail the source closed")
+	}
+}
+
 func TestReplyVisibilityFiltersRetainedThings(t *testing.T) {
 	c := testConnector(t, "success")
 	c.inboxCollecting = true
