@@ -2,116 +2,198 @@ package assistant
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
-	"github.com/nwverse/persona/server/internal/proto"
+	"github.com/nwverse/persona/server/internal/assistantwire"
 )
 
-func TestInboxHandlingVisibilitySnapshot(t *testing.T) {
-	ctx := context.Background()
-	f := newFakeHub().withMachine()
-	s := newTestService(t, f)
-	setSettings(t, s, func(v *Settings) { v.Main = "main" })
-	for id, origin := range map[string]string{
-		"main": OriginInbox, "inbox": OriginInbox, "user": OriginUser,
-		"channel": OriginChannel, "task": OriginTask, "spawned": OriginSpawned,
-		"extension": OriginExtension, "lark-agent": OriginLarkAgent,
-	} {
-		s.originSet(ctx, "server", id, origin, "ref", "")
+func visibilityTestConfig() *assistantwire.InboxVisibilityConfig {
+	return &assistantwire.InboxVisibilityConfig{Sources: []string{"lark"}, Chats: []string{"synthetic-private"}}
+}
+
+func TestInboxVisibilityMatch(t *testing.T) {
+	newItem := func(chat string, direct bool) *InboxItem {
+		it := actionItem("lark:visibility", time.Now())
+		it.Source = "lark"
+		it.Lark = &InboxLark{FeedID: chat, IsGroup: !direct}
+		return it
 	}
-	for _, v := range s.snapshot(ctx).Sessions {
-		if want := v.SessionID == "inbox"; v.Archived != want {
-			t.Errorf("%s: archived=%v, want %v", v.SessionID, v.Archived, want)
-		}
+	cfg := visibilityTestConfig()
+	if inboxVisibilityMatch(newItem("synthetic-work-dm", true), cfg) {
+		t.Fatal("an explicit private-chat list excluded an unlisted work DM")
 	}
-	// The default is derived from saved origins, including conversations from before the upgrade.
-	s.origins.mu.Lock()
-	s.origins.loaded = false
-	s.origins.mu.Unlock()
-	s.UserSpoke(ctx, SessionRef{MachineID: "server", SessionID: "inbox"})
-	for _, v := range s.snapshot(ctx).Sessions {
-		if v.SessionID == "inbox" && (!v.Archived || v.OriginRef != "ref") {
-			t.Fatalf("continuing a recovered handling chat exposed it: %+v", v)
-		}
+	if !inboxVisibilityMatch(newItem("synthetic-private", false), cfg) {
+		t.Fatal("an explicitly listed group was not excluded")
+	}
+	cfg = &assistantwire.InboxVisibilityConfig{Sources: []string{"lark"}, DirectChats: true}
+	if !inboxVisibilityMatch(newItem("synthetic-work-dm", true), cfg) || inboxVisibilityMatch(newItem("synthetic-group", false), cfg) {
+		t.Fatal("the direct-chat switch did not distinguish direct and group chats")
+	}
+	if !inboxVisibilityMatch(&InboxItem{Source: "lark", Kind: KindDM}, cfg) {
+		t.Fatal("unknown Lark chat type did not fail closed with the direct-chat switch on")
+	}
+	var zero *assistantwire.InboxVisibilityConfig
+	if inboxVisibilityMatch(newItem("synthetic-private", true), zero) {
+		t.Fatal("nil visibility config changed legacy behavior")
 	}
 }
 
-func TestInboxHandlingVisibilityListsAndLookup(t *testing.T) {
-	ctx := context.Background()
-	f := newFakeHub()
-	f.hello.Assistant.MachineID = "box"
-	f.hello.Assistant.Machines = []string{"box"}
-	f.devices = []Device{{ID: "box", Home: "/home/u"}}
-	d := newFleetDevs()
-	d.add("box", "Computer")
-	st := newFleetMem()
-	s := New(Options{Hub: f, Devices: d, Store: func() Store { return st }})
-	setSettings(t, s, func(v *Settings) { v.MachineID, v.Main = "box", "main" })
-	d.setSessions("box", []proto.Session{
-		{SessionID: "main", Cwd: "/home/u/.persona/assistant", Status: proto.StatusDone},
-		{SessionID: "inbox", Cwd: "/home/u/.persona/assistant", Status: proto.StatusDone},
-		{SessionID: "user", Cwd: "/home/u/.persona/assistant", Status: proto.StatusDone},
-	})
-	s.originSet(ctx, "box", "inbox", OriginInbox, "example:item", "")
-	for _, list := range [][]proto.Session{
-		s.view(ctx, false).Conversations,
-		func() []proto.Session { list, _ := s.conversations(ctx, false, ""); return list }(),
-	} {
-		if len(list) != 2 {
-			t.Fatalf("default list: %+v", list)
+func TestInboxVisibilityQuarantineReleasesQueuedAndHandling(t *testing.T) {
+	for _, running := range []bool{false, true} {
+		name := "queued"
+		if running {
+			name = "handling"
 		}
-		for _, c := range list {
-			if c.SessionID == "inbox" {
-				t.Fatal("the default list contains an Inbox handling chat")
+		t.Run(name, func(t *testing.T) {
+			h := agentHub(t)
+			it := actionItem("lark:synthetic-private:1", time.Now())
+			it.Source = "lark"
+			it.Lark.FeedID = "synthetic-private"
+			h.inbox.items[it.ID] = it
+			now := time.Now()
+			if got := h.inbox.escalate(now.Add(-time.Hour), now); len(got) != 1 {
+				t.Fatal("test item did not enter AI handling")
 			}
-		}
-	}
-	if got := s.view(ctx, true).Conversations; len(got) != 3 {
-		t.Fatalf("archived history lost the handling chat: %+v", got)
-	}
-	c, err := s.assistantConversation(ctx, "inbox")
-	if err != nil || !c.Archived || c.OriginRef != "example:item" {
-		t.Fatalf("the Inbox link cannot resolve its processing chat: %+v, %v", c, err)
+			if running {
+				it.Agent.State, it.Agent.SessionID = AgentRunning, "synthetic-session"
+				h.inbox.setHandling(it, HandlingLooking, "", now)
+			}
+			h.quarantineInboxVisibility(context.Background(), visibilityTestConfig())
+			if !it.VisibilityExcluded {
+				t.Fatal("quarantine marker was not persisted on the item")
+			}
+			checkPolicyReleased(t, it, h.inbox.userLang())
+			if running && (it.Agent.MachineID != "" || it.Agent.SessionID != "" || it.Handling.MachineID != "" || it.Handling.SessionID != "") {
+				t.Fatalf("quarantine left a live handling session attached: agent=%+v handling=%+v", it.Agent, it.Handling)
+			}
+			before := len(conversationStarts(h.f))
+			h.startInboxAgents(context.Background(), InboxAgentConfig{Enabled: true})
+			if got := len(conversationStarts(h.f)); got != before {
+				t.Fatalf("quarantined item started %d conversations", got-before)
+			}
+		})
 	}
 }
 
-func TestInboxHandlingVisibilityKeepsInstructions(t *testing.T) {
-	ctx := context.Background()
-	h, _, it := handledHub(t)
-	h.originSet(ctx, "server", "s1", OriginInbox, it.ID, "")
-	if _, err := suggestTool(t, h, `{"kind":"conclusion","text":"Check the schedule","outcome":"fyi"}`); err != nil {
+func TestInboxVisibilityQueuePassQuarantinesWithoutHandPass(t *testing.T) {
+	h := agentHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	it := actionItem("lark:synthetic-private:direct-queue", time.Now())
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	it.Agent = &InboxAgent{State: AgentQueued}
+	h.inbox.items[it.ID] = it
+	before := len(conversationStarts(h.f))
+	h.startInboxAgents(context.Background(), InboxAgentConfig{Enabled: true})
+	if !it.VisibilityExcluded {
+		t.Fatal("queue pass did not persist the current visibility exclusion")
+	}
+	checkPolicyReleased(t, it, h.inbox.userLang())
+	if got := len(conversationStarts(h.f)); got != before {
+		t.Fatalf("newly excluded stored chat started %d handling conversations", got-before)
+	}
+}
+
+func TestInboxVisibilityQuarantineBlocksExistingSuggestion(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic reply before quarantine"}`); err != nil {
 		t.Fatal(err)
 	}
-	code, _ := suggestionCall(t, h, it.ID, `{"version":1,"action":"instruct","text":"Check the deadline first"}`)
-	if code != 200 {
-		t.Fatalf("instruction returned %d", code)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	h.quarantineInboxVisibility(context.Background(), visibilityTestConfig())
+	if currentSuggestion(it) == nil {
+		t.Fatal("quarantine deleted the suggestion instead of retaining its audit")
 	}
-	toldConv(t, h, "Check the deadline first")
-	h.inbox.mu.Lock()
-	listed := it.listed()
-	h.inbox.mu.Unlock()
-	if listed.Agent.SessionID != "s1" || listed.Handling.State != HandlingLooking {
-		t.Fatalf("the instruction did not continue the same chat: %+v", listed)
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err == nil {
+		t.Fatal("quarantined suggestion was confirmed")
 	}
-	linked := false
-	for _, e := range listed.Chain {
-		if e.Link != nil && e.Link.SessionID == "s1" {
-			linked = true
+	if len(lark.got) != 0 {
+		t.Fatalf("quarantined suggestion called the sender: %+v", lark.got)
+	}
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic replacement"}`); err == nil {
+		t.Fatal("quarantined item accepted a new suggestion")
+	}
+}
+
+func TestInboxVisibilityRecheckAfterReservationSave(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic reply before visibility changes"}`); err != nil {
+		t.Fatal(err)
+	}
+	st := &recoveryBeforeWriteStore{inboxMemStore: h.st, before: func() {
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	}}
+	h.store = func() Store { return st }
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err == nil {
+		t.Fatal("reply was confirmed after its chat became excluded during persistence")
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("pre-send visibility recheck called the sender: %+v", lark.got)
+	}
+}
+
+func TestInboxVisibilityQuarantineKeepsSentAuditWithoutResending(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic already-sent reply"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(lark.got) != 1 {
+		t.Fatalf("test setup sent %d replies, want one", len(lark.got))
+	}
+	a := suggestionAttempt(it, 1)
+	if a == nil || a.Status != suggestionSent {
+		t.Fatalf("test setup has no sent attempt: %+v", a)
+	}
+	text, proposal := a.Text, a.Proposal
+	h.quarantineInboxVisibility(context.Background(), visibilityTestConfig())
+	h.quarantineInboxVisibility(context.Background(), visibilityTestConfig())
+	if !it.VisibilityExcluded || len(it.SuggestionAttempts) != 1 || a.Status != suggestionSent || a.Text != text || a.Proposal != proposal {
+		t.Fatalf("sent audit changed during quarantine: %+v", it.SuggestionAttempts)
+	}
+	if len(lark.got) != 1 {
+		t.Fatalf("quarantine re-sent the historical attempt: %+v", lark.got)
+	}
+}
+
+func TestInboxVisibilityToolVetoBeforeConnectorCall(t *testing.T) {
+	h, _, it := handledHub(t)
+	ext := &policyExtensions{read: map[string]bool{"lark_messages": true, "lark_search": true}}
+	h.SetExtensions(ext)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.ReadProfile = "source_only"
+		c.Agent.ConnectorTools = []string{"lark_messages", "lark_search"}
+		c.Visibility = visibilityTestConfig()
+	})
+	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
+	for _, call := range []struct {
+		name string
+		args string
+	}{
+		{name: "lark_messages", args: `{"chat_id":"synthetic-private"}`},
+		{name: "lark_messages", args: `{"thread":"synthetic-unverifiable-thread"}`},
+		{name: "lark_search", args: `{"query":"synthetic"}`},
+	} {
+		res := h.mcpCallWithOrigin(t.Context(), "server", "s1", call.name, json.RawMessage(call.args), true, OriginInbox)
+		if !res.IsError {
+			t.Errorf("visibility allowed %s %s: %+v", call.name, call.args, res)
 		}
 	}
-	if !linked {
-		t.Fatal("the Inbox chain lost the processing-chat link")
+	if len(ext.calls) != 0 {
+		t.Fatalf("visibility vetoes reached the connector: %v", ext.calls)
 	}
-	h.UserSpoke(ctx, SessionRef{MachineID: "server", SessionID: "s1"})
-	for _, v := range h.snapshot(ctx).Sessions {
-		if v.SessionID == "s1" && !v.Archived {
-			t.Fatal("an instruction brought the processing chat into the default list")
-		}
-	}
-	// The item's API still carries its processing conversation and handling chain.
-	code, detail := inboxCall(t, h.routes(), "GET", "/api/v1/inbox/"+it.ID, "")
-	agent, ok := detail["agent"].(map[string]any)
-	if code != 200 || !ok || agent["session_id"] != "s1" {
-		t.Fatalf("item detail: %d %v", code, detail)
+	res := h.mcpCallWithOrigin(t.Context(), "server", "s1", "lark_messages", json.RawMessage(`{"chat_id":"synthetic-work-dm"}`), true, OriginInbox)
+	if res.IsError || len(ext.calls) != 1 {
+		t.Fatalf("unlisted work DM did not retain its read path: %+v, calls=%v", res, ext.calls)
 	}
 }

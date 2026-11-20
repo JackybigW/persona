@@ -86,7 +86,8 @@ func (s *Service) inboxSuggestionRoutes() {
 // instruction at version 0 is also accepted when no suggestion is current. full is false for an answer-only device
 // (the watch): it may only confirm a reply or a conclusion, as text.
 func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionReq, full bool) (InboxItem, error) {
-	enabled := s.inboxConfig(ctx).Agent.Enabled
+	fullCfg := s.inboxConfig(ctx)
+	enabled := fullCfg.Agent.Enabled
 	b := &s.inbox
 	b.mu.Lock()
 	it := b.items[id]
@@ -107,6 +108,11 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		out := it.listed()
 		b.mu.Unlock()
 		return out, errSuggestionStale
+	}
+	if inboxVisibilityExcluded(it, fullCfg.Visibility) && in.Action != suggestReject {
+		out := it.listed()
+		b.mu.Unlock()
+		return out, errCannotReply
 	}
 	text := ""
 	if g != nil {

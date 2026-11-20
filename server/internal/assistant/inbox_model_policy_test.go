@@ -152,6 +152,55 @@ func TestInboxModelReadOnlyInvestigationAndSuggestion(t *testing.T) {
 	}
 }
 
+func TestSourceOnlyInboxToolPolicy(t *testing.T) {
+	h, _, it := handledHub(t)
+	ext := &policyExtensions{read: map[string]bool{"lark_messages": true, "lark_chats": true, "lark_search": true}}
+	h.SetExtensions(ext)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.ReadProfile = "source_only"
+		c.Agent.ConnectorTools = []string{"lark_messages", "lark_search"}
+	})
+	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
+	for _, name := range []string{
+		"kb_search", "kb_get", "kb_update", "conversation_read", "agent_read", "agents_list",
+		"lark_search", "lark_chats", "phone_calendar_events",
+	} {
+		res := h.mcpCallWithOrigin(t.Context(), "server", "s1", name, json.RawMessage(`{}`), true, OriginInbox)
+		if !res.IsError {
+			t.Errorf("source_only allowed %s: %+v", name, res)
+		}
+	}
+	if len(ext.calls) != 0 {
+		t.Fatalf("refused source_only connector calls executed: %v", ext.calls)
+	}
+	for _, name := range []string{"inbox_suggest", "inbox_draft", "inbox_folders"} {
+		if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, name); refused {
+			t.Errorf("source_only refused the suggestion tool %s", name)
+		}
+	}
+	res := h.mcpCallWithOrigin(t.Context(), "server", "s1", "lark_messages", json.RawMessage(`{"chat_id":"synthetic-group"}`), true, OriginInbox)
+	if res.IsError || toolText(res) != "read lark_messages" || len(ext.calls) != 1 {
+		t.Fatalf("allowlisted source read: %+v, calls=%v", res, ext.calls)
+	}
+}
+
+func TestUnknownInboxReadProfileFailsClosed(t *testing.T) {
+	h, _, it := handledHub(t)
+	ext := &policyExtensions{read: map[string]bool{"lark_messages": true}}
+	h.SetExtensions(ext)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.ReadProfile = "misspelled"
+		c.Agent.ConnectorTools = []string{"lark_messages"}
+	})
+	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
+	if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, "lark_messages"); !refused {
+		t.Fatal("an unknown read profile allowed connector reads")
+	}
+	if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, "kb_search"); !refused {
+		t.Fatal("an unknown read profile allowed knowledge-base reads")
+	}
+}
+
 // A native child Agent shares its parent's assistant process and MCP identity. The manager therefore sees the same
 // Inbox origin for the child's calls too; this is deliberately a separate acceptance case from the parent table.
 func TestInboxNativeChildAgentCannotSend(t *testing.T) {

@@ -207,7 +207,9 @@ func (s *Service) handInbox(ctx context.Context) {
 
 // handPass is one pass of handInbox, with b.handing held.
 func (s *Service) handPass(ctx context.Context) {
-	cfg := s.inboxConfig(ctx).Agent
+	fullCfg := s.inboxConfig(ctx)
+	cfg := fullCfg.Agent
+	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	b := &s.inbox
 	s.linkInboxTaskURLs(ctx)
 	s.checkInboxFollowUps(ctx, cfg, time.Now())
@@ -306,6 +308,9 @@ func inboxAgentReleaseState(it *InboxItem) (active, pending bool) {
 // than the configured number are looking): one the event's id finds (a start the manager restarted during) is taken
 // back instead; one that comes after a lost conversation carries the recap and the chain.
 func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
+	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the current boundary here
+	// too, so a newly listed stored chat cannot start or keep an AI handling session while waiting for the next pass.
+	s.quarantineInboxVisibility(ctx, s.inboxConfig(ctx).Visibility)
 	b := &s.inbox
 	linked := map[string]*prompts.InboxTask{} // read before the inbox lock (todos and sessions)
 	for _, t := range s.activeTasks(ctx) {
@@ -322,6 +327,12 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	var released []*inboxWrite
 	for _, it := range b.items {
 		if it.Agent == nil {
+			continue
+		}
+		if it.VisibilityExcluded {
+			if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
+				released = append(released, w)
+			}
 			continue
 		}
 		switch {
@@ -370,7 +381,9 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
-		a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
+		if cfg.ReadProfile != "source_only" {
+			a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
+		}
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn
 		jobs = append(jobs, job{it, b.kbChatOf(it), func(kbc *prompts.KBContext) string {
@@ -389,7 +402,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	}
 	for _, j := range jobs {
 		var kbc *prompts.KBContext
-		if j.chat != "" {
+		if cfg.ReadProfile != "source_only" && j.chat != "" {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)

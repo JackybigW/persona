@@ -363,9 +363,10 @@ type InboxConfig struct {
 	// Rules are the user's own triage rules (setting inbox.rules, else manager.json's inbox.rules); AgentRules guide the
 	// judge linking a Needs you item to one of the user's tasks (inbox.agent_rules); what the AI twin takes on is set
 	// by inbox policies (docs/assistant/inbox.md "Policies").
-	Rules      string           `json:"rules,omitempty"`
-	AgentRules string           `json:"agent_rules,omitempty"`
-	Agent      InboxAgentConfig `json:"agent"`
+	Rules      string                 `json:"rules,omitempty"`
+	AgentRules string                 `json:"agent_rules,omitempty"`
+	Agent      InboxAgentConfig       `json:"agent"`
+	Visibility *InboxVisibilityConfig `json:"visibility,omitempty"`
 	// LarkAccount is the default Feishu account, the gateway account Feishu items came to unless they say another: the
 	// Feishu extension's default (GET accounts of its messaging source), else hub.json's lark.account (#5098).
 	LarkAccount int `json:"lark_account,omitempty"`
@@ -374,6 +375,14 @@ type InboxConfig struct {
 	// Extensions are the connectors a plugin provides (installed, or hub.json's), whether or not a round read them:
 	// their items have no fallback tier (a model sorts them, or they wait), from the manager's start on.
 	Extensions []string `json:"extensions,omitempty"`
+}
+
+// InboxVisibilityConfig quarantines matching stored items from AI handling. Explicit chat ids work for groups and
+// direct chats; DirectChats also excludes every direct chat. Empty controls preserve the legacy behavior.
+type InboxVisibilityConfig struct {
+	Sources     []string `json:"sources,omitempty"`
+	Chats       []string `json:"chats,omitempty"`
+	DirectChats bool     `json:"direct_chats,omitempty"`
 }
 
 // InboxAgentConfig is manager.json's inbox.agent: the AI twin (docs/assistant/inbox.md).
@@ -389,6 +398,10 @@ type InboxAgentConfig struct {
 	// MaxAgeHours: items whose newest message is older are not handed over (default 24), so turning this on does
 	// not start an agent for every old item.
 	MaxAgeHours int `json:"max_age_hours,omitempty"`
+	// ReadProfile "source_only" limits model handling to the current item and explicitly allowlisted read-only
+	// connector tools. The empty profile preserves the legacy read-only investigation tools and knowledge-base context.
+	ReadProfile    string   `json:"read_profile,omitempty"`
+	ConnectorTools []string `json:"connector_tools,omitempty"`
 	// Rules is manager.json's inbox.agent.rules: the file default for the settings key `inbox.agent_rules`
 	// (extmgr/self_settings.go inboxAgentRules). The database value wins once set; without either, what the twin takes on
 	// is set by inbox policies. Kept so older hub.json files still parse.

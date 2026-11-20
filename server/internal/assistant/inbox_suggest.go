@@ -144,6 +144,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if s.inboxReady(ctx) != nil {
 		return "", nil, nil, false, errInboxUnavailable
 	}
+	visibility := s.inboxConfig(ctx).Visibility
 	b := &s.inbox
 	b.mu.Lock()
 	var it *InboxItem
@@ -172,6 +173,10 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if from == nil && in.ProcessingTurn != it.Agent.ProcessingTurn {
 		b.mu.Unlock()
 		return "", nil, nil, false, errStaleInboxTurn
+	}
+	if inboxVisibilityExcluded(it, visibility) {
+		b.mu.Unlock()
+		return "", nil, nil, false, errCannotReply
 	}
 	if from == nil && (in.Kind != "" || in.Follow != nil) && !it.open() {
 		b.mu.Unlock()

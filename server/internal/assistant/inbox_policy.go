@@ -90,6 +90,32 @@ func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, origi
 	if !s.isInboxModelCall(ctx, machine, session, originHint) {
 		return proto.ToolResult{}, false
 	}
+	agentCfg := s.inboxConfig(ctx).Agent
+	if agentCfg.ReadProfile != "" {
+		// Suggestions never read another source. Every other tool is denied for an unknown profile; source_only admits
+		// only an explicitly named connector tool whose registered interface is read-only.
+		if name == "inbox_suggest" || name == "inbox_draft" || name == "inbox_folders" {
+			return proto.ToolResult{}, false
+		}
+		if agentCfg.ReadProfile == "source_only" {
+			if name == "lark_search" || name == "larkcli_search" {
+				// An explicit read-only marker cannot prove that global search results omitted excluded bodies. Keep search
+				// unavailable in this profile even if a configuration accidentally allowlists it.
+				return proto.TextResult("This Inbox read profile does not allow global search; read a named source chat instead.", true), true
+			}
+			for _, allowed := range agentCfg.ConnectorTools {
+				if name != allowed {
+					continue
+				}
+				if s.ext != nil {
+					if known, readOnly := s.ext.ToolAccess(name); known && readOnly {
+						return proto.ToolResult{}, false
+					}
+				}
+			}
+		}
+		return proto.TextResult("This Inbox read profile does not allow "+name+"; use only the current item's source context.", true), true
+	}
 	if inboxReadOnlyTools[name] || inboxReadOnlyPhoneTools[name] {
 		return proto.ToolResult{}, false
 	}

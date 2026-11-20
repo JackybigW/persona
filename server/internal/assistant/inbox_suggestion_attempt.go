@@ -436,9 +436,11 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		s.saveInbox(context.WithoutCancel(ctx), []*InboxItem{it})
 		return out, unrecordedSuggestionReply()
 	}
-	// The save may have waited behind another write; recheck before any outward action.
+	// The save may have waited behind another write; recheck before any outward action. A visibility change or quarantine
+	// that landed while the reservation was being saved also closes this attempt.
+	visibility := s.inboxConfig(ctx).Visibility
 	b.mu.Lock()
-	current := b.currentReplyAttempt(it, a)
+	current := b.currentReplyAttempt(it, a) && !inboxVisibilityExcluded(it, visibility)
 	b.mu.Unlock()
 	if !current {
 		return s.finishSuggestionReply(ctx, it, a, errSuggestionStale)

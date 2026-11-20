@@ -5,6 +5,7 @@ package larkcli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -35,6 +36,9 @@ type Connector struct {
 	inboxSeen     map[string]struct{}
 	inboxTopics   map[string]struct{}
 	inboxAllChats map[string]struct{}
+	// Private-chat visibility controls are opt-in and apply to collection, model tools and retained source things.
+	inboxExcludeChats       map[string]struct{}
+	inboxExcludeDirectChats bool
 	// triageRules are the user's triage rules for lark-cli's Inbox items, in their words (options.triage_rules): the
 	// Inbox's triage reads them instead of the global inbox.rules.
 	triageRules       string
@@ -202,9 +206,15 @@ func (c *Connector) chats(ctx context.Context, args json.RawMessage) (string, er
 		// Open Platform has no unread state. The CLI's active-time list is the
 		// documented L2 fallback for both the old default and recent filter.
 		page, err := c.runner.ListChats(ctx, a.Limit)
+		if err == nil {
+			page = c.filterReplyChats(page)
+		}
 		return marshal(page, err)
 	case "at_me":
 		page, err := c.runner.ListChatsAtMe(ctx, a.Limit)
+		if err == nil {
+			page = c.filterReplyChats(page)
+		}
 		return marshal(page, err)
 	default:
 		return "", fmt.Errorf("unknown chat filter %q", a.Filter)
@@ -225,6 +235,9 @@ func (c *Connector) messages(ctx context.Context, args json.RawMessage) (string,
 	if a.ChatID == "" && a.Thread == "" {
 		return "", fmt.Errorf("chat_id is required")
 	}
+	if err := c.checkReplyChat(ctx, a.ChatID); err != nil {
+		return "", err
+	}
 	page, err := c.runner.ListMessages(ctx, a.ChatID, a.Thread, a.Before, a.Limit)
 	return marshal(page, err)
 }
@@ -239,6 +252,9 @@ func (c *Connector) search(ctx context.Context, args json.RawMessage) (string, e
 	}
 	if strings.TrimSpace(a.Query) == "" {
 		return "", fmt.Errorf("query is required")
+	}
+	if c.replyVisibilityEnabled() && (a.Kind == "" || a.Kind == "messages" || a.Kind == "chats") {
+		return "", errors.New("lark-cli: global chat and message search is unavailable while private-chat visibility controls are enabled")
 	}
 	raw, err := c.runner.Search(ctx, a.Kind, a.Query)
 	if err != nil {

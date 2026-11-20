@@ -144,6 +144,9 @@ type InboxItem struct {
 	// TriageRev is the tier criteria's revision (inboxTriageRev) the model last sorted the item under: an open "Needs
 	// you" item sorted under older criteria is sorted again once (inbox_triage.go retriageStale).
 	TriageRev int `json:"triage_rev,omitempty"`
+	// VisibilityExcluded is a persistent quarantine marker set by the configured source visibility boundary. The
+	// message and sent-attempt history remain intact, but AI queue, suggestions and confirmation stay closed.
+	VisibilityExcluded bool `json:"visibility_excluded,omitempty"`
 	// RuleOf is Last when the item's tier came from the rules because the model failed on it (an error or too slow,
 	// not a held connection or no model): TriagedAt stays behind, and later passes ask the model again, a few at a
 	// time and less often while it keeps failing, until it answers (inbox_triage.go retryRuled, #8298).
