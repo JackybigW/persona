@@ -225,6 +225,24 @@ func TestInboxVisibilityQuarantineKeepsSentAuditWithoutResending(t *testing.T) {
 	}
 }
 
+func TestInboxVisibilityHandedSuggestionUsesFreshConfig(t *testing.T) {
+	h, _, it := handoffHub(t)
+	handOff(t, h, it)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	h.inbox.cfgMu.Lock()
+	h.inbox.cfg = assistantwire.InboxConfig{}
+	h.inbox.cfgAt = time.Now()
+	h.inbox.cfgMu.Unlock()
+	if _, err := mainSuggest(h, "m1", `{"item":"lark:f1:100","kind":"agent","text":"Inspect the synthetic private request"}`); err == nil {
+		t.Fatal("handed-off suggestion used the stale disabled visibility cache")
+	}
+	if currentSuggestion(it) != nil {
+		t.Fatalf("newly excluded handed-off suggestion was published: %+v", currentSuggestion(it))
+	}
+}
+
 func TestInboxVisibilityHandedAgentUsesFreshConfig(t *testing.T) {
 	h := agentHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) {
