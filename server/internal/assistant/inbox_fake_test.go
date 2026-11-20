@@ -40,6 +40,10 @@ type fakeInbox struct {
 	off       map[string]bool   // read with nothing: "Send to inbox" off, not signed in, waiting for the triage model
 	failing   map[string]error  // Collect fails
 	cfg       assistantwire.InboxConfig
+	configErr error
+	configRaw json.RawMessage
+	// configQueue, when nonempty, supplies successive fresh reads instead of cfg.
+	configQueue []assistantwire.InboxConfig
 	// model is every inbox purpose's model (nil: none set up), models by purpose over it: manager.json's "ai" and its
 	// triage / judge / kb connections in the hello (models_resolve.go's baselines; translation and drafts are kb's).
 	model   *ai.Client
@@ -233,7 +237,18 @@ func (in *fakeInbox) answer(ctx context.Context, p AppCall) (json.RawMessage, bo
 		out = map[string]any{}
 	case assistantwire.InboxConfigMethod:
 		in.mu.Lock()
-		out = in.cfg
+		if in.configRaw != nil {
+			raw := append(json.RawMessage(nil), in.configRaw...)
+			in.mu.Unlock()
+			return raw, true, nil
+		}
+		if len(in.configQueue) > 0 {
+			out = in.configQueue[0]
+			in.configQueue = in.configQueue[1:]
+		} else {
+			out = in.cfg
+		}
+		err = in.configErr
 		in.mu.Unlock()
 	case assistantwire.InboxMailBody:
 		var ref assistantwire.InboxMailRef

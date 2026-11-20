@@ -363,9 +363,10 @@ type InboxConfig struct {
 	// Rules are the user's own triage rules (setting inbox.rules, else manager.json's inbox.rules); AgentRules guide the
 	// judge linking a Needs you item to one of the user's tasks (inbox.agent_rules); what the AI twin takes on is set
 	// by inbox policies (docs/assistant/inbox.md "Policies").
-	Rules      string           `json:"rules,omitempty"`
-	AgentRules string           `json:"agent_rules,omitempty"`
-	Agent      InboxAgentConfig `json:"agent"`
+	Rules       string                  `json:"rules,omitempty"`
+	AgentRules  string                  `json:"agent_rules,omitempty"`
+	Agent       InboxAgentConfig        `json:"agent"`
+	ReplyPolicy *InboxReplyPolicyConfig `json:"reply_policy,omitempty"`
 	// LarkAccount is the default Feishu account, the gateway account Feishu items came to unless they say another: the
 	// Feishu extension's default (GET accounts of its messaging source), else hub.json's lark.account (#5098).
 	LarkAccount int `json:"lark_account,omitempty"`
@@ -393,6 +394,17 @@ type InboxAgentConfig struct {
 	// (extmgr/self_settings.go inboxAgentRules). The database value wins once set; without either, what the twin takes on
 	// is set by inbox policies. Kept so older hub.json files still parse.
 	Rules string `json:"rules,omitempty"`
+}
+
+// InboxReplyPolicyConfig is manager.json's inbox.reply_policy. It is nil or disabled by default, preserving the
+// existing Inbox behavior. Routes maps classifier categories to owner_draft, bot, owner_only or no_reply.
+type InboxReplyPolicyConfig struct {
+	Enabled                  bool              `json:"enabled"`
+	Revision                 string            `json:"revision"`
+	Sources                  []string          `json:"sources,omitempty"`
+	UnknownMode              string            `json:"unknown_mode,omitempty"`
+	RequireIndependentReview bool              `json:"require_independent_review,omitempty"`
+	Routes                   map[string]string `json:"routes,omitempty"`
 }
 
 // InboxRepoMutes is MethodInboxRepoMutes's params.

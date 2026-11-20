@@ -144,6 +144,13 @@ type InboxItem struct {
 	// TriageRev is the tier criteria's revision (inboxTriageRev) the model last sorted the item under: an open "Needs
 	// you" item sorted under older criteria is sorted again once (inbox_triage.go retriageStale).
 	TriageRev int `json:"triage_rev,omitempty"`
+	// Reply policy classification is server-owned. Models supply a category candidate; only the configured route
+	// decides whether an owner draft may exist. The content and revision stamps make older drafts fail closed.
+	ReplyCategory     string `json:"reply_category,omitempty"`
+	ReplyMode         string `json:"reply_mode,omitempty"`
+	ReplyClassifiedOf string `json:"reply_classified_of,omitempty"`
+	ReplyPolicyRev    string `json:"reply_policy_rev,omitempty"`
+	ReplyReviewed     bool   `json:"reply_reviewed,omitempty"`
 	// RuleOf is Last when the item's tier came from the rules because the model failed on it (an error or too slow,
 	// not a held connection or no model): TriagedAt stays behind, and later passes ask the model again, a few at a
 	// time and less often while it keeps failing, until it answers (inbox_triage.go retryRuled, #8298).

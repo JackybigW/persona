@@ -145,6 +145,15 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		return "", nil, nil, false, errInboxUnavailable
 	}
 	b := &s.inbox
+	replyPolicy := s.inboxConfig(ctx).ReplyPolicy
+	if in.Kind == SuggestReply || in.Kind == SuggestAgent {
+		cfg, err := s.inboxConfigFresh(ctx)
+		if err != nil {
+			// Publishing either kind of actionable card requires the current authorization, not a five-second-old one.
+			return "", nil, nil, false, errReplyPolicyDenied
+		}
+		replyPolicy = cfg.ReplyPolicy
+	}
 	b.mu.Lock()
 	var it *InboxItem
 	var from *SessionRef
@@ -180,6 +189,10 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if in.Reported != nil && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errReportedFiled
+	}
+	if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
+		b.mu.Unlock()
+		return it.ID, nil, nil, false, err
 	}
 	for _, ch := range in.Changes {
 		if it.Doc == nil || !docOffers(*it.Doc, ch) {
@@ -262,6 +275,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			g.Owner = &SessionRef{MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
 		}
 		g.SourceOf = suggestionReplyTarget(it)
+		snapshotReplyPolicy(g, it, replyPolicy)
 		if in.Kind == SuggestReply && !in.Handback {
 			g.MailTarget = mailTarget(*it)
 		}

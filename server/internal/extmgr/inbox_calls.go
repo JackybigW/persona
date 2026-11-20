@@ -287,6 +287,7 @@ func (h *Manager) inboxConfigView(ctx context.Context) assistantwire.InboxConfig
 	slices.Sort(out.Extensions)
 	if h.cfg != nil {
 		out.Agent = h.cfg.Inbox.Agent
+		out.ReplyPolicy = h.cfg.Inbox.ReplyPolicy
 	}
 	out.LarkAccount = h.inboxLarkAccount(ctx)
 	if h.mail != nil {

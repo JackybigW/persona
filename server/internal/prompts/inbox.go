@@ -39,6 +39,22 @@ type InboxTriage struct {
 
 func RenderInboxTriage(t InboxTriage) string { return render("inbox/triage", t) }
 
+// InboxReplyPolicyInput carries untrusted conversation text for the reply-policy classifier and its independent review.
+// Edit distinguishes an owner's proposed replacement from the original conversation that gives that replacement meaning.
+type InboxReplyPolicyInput struct {
+	Text     string
+	Original string
+	Edit     bool
+}
+
+func RenderInboxReplyPolicy() string { return render("inbox/reply_policy", nil) }
+func RenderInboxReplyPolicyReview() string {
+	return render("inbox/reply_policy_review", nil)
+}
+func RenderInboxReplyPolicyInput(in InboxReplyPolicyInput) string {
+	return render("inbox/reply_policy_input", in)
+}
+
 // InboxGroup is the system prompt that relates a conversation's new messages to its events (inbox/group, #1680).
 type InboxGroup struct {
 	Owner string // "" is the Chinese "you"
@@ -165,6 +181,9 @@ type InboxAgent struct {
 	Item     InboxItem
 	Task     string // what to do: the triage's summary ("" the default)
 	Reason   string // the triage's reason
+	// ReplyPolicy adds the drafting restrictions only when this item is in an enabled policy's scope. False leaves the
+	// legacy prompt byte-identical when the feature is absent or disabled.
+	ReplyPolicy bool
 	// Resumed: the conversation that handled the event is gone; Recap and Chain are where it got to.
 	Resumed bool
 	Recap   string

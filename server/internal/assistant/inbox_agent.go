@@ -207,7 +207,9 @@ func (s *Service) handInbox(ctx context.Context) {
 
 // handPass is one pass of handInbox, with b.handing held.
 func (s *Service) handPass(ctx context.Context) {
-	cfg := s.inboxConfig(ctx).Agent
+	fullCfg := s.inboxConfig(ctx)
+	cfg := fullCfg.Agent
+	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
 	b := &s.inbox
 	s.linkInboxTaskURLs(ctx)
 	s.checkInboxFollowUps(ctx, cfg, time.Now())
@@ -316,6 +318,13 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	loc := s.location(ctx) // the chain's times, read in the user's zone (the hub runs in UTC)
 	now := time.Now().UTC()
 	byEvent := s.conversationsByEvent(ctx)
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		// Queue admission is an authorization boundary too: an unknown current policy leaves work queued for the next pass.
+		s.logf("inbox: fresh settings before queue admission: %v", err)
+		return
+	}
+	replyPolicy := fullCfg.ReplyPolicy
 	b.mu.Lock()
 	running := 0
 	var queued []*InboxItem
@@ -329,10 +338,13 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			running++
 		case it.Agent.State == AgentQueued && it.Agent.SessionID == "" && it.open() && !it.Agent.savingRetry:
 			// Recheck before backoff, capacity or adoption: a saved rule also covers work already queued.
-			if b.policyTwin(it) == TwinNever {
+			if b.policyTwin(it) == TwinNever || replyPolicyQueueBlocked(it, replyPolicy) {
 				if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
 					released = append(released, w)
 				}
+				continue
+			}
+			if replyPolicyQueuePending(it, replyPolicy) {
 				continue
 			}
 			if it.Agent.startDue(now) {
@@ -370,6 +382,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
+		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
 		a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn

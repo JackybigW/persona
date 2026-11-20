@@ -190,6 +190,11 @@ func sameReplySuggestion(a, b *InboxSuggestion) bool {
 	// Notes only explain the card; due dates, directories and machines do not execute on a reply. Changing one
 	// cannot turn the same actual uncertain send into a new version with another send identity.
 	x.Note, y.Note, x.Due, y.Due, x.Cwd, y.Cwd, x.MachineID, y.MachineID = "", "", "", "", "", "", "", ""
+	// Classification snapshots authorize a card; they do not identify the physical reply. A policy revision must not
+	// turn the same recipient, text and send ID into a new operation after an uncertain outcome.
+	x.ReplyCategory, y.ReplyCategory, x.ReplyMode, y.ReplyMode = "", "", "", ""
+	x.ReplyClassifiedOf, y.ReplyClassifiedOf, x.ReplyPolicyRev, y.ReplyPolicyRev = "", "", "", ""
+	x.ReplyReviewed, y.ReplyReviewed = false, false
 	if !slices.Equal(x.Changes, y.Changes) {
 		return false
 	}
@@ -220,16 +225,33 @@ func restoreSuggestionAttempts(previous, current []*InboxSuggestionAttempt) []*I
 	return previous
 }
 
+func sameReplyAuthorization(a, b *InboxSuggestion) bool {
+	return a != nil && b != nil && a.ReplyCategory == b.ReplyCategory && a.ReplyMode == b.ReplyMode &&
+		a.ReplyClassifiedOf == b.ReplyClassifiedOf && a.ReplyPolicyRev == b.ReplyPolicyRev && a.ReplyReviewed == b.ReplyReviewed
+}
+
+func sameReplyCard(a, b *InboxSuggestion) bool {
+	return sameReplySuggestion(a, b) && sameReplyAuthorization(a, b)
+}
+
 func samePendingReply(it *InboxItem, proposed *InboxSuggestion) bool {
 	current := currentSuggestion(it)
 	if current != nil {
 		if a := suggestionAttempt(it, current.Version); a != nil && a.Proposal != nil {
 			actual := *a.Proposal
 			actual.Text = a.Text
-			return sameReplySuggestion(&actual, proposed)
+			if !sameReplySuggestion(&actual, proposed) {
+				return false
+			}
+			// An uncertain physical operation keeps its card and send identity even across reclassification. A known-none
+			// failed attempt, like a card never attempted, may be replaced by a freshly authorized snapshot.
+			if a.Status == suggestionUnknown || a.Status == suggestionSending {
+				return true
+			}
+			return sameReplyAuthorization(&actual, proposed)
 		}
 	}
-	return sameReplySuggestion(current, proposed)
+	return sameReplyCard(current, proposed)
 }
 
 // A reply's recipient and source position must not change while a confirmation is saved or sent. This does not
@@ -306,8 +328,13 @@ func suggestionSendOnly(ctx context.Context) bool {
 
 // confirmSuggestionReplyLocked starts with inbox.mu held and returns without it. Known-none retryable failures
 // retain one current action; uncertain sends remain visible but cannot be reissued with a new caller UUID.
-func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, in suggestionReq) (InboxItem, error) {
+func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, in suggestionReq, replyPolicy *assistantwire.InboxReplyPolicyConfig) (InboxItem, error) {
 	b := &s.inbox
+	if err := replyPolicySendGate(it, g, replyPolicy); err != nil {
+		out := it.listed()
+		b.mu.Unlock()
+		return out, err
+	}
 	a := suggestionAttempt(it, g.Version)
 	if a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
 		out := it.listed()
@@ -436,9 +463,10 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		s.saveInbox(context.WithoutCancel(ctx), []*InboxItem{it})
 		return out, unrecordedSuggestionReply()
 	}
-	// The save may have waited behind another write; recheck before any outward action.
+	// The save may have waited behind another write; recheck both the reservation and the latest policy before any outward action.
+	currentPolicy := s.inboxConfig(ctx).ReplyPolicy
 	b.mu.Lock()
-	current := b.currentReplyAttempt(it, a)
+	current := b.currentReplyAttempt(it, a) && replyPolicySendGate(it, g, currentPolicy) == nil
 	b.mu.Unlock()
 	if !current {
 		return s.finishSuggestionReply(ctx, it, a, errSuggestionStale)
