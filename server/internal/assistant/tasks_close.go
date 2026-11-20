@@ -44,9 +44,8 @@ type taskCloseRefusal struct {
 // changed.
 type taskCloseRefused map[[2]string]taskCloseRefusal
 
-// doneSeen: (machine, session) → what the pass saw of a done task's agent since the task was done (#10311). Kept in
-// memory across passes, as idleSeen is: a manager restart forgets it, and the first sight of a running agent then
-// only holds off its stop.
+// doneSeen: (machine, session) → what the pass saw of a done task's agent since the task was done (#10311).
+// Observation clocks start over at a manager restart. The stop evidence is loaded separately.
 type doneSeen map[[2]string]doneSeenAgent
 
 // doneSeenAgent is what the pass saw of one agent of a task done at done.
@@ -165,10 +164,17 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 	if !s.todosLoaded() {
 		return
 	}
+	if err := s.loadTaskCloseStops(ctx); err != nil {
+		s.logf("completed task agents: load stop evidence: %v", err)
+		return
+	}
 	defer s.closeDoneTaskSpaces(ctx, time.Now(), seen)
+	defer s.saveTaskCloseStops(ctx)
+	stops := &s.taskCloseStops
 	agents := s.doneTaskAgents()
 	if len(agents) == 0 {
 		clear(seen)
+		stops.prune(nil)
 		return
 	}
 	now := time.Now()
@@ -178,9 +184,12 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 	}
 	lists := map[string]map[string]proto.Session{}
 	done := make(map[[2]string]bool, len(agents))
+	completions := make(map[string]time.Time, len(agents))
 	for _, a := range agents {
 		key := [2]string{a.machine, a.session}
 		done[key] = true // an unreachable machine keeps what was seen
+		id := a.stopKey()
+		completions[id] = a.doneAt
 		if !reachable[a.machine] {
 			continue
 		}
@@ -188,7 +197,11 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 		if !ok {
 			continue
 		}
-		w := seen.see(key, a.doneAt, c, now)
+		stopped := stops.completions[id].Equal(a.doneAt) || s.archivedStopAfterTaskDone(a)
+		w := seen.see(key, a.doneAt, c, now, stopped)
+		if w.stopped {
+			stops.note(id, a.doneAt)
+		}
 		if w.resumed || w.running.IsZero() {
 			continue
 		}
@@ -217,6 +230,8 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 			// Stopped by this pass: running again before a pass sees it stopped is a resume too.
 			w.stopped, w.running, w.lastStop = true, time.Time{}, now
 			seen[key] = w
+			stops.note(id, a.doneAt)
+			s.saveTaskCloseStops(ctx)
 			s.archiveRetiredTaskAgent(ctx, a, c)
 		}
 	}
@@ -225,14 +240,16 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 			delete(seen, k)
 		}
 	}
+	stops.prune(completions)
 }
 
 // see notes c, the row of an agent of a task done at done, and returns what has been seen of it by now.
-func (seen doneSeen) see(key [2]string, done time.Time, c proto.Session, now time.Time) doneSeenAgent {
+func (seen doneSeen) see(key [2]string, done time.Time, c proto.Session, now time.Time, stopped bool) doneSeenAgent {
 	w := seen[key]
 	if !w.done.Equal(done) {
 		w = doneSeenAgent{done: done}
 	}
+	w.stopped = w.stopped || stopped
 	switch {
 	case c.Starting: // still launching (the task was done before it started, #2954): neither stopped nor running yet
 	case c.Status == proto.StatusOffline || c.PaneID == "":

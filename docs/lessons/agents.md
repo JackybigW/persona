@@ -1563,6 +1563,8 @@ cancel it on input, viewing or a read receipt, and propagate that cancellation a
 `session.stop_if_idle` route: an older peer must refuse, never fall back to an unconditional stop. Refresh the node's
 runtime and check cancellation and pending/recent input under its typing lock before each Ctrl+C.
 Input recorded between keys prevents the second interrupt. A cancelled or refused stop grants no recovery.
+Reload the stop observation for the current task completion after a manager restart. A live row from a resumed
+Agent then keeps the ordinary idle window, even though its first-seen clock starts over.
 Keep the new preflight on that guarded RPC: applying it to legacy stop/retire can rediscover a different engine and
 erase a retained session row before its established stop/recovery path runs. Verify those full-package regressions too.
 Install a test transport gate before linking or closing a task: both start background token/outcome work, so replacing

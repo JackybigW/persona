@@ -176,6 +176,7 @@ type Service struct {
 	phoneKept        keptPhoneTools        // fleet_tools.go: the phone's tools as the hub last listed them
 	agentNames       agentNamingBook       // agent_naming.go
 	taskActivity     taskActivityBook      // task_close_activity.go: owner input/view activity, not read receipts
+	taskCloseStops   taskCloseStopBook     // tasks_close_stops.go: stopped Agents of completed tasks
 	prefs            settingsBook          // profile.go
 	main             mainBook              // start.go
 	archived         archiveBook           // conversations.go
