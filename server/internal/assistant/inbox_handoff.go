@@ -498,8 +498,20 @@ func (s *Service) confirmHandedAgent(ctx context.Context, it *InboxItem, g *Inbo
 	}
 	args, _ := json.Marshal(map[string]string{"machine": machine, "cwd": cwd, "prompt": text})
 	hs := &handoffStart{item: it.ID}
-	_, err := s.runTool(context.WithValue(ctx, handoffStartKey{}, hs), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
+	freshCfg, err := s.inboxConfigFresh(ctx)
 	b := &s.inbox
+	if err == nil {
+		b.mu.Lock()
+		if inboxVisibilityExcluded(it, freshCfg.Visibility) {
+			err = errCannotReply
+		} else {
+			err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		}
+		b.mu.Unlock()
+	}
+	if err == nil {
+		_, err = s.runTool(context.WithValue(ctx, handoffStartKey{}, hs), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
+	}
 	b.mu.Lock()
 	l, now := b.userLang(), time.Now().UTC()
 	switch {

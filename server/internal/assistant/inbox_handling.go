@@ -59,6 +59,12 @@ type InboxSuggestion struct {
 	// Owner and SourceOf bind an unsent reply to its author and source snapshot; persisted, not listed.
 	Owner    *SessionRef `json:"owner,omitempty"`
 	SourceOf string      `json:"source_of,omitempty"`
+	// Reply policy fields are copied from the item by the server, never supplied by the drafting model.
+	ReplyCategory     string `json:"reply_category,omitempty"`
+	ReplyMode         string `json:"reply_mode,omitempty"`
+	ReplyClassifiedOf string `json:"reply_classified_of,omitempty"`
+	ReplyPolicyRev    string `json:"reply_policy_rev,omitempty"`
+	ReplyReviewed     bool   `json:"reply_reviewed,omitempty"`
 }
 
 // InboxHandoff is one hand-off of the event to Persona's main conversation (POST /api/v1/inbox/{id}/handoff): that

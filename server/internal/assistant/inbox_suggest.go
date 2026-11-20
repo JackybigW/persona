@@ -146,6 +146,16 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	}
 	visibility := s.inboxConfig(ctx).Visibility
 	b := &s.inbox
+	replyPolicy := s.inboxConfig(ctx).ReplyPolicy
+	if in.Kind == SuggestReply || in.Kind == SuggestAgent {
+		cfg, err := s.inboxConfigFresh(ctx)
+		if err != nil {
+			// Publishing either kind of actionable card requires the current authorization, not a five-second-old one.
+			return "", nil, nil, false, errReplyPolicyDenied
+		}
+		replyPolicy = cfg.ReplyPolicy
+		visibility = cfg.Visibility
+	}
 	b.mu.Lock()
 	var it *InboxItem
 	var from *SessionRef
@@ -159,7 +169,9 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		it = b.itemOfAgent(sessionID)
 		// A conversation that answers before its start returned (an agent runtime already running starts a turn at
 		// once): its item learns the conversation's id a moment later.
+		waitedForAssociation := false
 		for wait := time.Now().Add(inboxDraftWait); it == nil && b.agentStarting() && time.Now().Before(wait); {
+			waitedForAssociation = true
 			b.mu.Unlock()
 			time.Sleep(100 * time.Millisecond)
 			b.mu.Lock()
@@ -168,6 +180,25 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		if it == nil {
 			b.mu.Unlock()
 			return "", nil, nil, false, errNotProcessing
+		}
+		if waitedForAssociation && (in.Kind == SuggestReply || in.Kind == SuggestAgent) {
+			// The first fresh read can predate a 15-second association wait. Reread after the wait, without holding the
+			// inbox lock across the RPC, then re-resolve the item before authorizing publication.
+			itemID := it.ID
+			b.mu.Unlock()
+			cfg, err := s.inboxConfigFresh(ctx)
+			b.mu.Lock()
+			if err != nil {
+				b.mu.Unlock()
+				return "", nil, nil, false, errReplyPolicyDenied
+			}
+			it = b.items[itemID]
+			if it == nil {
+				b.mu.Unlock()
+				return "", nil, nil, false, errNotProcessing
+			}
+			replyPolicy = cfg.ReplyPolicy
+			visibility = cfg.Visibility
 		}
 	}
 	if from == nil && in.ProcessingTurn != it.Agent.ProcessingTurn {
@@ -185,6 +216,10 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if in.Reported != nil && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errReportedFiled
+	}
+	if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
+		b.mu.Unlock()
+		return it.ID, nil, nil, false, err
 	}
 	for _, ch := range in.Changes {
 		if it.Doc == nil || !docOffers(*it.Doc, ch) {
@@ -267,6 +302,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			g.Owner = &SessionRef{MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
 		}
 		g.SourceOf = suggestionReplyTarget(it)
+		snapshotReplyPolicy(g, it, replyPolicy)
 		if in.Kind == SuggestReply && !in.Handback {
 			g.MailTarget = mailTarget(*it)
 		}

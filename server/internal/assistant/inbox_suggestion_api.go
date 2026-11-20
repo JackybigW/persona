@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -87,6 +88,48 @@ func (s *Service) inboxSuggestionRoutes() {
 // (the watch): it may only confirm a reply or a conclusion, as text.
 func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionReq, full bool) (InboxItem, error) {
 	fullCfg := s.inboxConfig(ctx)
+	var vetoErr error
+	if in.Action == suggestConfirm {
+		b := &s.inbox
+		b.mu.Lock()
+		it := b.items[id]
+		source, sourceKnown := "", false
+		if it != nil {
+			source, sourceKnown = it.Source, true
+		}
+		b.mu.Unlock()
+		// The veto itself needs fresh authorization: a disabled display cache must not skip classification of an edited
+		// handback. A second fresh read after its model calls closes a policy change before any card or handoff is consumed.
+		vetoCfg, err := s.inboxConfigFresh(ctx)
+		if err != nil {
+			return InboxItem{}, errReplyPolicyDenied
+		}
+		b.mu.Lock()
+		it = b.items[id]
+		visibilityDenied := it != nil && inboxVisibilityExcluded(it, vetoCfg.Visibility)
+		var visibilityItem InboxItem
+		if visibilityDenied {
+			visibilityItem = it.listed()
+		}
+		b.mu.Unlock()
+		if visibilityDenied {
+			return visibilityItem, errCannotReply
+		}
+		vetoErr = s.vetoEditedReply(ctx, id, in, vetoCfg.ReplyPolicy)
+		freshCfg, err := s.inboxConfigFresh(ctx)
+		if err != nil {
+			return InboxItem{}, errReplyPolicyDenied
+		}
+		vetoApplies := sourceKnown && replyPolicyApplies(vetoCfg.ReplyPolicy, source)
+		freshApplies := sourceKnown && replyPolicyApplies(freshCfg.ReplyPolicy, source)
+		if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
+			return InboxItem{}, errReplyPolicyDenied
+		}
+		fullCfg = freshCfg
+	}
+	if vetoErr != nil {
+		return InboxItem{}, vetoErr
+	}
 	enabled := fullCfg.Agent.Enabled
 	b := &s.inbox
 	b.mu.Lock()
@@ -125,8 +168,15 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b.mu.Unlock()
 		return InboxItem{}, errAnswerOnly
 	}
+	if g != nil && in.Action == suggestConfirm {
+		if err := replyPolicyActionGate(it, g, fullCfg.ReplyPolicy); err != nil {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, err
+		}
+	}
 	if g != nil && g.Kind == SuggestReply && in.Action == suggestConfirm && !g.Handback {
-		return s.confirmSuggestionReplyLocked(ctx, it, g, in)
+		return s.confirmSuggestionReplyLocked(ctx, it, g, in, fullCfg.ReplyPolicy)
 	}
 	if g != nil && g.Conversation != nil {
 		resetInboxFollowChecks(it)
@@ -275,7 +325,18 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 		cwd = "~"
 	}
 	args, _ := json.Marshal(map[string]string{"machine": machine, "cwd": cwd, "prompt": text})
-	res, err := s.runTool(ctx, s.settings(ctx).MachineID, self, "agent_start", args)
+	// Query without refreshing the display cache: Agent.Enabled must still be sampled at its legacy post-start point.
+	freshCfg, err := s.queryInboxConfig(ctx)
+	if err == nil {
+		b.mu.Lock()
+		err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		b.mu.Unlock()
+	}
+	res := ""
+	if err == nil {
+		res, err = s.runTool(ctx, s.settings(ctx).MachineID, self, "agent_start", args)
+	}
+	// Preserve the legacy sampling point: a disable that lands while startup is pending is observed after it returns.
 	enabled := s.inboxConfig(ctx).Agent.Enabled
 	now := time.Now()
 	b.mu.Lock()

@@ -210,6 +210,7 @@ func (s *Service) handPass(ctx context.Context) {
 	fullCfg := s.inboxConfig(ctx)
 	cfg := fullCfg.Agent
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
+	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
 	b := &s.inbox
 	s.linkInboxTaskURLs(ctx)
 	s.checkInboxFollowUps(ctx, cfg, time.Now())
@@ -308,9 +309,6 @@ func inboxAgentReleaseState(it *InboxItem) (active, pending bool) {
 // than the configured number are looking): one the event's id finds (a start the manager restarted during) is taken
 // back instead; one that comes after a lost conversation carries the recap and the chain.
 func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
-	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the current boundary here
-	// too, so a newly listed stored chat cannot start or keep an AI handling session while waiting for the next pass.
-	s.quarantineInboxVisibility(ctx, s.inboxConfig(ctx).Visibility)
 	b := &s.inbox
 	linked := map[string]*prompts.InboxTask{} // read before the inbox lock (todos and sessions)
 	for _, t := range s.activeTasks(ctx) {
@@ -321,6 +319,16 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	loc := s.location(ctx) // the chain's times, read in the user's zone (the hub runs in UTC)
 	now := time.Now().UTC()
 	byEvent := s.conversationsByEvent(ctx)
+	fullCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		// Queue admission is an authorization boundary too: an unknown current policy leaves work queued for the next pass.
+		s.logf("inbox: fresh settings before queue admission: %v", err)
+		return
+	}
+	replyPolicy := fullCfg.ReplyPolicy
+	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the same fresh visibility
+	// configuration as reply-policy admission, so a newly listed stored chat cannot start or keep an AI session.
+	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	b.mu.Lock()
 	running := 0
 	var queued []*InboxItem
@@ -329,7 +337,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		if it.Agent == nil {
 			continue
 		}
-		if it.VisibilityExcluded {
+		if inboxVisibilityExcluded(it, fullCfg.Visibility) {
 			if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
 				released = append(released, w)
 			}
@@ -340,10 +348,13 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			running++
 		case it.Agent.State == AgentQueued && it.Agent.SessionID == "" && it.open() && !it.Agent.savingRetry:
 			// Recheck before backoff, capacity or adoption: a saved rule also covers work already queued.
-			if b.policyTwin(it) == TwinNever {
+			if b.policyTwin(it) == TwinNever || replyPolicyQueueBlocked(it, replyPolicy) {
 				if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
 					released = append(released, w)
 				}
+				continue
+			}
+			if replyPolicyQueuePending(it, replyPolicy) {
 				continue
 			}
 			if it.Agent.startDue(now) {
@@ -381,6 +392,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
+		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
 		if cfg.ReadProfile != "source_only" {
 			a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
 		}

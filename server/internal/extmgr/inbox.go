@@ -53,6 +53,8 @@ type InboxConfig struct {
 	// Agent (model 3) works on the Needs you items (and those a policy hands it) and drafts the reply (the manager's
 	// inbox_agent.go).
 	Agent InboxAgentConfig `json:"agent,omitempty"`
+	// ReplyPolicy optionally restricts which classified items may become owner reply drafts.
+	ReplyPolicy *assistantwire.InboxReplyPolicyConfig `json:"reply_policy,omitempty"`
 }
 
 // InboxAgentConfig is manager.json's inbox.agent, handed to the manager as it is.

@@ -80,6 +80,10 @@ func TestInboxVisibilityQuarantineReleasesQueuedAndHandling(t *testing.T) {
 func TestInboxVisibilityQueuePassQuarantinesWithoutHandPass(t *testing.T) {
 	h := agentHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	h.inbox.cfgMu.Lock()
+	h.inbox.cfg = assistantwire.InboxConfig{}
+	h.inbox.cfgAt = time.Now()
+	h.inbox.cfgMu.Unlock()
 	it := actionItem("lark:synthetic-private:direct-queue", time.Now())
 	it.Source = "lark"
 	it.Lark.FeedID = "synthetic-private"
@@ -119,6 +123,33 @@ func TestInboxVisibilityQuarantineBlocksExistingSuggestion(t *testing.T) {
 	}
 }
 
+func TestInboxVisibilityFreshSuggestAndConfirm(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic reply before visibility changes"}`); err != nil {
+		t.Fatal(err)
+	}
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.Visibility = visibilityTestConfig() })
+	h.inbox.cfgMu.Lock()
+	h.inbox.cfg = assistantwire.InboxConfig{}
+	h.inbox.cfgAt = time.Now()
+	h.inbox.cfgMu.Unlock()
+	g := currentSuggestion(it)
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err == nil {
+		t.Fatal("stale disabled cache confirmed a newly excluded reply")
+	}
+	if currentSuggestion(it) != g {
+		t.Fatal("fresh visibility denial consumed the suggestion")
+	}
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic replacement through stale cache"}`); err == nil {
+		t.Fatal("stale disabled cache published a reply for a newly excluded chat")
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("fresh visibility denial called the sender: %+v", lark.got)
+	}
+}
+
 func TestInboxVisibilityRecheckAfterReservationSave(t *testing.T) {
 	h, lark, it := handledHub(t)
 	it.Source = "lark"
@@ -135,6 +166,34 @@ func TestInboxVisibilityRecheckAfterReservationSave(t *testing.T) {
 	}
 	if len(lark.got) != 0 {
 		t.Fatalf("pre-send visibility recheck called the sender: %+v", lark.got)
+	}
+}
+
+func TestInboxVisibilityFinalSendUsesFreshConfig(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic reply before the final visibility gate"}`); err != nil {
+		t.Fatal(err)
+	}
+	h.inbox.cfgMu.Lock()
+	h.inbox.cfg = assistantwire.InboxConfig{}
+	h.inbox.cfgAt = time.Now()
+	h.inbox.cfgMu.Unlock()
+	h.in.mu.Lock()
+	h.in.configQueue = []assistantwire.InboxConfig{
+		{},                                   // confirmation before the edit-veto preflight
+		{},                                   // confirmation after the veto
+		{},                                   // reservation recheck
+		{},                                   // per-item send-mutex recheck before the veto
+		{Visibility: visibilityTestConfig()}, // final authorization immediately before the outward send
+	}
+	h.in.mu.Unlock()
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err == nil {
+		t.Fatal("reply bypassed the final fresh visibility gate")
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("final fresh visibility denial called the sender: %+v", lark.got)
 	}
 }
 
@@ -163,6 +222,31 @@ func TestInboxVisibilityQuarantineKeepsSentAuditWithoutResending(t *testing.T) {
 	}
 	if len(lark.got) != 1 {
 		t.Fatalf("quarantine re-sent the historical attempt: %+v", lark.got)
+	}
+}
+
+func TestInboxVisibilityHandedAgentUsesFreshConfig(t *testing.T) {
+	h := agentHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.Enabled = true
+		c.Visibility = visibilityTestConfig()
+	})
+	h.inbox.cfgMu.Lock()
+	h.inbox.cfg = assistantwire.InboxConfig{}
+	h.inbox.cfgAt = time.Now()
+	h.inbox.cfgMu.Unlock()
+	it := disabledTwinItem(h, "visibility-handed-agent", HandlingDone, AgentSkipped, "parent-session")
+	it.Source = "lark"
+	it.Lark = &InboxLark{FeedID: "synthetic-private", IsGroup: true}
+	g := &InboxSuggestion{Version: 1, Kind: SuggestAgent, Text: "Inspect the synthetic private request", At: time.Now(), MachineID: "server"}
+	if _, err := h.confirmHandedAgent(context.Background(), it, g, g.Text, false, SessionRef{MachineID: "server", SessionID: "handoff-session"}, "Synthetic"); err == nil {
+		t.Fatal("handed-off Agent bypassed fresh visibility")
+	}
+	h.f.mu.Lock()
+	starts := len(h.f.starts)
+	h.f.mu.Unlock()
+	if starts != 0 {
+		t.Fatalf("newly excluded handed-off Agent started %d sessions", starts)
 	}
 }
 
