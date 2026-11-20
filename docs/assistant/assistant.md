@@ -1686,6 +1686,18 @@ operation then read as accepted and the bubble waited for the transcript and wen
 - **Device signed out** (#10708). The hub gives the manager the sending device's credential ID when it keeps a
   message. Signing out that device fails its kept messages. Their rows say why and offer Delete. Messages kept
   before the hub recorded the sending credential have no device to match.
+- **Messages that need no reply** (#11614, `server/internal/assistant/relay_later.go`). `conversation_send` with
+  `wake: false` is for acknowledgements and information the receiver does not have to act on. The message is kept
+  for the receiver (`relayState.Later`, kept across a restart, at most 20 per conversation and 7 days) and goes in,
+  as a context block in front (`prompts/assistant/relay_later.md`), with the next message the manager delivers to
+  that conversation for anything else: a supervision message, another conversation's message, a scheduled follow-up,
+  a notice. It starts no turn of its own, costs no hop and no place in the relay rate, and is dropped only once the
+  message carrying it went in. Before a send with a `once_id`, its quiet-message context (including an empty one) is
+  saved and reused on retries, including after restart. A retry clears only that original context; later arrivals wait
+  for a new send ID. These reservations expire after seven days, beyond the node's ten-minute send-ID memory.
+  Nothing is guessed from the words: only the explicit argument decides. A `quote` (the
+  owner's request) always wakes, so the two together are refused. A turn the owner starts from an app does not carry
+  it; it shows above the composer meanwhile.
 - **Between conversations.** `conversation_send` to a conversation that cannot take the message now no longer fails:
   the message goes into its relay queue and is tried again under the same `once_id`. A conversation that failed to
   take a relayed message is tried again after `relayRetryGap` (30 s), not on every session list.
@@ -2284,6 +2296,15 @@ machine and session exactly; ordinary Agent start parameters are untouched.
   not proof that a tool is hidden.
 - **Defaults and fallback**: no policy, `enabled:false`, expiry, a non-matching target and an empty target list all
   leave existing behavior unchanged. Untargeted tool lists and other conversations keep their previous contents.
+  Requests must name `dispatch_guard`; duplicate or unknown outer, policy or target fields, a missing/null policy and
+  a non-empty policy without an explicit `enabled` are rejected without touching the Store or publishing a list
+  change. Duplicate keys are rejected while walking the complete JSON, before any `RawMessage` occurrence can be
+  discarded. Field names are case-sensitive: a differently cased alias such as `DISPATCH_GUARD` or `TARGETS`, which
+  `encoding/json` would otherwise match to the same field, is rejected as an unknown field at every level. Only an explicit `enabled:false` or `targets:[]` clears, and empty targets are normalized to disabled
+  with no expiry even when the request leaves `enabled:true`. Validation responses use localized typed errors in
+  English, Simplified Chinese and Japanese. Natural expiry and recovery from a Setting read failure are included in
+  the discovery cursor and rechecked at heartbeat. Each returned list and its revision come from the same captured
+  effective guard decision, so a transient second-read failure cannot bind a fail-closed list to a healthy revision.
   An unreadable or invalid enabled policy fails closed for the four dispatch tools; unrelated tools remain available.
   The localized refusal contains no storage error, target, tool name, arguments, policy or credential.
 - **Scope and expiry**: `GET` / `PUT /api/v1/assistant/dispatch-guard` requires the `dispatch.guard` scope for an
