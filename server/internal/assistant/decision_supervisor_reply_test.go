@@ -175,3 +175,105 @@ func TestSupervisorConversationMultipleCardsNotSilentlySettled(t *testing.T) {
 			signalled(s, f, second.ID, sigDecisionReply, "task_decided")
 	})
 }
+
+// leaderRef is an independent direction conversation distinct from the main chat (conv1).
+func leaderDirectionRef() SessionRef {
+	return SessionRef{MachineID: "server", SessionID: "lead1"}
+}
+
+// putLeaderDecisionTodo registers a needs_user to-do supervised by lead1 with its own decide
+// ask, mirroring a card an independent direction raised through task_plan/task_review.
+func putLeaderDecisionTodo(t *testing.T, s *Service) Todo {
+	t.Helper()
+	now := time.Now().UTC()
+	leader := Todo{
+		ID: "todo_leader_direction", Title: "Choose the rollback plan", Origin: "lead1",
+		Supervision: &Supervision{Supervisor: "lead1", State: reviewNeedsUser, Round: 1},
+		Agents:      []TodoAgent{},
+	}
+	putTodo(s, leader)
+	s.accept.mu.Lock()
+	defer s.accept.mu.Unlock()
+	if !s.accept.loaded {
+		t.Fatal("accept book not loaded")
+	}
+	s.accept.asks[leader.ID] = &acceptAsk{
+		Conclusion: true, Outcome: outcomeDecide, Reason: "rollback strategy",
+		Recommend: "snapshot", AskedAt: now, DueAt: now.Add(time.Hour),
+		Options: []DecisionOption{
+			{Label: "snapshot", LeadsTo: "restore a snapshot"},
+			{Label: "redeploy", LeadsTo: "ship the previous build"},
+		},
+	}
+	return leader
+}
+
+// decisionReplyTarget reads the queued decision_reply signal's explicit To and the conversation
+// digestTo would deliver it to, so a regression cannot hide behind the pending-key alone.
+func decisionReplyTarget(t *testing.T, s *Service, id string) (to, routed string) {
+	t.Helper()
+	b := &s.supervise
+	b.mu.Lock()
+	g, ok := b.pending[id+"|"+sigDecisionReply]
+	b.mu.Unlock()
+	if !ok {
+		t.Fatalf("no pending decision_reply for %s", id)
+	}
+	return g.To, s.digestTo(s.settings(context.Background()), g)
+}
+
+// A free-text reply in an independent direction conversation must hand the pending card back to
+// that direction, not the main conversation: the decision_reply signal names the leader
+// explicitly, so digestTo no longer falls back to Main for its needs_user card (#12430 retest).
+func TestLeaderDirectionFreeTextHandsBackToLeader(t *testing.T) {
+	s, f, _ := decisionAgentReplyService(t)
+	setSettings(t, s, func(v *Settings) { v.Leaders = []string{"lead1"} })
+	leader := putLeaderDecisionTodo(t, s)
+	s.userSpokeText(context.Background(), leaderDirectionRef(), "let me think about the rollback risk first")
+	waitFor(t, "the leader hand-off", func() bool {
+		return signalled(s, f, leader.ID, sigDecisionReply, "task_decided")
+	})
+	to, routed := decisionReplyTarget(t, s, leader.ID)
+	if to != "lead1" || routed != "lead1" {
+		t.Fatalf("free text routed to %q (To %q), want the lead1 direction", routed, to)
+	}
+	if got := askOf(s, leader.ID); got == nil || got.AgentReply == nil || got.Chosen != "" || !got.AcceptedAt.IsZero() {
+		t.Fatalf("free text was guessed or settled: %+v", got)
+	}
+	if todoNow(s, leader.ID).Supervision.State != reviewNeedsUser {
+		t.Fatal("free text must keep the decision in needs_user")
+	}
+}
+
+// A lone letter in an independent direction is free text there (the P1 fix), and its hand-back
+// must also reach the direction that owns the card rather than the main conversation.
+func TestLeaderDirectionLoneLetterHandsBackToLeader(t *testing.T) {
+	s, f, _ := decisionAgentReplyService(t)
+	setSettings(t, s, func(v *Settings) { v.Leaders = []string{"lead1"} })
+	leader := putLeaderDecisionTodo(t, s)
+	s.userSpokeText(context.Background(), leaderDirectionRef(), "B")
+	waitFor(t, "the lone-letter leader hand-off", func() bool {
+		return signalled(s, f, leader.ID, sigDecisionReply, "task_decided")
+	})
+	to, routed := decisionReplyTarget(t, s, leader.ID)
+	if to != "lead1" || routed != "lead1" {
+		t.Fatalf("lone letter routed to %q (To %q), want the lead1 direction", routed, to)
+	}
+	if got := askOf(s, leader.ID); got == nil || got.Chosen != "" || got.AgentReply == nil || !got.AcceptedAt.IsZero() {
+		t.Fatalf("a lone letter settled the leader card: %+v", got)
+	}
+}
+
+// A card supervised by the main conversation keeps the legacy no-To routing, so an active
+// background supervisor still receives its hand-back the way it did before.
+func TestMainConversationDecisionReplyKeepsLegacyRouting(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t) // settings.Main = conv1, the fixture's supervisor
+	s.userSpokeText(context.Background(), supervisorRef(), "let me think it over")
+	waitFor(t, "the main-conversation hand-off", func() bool {
+		return signalled(s, f, todo.ID, sigDecisionReply, "task_decided")
+	})
+	to, _ := decisionReplyTarget(t, s, todo.ID)
+	if to != "" {
+		t.Fatalf("main-conversation task got explicit To %q; legacy no-To routing changed", to)
+	}
+}

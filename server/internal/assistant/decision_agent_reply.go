@@ -334,8 +334,20 @@ func (s *Service) signalAgentDecisionReply(id string, a acceptAsk) {
 	if r == nil || !r.ToldAt.IsZero() || !r.Handled && !a.AcceptedAt.IsZero() {
 		return
 	}
-	s.signal(superviseSignal{Todo: id, Kind: sigDecisionReply, Key: agentDecisionReplyKey(a),
-		At: r.At, Machine: r.MachineID, Session: r.SessionID})
+	g := superviseSignal{Todo: id, Kind: sigDecisionReply, Key: agentDecisionReplyKey(a),
+		At: r.At, Machine: r.MachineID, Session: r.SessionID}
+	// Without an explicit To, digestTo sends a needs_user signal to the main conversation even
+	// when an independent direction (leader) supervises the task. The owner's reply written in
+	// that direction's conversation must hand back to the direction that raised the card. Name
+	// it directly; a main-conversation task keeps the legacy no-To route (background supervisor
+	// while one runs) unchanged.
+	if t, ok := s.todoNow(id); ok && t.Supervision != nil {
+		lead := t.Supervision.Supervisor
+		if lead != "" && lead != s.settings(context.Background()).Main {
+			g.To = lead
+		}
+	}
+	s.signal(g)
 }
 
 // Recover the supervisor handoff from the persisted round after a manager restart.
