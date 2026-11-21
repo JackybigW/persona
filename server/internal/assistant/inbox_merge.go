@@ -75,6 +75,10 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 				sv.MergedFrom = append(sv.MergedFrom, ref)
 			}
 		}
+		// A later Undo can reopen this old survivor with its member text still in Context. Preserve that text's
+		// provenance before dropping the member refs, including for survivors merged before the durable fields existed.
+		it.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(it))
+		it.ReplyContextTruncated = replyPolicyContextTruncated(it)
 		it.MergedFrom = nil
 		it.MergedInto = sv.ID
 		sv.MergedFrom = append(sv.MergedFrom, InboxMergeRef{ID: it.ID, Source: it.Source, AccountName: it.AccountName, Title: it.Title})
@@ -193,7 +197,12 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 // reopens, and is judged again. A member whose survivor is gone is let go (its row shows again). Under b.mu; it
 // returns changed with the survivors added.
 func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxItem {
-	for _, it := range slices.Clone(changed) {
+	// A round can advance several members of one survivor. Apply them oldest-first, and compare each with the
+	// survivor's timestamp at the start of that survivor's round rather than with a sibling update just applied.
+	members := slices.Clone(changed)
+	slices.SortStableFunc(members, func(x, y *InboxItem) int { return x.UpdatedAt.Compare(y.UpdatedAt) })
+	roundStart := map[*InboxItem]time.Time{}
+	for _, it := range members {
 		if it.MergedInto == "" {
 			continue
 		}
@@ -202,7 +211,12 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 			it.MergedInto = ""
 			continue
 		}
-		if !it.UpdatedAt.After(sv.UpdatedAt) {
+		baseline, seen := roundStart[sv]
+		if !seen {
+			baseline = sv.UpdatedAt
+			roundStart[sv] = baseline
+		}
+		if !it.UpdatedAt.After(baseline) {
 			continue
 		}
 		b.roundWrite(sv)

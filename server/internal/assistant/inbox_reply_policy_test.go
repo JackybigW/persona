@@ -10,9 +10,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
+	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
 
@@ -207,77 +209,81 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 		}
 	})
 	t.Run("policy changes while a suggestion waits for agent association", func(t *testing.T) {
-		h := agentHub(t)
-		oldWait := inboxDraftWait
-		inboxDraftWait = time.Second
-		t.Cleanup(func() { inboxDraftWait = oldWait })
-		h.inbox.cfgMu.Lock()
-		h.inbox.cfg = assistantwire.InboxConfig{}
-		h.inbox.cfgAt = time.Now()
-		h.inbox.cfgMu.Unlock()
-		h.in.mu.Lock()
-		h.in.configQueue = []assistantwire.InboxConfig{{}, {ReplyPolicy: replyPolicyTestConfig()}}
-		h.in.mu.Unlock()
-		it := actionItem("lark:association-policy-race", time.Now())
-		it.Source = "lark"
-		it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
-		h.inbox.items[it.ID] = it
-		go func() {
-			time.Sleep(250 * time.Millisecond)
-			h.inbox.mu.Lock()
-			it.Agent.SessionID = "session-policy-association"
-			h.inbox.mu.Unlock()
-		}()
-		_, _, err := h.suggest(context.Background(), "session-policy-association", suggestIn{Kind: SuggestReply, Text: "Synthetic draft across a policy change"})
-		if !errors.Is(err, errReplyPolicyDenied) {
-			t.Fatalf("suggestion used the pre-wait policy, error = %v", err)
-		}
-		if currentSuggestion(it) != nil {
-			t.Fatalf("policy-enabled suggestion was published after the association wait: %+v", currentSuggestion(it))
-		}
+		synctest.Test(t, func(t *testing.T) {
+			h := agentHub(t)
+			oldWait := inboxDraftWait
+			inboxDraftWait = time.Second
+			t.Cleanup(func() { inboxDraftWait = oldWait })
+			h.inbox.cfgMu.Lock()
+			h.inbox.cfg = assistantwire.InboxConfig{}
+			h.inbox.cfgAt = time.Now()
+			h.inbox.cfgMu.Unlock()
+			h.in.mu.Lock()
+			h.in.configQueue = []assistantwire.InboxConfig{{}, {ReplyPolicy: replyPolicyTestConfig()}}
+			h.in.mu.Unlock()
+			it := actionItem("lark:association-policy-race", time.Now())
+			it.Source = "lark"
+			it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
+			h.inbox.items[it.ID] = it
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				h.inbox.mu.Lock()
+				it.Agent.SessionID = "session-policy-association"
+				h.inbox.mu.Unlock()
+			}()
+			_, _, err := h.suggest(context.Background(), "session-policy-association", suggestIn{Kind: SuggestReply, Text: "Synthetic draft across a policy change"})
+			if !errors.Is(err, errReplyPolicyDenied) {
+				t.Fatalf("suggestion used the pre-wait policy, error = %v", err)
+			}
+			if currentSuggestion(it) != nil {
+				t.Fatalf("policy-enabled suggestion was published after the association wait: %+v", currentSuggestion(it))
+			}
+		})
 	})
 	t.Run("association cannot change during the post-wait fresh read", func(t *testing.T) {
-		h := agentHub(t)
-		oldWait := inboxDraftWait
-		inboxDraftWait = time.Second
-		t.Cleanup(func() { inboxDraftWait = oldWait })
-		h.inbox.cfgMu.Lock()
-		h.inbox.cfg = assistantwire.InboxConfig{}
-		h.inbox.cfgAt = time.Now()
-		h.inbox.cfgMu.Unlock()
-		h.in.mu.Lock()
-		h.in.configQueue = []assistantwire.InboxConfig{{}, {}}
-		reads := 0
-		h.in.configHook = func() {
-			reads++
-			if reads == 2 {
-				h.inbox.mu.Lock()
-				for _, item := range h.inbox.items {
-					if item.ID == "lark:association-binding-race" {
-						item.Agent.SessionID = "session-B"
+		synctest.Test(t, func(t *testing.T) {
+			h := agentHub(t)
+			oldWait := inboxDraftWait
+			inboxDraftWait = time.Second
+			t.Cleanup(func() { inboxDraftWait = oldWait })
+			h.inbox.cfgMu.Lock()
+			h.inbox.cfg = assistantwire.InboxConfig{}
+			h.inbox.cfgAt = time.Now()
+			h.inbox.cfgMu.Unlock()
+			h.in.mu.Lock()
+			h.in.configQueue = []assistantwire.InboxConfig{{}, {}}
+			reads := 0
+			h.in.configHook = func() {
+				reads++
+				if reads == 2 {
+					h.inbox.mu.Lock()
+					for _, item := range h.inbox.items {
+						if item.ID == "lark:association-binding-race" {
+							item.Agent.SessionID = "session-B"
+						}
 					}
+					h.inbox.mu.Unlock()
 				}
-				h.inbox.mu.Unlock()
 			}
-		}
-		h.in.mu.Unlock()
-		it := actionItem("lark:association-binding-race", time.Now())
-		it.Source = "lark"
-		it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
-		h.inbox.items[it.ID] = it
-		go func() {
-			time.Sleep(250 * time.Millisecond)
-			h.inbox.mu.Lock()
-			it.Agent.SessionID = "session-A"
-			h.inbox.mu.Unlock()
-		}()
-		_, _, err := h.suggest(context.Background(), "session-A", suggestIn{Kind: SuggestReply, Text: "Delayed synthetic suggestion"})
-		if !errors.Is(err, errNotProcessing) {
-			t.Fatalf("suggestion lost its session binding during the fresh read, error = %v", err)
-		}
-		if currentSuggestion(it) != nil {
-			t.Fatalf("session A published against session B's item: %+v", currentSuggestion(it))
-		}
+			h.in.mu.Unlock()
+			it := actionItem("lark:association-binding-race", time.Now())
+			it.Source = "lark"
+			it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
+			h.inbox.items[it.ID] = it
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				h.inbox.mu.Lock()
+				it.Agent.SessionID = "session-A"
+				h.inbox.mu.Unlock()
+			}()
+			_, _, err := h.suggest(context.Background(), "session-A", suggestIn{Kind: SuggestReply, Text: "Delayed synthetic suggestion"})
+			if !errors.Is(err, errNotProcessing) {
+				t.Fatalf("suggestion lost its session binding during the fresh read, error = %v", err)
+			}
+			if currentSuggestion(it) != nil {
+				t.Fatalf("session A published against session B's item: %+v", currentSuggestion(it))
+			}
+		})
 	})
 	t.Run("handback confirmation is not exempt", func(t *testing.T) {
 		h := agentHub(t)
@@ -902,7 +908,7 @@ func TestInboxReplyPolicyWorkbenchTransientDraftStaysLegacy(t *testing.T) {
 			if mirroredLegacyReply(it) != nil {
 				t.Fatal("test setup unexpectedly has a mirror")
 			}
-			if _, err := h.replyInboxFrom(t.Context(), it.ID, "Owner-edited transient workbench text", "synthetic-transient-workbench", true); err != nil {
+			if _, err := h.replyInboxFrom(t.Context(), it.ID, "Owner-edited transient workbench text", "feishu-workbench-synthetic-transient", true); err != nil {
 				t.Fatalf("legacy transient workbench send failed: %v", err)
 			}
 			if len(lark.got) != 1 {
@@ -950,20 +956,31 @@ func TestInboxReplyPolicyMirroredSendUsesDurableAttempt(t *testing.T) {
 			if !replyInDoubt(firstErr) {
 				t.Fatalf("first mirrored send error = %v, want an uncertain outcome", firstErr)
 			}
-			// A different device must not turn the lost acknowledgement into a second physical send under a fresh ID.
-			c.answer(nil)
-			_, secondErr := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm, ClientID: recoveryFreshID}, true)
-			if got := len(c.calls()); got != 1 {
-				t.Fatalf("uncertain mirrored send was repeated under a fresh ID: calls=%d first=%v second=%v", got, firstErr, secondErr)
+			// Restart from the actual persisted row, then retry through the same old-client route under a fresh ID.
+			// A live-item-only check would miss an in-memory reservation, and actOnSuggestion would still see the mirror.
+			restarted := New(Options{Hub: h.f, Store: func() Store { return h.st }, Logf: testLogf(t)})
+			if err := restarted.inboxReady(t.Context()); err != nil {
+				t.Fatal(err)
 			}
-			if secondErr == nil {
-				t.Fatal("second device confirmed an uncertain mirrored send without an unresolved result")
-			}
-			h.inbox.mu.Lock()
-			a := suggestionAttempt(it, 1)
-			h.inbox.mu.Unlock()
+			restarted.inbox.mu.Lock()
+			loaded := restarted.inbox.items[it.ID]
+			a := suggestionAttempt(loaded, 1)
+			restarted.inbox.mu.Unlock()
 			if a == nil || a.Status != suggestionUnknown || a.ClientID != recoveryFirstID {
-				t.Fatalf("mirrored send has no durable uncertain reservation: %+v", a)
+				t.Fatalf("mirrored send has no persisted uncertain reservation after reload: %+v", a)
+			}
+			c.answer(nil)
+			var secondErr error
+			if fromCard {
+				_, secondErr = restarted.replyInboxFrom(t.Context(), it.ID, text, "feishu-workbench-"+recoveryFreshID, true)
+			} else {
+				_, secondErr = restarted.replyInboxChecked(t.Context(), it.ID, text, recoveryFreshID, false, nil, nil)
+			}
+			if got := len(c.calls()); got != 1 {
+				t.Fatalf("uncertain mirrored /reply was repeated under a fresh ID after reload: calls=%d first=%v second=%v", got, firstErr, secondErr)
+			}
+			if !replyInDoubt(secondErr) {
+				t.Fatalf("second old-client /reply error = %v, want the persisted uncertain outcome", secondErr)
 			}
 		})
 	}
@@ -1011,19 +1028,37 @@ func TestInboxReplyPolicyInstructedDraftClassifiesGeneratedText(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h, lark, it := handledHub(t)
 			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+			it.Context = "Synthetic original conversation marker"
 			it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
 			it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
-			var calls atomic.Int32
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				reply := "Synthetic generated text following the owner instruction"
-				if calls.Add(1) > 1 {
+			generated := "Synthetic generated draft marker"
+			instruction := "Synthetic owner instruction marker"
+			var modelCalls []capturedCall
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var in struct {
+					System   string `json:"system"`
+					Messages []struct {
+						Content string `json:"content"`
+					} `json:"messages"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&in)
+				call := capturedCall{System: in.System}
+				if len(in.Messages) > 0 {
+					call.User = in.Messages[0].Content
+				}
+				h.in.mu.Lock()
+				modelCalls = append(modelCalls, call)
+				n := len(modelCalls)
+				h.in.mu.Unlock()
+				reply := generated
+				if n > 1 {
 					reply = `{"category":"` + tc.category + `"}`
 				}
 				_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{"type": "text", "text": reply}}})
 			}))
 			t.Cleanup(srv.Close)
 			h.in.model = modelAt(t, srv.URL)
-			text, err := h.draftReply(t.Context(), it.ID, "Rewrite this as my response to the synthetic request")
+			text, err := h.draftReply(t.Context(), it.ID, instruction)
 			if tc.denied {
 				if !errors.Is(err, errReplyPolicyDenied) || text != "" {
 					t.Fatalf("restricted instructed draft was published: text=%q err=%v", text, err)
@@ -1036,8 +1071,19 @@ func TestInboxReplyPolicyInstructedDraftClassifiesGeneratedText(t *testing.T) {
 					t.Fatalf("ordinary instructed draft was not published safely: text=%q err=%v", text, err)
 				}
 			}
-			if got := calls.Load(); got != 2 {
-				t.Fatalf("instructed draft made %d model calls, want generation plus generated-text classification", got)
+			h.in.mu.Lock()
+			calls := append([]capturedCall(nil), modelCalls...)
+			h.in.mu.Unlock()
+			if len(calls) != 2 {
+				t.Fatalf("instructed draft made %d model calls, want generation plus generated-text classification", len(calls))
+			}
+			if calls[1].System != prompts.RenderJSONOnly(prompts.RenderInboxReplyPolicy()) {
+				t.Fatalf("second call did not use the reply-policy classifier: %+v", calls[1])
+			}
+			for _, marker := range []string{generated, instruction, "Synthetic original conversation marker"} {
+				if !strings.Contains(calls[1].User, marker) {
+					t.Fatalf("classifier input lacks %q: %+v", marker, calls[1])
+				}
 			}
 			if len(lark.got) != 0 {
 				t.Fatalf("instructed draft unexpectedly called sender: %+v", lark.got)
@@ -1446,49 +1492,58 @@ func TestInboxReplyPolicyLegacyMirroredDraftGate(t *testing.T) {
 }
 
 func TestInboxReplyPolicyLegacyDraftRejectedWhileSendWaits(t *testing.T) {
-	h, lark, it := handledHub(t)
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
-	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
-	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Mirrored draft rejected on another device"}`); err != nil {
-		t.Fatal(err)
-	}
-	text := currentSuggestion(it).Text
-	entered := make(chan struct{})
-	once := &inboxReply{beforeLock: func() { close(entered) }}
-	once.mu.Lock()
-	unlocked := false
-	defer func() {
-		if !unlocked {
+	for _, tc := range []struct {
+		name   string
+		policy *assistantwire.InboxReplyPolicyConfig
+	}{
+		{name: "nil policy"},
+		{name: "disabled policy", policy: &assistantwire.InboxReplyPolicyConfig{Enabled: false, Revision: "unused-v1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, lark, it := handledHub(t)
+			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = tc.policy })
+			if _, err := suggestTool(t, h, `{"kind":"reply","text":"Mirrored draft rejected on another device"}`); err != nil {
+				t.Fatal(err)
+			}
+			text := currentSuggestion(it).Text
+			entered := make(chan struct{})
+			once := &inboxReply{beforeLock: func() { close(entered) }}
+			once.mu.Lock()
+			unlocked := false
+			defer func() {
+				if !unlocked {
+					once.mu.Unlock()
+				}
+			}()
+			h.inbox.replies.Store(it.ID, once)
+			result := make(chan error, 1)
+			go func() {
+				_, err := h.replyInboxChecked(t.Context(), it.ID, text, "", false, nil, nil)
+				result <- err
+			}()
+			select {
+			case <-entered:
+			case <-time.After(3 * time.Second):
+				t.Fatal("legacy send did not reach the per-item send lock")
+			}
+			// Rejection removes the mirror while the old-client request is queued behind the send mutex.
+			if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestReject}, true); err != nil {
+				t.Fatalf("rejecting the mirrored draft failed: %v", err)
+			}
 			once.mu.Unlock()
-		}
-	}()
-	h.inbox.replies.Store(it.ID, once)
-	result := make(chan error, 1)
-	go func() {
-		_, err := h.replyInboxChecked(t.Context(), it.ID, text, "", false, nil, nil)
-		result <- err
-	}()
-	select {
-	case <-entered:
-	case <-time.After(3 * time.Second):
-		t.Fatal("old-client send did not reach the per-item send lock")
-	}
-	// Rejection removes the mirror while the old-client request is queued behind the send mutex.
-	if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestReject}, true); err != nil {
-		t.Fatalf("rejecting the mirrored draft failed: %v", err)
-	}
-	once.mu.Unlock()
-	unlocked = true
-	select {
-	case err := <-result:
-		if err == nil {
-			t.Fatal("queued old-client request sent a draft rejected while it waited")
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("queued old-client send did not finish")
-	}
-	if len(lark.got) != 0 {
-		t.Fatalf("rejected old-client draft reached sender after the mirror disappeared: %+v", lark.got)
+			unlocked = true
+			select {
+			case err := <-result:
+				if !errors.Is(err, errSuggestionStale) {
+					t.Fatalf("queued legacy request error = %v, want stale after its mirror was rejected", err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("queued legacy send did not finish")
+			}
+			if len(lark.got) != 0 {
+				t.Fatalf("rejected legacy draft reached sender after the mirror disappeared: %+v", lark.got)
+			}
+		})
 	}
 }
 
@@ -1517,6 +1572,18 @@ func TestInboxReplyPolicyDeniedEditSurvivesConcurrentDisable(t *testing.T) {
 	}
 	if after := itemState(it); !bytes.Equal(after, before) {
 		t.Fatalf("denied edit consumed or reserved suggestion state before the final policy read:\nbefore=%s\nafter=%s", before, after)
+	}
+	restarted := New(Options{Hub: h.f, Store: func() Store { return h.st }, Logf: testLogf(t)})
+	if err := restarted.inboxReady(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	restarted.inbox.mu.Lock()
+	loaded := restarted.inbox.items[it.ID]
+	persisted := append([]byte(nil), itemState(loaded)...)
+	attempt := suggestionAttempt(loaded, 1)
+	restarted.inbox.mu.Unlock()
+	if !bytes.Equal(persisted, before) || attempt != nil {
+		t.Fatalf("denied edit left persisted reservation/state despite live rollback:\nbefore=%s\nafter=%s\nattempt=%+v", before, persisted, attempt)
 	}
 }
 
@@ -1556,11 +1623,29 @@ func TestInboxReplyPolicyClassificationFailClosed(t *testing.T) {
 				it.Context = ""
 			}
 			h.inbox.items[it.ID] = it
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
+			ctx := context.Background()
+			var reviewCalls atomic.Int32
+			if tc.requireReview {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					reply := `{"category":"ordinary_coordination"}`
+					if reviewCalls.Add(1) == 2 {
+						reply = "malformed independent reviewer result"
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{"type": "text", "text": reply}}})
+				}))
+				t.Cleanup(srv.Close)
+				h.in.model = modelAt(t, srv.URL)
+			} else {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
 			h.classifyInboxReplyPolicies(ctx, cfg)
-			if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" || it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev != "test-v1" {
+			if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" || it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev != "test-v1" || it.ReplyReviewed {
 				t.Fatalf("classification failure did not fail closed: %+v", it)
+			}
+			if tc.requireReview && reviewCalls.Load() != 2 {
+				t.Fatalf("independent review failure made %d model calls, want successful primary plus failed reviewer", reviewCalls.Load())
 			}
 			before := len(conversationStarts(h.f))
 			h.startInboxAgents(context.Background(), InboxAgentConfig{Enabled: true})
@@ -1574,7 +1659,8 @@ func TestInboxReplyPolicyClassificationFailClosed(t *testing.T) {
 
 func TestInboxReplyPolicyReviewRequirementChangeReclassifies(t *testing.T) {
 	h := agentHub(t)
-	h.in.model = fakeModel(t, `{"category":"ordinary_coordination"}`)
+	model, calls := captureModel(t, `{"category":"ordinary_coordination"}`)
+	h.in.model = model
 	cfg := replyPolicyTestConfig()
 	cfg.RequireIndependentReview = true
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = cfg })
@@ -1586,6 +1672,10 @@ func TestInboxReplyPolicyReviewRequirementChangeReclassifies(t *testing.T) {
 	h.classifyInboxReplyPolicies(context.Background(), cfg)
 	if !it.ReplyReviewed || !replyPolicyClassificationCurrent(it, cfg) {
 		t.Fatalf("enabling independent review left an unreviewed owner draft current: %+v", it)
+	}
+	got := calls()
+	if len(got) != 2 || got[0].System != prompts.RenderJSONOnly(prompts.RenderInboxReplyPolicy()) || got[1].System != prompts.RenderJSONOnly(prompts.RenderInboxReplyPolicyReview()) {
+		t.Fatalf("review requirement did not run primary plus independent review: %+v", got)
 	}
 }
 

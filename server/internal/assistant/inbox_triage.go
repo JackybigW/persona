@@ -400,6 +400,9 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 	if err != nil {
 		return "", errReplyPolicyDenied
 	}
+	if err := s.classifyInboxReplyPolicyForDraft(ctx, id, initialCfg.ReplyPolicy); err != nil {
+		return "", errReplyPolicyDenied
+	}
 	b := &s.inbox
 	b.mu.Lock()
 	it, ok := b.items[id]
@@ -476,6 +479,10 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		b.mu.Unlock()
 		return "", errNoInboxItem
 	}
+	if !bytes.Equal(authorization.before, itemState(it)) {
+		b.mu.Unlock()
+		return "", errSuggestionStale
+	}
 	if !replyPolicyItemApplies(cfg.ReplyPolicy, it) {
 		b.mu.Unlock()
 		return text, nil
@@ -493,10 +500,6 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		b.mu.Unlock()
 		return "", errReplyPolicyDenied
 	}
-	if !bytes.Equal(authorization.before, itemState(it)) {
-		b.mu.Unlock()
-		return "", errSuggestionStale
-	}
 	if err := replyPolicySuggestionGate(it, SuggestReply, cfg.ReplyPolicy); err != nil {
 		b.mu.Unlock()
 		return "", err
@@ -512,7 +515,7 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		g.Owner = &SessionRef{MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
 	}
 	snapshotReplyPolicy(g, it, cfg.ReplyPolicy)
-	if uncertainReplyOperation(it, g, text) != nil {
+	if uncertainReplyOperation(it, g, text, true) != nil {
 		// This endpoint has no attempt outcome to return. Keep an unresolved physical send on its existing card instead
 		// of returning the same text as though it were safe for an old client to send again.
 		b.mu.Unlock()
@@ -540,7 +543,7 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 	failed := s.saveWrites(ctx, []*inboxWrite{w}, "its on-demand reply suggestion")
 	b.mu.Lock()
 	undone := w.undone
-	current := b.items[id] == it && mirroredLegacyReply(it) == g
+	current := b.items[id] == it && mirroredLegacyReply(it) == g && bytes.Equal(itemState(it), w.applied)
 	b.mu.Unlock()
 	if failed[id] || undone {
 		return "", errInboxNotPersisted
@@ -615,7 +618,13 @@ func replyInDoubt(err error) bool {
 // item filed since (errInboxItemDone). Checked with the copy for the reply, so an item filed after sendFromCard
 // looked is not answered and keeps its mark (#4871).
 func (s *Service) replyInboxFrom(ctx context.Context, id, text, clientID string, fromCard bool, changes ...DocChange) (InboxItem, error) {
-	return s.replyInboxDo(ctx, id, text, clientID, fromCard, true, changes...)
+	return s.replyInboxFromVersion(ctx, id, text, clientID, fromCard, 0, changes...)
+}
+
+// replyInboxFromVersion carries the suggestion version rendered on a Workbench card. Zero is an old unversioned card;
+// it remains valid only outside reply-policy scope.
+func (s *Service) replyInboxFromVersion(ctx context.Context, id, text, clientID string, fromCard bool, expectedVersion int, changes ...DocChange) (InboxItem, error) {
+	return s.replyInboxDoModeVersion(ctx, id, text, clientID, fromCard, true, false, expectedVersion, changes...)
 }
 
 // replyInboxDo is replyInboxFrom; file false keeps the item open (a confirmed suggestion's reply: the event waits for
@@ -627,6 +636,78 @@ func (s *Service) replyInboxDo(ctx context.Context, id, text, clientID string, f
 // replyInboxDoMode adds the direct /reply route's waiting mode without changing the shared send-once path used by
 // handed-off suggestions. followDirect is true only for POST /api/v1/inbox/{id}/reply.
 func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID string, fromCard, file, followDirect bool, changes ...DocChange) (InboxItem, error) {
+	return s.replyInboxDoModeVersion(ctx, id, text, clientID, fromCard, file, followDirect, 0, changes...)
+}
+
+func (s *Service) replyInboxDoModeVersion(ctx context.Context, id, text, clientID string, fromCard, file, followDirect bool, expectedVersion int, changes ...DocChange) (InboxItem, error) {
+	return s.replyInboxDoModeVersionRole(ctx, id, text, clientID, fromCard, file, followDirect, expectedVersion, true, changes...)
+}
+
+func (s *Service) replyInboxDoModeVersionRole(ctx context.Context, id, text, clientID string, fromCard, file, followDirect bool, expectedVersion int, full bool, changes ...DocChange) (InboxItem, error) {
+	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, expectedVersion, full, changes); rerouted {
+		return out, err
+	}
+	return s.replyInboxDoModeDirect(ctx, id, text, clientID, fromCard, file, followDirect, changes...)
+}
+
+// routeLegacyReplyConfirmation recognizes both a visible old-App AI mirror and a current suggestion whose durable
+// attempt survived a restart. It runs before any collection or per-item send lock, so the nested suggestion send cannot
+// self-deadlock or lose its AI identity while waiting.
+func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, clientID string, fromCard, followDirect bool, expectedVersion int, full bool, changes []DocChange) (InboxItem, bool, error) {
+	if attempt, _ := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt); attempt != nil || !followDirect && !fromCard {
+		return InboxItem{}, false, nil
+	}
+	b := &s.inbox
+	b.mu.Lock()
+	it := b.items[id]
+	var g *InboxSuggestion
+	var durable *InboxSuggestionAttempt
+	var sources []string
+	if it != nil {
+		g = mirroredLegacyReply(it)
+		if g == nil {
+			candidate := currentSuggestion(it)
+			if candidate != nil && candidate.Kind == SuggestReply && !candidate.Handback && suggestionAttempt(it, candidate.Version) != nil {
+				g = candidate
+				durable = suggestionAttempt(it, candidate.Version)
+			}
+		}
+		sources = replyPolicySourceSet(it)
+	}
+	b.mu.Unlock()
+	workbench := fromCard && strings.HasPrefix(clientID, "feishu-workbench-")
+	if g == nil && !workbench {
+		return InboxItem{}, false, nil
+	}
+	cfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return InboxItem{}, true, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration unavailable"}
+	}
+	if !replyPolicySourcesApply(cfg.ReplyPolicy, sources) {
+		return InboxItem{}, false, nil
+	}
+	if workbench {
+		switch {
+		case g == nil:
+			return InboxItem{}, true, errSuggestionStale
+		case expectedVersion == 0:
+			// An old unversioned retry may read back the outcome of the exact same durable attempt, but cannot create a
+			// new authorization or apply its text to a replacement card.
+			if durable == nil || durable.Text != text {
+				return InboxItem{}, true, errSuggestionStale
+			}
+		case g.Version != expectedVersion:
+			return InboxItem{}, true, errSuggestionStale
+		}
+	}
+	if g == nil {
+		return InboxItem{}, false, nil
+	}
+	out, err := s.actOnSuggestion(ctx, id, suggestionReq{Version: g.Version, Action: suggestConfirm, Text: &text, ClientID: clientID, Changes: &changes}, full)
+	return out, true, err
+}
+
+func (s *Service) replyInboxDoModeDirect(ctx context.Context, id, text, clientID string, fromCard, file, followDirect bool, changes ...DocChange) (InboxItem, error) {
 	b := &s.inbox
 	b.mu.Lock()
 	it, ok := b.items[id]
@@ -671,32 +752,13 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 	legacyVersion := 0
 	legacyText := ""
 	if attempt == nil && (followDirect || fromCard) {
-		// Capture the request's AI-mirror identity before waiting. If another device rejects it meanwhile, the queued
-		// request must fail the current-version check below, not become a direct owner-authored reply.
+		// Recapture the mirror identity immediately before the send mutex too. The early route above handles current
+		// policy authorization; this snapshot still catches a policy that becomes applicable while the send waits.
 		b.mu.Lock()
-		var sources []string
 		if g := mirroredLegacyReply(it); g != nil {
 			legacyVersion, legacyText = g.Version, g.Text
 		}
-		sources = replyPolicySourceSet(it)
 		b.mu.Unlock()
-		workbench := fromCard && strings.HasPrefix(clientID, "feishu-workbench-")
-		if legacyVersion != 0 || workbench {
-			cfg, err := s.inboxConfigFresh(ctx)
-			if err != nil {
-				return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration unavailable"}
-			}
-			if replyPolicySourcesApply(cfg.ReplyPolicy, sources) {
-				if legacyVersion == 0 {
-					// A workbench card is server-generated AI text, not a direct owner-authored old-App reply. If its
-					// suggestion was rejected before the send began there is no mirror left to capture; fail closed.
-					return InboxItem{}, errSuggestionStale
-				}
-				// Under reply policy, an old-client mirror is exactly the normal suggestion's confirmation. Reusing that
-				// path adds the durable attempt/uncertain-result fence and SourceOf recipient binding before any send.
-				return s.actOnSuggestion(ctx, id, suggestionReq{Version: legacyVersion, Action: suggestConfirm, Text: &text, ClientID: clientID}, true)
-			}
-		}
 	}
 	if once.beforeLock != nil {
 		once.beforeLock()

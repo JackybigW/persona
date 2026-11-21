@@ -353,30 +353,62 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	}
 	b.mu.Unlock()
 	for _, it := range todo {
-		b.mu.Lock()
-		version, text, truncated := replyPolicyContentVersion(it), it.Context, replyPolicyContextTruncated(it)
-		b.mu.Unlock()
-		category, err := "unknown", errors.New("merged reply context was truncated")
-		if !truncated {
-			category, err = s.classifyReplyPolicyText(ctx, cfg, text)
-		}
-		if err != nil {
-			category = "unknown"
-		}
-		b.mu.Lock()
-		if it.open() && replyPolicyContentVersion(it) == version {
-			w := beginWrite(it)
-			it.ReplyCategory = category
-			it.ReplyMode = replyRoute(category, cfg)
-			it.ReplyClassifiedOf, it.ReplyPolicyRev = version, cfg.Revision
-			it.ReplyReviewed = err == nil && cfg.RequireIndependentReview
-			b.settle(w)
-			b.mu.Unlock()
-			s.saveWrites(ctx, []*inboxWrite{w}, "its reply policy classification")
-		} else {
-			b.mu.Unlock()
+		if err := s.classifyInboxReplyPolicyItem(ctx, cfg, it); err != nil {
+			s.logf("inbox: reply policy classification for %s: %v", it.ID, err)
 		}
 	}
+}
+
+// classifyInboxReplyPolicyForDraft gives an explicitly requested on-demand draft the same classification fence as a
+// queue pass, including an open FYI item that has no TwinFirst rule or previous handling session.
+func (s *Service) classifyInboxReplyPolicyForDraft(ctx context.Context, id string, cfg *assistantwire.InboxReplyPolicyConfig) error {
+	b := &s.inbox
+	b.mu.Lock()
+	it := b.items[id]
+	b.mu.Unlock()
+	if it == nil {
+		return nil // draftReply returns the ordinary not-found error below.
+	}
+	return s.classifyInboxReplyPolicyItem(ctx, cfg, it)
+}
+
+// classifyInboxReplyPolicyItem classifies one current item and persists the exact content/policy snapshot. Model
+// failures become the durable unknown/owner_only result; only a failed persistence write is returned to the caller.
+func (s *Service) classifyInboxReplyPolicyItem(ctx context.Context, cfg *assistantwire.InboxReplyPolicyConfig, it *InboxItem) error {
+	if cfg == nil || !cfg.Enabled || !validReplyPolicyConfig(cfg) {
+		return nil
+	}
+	b := &s.inbox
+	b.mu.Lock()
+	if !it.open() || !replyPolicyItemApplies(cfg, it) || replyPolicyClassificationCurrent(it, cfg) {
+		b.mu.Unlock()
+		return nil
+	}
+	version, text, truncated := replyPolicyContentVersion(it), it.Context, replyPolicyContextTruncated(it)
+	b.mu.Unlock()
+	category, err := "unknown", errors.New("merged reply context was truncated")
+	if !truncated {
+		category, err = s.classifyReplyPolicyText(ctx, cfg, text)
+	}
+	if err != nil {
+		category = "unknown"
+	}
+	b.mu.Lock()
+	if !it.open() || replyPolicyContentVersion(it) != version {
+		b.mu.Unlock()
+		return nil
+	}
+	w := beginWrite(it)
+	it.ReplyCategory = category
+	it.ReplyMode = replyRoute(category, cfg)
+	it.ReplyClassifiedOf, it.ReplyPolicyRev = version, cfg.Revision
+	it.ReplyReviewed = err == nil && cfg.RequireIndependentReview
+	b.settle(w)
+	b.mu.Unlock()
+	if failed := s.saveWrites(ctx, []*inboxWrite{w}, "its reply policy classification"); failed[it.ID] {
+		return errInboxNotPersisted
+	}
+	return nil
 }
 
 // vetoEditedReply rechecks owner-introduced text before confirmation can reserve a send. Unedited text already carries

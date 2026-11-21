@@ -32,6 +32,9 @@ type suggestionReq struct {
 	// Due is a to-do suggestion's due time as the user left it (a day or a moment, "" none); absent keeps the suggestion's.
 	Due      *string `json:"due"`
 	ClientID string  `json:"client_id"`
+	// Changes is the explicit selection made by an old-client /reply confirmation. Nil means the normal suggestion API,
+	// which confirms the card's stored moves; a non-nil empty slice means the owner deselected every move.
+	Changes *[]DocChange `json:"-"`
 }
 
 var (

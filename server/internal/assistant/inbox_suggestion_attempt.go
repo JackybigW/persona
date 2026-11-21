@@ -115,7 +115,7 @@ func sameReplyOperation(a, b *InboxSuggestionAttempt) bool {
 	return a != nil && b != nil && a.ClientID != "" && a.ClientID == b.ClientID && a.Target == b.Target && sameReplySuggestion(actualReply(a), actualReply(b))
 }
 
-func uncertainReplyOperation(it *InboxItem, g *InboxSuggestion, text string) *InboxSuggestionAttempt {
+func uncertainReplyOperation(it *InboxItem, g *InboxSuggestion, text string, ignoreDraftingProvenance bool) *InboxSuggestionAttempt {
 	if g == nil {
 		return nil
 	}
@@ -123,7 +123,7 @@ func uncertainReplyOperation(it *InboxItem, g *InboxSuggestion, text string) *In
 	actual.Text = text
 	target := suggestionReplyTarget(it)
 	for _, a := range it.SuggestionAttempts {
-		if a != nil && (a.Status == suggestionUnknown || a.Status == suggestionSending) && a.Target == target && sameReplySuggestion(actualReply(a), &actual) {
+		if a != nil && (a.Status == suggestionUnknown || a.Status == suggestionSending) && a.Target == target && sameReplySuggestionMode(actualReply(a), &actual, ignoreDraftingProvenance) {
 			return a
 		}
 	}
@@ -133,7 +133,7 @@ func uncertainReplyOperation(it *InboxItem, g *InboxSuggestion, text string) *In
 // A newer card is not a new delivery intent for the exact same still-uncertain action. Project that operation's
 // receipt onto its version, keeping its send identity and outcome time without inventing another active sender.
 func inheritReplyUncertainty(it *InboxItem, g *InboxSuggestion, text string) *InboxSuggestionAttempt {
-	proof := uncertainReplyOperation(it, g, text)
+	proof := uncertainReplyOperation(it, g, text, false)
 	if proof == nil {
 		return nil
 	}
@@ -183,6 +183,10 @@ func copySuggestion(g *InboxSuggestion) *InboxSuggestion {
 }
 
 func sameReplySuggestion(a, b *InboxSuggestion) bool {
+	return sameReplySuggestionMode(a, b, false)
+}
+
+func sameReplySuggestionMode(a, b *InboxSuggestion, ignoreDraftingProvenance bool) bool {
 	if a == nil || b == nil || a.Kind != SuggestReply || b.Kind != SuggestReply || a.Handback || b.Handback {
 		return false
 	}
@@ -190,6 +194,11 @@ func sameReplySuggestion(a, b *InboxSuggestion) bool {
 	// Notes only explain the card; due dates, directories and machines do not execute on a reply. Changing one
 	// cannot turn the same actual uncertain send into a new version with another send identity.
 	x.Note, y.Note, x.Due, y.Due, x.Cwd, y.Cwd, x.MachineID, y.MachineID = "", "", "", "", "", "", "", ""
+	if ignoreDraftingProvenance {
+		// Only an on-demand draft may project an earlier uncertain physical send onto its own card. Ordinary new
+		// suggestions keep Conversation and Owner as distinct explicit intents and must never inherit that outcome.
+		x.Conversation, y.Conversation, x.Owner, y.Owner = nil, nil, nil, nil
+	}
 	// Classification snapshots authorize a card; they do not identify the physical reply. A policy revision must not
 	// turn the same recipient, text and send ID into a new operation after an uncertain outcome.
 	x.ReplyCategory, y.ReplyCategory, x.ReplyMode, y.ReplyMode = "", "", "", ""
@@ -336,6 +345,26 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		return out, err
 	}
 	a := suggestionAttempt(it, g.Version)
+	if in.Changes != nil {
+		selected := slices.Clone(*in.Changes)
+		if a != nil {
+			var frozen []DocChange
+			if a.Proposal != nil {
+				frozen = a.Proposal.Changes
+			}
+			if !slices.Equal(selected, frozen) {
+				// The first confirmation's explicit selection is part of the physical action. A retry cannot add back a
+				// deselected move (or drop one that may already have executed) under the same durable attempt.
+				out := it.listed()
+				b.mu.Unlock()
+				return out, errSuggestionStale
+			}
+		} else {
+			// Freeze what the old client actually selected into both the current card and its first attempt. In particular,
+			// an omitted /reply changes array is an explicit empty selection, not permission to execute the stored moves.
+			g.Changes = selected
+		}
+	}
 	if a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
 		out := it.listed()
 		b.mu.Unlock()

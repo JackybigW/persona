@@ -1,14 +1,17 @@
 package assistant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/prompts"
 )
 
 // ---- the suggestion tool (inbox_suggest; inbox_draft is its older name for a reply) ----
@@ -203,6 +206,16 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		b.mu.Unlock()
 		return "", nil, nil, false, errStaleInboxTurn
 	}
+	if from == nil && (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
+		for _, note := range it.Agent.Pending {
+			if note.Name == prompts.NoteNewMessages {
+				// Collection has newer content that this turn has not seen. Classification may already have advanced while
+				// delivery still waits; publishing now would stamp old text with the new target and authorization.
+				b.mu.Unlock()
+				return "", nil, nil, false, errStaleInboxTurn
+			}
+		}
+	}
 	if from == nil && (in.Kind != "" || in.Follow != nil) && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errSuggestFiled
@@ -210,6 +223,36 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if in.Reported != nil && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errReportedFiled
+	}
+	if in.Kind == SuggestReply && !in.Handback && replyPolicyItemApplies(replyPolicy, it) && len(it.Chain) > 0 && it.Chain[len(it.Chain)-1].Kind == ChainInstructed {
+		// The latest owner instruction is part of the generated replacement's authority. Classify that text with the
+		// original conversation instead of reusing the item's old category, then reacquire and revalidate everything.
+		before := itemState(it)
+		itemID, conversation := it.ID, it.Context
+		instruction, policy := it.Chain[len(it.Chain)-1].Detail, replyPolicy
+		b.mu.Unlock()
+		category, classifyErr := s.classifyReplyPolicyInput(ctx, policy, prompts.InboxReplyPolicyInput{
+			Text: in.Text, Original: conversation + "\n\nOwner draft instruction:\n" + instruction, Edit: true,
+		})
+		freshCfg, freshErr := s.inboxConfigFresh(ctx)
+		b.mu.Lock()
+		if freshErr != nil {
+			b.mu.Unlock()
+			return itemID, nil, nil, false, errReplyPolicyDenied
+		}
+		if b.items[itemID] != it || !bytes.Equal(before, itemState(it)) {
+			b.mu.Unlock()
+			return itemID, nil, nil, false, errStaleInboxTurn
+		}
+		if !reflect.DeepEqual(policy, freshCfg.ReplyPolicy) {
+			b.mu.Unlock()
+			return itemID, nil, nil, false, errReplyPolicyDenied
+		}
+		replyPolicy = freshCfg.ReplyPolicy
+		if classifyErr != nil || replyRoute(category, policy) != ReplyRouteOwnerDraft {
+			b.mu.Unlock()
+			return itemID, nil, nil, false, errReplyPolicyDenied
+		}
 	}
 	if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
 		b.mu.Unlock()
