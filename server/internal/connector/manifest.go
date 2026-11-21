@@ -40,6 +40,10 @@ const (
 	CapFallback Capability = "fallback" // (none: every inbox thing carries extra.rule_tier)
 	CapMachines Capability = "machines" // Machines
 	CapRecall   Capability = "recall"   // (none: a program's connector declares it; Recaller is found by RecallerOf)
+	// CapInboxVisibility is a promise that the provider enforces initialize.inbox_visibility before returning source
+	// content, including a positive group-type preflight for the all-direct-chats switch. Older providers do not
+	// declare it, so the manager's fallback refuses reads it cannot authorize on their behalf.
+	CapInboxVisibility Capability = "inbox_visibility" // (none)
 	// History import (docs/protocol/connector-protocol.md "History"): CapHistory needs CapArchive, CapHistoryAnchors
 	// needs CapHistory.
 	CapHistory        Capability = "history"         // History
@@ -74,6 +78,7 @@ var capabilities = []capability{
 	{CapFallback, nil, false},
 	{CapMachines, reflect.TypeFor[Machines](), false},
 	{CapRecall, nil, false},
+	{CapInboxVisibility, nil, false},
 	{CapHistory, reflect.TypeFor[History](), true},
 	{CapHistoryAnchors, reflect.TypeFor[HistoryAnchors](), true},
 }

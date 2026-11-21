@@ -108,6 +108,19 @@ func (s *Service) handOff(ctx context.Context, id string, in handoffReq) (InboxI
 		b.mu.Unlock()
 		return InboxItem{}, SessionRef{}, errNoInboxItem
 	}
+	b.mu.Unlock()
+	allowed, err := s.inboxVisibilityModelAllowed(ctx, it)
+	if err != nil {
+		return InboxItem{}, SessionRef{}, err
+	}
+	if !allowed {
+		return InboxItem{}, SessionRef{}, errCannotReply
+	}
+	b.mu.Lock()
+	if b.items[id] != it {
+		b.mu.Unlock()
+		return InboxItem{}, SessionRef{}, errNoInboxItem
+	}
 	if in.ReusePending {
 		var to *SessionRef
 		if g := currentSuggestion(it); g != nil && g.SourceOf == suggestionReplyTarget(it) {
@@ -359,6 +372,20 @@ func (s *Service) tellHandoff(ctx context.Context, id, title string, to SessionR
 		cctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		hello := s.hello(cctx)
+		b := &s.inbox
+		b.mu.Lock()
+		it := b.items[id]
+		b.mu.Unlock()
+		if it == nil {
+			return
+		}
+		allowed, err := s.inboxVisibilityModelAllowed(cctx, it)
+		if err != nil || !allowed {
+			if err != nil {
+				s.logf("inbox: tell %s about %s: fresh visibility: %v", short(to.SessionID), id, err)
+			}
+			return
+		}
 		text := renderHandoffNoteIn(n, inboxPromptOwner(hello), id, title, answerLanguage(hello.Locale))
 		params, err := s.sendParams(cctx, SendParams{MachineID: to.MachineID, SessionID: to.SessionID,
 			Params: map[string]any{"session_id": to.SessionID, "text": text}})
@@ -502,7 +529,7 @@ func (s *Service) confirmHandedAgent(ctx context.Context, it *InboxItem, g *Inbo
 	b := &s.inbox
 	if err == nil {
 		b.mu.Lock()
-		if inboxVisibilityExcluded(it, freshCfg.Visibility) {
+		if inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility) {
 			err = errCannotReply
 		} else {
 			err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)

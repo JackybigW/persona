@@ -401,6 +401,19 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 	b := &s.inbox
 	b.mu.Lock()
 	it, ok := b.items[id]
+	b.mu.Unlock()
+	if !ok {
+		return "", errNoInboxItem
+	}
+	allowed, err := s.inboxVisibilityModelAllowed(ctx, it)
+	if err != nil {
+		return "", err
+	}
+	if !allowed {
+		return "", errCannotReply
+	}
+	b.mu.Lock()
+	it, ok = b.items[id]
 	var item prompts.InboxItem
 	if ok {
 		item = b.promptItemIn(it, language)
@@ -559,7 +572,7 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 		}
 		text := attempt.Text
 		b.mu.Lock()
-		visibilityDenied := inboxVisibilityExcluded(it, vetoCfg.Visibility)
+		visibilityDenied := inboxVisibilityWithMembersExcludedLocked(b, it, vetoCfg.Visibility)
 		b.mu.Unlock()
 		if visibilityDenied {
 			return InboxItem{}, errCannotReply
@@ -578,7 +591,7 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 		// scope that authorized an edited reply needs to reject this attempt; an inert disabled-config edit does not.
 		configChanged := freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy))
 		current := !configChanged && b.currentReplyAttempt(it, attempt) && replyPolicySendGate(it, attempt.Proposal, freshCfg.ReplyPolicy) == nil &&
-			!inboxVisibilityExcluded(it, freshCfg.Visibility)
+			!inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility)
 		b.mu.Unlock()
 		if configChanged {
 			return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration changed"}

@@ -43,7 +43,9 @@ func (s *Service) isInboxModelCall(ctx context.Context, machine, session, origin
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !s.originsLocked(ctx) {
-		return false // a new node still fails closed through its hint; do not break every ordinary call on a store error
+		// An unreadable origin book is not evidence of an ordinary conversation. In particular, an older node without an
+		// origin hint must not turn a persisted Inbox handling session into an unrestricted one during a store outage.
+		return true
 	}
 	o := b.m[session]
 	return o != nil && o.Origin == OriginInbox && (o.MachineID == "" || s.sameMachine(machine, o.MachineID))
@@ -87,18 +89,33 @@ func (s *Service) managerOriginDecision(ctx context.Context, machine, session, s
 // inboxModelRefusal applies only to model/node tool entry points, never runTool. Owner-confirmed reply, Agent and to-do
 // execution deliberately takes the latter path as the owner's action.
 func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, originHint, name string) (proto.ToolResult, bool) {
+	if originHint != OriginInbox {
+		b := &s.origins
+		b.mu.Lock()
+		known := s.originsLocked(ctx)
+		b.mu.Unlock()
+		if !known {
+			// A potentially Inbox-originated session cannot use a source_only allowlist while its origin is unknown. The
+			// profile restricts an established Inbox conversation; it is not positive evidence that this is one.
+			return proto.TextResult("The conversation origin is temporarily unavailable; no source or other tool read was performed.", true), true
+		}
+	}
 	if !s.isInboxModelCall(ctx, machine, session, originHint) {
 		return proto.ToolResult{}, false
 	}
-	agentCfg := s.inboxConfig(ctx).Agent
+	fullCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
+		return proto.TextResult("Inbox read policy is temporarily unavailable; no source or other tool read was performed.", true), true
+	}
+	agentCfg := fullCfg.Agent
 	if agentCfg.ReadProfile != "" {
 		// Suggestions never read another source. Every other tool is denied for an unknown profile; source_only admits
 		// only an explicitly named connector tool whose registered interface is read-only.
-		if name == "inbox_suggest" || name == "inbox_draft" || name == "inbox_folders" {
+		if name == "inbox_suggest" || name == "inbox_draft" {
 			return proto.ToolResult{}, false
 		}
 		if agentCfg.ReadProfile == "source_only" {
-			if name == "lark_search" || name == "larkcli_search" {
+			if name == "lark_search" || name == "larkcli_search" || s.ext != nil && s.ext.ConnectorTool(name) && strings.HasSuffix(name, "_search") {
 				// An explicit read-only marker cannot prove that global search results omitted excluded bodies. Keep search
 				// unavailable in this profile even if a configuration accidentally allowlists it.
 				return proto.TextResult("This Inbox read profile does not allow global search; read a named source chat instead.", true), true

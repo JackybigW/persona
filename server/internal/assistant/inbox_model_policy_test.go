@@ -172,7 +172,7 @@ func TestSourceOnlyInboxToolPolicy(t *testing.T) {
 	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
 	for _, name := range []string{
 		"kb_search", "kb_get", "kb_update", "conversation_read", "agent_read", "agents_list",
-		"lark_search", "lark_chats", "phone_calendar_events",
+		"lark_search", "lark_chats", "phone_calendar_events", "inbox_folders",
 	} {
 		res := h.mcpCallWithOrigin(t.Context(), "server", "s1", name, json.RawMessage(`{}`), true, OriginInbox)
 		if !res.IsError {
@@ -182,7 +182,7 @@ func TestSourceOnlyInboxToolPolicy(t *testing.T) {
 	if len(ext.calls) != 0 {
 		t.Fatalf("refused source_only connector calls executed: %v", ext.calls)
 	}
-	for _, name := range []string{"inbox_suggest", "inbox_draft", "inbox_folders"} {
+	for _, name := range []string{"inbox_suggest", "inbox_draft"} {
 		if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, name); refused {
 			t.Errorf("source_only refused the suggestion tool %s", name)
 		}
@@ -223,11 +223,10 @@ func TestUnknownInboxReadProfileFailsClosed(t *testing.T) {
 		c.Agent.ConnectorTools = []string{"lark_messages"}
 	})
 	h.originSet(t.Context(), "server", "s1", OriginInbox, it.ID, "")
-	if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, "lark_messages"); !refused {
-		t.Fatal("an unknown read profile allowed connector reads")
-	}
-	if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, "kb_search"); !refused {
-		t.Fatal("an unknown read profile allowed knowledge-base reads")
+	for _, name := range []string{"lark_messages", "kb_search", "inbox_folders"} {
+		if _, refused := h.inboxModelRefusal(t.Context(), "server", "s1", OriginInbox, name); !refused {
+			t.Errorf("an unknown read profile allowed %s", name)
+		}
 	}
 }
 

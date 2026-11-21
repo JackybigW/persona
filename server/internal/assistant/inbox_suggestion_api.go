@@ -106,7 +106,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		}
 		b.mu.Lock()
 		it = b.items[id]
-		visibilityDenied := it != nil && inboxVisibilityExcluded(it, vetoCfg.Visibility)
+		visibilityDenied := it != nil && inboxVisibilityWithMembersExcludedLocked(b, it, vetoCfg.Visibility)
 		var visibilityItem InboxItem
 		if visibilityDenied {
 			visibilityItem = it.listed()
@@ -152,7 +152,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b.mu.Unlock()
 		return out, errSuggestionStale
 	}
-	if inboxVisibilityExcluded(it, fullCfg.Visibility) && in.Action != suggestReject {
+	if inboxVisibilityWithMembersExcludedLocked(b, it, fullCfg.Visibility) && in.Action != suggestReject {
 		out := it.listed()
 		b.mu.Unlock()
 		return out, errCannotReply
@@ -329,7 +329,7 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 	freshCfg, err := s.queryInboxConfig(ctx)
 	if err == nil {
 		b.mu.Lock()
-		if inboxVisibilityExcluded(it, freshCfg.Visibility) {
+		if inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility) {
 			err = errCannotReply
 		} else {
 			err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)

@@ -111,6 +111,22 @@ func (h *Manager) readSubscriptions(ctx context.Context, r *assistantwire.InboxR
 		}
 		return
 	}
+	if h.inboxVisibilityHasUnsupportedSource() {
+		// InboxSources reads every ready subscription in one call. If any selected source cannot preflight its own
+		// bodies, do not issue that mixed read and filter afterward; list metadata only and leave all subscriptions unread.
+		list, _, err := h.subs.List(ctx, subscriptions.Filter{})
+		if err != nil {
+			h.logf("inbox: subscriptions: %v", err)
+			return
+		}
+		for _, sub := range list {
+			r.Names[sub.ID] = sub.Label
+			if h.inboxVisibilityBlocksSource(sub.ID) {
+				r.Sources = append(r.Sources, assistantwire.InboxSource{ID: sub.ID, Name: sub.Label, Off: true, Things: []connector.InboxThing{}})
+			}
+		}
+		return
+	}
 	srcs, err := h.subs.InboxSources(ctx)
 	if err != nil {
 		h.logf("inbox: subscriptions: %v", err)
@@ -226,6 +242,11 @@ func (sc subscriptionConnectors) info(ctx context.Context, c connector.Connector
 			Inbox:   c.Manifest().Has(connector.CapInbox) && r.Feeds(c.ID(), connector.FeedInbox),
 			Archive: c.Manifest().Has(connector.CapArchive) && r.Feeds(c.ID(), connector.FeedArchive),
 		}}
+	if sc.h.inboxVisibilityHasUnsupportedSource() {
+		// The runner calls c.Conn directly after ready(); InboxSources' guard cannot cover that independent loop. Match
+		// its conservative all-subscription pause before catalog, dry-run or scheduled pull can reach a source body.
+		out.Enabled = false
+	}
 	if hp := sc.h.extensions.ownerOf(c); hp != nil {
 		out.Extension = hp.id
 	}
@@ -244,7 +265,7 @@ func (sc subscriptionConnectors) Find(ctx context.Context, id string) (subscript
 func (sc subscriptionConnectors) All(ctx context.Context) []subscriptions.ConnectorInfo {
 	var out []subscriptions.ConnectorInfo
 	for _, c := range sc.h.connectors.All() {
-		info := subscriptions.ConnectorInfo{ID: c.ID(), Conn: c, Enabled: sc.h.connectors.Enabled(c.ID())}
+		info := subscriptions.ConnectorInfo{ID: c.ID(), Conn: c, Enabled: sc.h.connectors.Enabled(c.ID()) && !sc.h.inboxVisibilityHasUnsupportedSource()}
 		if hp := sc.h.extensions.ownerOf(c); hp != nil {
 			info.Extension = hp.id
 		}

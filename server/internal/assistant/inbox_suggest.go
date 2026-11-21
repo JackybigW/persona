@@ -204,7 +204,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		b.mu.Unlock()
 		return "", nil, nil, false, errStaleInboxTurn
 	}
-	if inboxVisibilityExcluded(it, visibility) {
+	if inboxVisibilityWithMembersExcludedLocked(b, it, visibility) {
 		b.mu.Unlock()
 		return "", nil, nil, false, errCannotReply
 	}

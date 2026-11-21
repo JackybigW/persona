@@ -242,6 +242,10 @@ type inboxMergeReply struct {
 func (s *Service) mergeInbox(ctx context.Context, targets []inboxBulkTarget, now time.Time) (inboxMergeReply, error) {
 	b := &s.inbox
 	out := inboxMergeReply{Members: []string{}, Skipped: []inboxBulkSkip{}}
+	fullCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
+		return out, configErr
+	}
 	b.mu.Lock()
 	var items []*InboxItem
 	seen := map[string]bool{}
@@ -254,6 +258,8 @@ func (s *Service) mergeInbox(ctx context.Context, targets []inboxBulkTarget, now
 		switch {
 		case !ok:
 			out.Skipped = append(out.Skipped, inboxBulkSkip{t.ID, bulkSkipMissing})
+		case inboxVisibilityWithMembersExcludedLocked(b, it, fullCfg.Visibility):
+			out.Skipped = append(out.Skipped, inboxBulkSkip{t.ID, bulkSkipChanged})
 		case !it.open() || it.MergedInto != "" || b.filing[t.ID] != nil && b.holdsFiling(b.filing[t.ID]):
 			out.Skipped = append(out.Skipped, inboxBulkSkip{t.ID, bulkSkipChanged})
 		case t.Version != "" && t.Version != inboxVersion(it):

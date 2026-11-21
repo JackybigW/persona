@@ -39,6 +39,10 @@ func inboxVisibilityMatch(it *InboxItem, cfg *assistantwire.InboxVisibilityConfi
 			known = true
 		}
 	}
+	if chatID == "" && (cfg.DirectChats || len(cfg.Chats) > 0) {
+		// A selected source without a verifiable chat id cannot prove that it is outside an explicit list either.
+		return true
+	}
 	for _, excluded := range cfg.Chats {
 		if chatID != "" && strings.TrimSpace(excluded) == strings.TrimSpace(chatID) {
 			return true
@@ -51,6 +55,82 @@ func inboxVisibilityExcluded(it *InboxItem, cfg *assistantwire.InboxVisibilityCo
 	return it != nil && (it.VisibilityExcluded || inboxVisibilityMatch(it, cfg))
 }
 
+// inboxVisibilityThingItem gives pre-admission batches the same metadata-only decision as stored items. No body or
+// connector call is needed: migrated Lark blocks, generic chat tags/kind and the legacy chat:<feed> thread are enough.
+func inboxVisibilityThingItem(source string, t connector.InboxThing) *InboxItem {
+	it := &InboxItem{Source: source}
+	fillConnectorItem(it, t)
+	if t.Extra != nil && t.Extra.HasBlock() {
+		setBlocks(it, t.Extra)
+	}
+	if it.Lark == nil && source == migratedConnectorID {
+		if feed, ok := larkChatFeed(t.Thread); ok {
+			it.Lark = &InboxLark{FeedID: feed, IsGroup: t.Kind == KindGroup || t.Kind == KindMention}
+		}
+	}
+	return it
+}
+
+// inboxVisibilityBatchAllowed runs before pre-admission grouping can call its model, group tool, fallback or append.
+// The fresh configuration is returned so candidate events from the same batch can be filtered with the same snapshot.
+func (s *Service) inboxVisibilityBatchAllowed(ctx context.Context, source string, t connector.InboxThing) (assistantwire.InboxConfig, bool) {
+	cfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return assistantwire.InboxConfig{}, false
+	}
+	if inboxVisibilityExcluded(inboxVisibilityThingItem(source, t), cfg.Visibility) {
+		s.quarantineInboxVisibility(ctx, cfg.Visibility)
+		return cfg, false
+	}
+	return cfg, true
+}
+
+// inboxVisibilityWithMembersExcludedLocked also treats a survivor as excluded when any hidden merged member is
+// excluded. Otherwise an old mixed merge could keep feeding private member text to triage, drafting and title models.
+// The caller holds inbox.mu; the visited set also makes malformed historical merge cycles fail without recursing forever.
+func inboxVisibilityWithMembersExcludedLocked(b *inboxBook, it *InboxItem, cfg *assistantwire.InboxVisibilityConfig) bool {
+	if it == nil {
+		return false
+	}
+	if stored := b.items[it.ID]; stored != nil {
+		it = stored
+	}
+	visiting := map[*InboxItem]bool{}
+	var excluded func(*InboxItem) bool
+	excluded = func(current *InboxItem) bool {
+		if current == nil || visiting[current] {
+			return false
+		}
+		if inboxVisibilityExcluded(current, cfg) {
+			return true
+		}
+		visiting[current] = true
+		defer delete(visiting, current)
+		for _, ref := range current.MergedFrom {
+			member := b.items[ref.ID]
+			if member != nil && member.MergedInto == current.ID && excluded(member) {
+				return true
+			}
+		}
+		return false
+	}
+	return excluded(it)
+}
+
+// inboxVisibilityProviderAllowed requires positive provider support before any selected source's content reaches a
+// model. The two Lark providers implement the boundary; every other source must declare it through the extension
+// manager. This also protects transient dry-run items, which have no stored quarantine marker.
+func (s *Service) inboxVisibilityProviderAllowed(cfg *assistantwire.InboxVisibilityConfig, source string) bool {
+	if cfg == nil || !cfg.DirectChats && len(cfg.Chats) == 0 || !cfg.AppliesTo(source) {
+		return true
+	}
+	if source == "lark" || source == "larkcli" {
+		return true
+	}
+	provider, ok := s.ext.(interface{ InboxVisibilityProvider(string) bool })
+	return ok && provider.InboxVisibilityProvider(source)
+}
+
 // inboxVisibilityModelAllowed authorizes one item immediately before any model prompt is built from its content.
 // The display cache is not an authorization input. Existing items are quarantined in the same pass; callers handling
 // a not-yet-admitted item persist the excluded verdict themselves. A configuration error never permits a model read.
@@ -59,28 +139,57 @@ func (s *Service) inboxVisibilityModelAllowed(ctx context.Context, it *InboxItem
 	if err != nil {
 		return false, err
 	}
-	if inboxVisibilityExcluded(it, cfg.Visibility) {
+	source := ""
+	if it != nil {
+		source = it.Source
+	}
+	if !s.inboxVisibilityProviderAllowed(cfg.Visibility, source) {
+		s.quarantineInboxVisibility(ctx, cfg.Visibility)
+		return false, nil
+	}
+	b := &s.inbox
+	b.mu.Lock()
+	excluded := inboxVisibilityWithMembersExcludedLocked(b, it, cfg.Visibility)
+	b.mu.Unlock()
+	if excluded {
 		s.quarantineInboxVisibility(ctx, cfg.Visibility)
 		return false, nil
 	}
 	return true, nil
 }
 
-// inboxVisibilityToolRefusal is the manager-side veto for an explicitly listed target. It keeps the local manager
-// configuration effective even when an older source extension has no visibility preflight. A source that implements
-// the all-direct-chats switch still performs its own metadata check, so ordinary groups need not be guessed here.
+// inboxVisibilityToolRefusal is the manager-side veto for an explicitly listed target or a read an older provider
+// cannot authorize. A provider declaring CapInboxVisibility performs the positive group-type preflight itself; without
+// that declaration the all-direct-chats switch fails closed instead of guessing from an unverifiable chat id.
 func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, session, origin, name string, args json.RawMessage) (proto.ToolResult, bool) {
 	if !s.isInboxModelCall(ctx, machine, session, origin) {
 		return proto.ToolResult{}, false
 	}
-	source := ""
+	source, kind := "", ""
+	generic := false
 	switch name {
-	case "lark_messages", "lark_search":
-		source = "lark"
-	case "larkcli_messages", "larkcli_search":
-		source = "larkcli"
+	case "lark_messages":
+		source, kind = "lark", "messages"
+	case "lark_search":
+		source, kind = "lark", "search"
+	case "lark_chats":
+		source, kind = "lark", "chats"
+	case "larkcli_messages":
+		source, kind = "larkcli", "messages"
+	case "larkcli_search":
+		source, kind = "larkcli", "search"
+	case "larkcli_chats":
+		source, kind = "larkcli", "chats"
 	default:
-		return proto.ToolResult{}, false
+		resolve, ok := s.ext.(interface{ InboxVisibilitySource(string) (string, bool) })
+		if !ok {
+			return proto.ToolResult{}, false
+		}
+		source, ok = resolve.InboxVisibilitySource(name)
+		if !ok || source == "" {
+			return proto.ToolResult{}, false
+		}
+		generic = true
 	}
 	denied := func() (proto.ToolResult, bool) {
 		return proto.TextResult("This chat is excluded from AI and knowledge-base reads.", true), true
@@ -97,7 +206,18 @@ func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, sessi
 	if !inboxVisibilitySource(cfg, source) {
 		return proto.ToolResult{}, false
 	}
-	if name == "lark_search" || name == "larkcli_search" {
+	preflight, ok := s.ext.(interface{ InboxVisibilityPreflight(string) bool })
+	providerChecks := ok && preflight.InboxVisibilityPreflight(name)
+	if generic {
+		// Arbitrary connector ids are supported by visibility.sources. A provider without the positive preflight
+		// capability cannot prove that its response omitted an excluded body, whatever its tool is named. A capable
+		// provider owns its source-specific argument schema; global search remains unavailable in either case.
+		if strings.HasSuffix(name, "_search") || !providerChecks {
+			return denied()
+		}
+		return proto.ToolResult{}, false
+	}
+	if kind == "search" {
 		// Result-level filtering cannot prove that a global search omitted an excluded body.
 		return denied()
 	}
@@ -105,8 +225,35 @@ func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, sessi
 		ChatID string `json:"chat_id"`
 		Chat   string `json:"chat"`
 		FeedID string `json:"feed_id"`
+		Thread string `json:"thread"`
+		Filter string `json:"filter"`
 	}
 	if len(args) == 0 || json.Unmarshal(args, &target) != nil {
+		return denied()
+	}
+	if kind == "chats" {
+		switch strings.TrimSpace(target.Filter) {
+		case "", "recent", "unread":
+			// An older provider's list can include an explicitly excluded preview, and cannot establish that every row
+			// is a group. Without a provider-side preflight, no chat-list response is authorized under either control.
+			if !providerChecks {
+				return denied()
+			}
+			return proto.ToolResult{}, false
+		case "at_me":
+			// This mode is implemented by a body-returning message search on older providers. The current provider
+			// contract disables it whenever either visibility control is on.
+			return denied()
+		default:
+			if !providerChecks {
+				return denied()
+			}
+			return proto.ToolResult{}, false
+		}
+	}
+	if strings.TrimSpace(target.Thread) != "" {
+		// Lark runners prefer thread over chat_id when both are supplied. The allowed chat_id is not evidence about
+		// the thread, whose own chat cannot be verified before its bodies are returned.
 		return denied()
 	}
 	chatID := strings.TrimSpace(target.ChatID)
@@ -117,13 +264,15 @@ func (s *Service) inboxVisibilityToolRefusal(ctx context.Context, machine, sessi
 		chatID = strings.TrimSpace(target.FeedID)
 	}
 	if chatID == "" {
-		// A thread-only request cannot be tied to a verifiable chat without reading it first.
 		return denied()
 	}
 	for _, excluded := range cfg.Chats {
 		if chatID == strings.TrimSpace(excluded) {
 			return denied()
 		}
+	}
+	if cfg.DirectChats && !providerChecks {
+		return denied()
 	}
 	return proto.ToolResult{}, false
 }
@@ -137,7 +286,7 @@ func (s *Service) quarantineInboxVisibility(ctx context.Context, cfg *assistantw
 	var writes []*inboxWrite
 	now := time.Now()
 	for _, it := range b.items {
-		if !inboxVisibilityExcluded(it, cfg) {
+		if !inboxVisibilityWithMembersExcludedLocked(b, it, cfg) {
 			continue
 		}
 		active, pending := inboxAgentReleaseState(it)

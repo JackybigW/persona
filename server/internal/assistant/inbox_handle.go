@@ -451,6 +451,12 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 		s.saveInbox(ctx, []*InboxItem{it})
 		return
 	}
+	// A failed quarantine write can roll an item back to its former pending notes and session ids. Reauthorize the
+	// current item, including merged members, immediately before those notes can enter an AI conversation.
+	allowed, visibilityErr := s.inboxVisibilityModelAllowed(ctx, it)
+	if visibilityErr != nil || !allowed {
+		return
+	}
 	texts := make([]string, len(notes))
 	for i, n := range notes {
 		texts[i] = renderNoteIn(n, owner, language)
@@ -584,6 +590,13 @@ func (s *Service) judgeInboxTask(ctx context.Context, it *InboxItem, tasks []pro
 	sc := inboxScopeOf(it)
 	b.mu.Unlock()
 	if tasks = s.scopeInboxTasks(sc, tasks); len(tasks) == 0 {
+		return "", nil
+	}
+	allowed, visibilityErr := s.inboxVisibilityModelAllowed(ctx, it)
+	if visibilityErr != nil {
+		return "", visibilityErr
+	}
+	if !allowed {
 		return "", nil
 	}
 	hello := s.hello(ctx)

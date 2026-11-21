@@ -111,7 +111,7 @@ func (c *Connector) Profile() string {
 }
 
 func (c *Connector) Manifest() connector.Manifest {
-	return connector.Manifest{Capabilities: []connector.Capability{connector.CapStatus, connector.CapTools, connector.CapEvents, connector.CapInbox, connector.CapOptions, connector.CapLogin, connector.CapThreads}, Kinds: []string{"dm", "bot", "mention", "group", "doc"}}
+	return connector.Manifest{Capabilities: []connector.Capability{connector.CapStatus, connector.CapTools, connector.CapEvents, connector.CapInbox, connector.CapOptions, connector.CapLogin, connector.CapThreads, connector.CapInboxVisibility}, Kinds: []string{"dm", "bot", "mention", "group", "doc"}}
 }
 
 func (c *Connector) Tools() []proto.Tool {
@@ -242,6 +242,11 @@ func (c *Connector) messages(ctx context.Context, args json.RawMessage) (string,
 	}
 	if a.ChatID == "" && a.Thread == "" {
 		return "", fmt.Errorf("chat_id is required")
+	}
+	if a.Thread != "" && c.replyVisibilityEnabled() {
+		// The CLI reads a thread instead of chat_id whenever both are present. A chat_id therefore cannot authorize
+		// a mixed request, and the thread's own chat cannot be verified before its bodies are returned.
+		return "", errReplyVisibilityDenied
 	}
 	if err := c.checkReplyChat(ctx, a.ChatID); err != nil {
 		return "", err

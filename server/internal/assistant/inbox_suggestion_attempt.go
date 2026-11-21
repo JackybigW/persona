@@ -471,7 +471,7 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 	}
 	b.mu.Lock()
 	current := b.currentReplyAttempt(it, a) && replyPolicySendGate(it, g, freshCfg.ReplyPolicy) == nil &&
-		!inboxVisibilityExcluded(it, freshCfg.Visibility)
+		!inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility)
 	b.mu.Unlock()
 	if !current {
 		return s.finishSuggestionReply(ctx, it, a, errSuggestionStale)

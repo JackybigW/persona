@@ -125,6 +125,9 @@ func (c *Connector) replyVisibilityEnabled() bool {
 }
 
 func (c *Connector) filterReplyChats(page adapter.ChatList) adapter.ChatList {
+	if !c.replyVisibilityEnabled() {
+		return page
+	}
 	visible := page.Chats[:0]
 	for _, chat := range page.Chats {
 		if !c.replyChatExcluded(chat.ChatID, chat.ChatType, chat.ChatMode) {

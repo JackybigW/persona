@@ -330,8 +330,6 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		return
 	}
 	replyPolicy := fullCfg.ReplyPolicy
-	// Only the legacy empty profile receives automatic KB context. source_only and every unknown profile fail closed.
-	allowKBContext := fullCfg.Agent.ReadProfile == ""
 	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the same fresh visibility
 	// configuration as reply-policy admission, so a newly listed stored chat cannot start or keep an AI session.
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
@@ -343,7 +341,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		if it.Agent == nil {
 			continue
 		}
-		if inboxVisibilityExcluded(it, fullCfg.Visibility) {
+		if inboxVisibilityWithMembersExcludedLocked(b, it, fullCfg.Visibility) {
 			if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
 				released = append(released, w)
 			}
@@ -370,10 +368,14 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	}
 	b.sortQueued(queued)
 	type job struct {
-		it      *InboxItem
-		chat    string
-		prompt  func(*prompts.KBContext) string
-		carried int // the agent's told count when the first message was made: it carries the notes queued up to it
+		it             *InboxItem
+		chat           string
+		prompt         func(*prompts.KBContext, bool) string
+		carried        int // the agent's told count when the first message was made: it carries the notes queued up to it
+		turn           string
+		attempts       int
+		startedAt      *time.Time
+		processingTurn string
 	}
 	var jobs []job
 	var adopted []*inboxWrite
@@ -395,20 +397,29 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			// Admit now so that message includes every note and the replay establishes the same restoration state.
 			b.admitInboxSourceWake(it, now)
 		}
+		previousAttempts, previousStartedAt, previousProcessingTurn := it.Agent.Attempts, it.Agent.StartedAt, it.Agent.ProcessingTurn
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
 		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
-		if allowKBContext {
-			a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
-		}
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn
-		jobs = append(jobs, job{it, b.kbChatOf(it), func(kbc *prompts.KBContext) string {
-			a.KB = kbc
-			return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(a))
-		},
-			it.Agent.told})
+		jobs = append(jobs, job{
+			it:   it,
+			chat: b.kbChatOf(it),
+			prompt: func(kbc *prompts.KBContext, allowKBContext bool) string {
+				if allowKBContext {
+					a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
+				}
+				a.KB = kbc
+				return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(a))
+			},
+			carried:        it.Agent.told,
+			turn:           turn,
+			attempts:       previousAttempts,
+			startedAt:      previousStartedAt,
+			processingTurn: previousProcessingTurn,
+		})
 	}
 	b.mu.Unlock()
 	// A failed release stays queued for the next pass, but never starts under the rule.
@@ -419,12 +430,36 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		s.deliverNotes(ctx, w.it) // nothing goes for an undone one (no conversation)
 	}
 	for _, j := range jobs {
+		// Starts are sequential and each may wait for the full start timeout. Reauthorize this item after any earlier
+		// start and immediately before rendering its prompt, rather than using the queue pass's captured visibility.
+		freshCfg, freshErr := s.inboxConfigFresh(ctx)
+		if freshErr != nil {
+			s.logf("inbox: fresh settings before starting %s: %v", j.it.ID, freshErr)
+			b.mu.Lock()
+			a := j.it.Agent
+			restored := a != nil && j.it.open() && a.State == AgentRunning && a.SessionID == "" && a.ProcessingTurn == j.turn
+			if restored {
+				// No start went out: restore the queued admission instead of spending an attempt or reporting a start failure.
+				a.State, a.Attempts, a.StartedAt, a.ProcessingTurn, a.RetryAfter = AgentQueued, j.attempts, j.startedAt, j.processingTurn, nil
+			}
+			b.mu.Unlock()
+			if restored {
+				s.saveInbox(ctx, []*InboxItem{j.it})
+			}
+			continue
+		}
+		if inboxVisibilityWithMembersExcludedLocked(b, j.it, freshCfg.Visibility) {
+			s.quarantineInboxVisibility(ctx, freshCfg.Visibility)
+			continue
+		}
+		// Only the legacy empty profile receives automatic KB context. source_only and every unknown profile fail closed.
+		allowKBContext := freshCfg.Agent.ReadProfile == ""
 		var kbc *prompts.KBContext
 		if allowKBContext && j.chat != "" {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)
-		machineID, sessionID, err := s.startInboxAgent(cctx, cfg, j.it, j.prompt(kbc))
+		machineID, sessionID, err := s.startInboxAgent(cctx, cfg, j.it, j.prompt(kbc, allowKBContext))
 		cancel()
 		b.mu.Lock()
 		a := j.it.Agent
