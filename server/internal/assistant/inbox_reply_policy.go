@@ -156,8 +156,10 @@ func replyPolicyContentVersion(it *InboxItem) string {
 	version := strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + it.Context
 	sources := replyPolicySourceSet(it)
 	if len(sources) > 1 || it.ReplyContextTruncated {
-		// A clipped append can leave Last and Context byte-for-byte unchanged. Bind the source boundary and the fact
-		// that classification no longer saw the complete merged text into the version as well.
+		// A clipped append can leave Last and Context byte-for-byte unchanged. Use a separate domain and length-prefix
+		// both text fields: Context itself may contain the source/truncation marker bytes, so suffixing the legacy form
+		// would let an ordinary item collide with a different merged authorization state.
+		version = "reply-policy-merged\x00" + strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + strconv.Itoa(len(it.Context)) + "\x00" + it.Context
 		version += "\x00sources\x00" + strconv.Itoa(len(sources))
 		for _, source := range sources {
 			version += "\x00" + strconv.Itoa(len(source)) + "\x00" + source

@@ -864,6 +864,17 @@ func TestInboxReplyPolicyOnDemandDraftGate(t *testing.T) {
 	})
 }
 
+func TestInboxReplyPolicyMergedContentVersionIsUnambiguous(t *testing.T) {
+	// The old merged encoding appended source/truncation fields directly after Context. This ordinary Context is exactly
+	// the byte sequence produced for the truncated item below, so the two different authorization states collided.
+	suffix := "\x00sources\x001\x001\x00a\x00truncated\x00true"
+	ordinary := &InboxItem{Source: "a", Last: "1", Context: "x" + suffix}
+	truncated := &InboxItem{Source: "a", Last: "1", Context: "x", ReplyContextTruncated: true}
+	if replyPolicyContentVersion(ordinary) == replyPolicyContentVersion(truncated) {
+		t.Fatal("ordinary and truncated content share an authorization version through ambiguous concatenation")
+	}
+}
+
 func TestInboxReplyPolicyMergedContextInvalidatesDraft(t *testing.T) {
 	h, lark, it := handledHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
