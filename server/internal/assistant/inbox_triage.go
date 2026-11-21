@@ -536,15 +536,29 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 	once := r.(*inboxReply)
 	once.mu.Lock()
 	defer once.mu.Unlock()
-	if attempt, _ := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt); attempt != nil {
+	attempt, _ := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt)
+	legacyVersion := 0
+	legacyText := ""
+	if attempt == nil && followDirect {
+		b.mu.Lock()
+		if g := mirroredLegacyReply(it); g != nil {
+			legacyVersion, legacyText = g.Version, g.Text
+		}
+		b.mu.Unlock()
+	}
+	if attempt != nil || legacyVersion != 0 {
 		// The per-item send mutex may have waited behind another reply, and an edit veto may wait on model calls.
 		// Neither the five-second display cache nor a pre-wait snapshot is sufficient immediately before an outward send.
+		// Old clients confirm the same mirrored AI draft through /reply without an attempt, so they use this gate too.
 		vetoCfg, err := s.inboxConfigFresh(ctx)
 		if err != nil {
 			return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration unavailable"}
 		}
-		text := attempt.Text
-		if err := s.vetoEditedReply(ctx, id, suggestionReq{Version: attempt.Version, Action: suggestConfirm, Text: &text}, vetoCfg.ReplyPolicy); err != nil {
+		sendText, version := text, legacyVersion
+		if attempt != nil {
+			sendText, version = attempt.Text, attempt.Version
+		}
+		if err := s.vetoEditedReply(ctx, id, suggestionReq{Version: version, Action: suggestConfirm, Text: &sendText}, vetoCfg.ReplyPolicy); err != nil {
 			return InboxItem{}, err
 		}
 		freshCfg, err := s.inboxConfigFresh(ctx)
@@ -557,7 +571,12 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 		// Nil and explicitly disabled policies are the same legacy authorization. Only a change into, or within, the
 		// scope that authorized an edited reply needs to reject this attempt; an inert disabled-config edit does not.
 		configChanged := freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy))
-		current := !configChanged && b.currentReplyAttempt(it, attempt) && replyPolicySendGate(it, attempt.Proposal, freshCfg.ReplyPolicy) == nil
+		current := false
+		if attempt != nil {
+			current = !configChanged && b.currentReplyAttempt(it, attempt) && replyPolicySendGate(it, attempt.Proposal, freshCfg.ReplyPolicy) == nil
+		} else if g := mirroredLegacyReply(it); g != nil {
+			current = !configChanged && g.Version == legacyVersion && g.Text == legacyText && replyPolicyActionGate(it, g, freshCfg.ReplyPolicy) == nil
+		}
 		b.mu.Unlock()
 		if configChanged {
 			return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration changed"}
