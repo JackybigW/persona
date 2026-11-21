@@ -1078,6 +1078,57 @@ func TestInboxReplyPolicyDraftDoesNotReturnUnpersistedText(t *testing.T) {
 	}
 }
 
+func TestInboxReplyPolicyDraftFailedWriteWithoutRollbackDoesNotReturnText(t *testing.T) {
+	h, _, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+	h.in.model = fakeModel(t, "Draft whose only publication write fails")
+	st := &replyPolicyDraftFailStore{inboxMemStore: h.st}
+	st.before = func() {
+		// An unrelated newer field prevents rollback but leaves the in-memory mirror intact. Only the failed-write
+		// result proves that this exact suggestion was not persisted; a mirror check alone must not report success.
+		h.inbox.mu.Lock()
+		it.Title = "Newer device state that prevents rollback"
+		h.inbox.mu.Unlock()
+	}
+	h.store = func() Store { return st }
+	text, err := h.draftReply(t.Context(), it.ID, "")
+	if err == nil || text != "" {
+		t.Fatalf("unpersisted intact mirror returned a successful draft: text=%q err=%v", text, err)
+	}
+}
+
+type replyPolicyDraftReplacementStore struct {
+	*inboxMemStore
+	before func()
+}
+
+func (s *replyPolicyDraftReplacementStore) PutInboxItem(ctx context.Context, id string, data []byte, updated time.Time, done *time.Time) error {
+	s.before()
+	return s.inboxMemStore.PutInboxItem(ctx, id, data, updated, done)
+}
+
+func TestInboxReplyPolicyDraftDoesNotReturnReplacedText(t *testing.T) {
+	h, _, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+	h.in.model = fakeModel(t, "Draft replaced just after its successful write")
+	st := &replyPolicyDraftReplacementStore{inboxMemStore: h.st}
+	st.before = func() {
+		h.inbox.mu.Lock()
+		it.Suggestion = nil
+		it.Agent.State, it.Agent.Draft = AgentSkipped, ""
+		h.inbox.mu.Unlock()
+	}
+	h.store = func() Store { return st }
+	text, err := h.draftReply(t.Context(), it.ID, "")
+	if !errors.Is(err, errSuggestionStale) || text != "" {
+		t.Fatalf("successful write returned text whose mirror was replaced: text=%q err=%v", text, err)
+	}
+}
+
 func TestInboxReplyPolicyMergedContentVersionIsUnambiguous(t *testing.T) {
 	// The old merged encoding appended source/truncation fields directly after Context. This ordinary Context is exactly
 	// the byte sequence produced for the truncated item below, so the two different authorization states collided.
