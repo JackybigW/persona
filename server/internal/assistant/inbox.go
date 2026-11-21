@@ -151,6 +151,10 @@ type InboxItem struct {
 	ReplyClassifiedOf string `json:"reply_classified_of,omitempty"`
 	ReplyPolicyRev    string `json:"reply_policy_rev,omitempty"`
 	ReplyReviewed     bool   `json:"reply_reviewed,omitempty"`
+	// ReplyContentSources follows member text through merge and Undo; ReplyContextTruncated records that the complete
+	// merged conversation no longer fits the classifier. Both are persisted authorization state, never listed.
+	ReplyContentSources   []string `json:"reply_content_sources,omitempty"`
+	ReplyContextTruncated bool     `json:"reply_context_truncated,omitempty"`
 	// RuleOf is Last when the item's tier came from the rules because the model failed on it (an error or too slow,
 	// not a held connection or no model): TriagedAt stays behind, and later passes ask the model again, a few at a
 	// time and less often while it keeps failing, until it answers (inbox_triage.go retryRuled, #8298).
@@ -244,6 +248,7 @@ func (it *InboxItem) listed() InboxItem {
 	c.SuggestionAttempts = listedSuggestionAttempts(it.SuggestionAttempts)
 	c.Context, c.Last, c.TriagedAt, c.BodyOf, c.JudgedAt, c.Rules, c.ArrivedOf, c.FolderOf = "", "", "", "", "", "", "", ""
 	c.TriageRev, c.SettledOf, c.RuleOf, c.RepliedOf = 0, "", "", ""
+	c.ReplyContentSources, c.ReplyContextTruncated = nil, false
 	c.ArrivedAt = time.Time{}
 	c.Meta, c.Group = nil, nil
 	c.ChainSeq, c.SuggestSeq = 0, 0

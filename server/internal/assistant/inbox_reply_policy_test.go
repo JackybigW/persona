@@ -717,9 +717,158 @@ func TestInboxReplySuggestionSendGate(t *testing.T) {
 	})
 }
 
+func TestInboxReplyPolicyOnDemandDraftGate(t *testing.T) {
+	t.Run("nil policy keeps the draft transient", func(t *testing.T) {
+		h, _, it := handledHub(t)
+		h.in.model = fakeModel(t, "Legacy transient on-demand draft")
+		if _, err := h.draftReply(t.Context(), it.ID, ""); err != nil {
+			t.Fatalf("legacy on-demand draft failed: %v", err)
+		}
+		if currentSuggestion(it) != nil || mirroredLegacyReply(it) != nil {
+			t.Fatalf("nil-policy on-demand draft changed legacy state: %+v", currentSuggestion(it))
+		}
+	})
+	t.Run("owner-only draft is refused before the model", func(t *testing.T) {
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		it.ReplyCategory, it.ReplyMode = "approval_permission", "owner_only"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		model, calls := captureModel(t, "Synthetic owner-voice approval")
+		h.in.model = model
+		code, _ := inboxCall(t, h.routes(), "POST", "/api/v1/inbox/"+it.ID+"/draft", `{}`)
+		if code != http.StatusForbidden {
+			t.Fatalf("owner-only on-demand draft status = %d, want %d", code, http.StatusForbidden)
+		}
+		if got := len(calls()); got != 0 {
+			t.Fatalf("owner-only on-demand draft made %d model calls", got)
+		}
+		if currentSuggestion(it) != nil || mirroredLegacyReply(it) != nil {
+			t.Fatalf("owner-only on-demand draft left a sendable suggestion: %+v", currentSuggestion(it))
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("owner-only on-demand draft called sender: %+v", lark.got)
+		}
+	})
+	t.Run("policy revision changes while the model runs", func(t *testing.T) {
+		h, lark, it := handledHub(t)
+		it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		model, calls := captureModel(t, "Synthetic draft from the revoked policy revision")
+		h.in.model = model
+		next := replyPolicyTestConfig()
+		next.Revision = "test-v2"
+		h.in.mu.Lock()
+		h.in.configQueue = []assistantwire.InboxConfig{{ReplyPolicy: replyPolicyTestConfig()}, {ReplyPolicy: next}}
+		h.in.mu.Unlock()
+		if _, err := h.draftReply(t.Context(), it.ID, ""); !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("draft from the old policy revision error = %v", err)
+		}
+		if got := len(calls()); got != 1 {
+			t.Fatalf("revision-race draft made %d model calls, want 1", got)
+		}
+		if currentSuggestion(it) != nil || mirroredLegacyReply(it) != nil {
+			t.Fatalf("revoked policy revision published a sendable draft: %+v", currentSuggestion(it))
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("revoked policy revision called sender: %+v", lark.got)
+		}
+	})
+	t.Run("another device publishes while the model runs", func(t *testing.T) {
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		var changed atomic.Bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if changed.CompareAndSwap(false, true) {
+				h.inbox.mu.Lock()
+				now := time.Now().UTC()
+				g := &InboxSuggestion{Version: 1, Kind: SuggestReply, Text: "Newer draft from another device", At: now, SourceOf: suggestionReplyTarget(it)}
+				snapshotReplyPolicy(g, it, replyPolicyTestConfig())
+				it.SuggestSeq, it.Suggestion = 1, g
+				h.inbox.setHandling(it, HandlingDone, "", now)
+				h.inbox.mu.Unlock()
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{"type": "text", "text": "Stale on-demand draft"}}})
+		}))
+		t.Cleanup(srv.Close)
+		h.in.model = modelAt(t, srv.URL)
+		if _, err := h.draftReply(t.Context(), it.ID, ""); !errors.Is(err, errSuggestionStale) {
+			t.Fatalf("on-demand draft replaced a newer device draft: %v", err)
+		}
+		if !changed.Load() {
+			t.Fatal("test model did not publish the other device's draft")
+		}
+		if g := currentSuggestion(it); g == nil || g.Text != "Newer draft from another device" || g.Version != 1 {
+			t.Fatalf("on-demand draft overwrote the newer device state: %+v", g)
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("concurrent on-demand draft called sender: %+v", lark.got)
+		}
+	})
+	for _, tc := range []struct {
+		name     string
+		fromCard bool
+	}{
+		{name: "direct reply"},
+		{name: "workbench card reply", fromCard: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, lark, it := handledHub(t)
+			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+			it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+			it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+			h.in.model = fakeModel(t, "Synthetic on-demand coordination draft")
+			text, err := h.draftReply(t.Context(), it.ID, "")
+			if err != nil {
+				t.Fatalf("ordinary on-demand draft failed: %v", err)
+			}
+			g := mirroredLegacyReply(it)
+			if g == nil || g.Text != text || !replyPolicySnapshotCurrent(it, replyPolicyTestConfig()) {
+				t.Fatalf("on-demand draft has no current policy-bound mirror: agent=%+v suggestion=%+v", it.Agent, currentSuggestion(it))
+			}
+			h.in.model = fakeModel(t, `{"category":"approval_permission"}`)
+			edited := "I approve the synthetic on-demand permission request"
+			if tc.fromCard {
+				_, err = h.replyInboxFrom(t.Context(), it.ID, edited, "synthetic-workbench-send", true)
+			} else {
+				_, err = h.replyInboxChecked(t.Context(), it.ID, edited, "", false, nil, nil)
+			}
+			if !errors.Is(err, errReplyPolicyDenied) {
+				t.Fatalf("edited on-demand draft error = %v", err)
+			}
+			if len(lark.got) != 0 {
+				t.Fatalf("edited on-demand draft reached sender through the direct-owner path: %+v", lark.got)
+			}
+		})
+	}
+	t.Run("unmodified on-demand draft sends through its mirror", func(t *testing.T) {
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		h.in.model = fakeModel(t, "Synthetic confirmed on-demand draft")
+		text, err := h.draftReply(t.Context(), it.ID, "")
+		if err != nil {
+			t.Fatalf("ordinary on-demand draft failed: %v", err)
+		}
+		if mirroredLegacyReply(it) == nil {
+			t.Fatal("on-demand draft did not use the old-client mirror")
+		}
+		if _, err := h.replyInboxChecked(t.Context(), it.ID, text, "", false, nil, nil); err != nil {
+			t.Fatalf("confirmed on-demand draft failed: %v", err)
+		}
+		if len(lark.got) != 1 || lark.got[0].Text != text {
+			t.Fatalf("confirmed on-demand sender calls = %+v", lark.got)
+		}
+	})
+}
+
 func TestInboxReplyPolicyMergedContextInvalidatesDraft(t *testing.T) {
 	h, lark, it := handledHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	// A full survivor used to clip the entire appended member away, leaving both the text and its authorization hash unchanged.
+	it.Context = strings.Repeat("s", mergeCtxMax)
 	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic scheduling assent"}`); err != nil {
 		t.Fatal(err)
@@ -732,15 +881,86 @@ func TestInboxReplyPolicyMergedContextInvalidatesDraft(t *testing.T) {
 	h.inbox.items[member.ID] = member
 	survivor, _ := h.inbox.merge([]*InboxItem{it, member}, time.Now())
 	h.inbox.mu.Unlock()
-	if survivor != it || it.Last != oldLast || !strings.Contains(it.Context, "restricted permission change") {
-		t.Fatalf("test merge did not append restricted context while retaining Last: %+v", it)
+	if survivor != it || it.Last != oldLast {
+		t.Fatalf("test merge unexpectedly changed the survivor or Last: %+v", it)
 	}
 	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); !errors.Is(err, errReplyPolicyDenied) {
-		t.Fatalf("merged restricted context retained its old authorization: %v", err)
+		t.Fatalf("clipped restricted member retained its old authorization: %v", err)
 	}
 	if len(lark.got) != 0 {
 		t.Fatalf("merged restricted context called sender: %+v", lark.got)
 	}
+	model, calls := captureModel(t, `{"category":"ordinary_coordination"}`)
+	h.in.model = model
+	cfg := replyPolicyTestConfig()
+	for _, revision := range []string{"test-v1", "test-v2"} {
+		cfg.Revision = revision
+		h.classifyInboxReplyPolicies(t.Context(), cfg)
+		if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" {
+			t.Fatalf("clipped merge was reauthorized under %s: category=%q mode=%q", revision, it.ReplyCategory, it.ReplyMode)
+		}
+	}
+	if got := len(calls()); got != 0 {
+		t.Fatalf("clipped merge made %d classification calls instead of failing closed", got)
+	}
+}
+
+func TestInboxReplyPolicyCrossSourceMergeKeepsMemberScope(t *testing.T) {
+	newMerged := func(t *testing.T) (*inboxHub, *extensionLark, *InboxItem) {
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) {
+			c.ReplyPolicy = replyPolicyTestConfig()
+			c.ReplyPolicy.Sources = []string{"mail"}
+		})
+		// The survivor itself is outside the configured source list, so this suggestion has no policy snapshot.
+		if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic cross-source owner draft"}`); err != nil {
+			t.Fatal(err)
+		}
+		member := actionItem("mail:restricted-member", it.UpdatedAt.Add(-time.Second))
+		member.Source = "mail"
+		member.Context = "Synthetic request to approve access and authorize a restricted permission change"
+		h.inbox.mu.Lock()
+		h.inbox.items[member.ID] = member
+		survivor, _ := h.inbox.merge([]*InboxItem{it, member}, time.Now())
+		h.inbox.mu.Unlock()
+		if survivor != it || survivor.Source != "lark" || len(survivor.MergedFrom) != 1 || survivor.MergedFrom[0].Source != "mail" {
+			t.Fatalf("test did not build a cross-source merge: %+v", survivor)
+		}
+		return h, lark, it
+	}
+	t.Run("existing draft cannot be confirmed", func(t *testing.T) {
+		h, lark, it := newMerged(t)
+		if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("cross-source merged draft confirmation error = %v", err)
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("restricted member escaped its source policy through a merge: %+v", lark.got)
+		}
+	})
+	t.Run("new draft cannot be published without classifying the member", func(t *testing.T) {
+		h, lark, _ := newMerged(t)
+		if _, err := suggestTool(t, h, `{"kind":"reply","text":"Replacement cross-source owner draft"}`); !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("cross-source replacement suggestion error = %v", err)
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("cross-source replacement suggestion called sender: %+v", lark.got)
+		}
+	})
+	t.Run("undo retains the source boundary for retained member text", func(t *testing.T) {
+		h, lark, it := newMerged(t)
+		h.inbox.mu.Lock()
+		h.inbox.unmerge(it, time.Now())
+		h.inbox.mu.Unlock()
+		if !strings.Contains(it.Context, "restricted permission change") {
+			t.Fatal("test undo unexpectedly removed the member's retained context")
+		}
+		if _, err := suggestTool(t, h, `{"kind":"reply","text":"Post-undo cross-source owner draft"}`); !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("post-undo retained member text escaped its source policy: %v", err)
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("post-undo cross-source suggestion called sender: %+v", lark.got)
+		}
+	})
 }
 
 func TestInboxReplyPolicyClassificationRejectsContextChangeDuringModelCall(t *testing.T) {
@@ -876,6 +1096,53 @@ func TestInboxReplyPolicyLegacyMirroredDraftGate(t *testing.T) {
 	}
 }
 
+func TestInboxReplyPolicyLegacyDraftRejectedWhileSendWaits(t *testing.T) {
+	h, lark, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Mirrored draft rejected on another device"}`); err != nil {
+		t.Fatal(err)
+	}
+	text := currentSuggestion(it).Text
+	entered := make(chan struct{})
+	once := &inboxReply{beforeLock: func() { close(entered) }}
+	once.mu.Lock()
+	unlocked := false
+	defer func() {
+		if !unlocked {
+			once.mu.Unlock()
+		}
+	}()
+	h.inbox.replies.Store(it.ID, once)
+	result := make(chan error, 1)
+	go func() {
+		_, err := h.replyInboxChecked(t.Context(), it.ID, text, "", false, nil, nil)
+		result <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("old-client send did not reach the per-item send lock")
+	}
+	// Rejection removes the mirror while the old-client request is queued behind the send mutex.
+	if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestReject}, true); err != nil {
+		t.Fatalf("rejecting the mirrored draft failed: %v", err)
+	}
+	once.mu.Unlock()
+	unlocked = true
+	select {
+	case err := <-result:
+		if err == nil {
+			t.Fatal("queued old-client request sent a draft rejected while it waited")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("queued old-client send did not finish")
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("rejected old-client draft reached sender after the mirror disappeared: %+v", lark.got)
+	}
+}
+
 func TestInboxReplyPolicyDeniedEditSurvivesConcurrentDisable(t *testing.T) {
 	h, lark, it := handledHub(t)
 	h.in.model = fakeModel(t, `{"category":"approval_permission"}`)
@@ -884,17 +1151,19 @@ func TestInboxReplyPolicyDeniedEditSurvivesConcurrentDisable(t *testing.T) {
 	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Original synthetic reply"}`); err != nil {
 		t.Fatal(err)
 	}
-	// The old implementation used this queued disabled response to erase a veto that had already rejected the edit.
+	// Prime the display cache, then make the veto's fresh read enabled and the second fresh read disabled. Calling the
+	// complete action proves that the post-veto read cannot discard an established denial and reach the real send path.
+	h.inboxConfig(t.Context())
 	h.in.mu.Lock()
-	h.in.configQueue = []assistantwire.InboxConfig{{}}
+	h.in.configQueue = []assistantwire.InboxConfig{{ReplyPolicy: replyPolicyTestConfig()}, {}}
 	h.in.mu.Unlock()
 	edited := "I approve the synthetic permission request"
-	err := h.vetoEditedReply(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm, Text: &edited}, replyPolicyTestConfig())
+	_, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm, Text: &edited}, true)
 	if !errors.Is(err, errReplyPolicyDenied) {
 		t.Fatalf("concurrent disable cleared an established edit veto: %v", err)
 	}
 	if len(lark.got) != 0 {
-		t.Fatalf("rejected owner edit reached the sender: %+v", lark.got)
+		t.Fatalf("rejected owner edit reached the sender through confirmation: %+v", lark.got)
 	}
 }
 

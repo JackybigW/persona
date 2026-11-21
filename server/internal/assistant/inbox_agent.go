@@ -382,7 +382,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
-		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
+		a.ReplyPolicy = replyPolicyItemApplies(replyPolicy, it)
 		a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn

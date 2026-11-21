@@ -1,6 +1,7 @@
 package assistant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -380,15 +381,37 @@ func (b *inboxBook) promptItemIn(it *InboxItem, language string) prompts.InboxIt
 // draftModelWait is how long a draft may take (the app waits on it).
 const draftModelWait = 2 * time.Minute
 
+// onDemandDraftAuthorization binds a model result to the complete persisted item state and policy under which it began.
+// A full item snapshot also covers suggestion versions, attempts and handling changes while the model is running.
+type onDemandDraftAuthorization struct {
+	before  []byte
+	policy  *assistantwire.InboxReplyPolicyConfig
+	applied bool
+}
+
 // draftReply writes a reply to an inbox item in the user's voice (optionally following their instruction).
 func (s *Service) draftReply(ctx context.Context, id, instruction string) (string, error) {
 	hello := s.hello(ctx)
 	language := answerLanguage(hello.Locale)
+	initialCfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return "", errReplyPolicyDenied
+	}
 	b := &s.inbox
 	b.mu.Lock()
 	it, ok := b.items[id]
 	var item prompts.InboxItem
+	var authorization onDemandDraftAuthorization
 	if ok {
+		authorization.before = itemState(it)
+		authorization.policy = initialCfg.ReplyPolicy
+		authorization.applied = replyPolicyItemApplies(initialCfg.ReplyPolicy, it)
+		if authorization.applied {
+			if err := replyPolicySuggestionGate(it, SuggestReply, initialCfg.ReplyPolicy); err != nil {
+				b.mu.Unlock()
+				return "", err
+			}
+		}
 		item = b.promptItemIn(it, language)
 	}
 	b.mu.Unlock()
@@ -411,7 +434,7 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 		text = strings.TrimSpace(text)
 		hit := quotesAny(text, neverQuote)
 		if hit == "" {
-			return text, nil
+			return s.finishOnDemandDraft(cctx, id, text, authorization)
 		}
 		if d.Rewrite {
 			s.logf("inbox: draft for %s withheld: the rewrite still repeats a sentence an extension marked never to quote", id)
@@ -422,10 +445,89 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 	}
 }
 
+// finishOnDemandDraft keeps the legacy transient result only while the item remains outside reply-policy scope. Inside
+// scope, the exact same text becomes a normal reply suggestion and old-App mirror; direct /reply and workbench sends then
+// traverse edit veto, snapshot authorization and send-once instead of mistaking model output for owner-authored text.
+func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, authorization onDemandDraftAuthorization) (string, error) {
+	cfg, err := s.inboxConfigFresh(ctx)
+	if err != nil {
+		return "", errReplyPolicyDenied
+	}
+	b := &s.inbox
+	b.mu.Lock()
+	it := b.items[id]
+	if it == nil {
+		b.mu.Unlock()
+		return "", errNoInboxItem
+	}
+	if !replyPolicyItemApplies(cfg.ReplyPolicy, it) {
+		b.mu.Unlock()
+		return text, nil
+	}
+	if !it.open() {
+		b.mu.Unlock()
+		return "", errInboxItemDone
+	}
+	if authorization.applied && !reflect.DeepEqual(authorization.policy, cfg.ReplyPolicy) {
+		b.mu.Unlock()
+		return "", errReplyPolicyDenied
+	}
+	if !bytes.Equal(authorization.before, itemState(it)) {
+		b.mu.Unlock()
+		return "", errSuggestionStale
+	}
+	if err := replyPolicySuggestionGate(it, SuggestReply, cfg.ReplyPolicy); err != nil {
+		b.mu.Unlock()
+		return "", err
+	}
+	nextSeq := it.SuggestSeq
+	if legacySuggestion(it) != nil {
+		nextSeq = max(nextSeq, 1)
+	}
+	now := time.Now().UTC()
+	g := &InboxSuggestion{Version: nextSeq + 1, Kind: SuggestReply, Text: text, At: now,
+		SourceOf: suggestionReplyTarget(it), MailTarget: mailTarget(*it)}
+	if it.Agent != nil {
+		g.Owner = &SessionRef{MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
+	}
+	snapshotReplyPolicy(g, it, cfg.ReplyPolicy)
+	if uncertainReplyOperation(it, g, text) != nil {
+		// This endpoint has no attempt outcome to return. Keep an unresolved physical send on its existing card instead
+		// of returning the same text as though it were safe for an old client to send again.
+		b.mu.Unlock()
+		return "", errSuggestionStale
+	}
+	w := beginWrite(it)
+	if it.Agent == nil {
+		it.Agent = &InboxAgent{State: AgentSkipped}
+	}
+	it.SuggestSeq, it.Suggestion = g.Version, g
+	it.Agent.Wake, it.Agent.Back = false, ""
+	b.setHandling(it, HandlingDone, "", now)
+	var link *InboxChainLink
+	if it.Agent.MachineID != "" || it.Agent.SessionID != "" {
+		link = &InboxChainLink{Type: LinkSession, MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
+	}
+	b.chainAdd(it, InboxChainEntry{Kind: ChainHandling, At: now, Text: i18n.T(b.userLang(), "assistant-inbox_chain.suggested_reply"), Detail: clip(text, 600), Link: link})
+	if mirroredLegacyReply(it) == nil {
+		b.restore(w)
+		b.mu.Unlock()
+		return "", errSuggestionStale
+	}
+	b.settle(w)
+	b.mu.Unlock()
+	if s.saveWrites(ctx, []*inboxWrite{w}, "its on-demand reply suggestion"); w.undone {
+		return "", errInboxNotPersisted
+	}
+	return text, nil
+}
+
 // inboxReply serializes the replies to one inbox item and remembers the last one that went out.
 type inboxReply struct {
-	mu       sync.Mutex
-	clientID string
+	mu sync.Mutex
+	// beforeLock is a test synchronization point before this reply waits for the per-item send mutex.
+	beforeLock func()
+	clientID   string
 	// keptOpen: the last reply went out but the item stayed open, for what came into it while the reply was out.
 	keptOpen bool
 	// unsaved: the last reply filed the item but its row could not be written; a repeat of it writes it again.
@@ -534,18 +636,23 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 	// held until the item is filed (the check for "already sent" relies on it).
 	r, _ := b.replies.LoadOrStore(id, &inboxReply{})
 	once := r.(*inboxReply)
-	once.mu.Lock()
-	defer once.mu.Unlock()
 	attempt, _ := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt)
 	legacyVersion := 0
 	legacyText := ""
-	if attempt == nil && followDirect {
+	if attempt == nil && (followDirect || fromCard) {
+		// Capture the request's AI-mirror identity before waiting. If another device rejects it meanwhile, the queued
+		// request must fail the current-version check below, not become a direct owner-authored reply.
 		b.mu.Lock()
 		if g := mirroredLegacyReply(it); g != nil {
 			legacyVersion, legacyText = g.Version, g.Text
 		}
 		b.mu.Unlock()
 	}
+	if once.beforeLock != nil {
+		once.beforeLock()
+	}
+	once.mu.Lock()
+	defer once.mu.Unlock()
 	if attempt != nil || legacyVersion != 0 {
 		// The per-item send mutex may have waited behind another reply, and an edit veto may wait on model calls.
 		// Neither the five-second display cache nor a pre-wait snapshot is sufficient immediately before an outward send.
@@ -566,8 +673,8 @@ func (s *Service) replyInboxDoMode(ctx context.Context, id, text, clientID strin
 			return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration unavailable"}
 		}
 		b.mu.Lock()
-		vetoApplies := replyPolicyApplies(vetoCfg.ReplyPolicy, it.Source)
-		freshApplies := replyPolicyApplies(freshCfg.ReplyPolicy, it.Source)
+		vetoApplies := replyPolicyItemApplies(vetoCfg.ReplyPolicy, it)
+		freshApplies := replyPolicyItemApplies(freshCfg.ReplyPolicy, it)
 		// Nil and explicitly disabled policies are the same legacy authorization. Only a change into, or within, the
 		// scope that authorized an edited reply needs to reject this attempt; an inert disabled-config edit does not.
 		configChanged := freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy))

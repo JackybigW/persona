@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -80,6 +81,55 @@ func replyPolicyApplies(cfg *assistantwire.InboxReplyPolicyConfig, source string
 	return false
 }
 
+// replyPolicySourceUnion is the durable set of sources whose text a row still carries. It includes the empty source:
+// an enabled policy with no source list applies to it too. Sorting makes the authorization content version stable.
+func replyPolicySourceUnion(groups ...[]string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, group := range groups {
+		for _, source := range group {
+			if !seen[source] {
+				seen[source] = true
+				out = append(out, source)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func replyPolicySourceSet(it *InboxItem) []string {
+	if it == nil {
+		return nil
+	}
+	sources := []string{it.Source}
+	sources = append(sources, it.ReplyContentSources...)
+	for _, ref := range it.MergedFrom {
+		sources = append(sources, ref.Source)
+	}
+	return replyPolicySourceUnion(sources)
+}
+
+func replyPolicySourcesApply(cfg *assistantwire.InboxReplyPolicyConfig, sources []string) bool {
+	for _, source := range sources {
+		if replyPolicyApplies(cfg, source) {
+			return true
+		}
+	}
+	return false
+}
+
+// replyPolicyItemApplies follows merged text, not just the survivor's current source. ReplyContentSources survives Undo
+// because Undo does not remove the member text already copied into the survivor's context.
+func replyPolicyItemApplies(cfg *assistantwire.InboxReplyPolicyConfig, it *InboxItem) bool {
+	return it != nil && replyPolicySourcesApply(cfg, replyPolicySourceSet(it))
+}
+
+func resetReplyPolicyClassification(it *InboxItem) {
+	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "", "", "", ""
+	it.ReplyReviewed = false
+}
+
 func replyRoute(category string, cfg *assistantwire.InboxReplyPolicyConfig) string {
 	if cfg == nil || !cfg.Enabled {
 		return ""
@@ -103,7 +153,18 @@ func replyPolicyContentVersion(it *InboxItem) string {
 	if it == nil {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + it.Context))
+	version := strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + it.Context
+	sources := replyPolicySourceSet(it)
+	if len(sources) > 1 || it.ReplyContextTruncated {
+		// A clipped append can leave Last and Context byte-for-byte unchanged. Bind the source boundary and the fact
+		// that classification no longer saw the complete merged text into the version as well.
+		version += "\x00sources\x00" + strconv.Itoa(len(sources))
+		for _, source := range sources {
+			version += "\x00" + strconv.Itoa(len(source)) + "\x00" + source
+		}
+		version += "\x00truncated\x00" + strconv.FormatBool(it.ReplyContextTruncated)
+	}
+	sum := sha256.Sum256([]byte(version))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -111,7 +172,7 @@ func replyPolicyClassificationCurrent(it *InboxItem, cfg *assistantwire.InboxRep
 	if it == nil {
 		return false
 	}
-	if !replyPolicyApplies(cfg, it.Source) {
+	if !replyPolicyItemApplies(cfg, it) {
 		return true
 	}
 	if it.ReplyClassifiedOf == "" || it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev == "" || it.ReplyPolicyRev != cfg.Revision {
@@ -126,7 +187,7 @@ func replyPolicyClassificationCurrent(it *InboxItem, cfg *assistantwire.InboxRep
 }
 
 func replyPolicySnapshotCurrent(it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) bool {
-	if it == nil || !replyPolicyApplies(cfg, it.Source) {
+	if it == nil || !replyPolicyItemApplies(cfg, it) {
 		return true
 	}
 	if !replyPolicyClassificationCurrent(it, cfg) {
@@ -139,11 +200,11 @@ func replyPolicySnapshotCurrent(it *InboxItem, cfg *assistantwire.InboxReplyPoli
 // replyPolicyQueuePending leaves a not-yet-classified item queued without starting work. The next pass classifies it;
 // only a current, definitively non-owner-draft route is released like TwinNever.
 func replyPolicyQueuePending(it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) bool {
-	return replyPolicyApplies(cfg, it.Source) && validReplyPolicyConfig(cfg) && !replyPolicyClassificationCurrent(it, cfg)
+	return replyPolicyItemApplies(cfg, it) && validReplyPolicyConfig(cfg) && !replyPolicyClassificationCurrent(it, cfg)
 }
 
 func replyPolicyQueueBlocked(it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) bool {
-	if !replyPolicyApplies(cfg, it.Source) {
+	if !replyPolicyItemApplies(cfg, it) {
 		return false
 	}
 	if !validReplyPolicyConfig(cfg) {
@@ -157,7 +218,7 @@ func replyPolicyQueueBlocked(it *InboxItem, cfg *assistantwire.InboxReplyPolicyC
 }
 
 func replyPolicySuggestionGate(it *InboxItem, kind string, cfg *assistantwire.InboxReplyPolicyConfig) error {
-	if (kind != SuggestReply && kind != SuggestAgent) || !replyPolicyApplies(cfg, it.Source) {
+	if (kind != SuggestReply && kind != SuggestAgent) || !replyPolicyItemApplies(cfg, it) {
 		return nil
 	}
 	if !replyPolicySnapshotCurrent(it, cfg) {
@@ -169,7 +230,7 @@ func replyPolicySuggestionGate(it *InboxItem, kind string, cfg *assistantwire.In
 // replyPolicyActionGate binds both reply and Agent confirmations to the classification the owner saw. In particular,
 // an Agent suggestion created before a policy was enabled, or before its category became restricted, cannot execute.
 func replyPolicyActionGate(it *InboxItem, g *InboxSuggestion, cfg *assistantwire.InboxReplyPolicyConfig) error {
-	if g == nil || g.Kind != SuggestReply && g.Kind != SuggestAgent || !replyPolicyApplies(cfg, it.Source) {
+	if g == nil || g.Kind != SuggestReply && g.Kind != SuggestAgent || !replyPolicyItemApplies(cfg, it) {
 		return nil
 	}
 	if !replyPolicySnapshotCurrent(it, cfg) || g.ReplyCategory != it.ReplyCategory || g.ReplyMode != it.ReplyMode ||
@@ -180,7 +241,7 @@ func replyPolicyActionGate(it *InboxItem, g *InboxSuggestion, cfg *assistantwire
 }
 
 func replyPolicySendGate(it *InboxItem, g *InboxSuggestion, cfg *assistantwire.InboxReplyPolicyConfig) error {
-	if g != nil && g.Kind == SuggestReply && replyPolicyApplies(cfg, it.Source) {
+	if g != nil && g.Kind == SuggestReply && replyPolicyItemApplies(cfg, it) {
 		return replyPolicyActionGate(it, g, cfg)
 	}
 	return nil
@@ -201,7 +262,7 @@ func mirroredLegacyReply(it *InboxItem) *InboxSuggestion {
 }
 
 func snapshotReplyPolicy(g *InboxSuggestion, it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) {
-	if g == nil || g.Kind != SuggestReply && g.Kind != SuggestAgent || !replyPolicyApplies(cfg, it.Source) {
+	if g == nil || g.Kind != SuggestReply && g.Kind != SuggestAgent || !replyPolicyItemApplies(cfg, it) {
 		return
 	}
 	g.ReplyCategory, g.ReplyMode = it.ReplyCategory, it.ReplyMode
@@ -264,7 +325,7 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	b.mu.Lock()
 	var todo []*InboxItem
 	for _, it := range b.items {
-		if !it.open() || !replyPolicyApplies(cfg, it.Source) {
+		if !it.open() || !replyPolicyItemApplies(cfg, it) {
 			continue
 		}
 		// Classification runs before escalation. TwinFirst can enqueue an already-tiered FYI item, and an existing
@@ -283,9 +344,12 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	b.mu.Unlock()
 	for _, it := range todo {
 		b.mu.Lock()
-		version, text := replyPolicyContentVersion(it), it.Context
+		version, text, truncated := replyPolicyContentVersion(it), it.Context, it.ReplyContextTruncated
 		b.mu.Unlock()
-		category, err := s.classifyReplyPolicyText(ctx, cfg, text)
+		category, err := "unknown", errors.New("merged reply context was truncated")
+		if !truncated {
+			category, err = s.classifyReplyPolicyText(ctx, cfg, text)
+		}
 		if err != nil {
 			category = "unknown"
 		}
@@ -318,7 +382,7 @@ func (s *Service) vetoEditedReply(ctx context.Context, id string, in suggestionR
 	if it != nil {
 		g = currentSuggestion(it)
 	}
-	if it == nil || g == nil || g.Kind != SuggestReply || g.Version != in.Version || !replyPolicyApplies(cfg, it.Source) {
+	if it == nil || g == nil || g.Kind != SuggestReply || g.Version != in.Version || !replyPolicyItemApplies(cfg, it) {
 		b.mu.Unlock()
 		return nil
 	}

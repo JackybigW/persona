@@ -123,6 +123,10 @@ func (s *Service) inboxRoutes() {
 		switch {
 		case errors.Is(err, errNoInboxItem):
 			apierr.Write(w, http.StatusNotFound, err)
+		case errors.Is(err, errReplyPolicyDenied):
+			apierr.Write(w, http.StatusForbidden, err)
+		case errors.Is(err, errSuggestionStale), errors.Is(err, errInboxItemDone):
+			apierr.Write(w, http.StatusConflict, err)
 		case modelUnconfigured(err):
 			// Nothing the hub can call is set up for drafting: a coded answer the apps can explain, not a bare 502
 			// (an internal error's text never reaches the screen).

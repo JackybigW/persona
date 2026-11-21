@@ -93,10 +93,11 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b := &s.inbox
 		b.mu.Lock()
 		it := b.items[id]
-		source, sourceKnown := "", false
+		var sources []string
+		sourceKnown := false
 		policyConfirm := false
 		if it != nil {
-			source, sourceKnown = it.Source, true
+			sources, sourceKnown = replyPolicySourceSet(it), true
 			g := currentSuggestion(it)
 			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent)
 		}
@@ -115,8 +116,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 			if err != nil {
 				return InboxItem{}, errReplyPolicyDenied
 			}
-			vetoApplies := sourceKnown && replyPolicyApplies(vetoCfg.ReplyPolicy, source)
-			freshApplies := sourceKnown && replyPolicyApplies(freshCfg.ReplyPolicy, source)
+			vetoApplies := sourceKnown && replyPolicySourcesApply(vetoCfg.ReplyPolicy, sources)
+			freshApplies := sourceKnown && replyPolicySourcesApply(freshCfg.ReplyPolicy, sources)
 			if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
 				return InboxItem{}, errReplyPolicyDenied
 			}

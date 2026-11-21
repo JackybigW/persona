@@ -78,12 +78,15 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 		it.MergedFrom = nil
 		it.MergedInto = sv.ID
 		sv.MergedFrom = append(sv.MergedFrom, InboxMergeRef{ID: it.ID, Source: it.Source, AccountName: it.AccountName, Title: it.Title})
+		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
 		sv.Count += it.Count
 		if it.StartedAt.Before(sv.StartedAt) {
 			sv.StartedAt = it.StartedAt
 		}
 		if it.Context != "" && it.Context != sv.Context {
-			sv.Context = clipRunesTo(sv.Context+"\n\n"+it.Context, mergeCtxMax)
+			combined := sv.Context + "\n\n" + it.Context
+			sv.Context = clipRunesTo(combined, mergeCtxMax)
+			sv.ReplyContextTruncated = sv.ReplyContextTruncated || sv.Context != combined
 		}
 		entries = append(entries, listedChain(it)...)
 	}
@@ -116,6 +119,7 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 		Text: i18n.T(b.userLang(), "assistant-inbox_chain.merged_from", i18n.Args{"n": len(sv.MergedFrom) + 1})})
 	sv.Read = false
 	sv.TriagedAt, sv.RuleOf = "", "" // the merged row is judged again, with the members' text
+	resetReplyPolicyClassification(sv)
 	return sv, took
 }
 
@@ -173,6 +177,8 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 		sv.PreMergeTier = ""
 	}
 	sv.TriagedAt, sv.RuleOf = "", ""
+	// Undo restores rows, not the survivor's original Context: member text and its source/truncation boundary remain.
+	resetReplyPolicyClassification(sv)
 	restoreMergeTitle(sv)
 	b.chainAdd(sv, InboxChainEntry{Kind: ChainMerged, At: now.UTC(), Text: i18n.T(b.userLang(), "assistant-inbox_chain.unmerged")})
 	return out
@@ -201,10 +207,14 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 		if tierRank(it.Tier) > tierRank(sv.Tier) {
 			sv.Tier, sv.Reason = it.Tier, it.Reason
 		}
+		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
 		if it.Context != "" {
-			sv.Context = clipRunesTo(it.Context+"\n\n"+sv.Context, mergeCtxMax)
+			combined := it.Context + "\n\n" + sv.Context
+			sv.Context = clipRunesTo(combined, mergeCtxMax)
+			sv.ReplyContextTruncated = sv.ReplyContextTruncated || sv.Context != combined
 		}
 		sv.TriagedAt, sv.RuleOf = "", ""
+		resetReplyPolicyClassification(sv)
 		b.chainAdd(sv, InboxChainEntry{Kind: ChainReceived, At: it.UpdatedAt.UTC(), Count: 1, Sender: it.Sender, Via: it.Source,
 			Link: firstLink(it), Text: receivedText(b.userLang(), it, 1, it.Sender)})
 		if !containsItem(changed, sv) {
