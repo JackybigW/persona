@@ -22,12 +22,16 @@ var (
 // session via activeTodoOf, which a supervisor conversation never is; this is the reverse
 // lookup: the open needs_user to-dos supervised by the conversation the owner wrote in.
 //
-// An exact option label settles the single to-do it uniquely matches. Free text never guesses
-// an option: each affected to-do pauses its default and hands back to this conversation's
-// supervisor through the existing decision_reply mechanism (#11852), with the reply sourced from
-// the supervisor conversation. Provenance-marked relay / side-conversation input is not the
-// owner answering and changes nothing. When one message could settle several to-dos at once,
-// none is settled silently: every candidate is handed back for an explicit choice.
+// An exact option label settles the single to-do it uniquely matches. A lone option letter
+// ("A", "b") never settles here: unlike an Agent session, a supervisor / direction conversation
+// is usually the owner's main chat and carries unrelated replies (its own lettered or yes/no
+// questions), so a one-letter message cannot be tied to the card and is treated as free text
+// instead. Free text never guesses an option: each affected to-do pauses its default and hands
+// back to this conversation's supervisor through the existing decision_reply mechanism
+// (#11852), with the reply sourced from the supervisor conversation. Provenance-marked relay /
+// side-conversation input is not the owner answering and changes nothing. When one message
+// could settle several to-dos at once, none is settled silently: every candidate is handed back
+// for an explicit choice.
 func (s *Service) supervisorDecisionSpoke(ctx context.Context, r SessionRef, at time.Time, text string) {
 	if !supervisorOwnerText(text) {
 		return
@@ -43,7 +47,7 @@ func (s *Service) supervisorDecisionSpoke(ctx context.Context, r SessionRef, at 
 	matched := make([]Todo, 0, len(candidates))
 	for _, t := range candidates {
 		a, ok := s.askCopy(t.ID)
-		if !ok || exactDecisionOption(text, a.Options) == "" {
+		if !ok || supervisorOptionLabel(text, a.Options) == "" {
 			continue
 		}
 		matched = append(matched, t)
@@ -104,6 +108,14 @@ func (s *Service) supervisedDecisionCandidates(supervisorID string) []Todo {
 	return out
 }
 
+// supervisorOptionLabel matches a full option label only, never a lone letter. The Agent-chat
+// path accepts letters because that session is scoped to one task; the supervisor conversation
+// carries every conversation the owner has, so an isolated "A" there usually answers something
+// else and must not settle a card irreversibly.
+func supervisorOptionLabel(text string, options []DecisionOption) string {
+	return matchDecisionOption(text, options, false)
+}
+
 // settleSupervisorChoice records a unique exact option label typed in the supervisor
 // conversation, sourcing the answer from that conversation rather than the worker Agent.
 func (s *Service) settleSupervisorChoice(ctx context.Context, t Todo, at time.Time, r SessionRef, text string) {
@@ -119,7 +131,7 @@ func (s *Service) settleSupervisorChoice(ctx context.Context, t Todo, at time.Ti
 		!at.After(a.AskedAt) {
 		return
 	}
-	label := exactDecisionOption(text, a.Options)
+	label := supervisorOptionLabel(text, a.Options)
 	if label == "" {
 		return
 	}

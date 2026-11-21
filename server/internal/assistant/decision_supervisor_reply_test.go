@@ -37,6 +37,32 @@ func TestSupervisorConversationExactChoiceSettles(t *testing.T) {
 	}
 }
 
+// A lone option letter in the supervisor conversation must not settle the card: that
+// conversation is the owner's main chat, where a one-letter message usually answers something
+// unrelated. It is treated as free text: the default pauses and the card is handed back.
+func TestSupervisorConversationLoneLetterDoesNotSettle(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	s.userSpokeText(context.Background(), supervisorRef(), "B")
+	got := askOf(s, todo.ID)
+	if got == nil || got.Chosen != "" || !got.AcceptedAt.IsZero() {
+		t.Fatalf("a lone letter settled the supervisor card: %+v", got)
+	}
+	if got.AgentReply == nil || got.DueAt.IsZero() {
+		t.Fatalf("a lone letter was ignored instead of handed back: %+v", got)
+	}
+	if todoNow(s, todo.ID).Supervision.State != reviewNeedsUser {
+		t.Fatal("the decision left needs_user on a lone letter")
+	}
+	waitFor(t, "the lone-letter hand-off", func() bool {
+		return signalled(s, f, todo.ID, sigDecisionReply, "task_decided")
+	})
+	// The full label still settles afterwards.
+	s.userSpokeText(context.Background(), supervisorRef(), askOf(s, todo.ID).Options[1].Label)
+	if want := askOf(s, todo.ID).Options[1].Label; askOf(s, todo.ID).Chosen != want {
+		t.Fatalf("the full label after the lone letter did not settle %q", want)
+	}
+}
+
 // Free text in the supervisor conversation pauses the default and hands the decision back to
 // that conversation's supervisor via decision_reply, without guessing an option.
 func TestSupervisorConversationFreeTextHandsBack(t *testing.T) {
