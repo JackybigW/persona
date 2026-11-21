@@ -9,8 +9,8 @@ import (
 )
 
 func TestViewedSessionsKeepOtherClientsAndDropDisconnectedClients(t *testing.T) {
-	one := &client{subs: map[[2]string]bool{{"box", "agent"}: true}}
-	two := &client{subs: map[[2]string]bool{{"box", "agent"}: true, {"box", "other"}: true}}
+	one := &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true}}
+	two := &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true, {"box", "other"}: true}}
 	h := &Hub{clients: map[*client]struct{}{one: {}, two: {}}}
 	want := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}, {MachineID: "box", SessionID: "other"}}
 	if got := h.viewedSessions(); !reflect.DeepEqual(got, want) {
@@ -51,11 +51,27 @@ func TestAppSubscriptionChangesReportTaskViewers(t *testing.T) {
 }
 
 func TestTerminalOnlyViewerProtectsItsSession(t *testing.T) {
-	c := &client{termSubs: map[[3]string]bool{{"box", "agent", "box"}: true}}
+	c := &client{role: roleFull, termSubs: map[[3]string]bool{{"box", "agent", "box"}: true}}
 	h := &Hub{clients: map[*client]struct{}{c: {}}}
 	want := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
 	if got := h.viewedSessions(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("terminal-only viewer was ignored: %+v", got)
+	}
+}
+
+func TestViewedSessionsExcludeRestrictedApps(t *testing.T) {
+	for _, role := range []string{roleScoped, roleAnswer, roleExtension} {
+		t.Run(role, func(t *testing.T) {
+			c := &client{
+				role:     role,
+				subs:     map[[2]string]bool{{"box", "chat"}: true},
+				termSubs: map[[3]string]bool{{"box", "terminal", "box"}: true},
+			}
+			h := &Hub{clients: map[*client]struct{}{c: {}}}
+			if got := h.viewedSessions(); len(got) != 0 {
+				t.Fatalf("restricted app counted as owner presence: %+v", got)
+			}
+		})
 	}
 }
 

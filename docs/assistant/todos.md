@@ -659,8 +659,8 @@ assistant checks every minute (`assistant/tasks_close.go`, reading hub's App-fac
 the Agent process quits (Ctrl+C twice, up to three rounds, until the engine no longer shows the Agent in its pane) and **its terminal stays** unless the owner enabled `close_ended_terminals` (#10355): the guarded request then closes the idle Agent and its terminal, rechecking input and cancellation before the first interrupt and the final close. An already exited Agent may only lose its marked, idle Herdr shell, with the same final activity check. With the setting off, the tab keeps the shell the Agent ran in, ending with Claude's "Resume this session with: …". Stopping never closes it (#4754); the node closes the terminal itself only once it has sat unchanged for the grace period (#10111, `docs/integrations/engines.md` "Agents run in a terminal"); an Agent that does not quit is reported (`not_stopped`) and left running, never closed to make it go.
 
 **Owner activity protects the conversation** (#6819): `task_review` acceptance/cancellation and automatic completion
-refuse to close an open task while the owner has viewed or messaged a still-linked Agent within ten minutes, or any
-connected app still subscribes to its conversation. The refusal explains why and asks the supervisor to retry later;
+refuse to close an open task while the owner has viewed or messaged a still-linked Agent within ten minutes, or an
+app with a full credential still has its conversation or terminal open. The refusal explains why and asks the supervisor to retry later;
 it does not record a review or clear the task's pending decision. Live subscriptions keep a quiet page protected without
 periodic client heartbeats; another app leaving cannot clear the remaining viewer. Leaving the last view starts the
 ten-minute inactivity window. A terminal page remains a view when its stream ends and it polls the screen instead;

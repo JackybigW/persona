@@ -484,11 +484,14 @@ func (h *Hub) fleetClientsChanged() {
 	f.mu.Unlock()
 }
 
+// viewedSessions reports owner presence from apps authenticated with a full credential.
 func (h *Hub) viewedSessions() []assistantwire.SessionRef {
 	h.mu.Lock()
 	clients := make([]*client, 0, len(h.clients))
 	for c := range h.clients {
-		clients = append(clients, c)
+		if c.role == roleFull {
+			clients = append(clients, c)
+		}
 	}
 	h.mu.Unlock()
 	seen := map[[2]string]bool{}
