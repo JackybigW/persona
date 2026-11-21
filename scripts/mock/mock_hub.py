@@ -472,6 +472,12 @@ if not os.environ.get("MOCK_MACHINES"):  # that mode has its own offline machine
     MACHINES.append({"id": "nas", "name": "NAS", "kind": "ssh", "icon": "server", "ssh_host": "nas", "online": False,
                      "error": "ssh: connect to host nas port 22: Operation timed out", "hostname": "nas", "os": "linux",
                      "arch": "arm64", "home": "/home/me", "last_seen": ago(hours=3)})
+# MOCK_OFFLINE_MACHINES=<id>[,<id>…]: those machines are offline but keep what they run (the Mac Studio offline beside the
+# online MacBook, both macOS), so an offline machine's marks can be compared with an online one's (#11283).
+for _mid in filter(None, os.environ.get("MOCK_OFFLINE_MACHINES", "").split(",")):
+    for _m in MACHINES:
+        if _m["id"] == _mid:
+            _m.update(online=False, error="ssh: connect to host %s port 22: Operation timed out" % _mid, last_seen=ago(hours=1))
 # MOCK_LONG_OS=1: the server's OS has a long name, so its card's chips (OS, herdr, claude) do not fit on one line.
 if os.environ.get("MOCK_LONG_OS"):
     SYSTEMS["server"]["name"] = "Example GNU/Linux 2 (codename)"
@@ -2623,6 +2629,8 @@ ASSISTANT_CONFIG = {"machine_id": "server", "launcher": "claude", "timezone": "A
                     "agent_tasks": False, "inbox_signals": False, "archive_closed_days": 3,
                     # Close an Agent's terminal when its session ends (#10355), off by default.
                     "close_ended_terminals": False,
+                    # Learn from finished tasks (#12295), off by default; a project's lessons: project_lessons_mock.py.
+                    "task_lessons": False,
                     # The manager's next-message suggestions (#4644), off by default; MOCK_NEXT_SUGGESTIONS=1 starts on.
                     "next_suggestions": os.environ.get("MOCK_NEXT_SUGGESTIONS") == "1",
                     # Claude chats in interactive Claude Code (#10058), off by default; MOCK_CLAUDE_INTERACTIVE=on starts on,
@@ -2668,7 +2676,7 @@ def assistant_state(space="", archived=False):
            "conversations": [s for s in ASSISTANT if s["machine_id"] == cfg["machine_id"] and s.get("space", "") == space
                              and (archived or not s.get("archived"))]}
     if not os.environ.get("MOCK_LEGACY_HUB"):
-        out.update(work_guide=MANAGER_WORK_GUIDES.get(MANAGERS["default"], False), agent_tasks=cfg["agent_tasks"], close_ended_terminals=cfg["close_ended_terminals"], inbox_signals=cfg["inbox_signals"], archive_closed_days=cfg["archive_closed_days"],
+        out.update(work_guide=MANAGER_WORK_GUIDES.get(MANAGERS["default"], False), agent_tasks=cfg["agent_tasks"], task_lessons=cfg["task_lessons"], close_ended_terminals=cfg["close_ended_terminals"], inbox_signals=cfg["inbox_signals"], archive_closed_days=cfg["archive_closed_days"],
                    idle_close_hours=cfg["idle_close_hours"], kb_topics=cfg["kb_topics"],
                    main_supervises_own_tasks=cfg["main_supervises_own_tasks"], next_suggestions=cfg["next_suggestions"],
                    claude_interactive=cfg["claude_interactive"],
@@ -28682,6 +28690,8 @@ class H(BaseHTTPRequestHandler):
                 ASSISTANT_CONFIG["agent_tasks"] = body["agent_tasks"]
             if isinstance(body.get("close_ended_terminals"), bool):
                 ASSISTANT_CONFIG["close_ended_terminals"] = body["close_ended_terminals"]
+            if isinstance(body.get("task_lessons"), bool):
+                ASSISTANT_CONFIG["task_lessons"] = body["task_lessons"]
             if isinstance(body.get("inbox_signals"), bool):
                 ASSISTANT_CONFIG["inbox_signals"] = body["inbox_signals"]
             if isinstance(body.get("main_supervises_own_tasks"), bool) and not os.environ.get("MOCK_LEGACY_HUB"):
