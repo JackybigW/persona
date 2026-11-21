@@ -472,6 +472,12 @@ if not os.environ.get("MOCK_MACHINES"):  # that mode has its own offline machine
     MACHINES.append({"id": "nas", "name": "NAS", "kind": "ssh", "icon": "server", "ssh_host": "nas", "online": False,
                      "error": "ssh: connect to host nas port 22: Operation timed out", "hostname": "nas", "os": "linux",
                      "arch": "arm64", "home": "/home/me", "last_seen": ago(hours=3)})
+# MOCK_OFFLINE_MACHINES=<id>[,<id>…]: those machines are offline but keep what they run (the Mac Studio offline beside the
+# online MacBook, both macOS), so an offline machine's marks can be compared with an online one's (#11283).
+for _mid in filter(None, os.environ.get("MOCK_OFFLINE_MACHINES", "").split(",")):
+    for _m in MACHINES:
+        if _m["id"] == _mid:
+            _m.update(online=False, error="ssh: connect to host %s port 22: Operation timed out" % _mid, last_seen=ago(hours=1))
 # MOCK_LONG_OS=1: the server's OS has a long name, so its card's chips (OS, herdr, claude) do not fit on one line.
 if os.environ.get("MOCK_LONG_OS"):
     SYSTEMS["server"]["name"] = "Example GNU/Linux 2 (codename)"
@@ -18936,13 +18942,15 @@ def paged_sessions(query):
                 counts[key][value] = counts[key].get(value, 0) + 1
         return counts, 200
     since = query.get("since", [None])[0]
-    removed = []
+    removed, created = [], set()
     if since:
         if since not in LIST_JOURNAL:
             return {"error": "Fixture changed; reload the list", "code": "revision_expired"}, 409
+        known = {LIST_TUPLE(s) for s in LIST_JOURNAL[since].values()}
         before = {LIST_TUPLE(s): s for s in matching(list(LIST_JOURNAL[since].values()))}
         now = {LIST_TUPLE(s) for s in rows}
         removed = sorted(k for k in before if k not in now)
+        created = now - known
         total = len(rows)
         rows = [s for s in rows if json.dumps(before.get(LIST_TUPLE(s)), sort_keys=True) != json.dumps(s, sort_keys=True)]
     cursor = query.get("cursor", [revision + ":0"])[0]
@@ -18969,6 +18977,7 @@ def paged_sessions(query):
     if not since: total = len(rows)
     result = {"sessions": selected, "remove": [k for kind, k in page if kind == "remove"], "has_more": more,
               "revision": revision, "total": total}
+    result["added"] = [LIST_TUPLE(s) for s in selected if LIST_TUPLE(s) in created]
     if more:
         result["next_cursor"] = revision + ":" + str(offset + limit)
     return result, 200

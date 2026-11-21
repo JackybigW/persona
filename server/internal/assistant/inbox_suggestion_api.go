@@ -94,38 +94,45 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b.mu.Lock()
 		it := b.items[id]
 		source, sourceKnown := "", false
+		policyConfirm := false
 		if it != nil {
 			source, sourceKnown = it.Source, true
+			g := currentSuggestion(it)
+			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent)
 		}
 		b.mu.Unlock()
-		// The veto itself needs fresh authorization: a disabled display cache must not skip classification of an edited
-		// handback. A second fresh read after its model calls closes a policy change before any card or handoff is consumed.
-		vetoCfg, err := s.inboxConfigFresh(ctx)
-		if err != nil {
-			return InboxItem{}, errReplyPolicyDenied
+		if policyConfirm {
+			// Only reply and Agent confirmations use reply-policy authorization. A conclusion or to-do keeps its legacy
+			// path even when the manager's policy configuration is unavailable.
+			// The veto itself needs fresh authorization: a disabled display cache must not skip classification of an edited
+			// handback. A second fresh read after its model calls closes a policy change before any card or handoff is consumed.
+			vetoCfg, err := s.inboxConfigFresh(ctx)
+			if err != nil {
+				return InboxItem{}, errReplyPolicyDenied
+			}
+			b.mu.Lock()
+			it = b.items[id]
+			visibilityDenied := it != nil && inboxVisibilityWithMembersExcludedLocked(b, it, vetoCfg.Visibility)
+			var visibilityItem InboxItem
+			if visibilityDenied {
+				visibilityItem = it.listed()
+			}
+			b.mu.Unlock()
+			if visibilityDenied {
+				return visibilityItem, errCannotReply
+			}
+			vetoErr = s.vetoEditedReply(ctx, id, in, vetoCfg.ReplyPolicy)
+			freshCfg, err := s.inboxConfigFresh(ctx)
+			if err != nil {
+				return InboxItem{}, errReplyPolicyDenied
+			}
+			vetoApplies := sourceKnown && replyPolicyApplies(vetoCfg.ReplyPolicy, source)
+			freshApplies := sourceKnown && replyPolicyApplies(freshCfg.ReplyPolicy, source)
+			if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
+				return InboxItem{}, errReplyPolicyDenied
+			}
+			fullCfg = freshCfg
 		}
-		b.mu.Lock()
-		it = b.items[id]
-		visibilityDenied := it != nil && inboxVisibilityWithMembersExcludedLocked(b, it, vetoCfg.Visibility)
-		var visibilityItem InboxItem
-		if visibilityDenied {
-			visibilityItem = it.listed()
-		}
-		b.mu.Unlock()
-		if visibilityDenied {
-			return visibilityItem, errCannotReply
-		}
-		vetoErr = s.vetoEditedReply(ctx, id, in, vetoCfg.ReplyPolicy)
-		freshCfg, err := s.inboxConfigFresh(ctx)
-		if err != nil {
-			return InboxItem{}, errReplyPolicyDenied
-		}
-		vetoApplies := sourceKnown && replyPolicyApplies(vetoCfg.ReplyPolicy, source)
-		freshApplies := sourceKnown && replyPolicyApplies(freshCfg.ReplyPolicy, source)
-		if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
-			return InboxItem{}, errReplyPolicyDenied
-		}
-		fullCfg = freshCfg
 	}
 	if vetoErr != nil {
 		return InboxItem{}, vetoErr

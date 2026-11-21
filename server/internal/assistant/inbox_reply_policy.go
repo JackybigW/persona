@@ -2,7 +2,10 @@ package assistant
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,6 +97,16 @@ func replyRoute(category string, cfg *assistantwire.InboxReplyPolicyConfig) stri
 	return ReplyRouteOwnerOnly
 }
 
+// replyPolicyContentVersion covers the exact text the classifier saw, not only the latest source version. Merges can
+// append a restricted member's context without changing Last, so Last alone is not an authorization version.
+func replyPolicyContentVersion(it *InboxItem) string {
+	if it == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + it.Context))
+	return hex.EncodeToString(sum[:])
+}
+
 func replyPolicyClassificationCurrent(it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) bool {
 	if it == nil {
 		return false
@@ -101,7 +114,7 @@ func replyPolicyClassificationCurrent(it *InboxItem, cfg *assistantwire.InboxRep
 	if !replyPolicyApplies(cfg, it.Source) {
 		return true
 	}
-	if it.ReplyClassifiedOf == "" || it.ReplyClassifiedOf != it.Last || it.ReplyPolicyRev == "" || it.ReplyPolicyRev != cfg.Revision {
+	if it.ReplyClassifiedOf == "" || it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev == "" || it.ReplyPolicyRev != cfg.Revision {
 		return false
 	}
 	// A definitively non-draft result is already fail closed, including an unknown produced by a failed review. Only an
@@ -171,6 +184,20 @@ func replyPolicySendGate(it *InboxItem, g *InboxSuggestion, cfg *assistantwire.I
 		return replyPolicyActionGate(it, g, cfg)
 	}
 	return nil
+}
+
+// mirroredLegacyReply identifies the AI draft exposed to old clients through agent.draft. A direct owner-authored reply
+// without this mirror stays on the legacy /reply path; a reply that edits the mirrored draft is still an AI suggestion
+// confirmation and must pass the same edit veto and snapshot authorization as the versioned suggestion API.
+func mirroredLegacyReply(it *InboxItem) *InboxSuggestion {
+	if it == nil || it.Agent == nil || it.Agent.State != AgentDrafted {
+		return nil
+	}
+	g := currentSuggestion(it)
+	if g == nil || g.Kind != SuggestReply || g.Handback || it.Agent.Draft == "" || it.Agent.Draft != g.Text || suggestionAttempt(it, g.Version) != nil {
+		return nil
+	}
+	return g
 }
 
 func snapshotReplyPolicy(g *InboxSuggestion, it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) {
@@ -245,7 +272,7 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 		if it.Tier != TierAction && b.policyTwin(it) != TwinFirst && !it.handled() {
 			continue
 		}
-		stale := it.ReplyClassifiedOf != it.Last || it.ReplyPolicyRev != cfg.Revision
+		stale := it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev != cfg.Revision
 		if replyRoute(it.ReplyCategory, cfg) == ReplyRouteOwnerDraft && cfg.RequireIndependentReview && !it.ReplyReviewed {
 			stale = true
 		}
@@ -260,7 +287,7 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 			continue
 		}
 		b.mu.Lock()
-		last, text := it.Last, it.Context
+		version, text := replyPolicyContentVersion(it), it.Context
 		b.mu.Unlock()
 		category, err := "unknown", visibilityErr
 		if visibilityErr == nil {
@@ -270,11 +297,11 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 			category = "unknown"
 		}
 		b.mu.Lock()
-		if it.open() && it.Last == last {
+		if it.open() && replyPolicyContentVersion(it) == version {
 			w := beginWrite(it)
 			it.ReplyCategory = category
 			it.ReplyMode = replyRoute(category, cfg)
-			it.ReplyClassifiedOf, it.ReplyPolicyRev = last, cfg.Revision
+			it.ReplyClassifiedOf, it.ReplyPolicyRev = version, cfg.Revision
 			it.ReplyReviewed = err == nil && cfg.RequireIndependentReview
 			b.settle(w)
 			b.mu.Unlock()
@@ -303,18 +330,15 @@ func (s *Service) vetoEditedReply(ctx context.Context, id string, in suggestionR
 		return nil
 	}
 	text := strings.TrimSpace(*in.Text)
-	original, conversation, source := g.Text, it.Context, it.Source
+	original, conversation := g.Text, it.Context
 	b.mu.Unlock()
 	if text == original {
 		return nil
 	}
 	category, err := s.classifyReplyPolicyInput(ctx, cfg, prompts.InboxReplyPolicyInput{Text: text, Original: conversation, Edit: true})
 	if err != nil || replyRoute(category, cfg) != ReplyRouteOwnerDraft {
-		// A disable that landed while this veto was using the display cache restores legacy behavior. Any still-applicable
-		// policy remains fail closed; the caller's subsequent fresh action gate handles a revision or route change.
-		if fresh, freshErr := s.inboxConfigFresh(ctx); freshErr == nil && !replyPolicyApplies(fresh.ReplyPolicy, source) {
-			return nil
-		}
+		// This veto was required by the enabled policy under which classification just ran. A later disable can restore
+		// legacy behavior for a new attempt, but it cannot retroactively turn this rejected edit into an authorized send.
 		return errReplyPolicyDenied
 	}
 	return nil

@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -94,7 +97,7 @@ func TestInboxReplyPolicyQueueGate(t *testing.T) {
 			it := actionItem("lark:queued:"+route, time.Now())
 			it.Source = "lark"
 			it.ReplyCategory, it.ReplyMode = map[string]string{"owner_only": "approval_permission", "bot": "technical_qa", "no_reply": "no_reply"}[route], route
-			it.ReplyClassifiedOf, it.ReplyPolicyRev = it.Last, "test-v1"
+			it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
 			it.Agent = &InboxAgent{State: AgentQueued}
 			h.inbox.items[it.ID] = it
 			before := len(conversationStarts(h.f))
@@ -130,7 +133,7 @@ func TestInboxReplyPolicyOverridesTwinFirst(t *testing.T) {
 	it.Source = "lark"
 	it.Lark = &InboxLark{FeedID: "synthetic-chat", IsGroup: true}
 	it.ReplyCategory, it.ReplyMode = "approval_permission", "owner_only"
-	it.ReplyClassifiedOf, it.ReplyPolicyRev = it.Last, "test-v1"
+	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
 	it.Agent = &InboxAgent{State: AgentQueued}
 	h.inbox.items[it.ID] = it
 	setPolicyFor(t, h, InboxPolicy{Source: "lark", Tag: "chat", Value: "synthetic-chat", Twin: TwinFirst})
@@ -145,7 +148,10 @@ func TestInboxReplyPolicyOverridesTwinFirst(t *testing.T) {
 func TestInboxReplyPolicyClassifiesTwinFirstFYIBeforeQueue(t *testing.T) {
 	h := agentHub(t)
 	h.in.model = fakeModel(t, `{"category":"no_reply"}`)
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.Agent.Enabled = true
+		c.ReplyPolicy = replyPolicyTestConfig()
+	})
 	it := actionItem("lark:queued:twin-first-fyi", time.Now())
 	it.Source, it.Tier, it.TriagedAt = "lark", TierFYI, it.Last
 	it.Lark = &InboxLark{FeedID: "synthetic-fyi-chat", IsGroup: true}
@@ -277,7 +283,7 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
 		it := disabledTwinItem(h, "policy-handback", HandlingDone, AgentSkipped, "parent-session")
 		it.Source = "lark"
-		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 		g := &InboxSuggestion{Version: 1, Kind: SuggestReply, Text: "Synthetic handback", Handback: true, At: time.Now(), Conversation: &SessionRef{MachineID: "server", SessionID: "handoff-session"}}
 		snapshotReplyPolicy(g, it, replyPolicyTestConfig())
 		it.Suggestion = g
@@ -302,7 +308,7 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 		it := disabledTwinItem(h, "policy-handback-edit", HandlingDone, AgentSkipped, "parent-session")
 		it.Source = "lark"
 		it.Context = "Synthetic original handback conversation"
-		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 		g := &InboxSuggestion{Version: 1, Kind: SuggestReply, Text: "Synthetic handback", Handback: true, At: time.Now(), Conversation: &SessionRef{MachineID: "server", SessionID: "handoff-session"}}
 		snapshotReplyPolicy(g, it, replyPolicyTestConfig())
 		it.Suggestion = g
@@ -329,7 +335,7 @@ func TestInboxReplyPolicyFreshAdmissionAndHandback(t *testing.T) {
 		h.in.mu.Unlock()
 		it := disabledTwinItem(h, "policy-handback-revision", HandlingDone, AgentSkipped, "parent-session")
 		it.Source = "lark"
-		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 		g := &InboxSuggestion{Version: 1, Kind: SuggestReply, Text: "Synthetic handback", Handback: true, At: time.Now(), Conversation: &SessionRef{MachineID: "server", SessionID: "handoff-session"}}
 		snapshotReplyPolicy(g, it, replyPolicyTestConfig())
 		it.Suggestion = g
@@ -358,7 +364,7 @@ func TestInboxReplySuggestionGate(t *testing.T) {
 		t.Run(tc.category, func(t *testing.T) {
 			h, _, it := handledHub(t)
 			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
-			it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = tc.category, tc.mode, it.Last, "test-v1"
+			it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = tc.category, tc.mode, replyPolicyContentVersion(it), "test-v1"
 			_, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic coordination reply"}`)
 			if tc.allowed && err != nil {
 				t.Fatalf("owner draft refused: %v", err)
@@ -371,7 +377,7 @@ func TestInboxReplySuggestionGate(t *testing.T) {
 			}
 			if tc.allowed {
 				g := currentSuggestion(it)
-				if g == nil || g.ReplyCategory != tc.category || g.ReplyMode != "owner_draft" || g.ReplyClassifiedOf != it.Last || g.ReplyPolicyRev != "test-v1" {
+				if g == nil || g.ReplyCategory != tc.category || g.ReplyMode != "owner_draft" || g.ReplyClassifiedOf != replyPolicyContentVersion(it) || g.ReplyPolicyRev != "test-v1" {
 					t.Fatalf("server did not snapshot trusted policy fields: %+v", g)
 				}
 			}
@@ -382,7 +388,7 @@ func TestInboxReplySuggestionGate(t *testing.T) {
 func TestInboxReplyPolicyRefreshesUnattemptedCardSnapshot(t *testing.T) {
 	h, _, it := handledHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
-	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Same synthetic coordination reply"}`); err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +423,7 @@ func TestInboxReplyPolicyAgentConfirmationGate(t *testing.T) {
 			})
 			it := disabledTwinItem(h, "policy-agent", HandlingDone, AgentSkipped, "parent-session")
 			it.Source = "lark"
-			it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+			it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 			g := &InboxSuggestion{Version: 1, Kind: SuggestAgent, Text: "Inspect the synthetic request", At: time.Now(), MachineID: "server"}
 			if !tc.legacy {
 				snapshotReplyPolicy(g, it, replyPolicyTestConfig())
@@ -431,6 +437,9 @@ func TestInboxReplyPolicyAgentConfirmationGate(t *testing.T) {
 			}
 			if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); !errors.Is(err, errReplyPolicyDenied) {
 				t.Fatalf("restricted Agent confirmation error = %v", err)
+			}
+			if got := currentSuggestion(it); got != g {
+				t.Fatalf("denied Agent confirmation consumed its draft: %+v", got)
 			}
 			h.f.mu.Lock()
 			starts := len(h.f.starts)
@@ -448,7 +457,7 @@ func TestInboxReplyPolicyAgentConfirmationGate(t *testing.T) {
 		})
 		it := disabledTwinItem(h, "policy-handed-agent", HandlingDone, AgentSkipped, "parent-session")
 		it.Source = "lark"
-		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 		g := &InboxSuggestion{Version: 1, Kind: SuggestAgent, Text: "Inspect the synthetic request", At: time.Now(), MachineID: "server"}
 		snapshotReplyPolicy(g, it, replyPolicyTestConfig())
 		it.ReplyCategory, it.ReplyMode = "approval_permission", "owner_only"
@@ -470,7 +479,7 @@ func TestInboxReplySuggestionSendGate(t *testing.T) {
 		h, lark, it := handledHub(t)
 		h.in.model = fakeModel(t, `{"category":"ordinary_coordination"}`)
 		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
-		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", it.Last, "test-v1"
+		it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
 		if _, err := suggestTool(t, h, `{"kind":"reply","text":"The original synthetic reply"}`); err != nil {
 			t.Fatal(err)
 		}
@@ -708,6 +717,202 @@ func TestInboxReplySuggestionSendGate(t *testing.T) {
 	})
 }
 
+func TestInboxReplyPolicyMergedContextInvalidatesDraft(t *testing.T) {
+	h, lark, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic scheduling assent"}`); err != nil {
+		t.Fatal(err)
+	}
+	oldLast := it.Last
+	member := actionItem("lark:restricted-member", it.UpdatedAt.Add(-time.Second))
+	member.Source = "lark"
+	member.Context = "Synthetic request to approve access and authorize a restricted permission change"
+	h.inbox.mu.Lock()
+	h.inbox.items[member.ID] = member
+	survivor, _ := h.inbox.merge([]*InboxItem{it, member}, time.Now())
+	h.inbox.mu.Unlock()
+	if survivor != it || it.Last != oldLast || !strings.Contains(it.Context, "restricted permission change") {
+		t.Fatalf("test merge did not append restricted context while retaining Last: %+v", it)
+	}
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); !errors.Is(err, errReplyPolicyDenied) {
+		t.Fatalf("merged restricted context retained its old authorization: %v", err)
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("merged restricted context called sender: %+v", lark.got)
+	}
+}
+
+func TestInboxReplyPolicyClassificationRejectsContextChangeDuringModelCall(t *testing.T) {
+	h := agentHub(t)
+	it := actionItem("lark:classification-context-race", time.Now())
+	it.Source = "lark"
+	it.Agent = &InboxAgent{State: AgentQueued}
+	h.inbox.items[it.ID] = it
+	var changed atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if changed.CompareAndSwap(false, true) {
+			h.inbox.mu.Lock()
+			it.Context += "\n\nSynthetic restricted context arrived during classification"
+			h.inbox.mu.Unlock()
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{"type": "text", "text": `{"category":"ordinary_coordination"}`}}})
+	}))
+	t.Cleanup(srv.Close)
+	h.in.model = modelAt(t, srv.URL)
+	cfg := replyPolicyTestConfig()
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = cfg })
+	h.classifyInboxReplyPolicies(context.Background(), cfg)
+	if !changed.Load() {
+		t.Fatal("test model did not change the context")
+	}
+	if it.ReplyClassifiedOf != "" || it.ReplyPolicyRev != "" || it.ReplyCategory != "" || it.ReplyMode != "" {
+		t.Fatalf("classification from the old context was committed after a merge: %+v", it)
+	}
+	if replyPolicyClassificationCurrent(it, cfg) {
+		t.Fatal("changed context was treated as currently classified")
+	}
+}
+
+func TestInboxReplyPolicyLegacyMirroredDraftGate(t *testing.T) {
+	newDraft := func(t *testing.T, enabled bool) (*inboxHub, *extensionLark, *InboxItem) {
+		h, lark, it := handledHub(t)
+		if enabled {
+			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+			it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
+		}
+		if _, err := suggestTool(t, h, `{"kind":"reply","text":"Mirrored synthetic AI draft"}`); err != nil {
+			t.Fatal(err)
+		}
+		if mirroredLegacyReply(it) == nil {
+			t.Fatalf("test setup did not expose the old-client mirror: agent=%+v suggestion=%+v", it.Agent, currentSuggestion(it))
+		}
+		return h, lark, it
+	}
+	t.Run("pre-policy mirrored draft cannot send after enablement", func(t *testing.T) {
+		h, lark, it := newDraft(t, false)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		if _, err := h.replyInboxChecked(context.Background(), it.ID, currentSuggestion(it).Text, "", false, nil, nil); err == nil {
+			t.Fatal("old client sent a pre-policy AI draft without a policy snapshot")
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("pre-policy old-client draft called sender: %+v", lark.got)
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		mutate func(*inboxHub, *InboxItem)
+	}{
+		{name: "route revoked", mutate: func(_ *inboxHub, it *InboxItem) {
+			it.ReplyCategory, it.ReplyMode = "approval_permission", "owner_only"
+		}},
+		{name: "revision revoked", mutate: func(h *inboxHub, _ *InboxItem) {
+			h.setConfig(func(c *assistantwire.InboxConfig) {
+				c.ReplyPolicy = replyPolicyTestConfig()
+				c.ReplyPolicy.Revision = "test-v2"
+			})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, lark, it := newDraft(t, true)
+			tc.mutate(h, it)
+			if _, err := h.replyInboxChecked(context.Background(), it.ID, currentSuggestion(it).Text, "", false, nil, nil); err == nil {
+				t.Fatal("old client sent after its policy authorization was revoked")
+			}
+			if len(lark.got) != 0 {
+				t.Fatalf("revoked old-client draft called sender: %+v", lark.got)
+			}
+		})
+	}
+	t.Run("edited approval is vetoed", func(t *testing.T) {
+		h, lark, it := newDraft(t, true)
+		h.in.model = fakeModel(t, `{"category":"approval_permission"}`)
+		if _, err := h.replyInboxChecked(context.Background(), it.ID, "I approve the synthetic restricted request", "", false, nil, nil); !errors.Is(err, errReplyPolicyDenied) {
+			t.Fatalf("old-client edited approval error = %v", err)
+		}
+		if len(lark.got) != 0 {
+			t.Fatalf("old-client edited approval called sender: %+v", lark.got)
+		}
+	})
+	t.Run("authorized owner draft sends", func(t *testing.T) {
+		h, lark, it := newDraft(t, true)
+		if _, err := h.replyInboxChecked(context.Background(), it.ID, currentSuggestion(it).Text, "", false, nil, nil); err != nil {
+			t.Fatalf("authorized old-client owner draft failed: %v", err)
+		}
+		if len(lark.got) != 1 {
+			t.Fatalf("authorized old-client sender calls = %+v", lark.got)
+		}
+	})
+	t.Run("direct owner-authored reply stays legacy", func(t *testing.T) {
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		if mirroredLegacyReply(it) != nil {
+			t.Fatal("test setup unexpectedly has an AI mirror")
+		}
+		if _, err := h.replyInboxChecked(context.Background(), it.ID, "Direct owner-authored synthetic reply", "", false, nil, nil); err != nil {
+			t.Fatalf("direct owner-authored reply was gated: %v", err)
+		}
+		if len(lark.got) != 1 {
+			t.Fatalf("direct owner-authored sender calls = %+v", lark.got)
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		policy *assistantwire.InboxReplyPolicyConfig
+	}{
+		{name: "nil policy"},
+		{name: "disabled policy", policy: &assistantwire.InboxReplyPolicyConfig{Enabled: false, Revision: "unused-v1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, lark, it := newDraft(t, false)
+			h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = tc.policy })
+			if _, err := h.replyInboxChecked(context.Background(), it.ID, currentSuggestion(it).Text, "", false, nil, nil); err != nil {
+				t.Fatalf("legacy mirrored draft failed with %s: %v", tc.name, err)
+			}
+			if len(lark.got) != 1 {
+				t.Fatalf("legacy mirrored sender calls = %+v", lark.got)
+			}
+		})
+	}
+}
+
+func TestInboxReplyPolicyDeniedEditSurvivesConcurrentDisable(t *testing.T) {
+	h, lark, it := handledHub(t)
+	h.in.model = fakeModel(t, `{"category":"approval_permission"}`)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.ReplyCategory, it.ReplyMode, it.ReplyClassifiedOf, it.ReplyPolicyRev = "ordinary_coordination", "owner_draft", replyPolicyContentVersion(it), "test-v1"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Original synthetic reply"}`); err != nil {
+		t.Fatal(err)
+	}
+	// The old implementation used this queued disabled response to erase a veto that had already rejected the edit.
+	h.in.mu.Lock()
+	h.in.configQueue = []assistantwire.InboxConfig{{}}
+	h.in.mu.Unlock()
+	edited := "I approve the synthetic permission request"
+	err := h.vetoEditedReply(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm, Text: &edited}, replyPolicyTestConfig())
+	if !errors.Is(err, errReplyPolicyDenied) {
+		t.Fatalf("concurrent disable cleared an established edit veto: %v", err)
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("rejected owner edit reached the sender: %+v", lark.got)
+	}
+}
+
+func TestInboxReplyPolicyConfigFailureDoesNotBlockOtherSuggestions(t *testing.T) {
+	for _, kind := range []string{SuggestConclusion, SuggestTodo} {
+		t.Run(kind, func(t *testing.T) {
+			h, _, it := handledHub(t)
+			it.Suggestion = &InboxSuggestion{Version: 1, Kind: kind, Text: "Synthetic non-reply action", At: time.Now()}
+			h.in.mu.Lock()
+			h.in.configErr = errors.New("synthetic reply-policy configuration outage")
+			h.in.mu.Unlock()
+			if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err != nil {
+				t.Fatalf("reply-policy configuration outage blocked %s confirmation: %v", kind, err)
+			}
+		})
+	}
+}
+
 func TestInboxReplyPolicyClassificationFailClosed(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -732,7 +937,7 @@ func TestInboxReplyPolicyClassificationFailClosed(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			h.classifyInboxReplyPolicies(ctx, cfg)
-			if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" || it.ReplyClassifiedOf != it.Last || it.ReplyPolicyRev != "test-v1" {
+			if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" || it.ReplyClassifiedOf != replyPolicyContentVersion(it) || it.ReplyPolicyRev != "test-v1" {
 				t.Fatalf("classification failure did not fail closed: %+v", it)
 			}
 			before := len(conversationStarts(h.f))
@@ -754,10 +959,44 @@ func TestInboxReplyPolicyReviewRequirementChangeReclassifies(t *testing.T) {
 	it := actionItem("lark:review-required", time.Now())
 	it.Source = "lark"
 	it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
-	it.ReplyClassifiedOf, it.ReplyPolicyRev = it.Last, "test-v1"
+	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
 	h.inbox.items[it.ID] = it
 	h.classifyInboxReplyPolicies(context.Background(), cfg)
 	if !it.ReplyReviewed || !replyPolicyClassificationCurrent(it, cfg) {
 		t.Fatalf("enabling independent review left an unreviewed owner draft current: %+v", it)
+	}
+}
+
+func TestInboxReplyPolicyIndependentReviewDisagreementFailsClosed(t *testing.T) {
+	h := agentHub(t)
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := "ordinary_coordination"
+		if calls.Add(1) == 2 {
+			category = "approval_permission"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{"type": "text", "text": `{"category":"` + category + `"}`}}})
+	}))
+	t.Cleanup(srv.Close)
+	h.in.model = modelAt(t, srv.URL)
+	cfg := replyPolicyTestConfig()
+	cfg.RequireIndependentReview = true
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = cfg })
+	it := actionItem("lark:review-disagreement", time.Now())
+	it.Source = "lark"
+	it.Agent = &InboxAgent{State: AgentQueued}
+	h.inbox.items[it.ID] = it
+	h.classifyInboxReplyPolicies(context.Background(), cfg)
+	if calls.Load() != 2 {
+		t.Fatalf("independent review made %d model calls, want 2", calls.Load())
+	}
+	if it.ReplyCategory != "unknown" || it.ReplyMode != "owner_only" || it.ReplyReviewed {
+		t.Fatalf("review disagreement did not fail closed: %+v", it)
+	}
+	before := len(conversationStarts(h.f))
+	h.startInboxAgents(context.Background(), InboxAgentConfig{Enabled: true})
+	checkPolicyReleased(t, it, h.inbox.userLang())
+	if got := len(conversationStarts(h.f)); got != before {
+		t.Fatalf("review disagreement started %d handling conversations", got-before)
 	}
 }

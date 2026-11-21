@@ -31,6 +31,9 @@ extension Theme {
         /// A status dot (online, unread).
         static let dot = "circle.fill"
         static let time = "clock"
+        /// Someday on a to-do (#10465): the owner's own "not now", put aside for some other day (its swipe, its menu and
+        /// the list's Show Someday). Not `time`, which is Waiting's clock.
+        static let someday = "moon.stars.fill"
         /// An agent that only waits on background commands (Waiting in the Background, #6045): the mark in place of its dot.
         static let backgroundWaiting = "clock.fill"
         /// Agents grouped or ordered by their state (the Agents list's By Status / By Status).
@@ -596,7 +599,7 @@ extension Theme {
         /// The user's own messages.
         static let user = "person.fill"
         static let inbox = "tray.full"
-        static let starredMessage = "star"
+        static let starredMessage = pluginStar
         static let starredMessageFilled = "star.fill"
         /// The conversations Persona opened by itself (the Inbox's AI twin, scheduled tasks, Lark /agent…): the sidebar's
         /// Auto Chats (#3266).
@@ -757,6 +760,10 @@ extension Theme {
         static let findText = "text.magnifyingglass"
         /// A command watched in the background, each line it prints an event (Claude Code's Monitor, its task notes).
         static let monitor = "waveform.path.ecg"
+        /// Running and recently completed background tasks in Agent chat.
+        static let backgroundTasks = taskPlan
+        /// A background command that watches an ongoing signal.
+        static let backgroundMonitor = monitor
         /// A subagent the agent started (the Agent / Task tool, a session's subagents); one at work.
         static let subagent = "person.2"
         static let subagentWorking = "person.2.badge.gearshape"
