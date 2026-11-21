@@ -21,7 +21,7 @@ func TestTaskViewerReportsRetryAfterAllManagersFail(t *testing.T) {
 			owners := []string{"manager-a", "manager-b"}
 			h.devices.kept = map[string]string{"box": owners[0]}
 			view := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
-			addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
+			addTestClient(h, &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true}})
 			failing := true
 			attempts := 0
 			reports := map[string]assistantwire.Clients{}
@@ -93,7 +93,7 @@ func TestTaskViewerReportsRetryOnlyTheFailedManager(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				h := newTestHub(t)
 				h.devices.kept = map[string]string{"box": failed}
-				page := &client{subs: map[[2]string]bool{}}
+				page := &client{role: roleFull, subs: map[[2]string]bool{}}
 				if leaving {
 					page.subs[[2]string{"box", "agent"}] = true
 				}
@@ -169,7 +169,7 @@ func TestTaskViewerReportsRetryOnlyTheFailedManager(t *testing.T) {
 func TestTaskViewerReportReachesReconnectedManager(t *testing.T) {
 	h := newTestHub(t)
 	h.devices.kept = map[string]string{"box": "manager"}
-	addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
+	addTestClient(h, &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true}})
 	reports := 0
 	write := writerFunc(func(raw []byte) (int, error) {
 		var event struct{ Event string }

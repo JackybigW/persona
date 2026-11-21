@@ -83,7 +83,7 @@ func TestTaskViewersFollowMachineOwnershipChanges(t *testing.T) {
 			}
 
 			oldA, oldB := h.busConnOf(a), h.busConnOf(b)
-			c := &client{subs: map[[2]string]bool{{"box", "agent"}: true}}
+			c := &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true}}
 			h.mu.Lock()
 			h.clients[c] = struct{}{}
 			h.mu.Unlock()
@@ -132,7 +132,7 @@ func TestTaskViewerRefreshWaitsForMachineHandover(t *testing.T) {
 				m.owner, m.online, m.connected = from, true, true
 				registerMachine(h, m)
 				view := []assistantwire.SessionRef{{MachineID: "box", SessionID: "agent"}}
-				addTestClient(h, &client{subs: map[[2]string]bool{{"box", "agent"}: true}})
+				addTestClient(h, &client{role: roleFull, subs: map[[2]string]bool{{"box", "agent"}: true}})
 				// The page has not changed, so the handover must force a new scoped report.
 				h.reported.clients = assistantwire.Clients{Viewing: view}
 				h.reported.clientsSent = map[string]*busConn{}

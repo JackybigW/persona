@@ -13,7 +13,7 @@ import (
 )
 
 func terminalViewerClient(h *Hub) *client {
-	c := &client{hub: h, out: make(chan []byte, 32), subs: map[[2]string]bool{{"m1", "chat"}: true}}
+	c := &client{hub: h, role: roleFull, out: make(chan []byte, 32), subs: map[[2]string]bool{{"m1", "chat"}: true}}
 	h.mu.Lock()
 	if h.clients == nil {
 		h.clients = map[*client]struct{}{}
