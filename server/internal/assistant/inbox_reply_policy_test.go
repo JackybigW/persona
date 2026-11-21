@@ -1137,10 +1137,11 @@ func TestInboxReplyPolicyDraftFailedWriteWithoutRollbackDoesNotReturnText(t *tes
 	h.in.model = fakeModel(t, "Draft whose only publication write fails")
 	st := &replyPolicyDraftFailStore{inboxMemStore: h.st}
 	st.before = func() {
-		// An unrelated newer field prevents rollback but leaves the in-memory mirror intact. Only the failed-write
-		// result proves that this exact suggestion was not persisted; a mirror check alone must not report success.
+		// A concurrent same-valued update advances the mutation stamp without changing the stored item. It prevents
+		// rollback while the mirror and full-state freshness checks still match, so only the failed-write result
+		// proves that this exact suggestion was not persisted.
 		h.inbox.mu.Lock()
-		it.Title = "Newer device state that prevents rollback"
+		h.inbox.touched(it.ID)
 		h.inbox.mu.Unlock()
 	}
 	h.store = func() Store { return st }
@@ -1210,6 +1211,9 @@ func TestInboxReplyPolicyMergedContextInvalidatesDraft(t *testing.T) {
 	h.inbox.mu.Unlock()
 	if survivor != it || it.Last != oldLast {
 		t.Fatalf("test merge unexpectedly changed the survivor or Last: %+v", it)
+	}
+	if !it.ReplyContextTruncated {
+		t.Fatal("merge discarded the clipped member's truncation boundary")
 	}
 	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); !errors.Is(err, errReplyPolicyDenied) {
 		t.Fatalf("clipped restricted member retained its old authorization: %v", err)

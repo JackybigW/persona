@@ -139,12 +139,15 @@ func TestInboxReplyPolicyCollectionFollowMergedAppliesBothMembersNewestFirst(t *
 	}, time.Now())
 	h.inbox.followMerged(changed, time.Now())
 	h.inbox.mu.Unlock()
-	if survivor.Count != 3 {
-		t.Fatalf("newest-first member updates reached survivor count %d, want both updates (3)", survivor.Count)
+	if survivor.Count != 3 || !survivor.UpdatedAt.Equal(base.Add(2*time.Minute)) {
+		t.Fatalf("newest-first member updates reached survivor count %d, want both updates (3) and the newest update last (UpdatedAt=%s)", survivor.Count, survivor.UpdatedAt)
 	}
 	for _, want := range []string{"Restricted newest member update", "Restricted older member update"} {
 		if !strings.Contains(survivor.Context, want) {
 			t.Fatalf("survivor context lacks %q after one collection round: %q", want, survivor.Context)
 		}
+	}
+	if !strings.HasPrefix(survivor.Context, "Restricted newest member update") {
+		t.Fatalf("older member was applied last, leaving the wrong survivor context order: %q", survivor.Context)
 	}
 }
