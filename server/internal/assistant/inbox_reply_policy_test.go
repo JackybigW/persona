@@ -139,6 +139,8 @@ func TestInboxReplyPolicyOverridesTwinFirst(t *testing.T) {
 	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
 	it.Agent = &InboxAgent{State: AgentQueued}
 	h.inbox.items[it.ID] = it
+	h.inbox.handing.Lock()
+	t.Cleanup(h.inbox.handing.Unlock)
 	setPolicyFor(t, h, InboxPolicy{Source: "lark", Tag: "chat", Value: "synthetic-chat", Twin: TwinFirst})
 	before := len(conversationStarts(h.f))
 	h.startInboxAgents(context.Background(), InboxAgentConfig{Enabled: true})
@@ -159,7 +161,10 @@ func TestInboxReplyPolicyClassifiesTwinFirstFYIBeforeQueue(t *testing.T) {
 	it.Source, it.Tier, it.TriagedAt = "lark", TierFYI, it.Last
 	it.Lark = &InboxLark{FeedID: "synthetic-fyi-chat", IsGroup: true}
 	h.inbox.items[it.ID] = it
+	h.inbox.handing.Lock()
+	t.Cleanup(h.inbox.handing.Unlock)
 	setPolicyFor(t, h, InboxPolicy{Source: "lark", Tag: "chat", Value: "synthetic-fyi-chat", Twin: TwinFirst})
+	h.handPass(context.Background())
 	h.classifyInboxReplyPolicies(context.Background(), h.inboxConfig(context.Background()).ReplyPolicy)
 	if it.ReplyCategory != "no_reply" || it.ReplyMode != "no_reply" || !replyPolicyClassificationCurrent(it, replyPolicyTestConfig()) {
 		t.Fatalf("TwinFirst FYI remained unclassifiable: %+v", it)
