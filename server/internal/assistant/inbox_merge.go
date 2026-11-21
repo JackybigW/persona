@@ -79,6 +79,7 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 		it.MergedInto = sv.ID
 		sv.MergedFrom = append(sv.MergedFrom, InboxMergeRef{ID: it.ID, Source: it.Source, AccountName: it.AccountName, Title: it.Title})
 		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
+		sv.ReplyContextTruncated = replyPolicyContextTruncated(sv) || replyPolicyContextTruncated(it)
 		sv.Count += it.Count
 		if it.StartedAt.Before(sv.StartedAt) {
 			sv.StartedAt = it.StartedAt
@@ -171,6 +172,10 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 		sv.Count = max(sv.Count-m.Count, 1)
 		out = append(out, m)
 	}
+	// Rows merged before the durable fields existed still carry their member text. Capture both boundaries before
+	// dropping MergedFrom, or Undo would make that retained text look like an unmerged, fully classified survivor.
+	sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv))
+	sv.ReplyContextTruncated = replyPolicyContextTruncated(sv)
 	sv.MergedFrom = nil
 	if t := sv.PreMergeTier; t != "" {
 		sv.Tier = t[:len(t)-1]
@@ -208,6 +213,7 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 			sv.Tier, sv.Reason = it.Tier, it.Reason
 		}
 		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
+		sv.ReplyContextTruncated = replyPolicyContextTruncated(sv) || replyPolicyContextTruncated(it)
 		if it.Context != "" {
 			combined := it.Context + "\n\n" + sv.Context
 			sv.Context = clipRunesTo(combined, mergeCtxMax)

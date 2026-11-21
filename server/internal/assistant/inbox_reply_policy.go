@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/prompts"
@@ -149,13 +150,20 @@ func replyRoute(category string, cfg *assistantwire.InboxReplyPolicyConfig) stri
 
 // replyPolicyContentVersion covers the exact text the classifier saw, not only the latest source version. Merges can
 // append a restricted member's context without changing Last, so Last alone is not an authorization version.
+// replyPolicyContextTruncated also recognizes rows clipped before ReplyContextTruncated existed. A still-merged row at
+// the clipping cap cannot prove that its retained prefix was complete; fail closed and persist the boundary on new writes.
+func replyPolicyContextTruncated(it *InboxItem) bool {
+	return it != nil && (it.ReplyContextTruncated || len(it.MergedFrom) > 0 && utf8.RuneCountInString(it.Context) >= mergeCtxMax)
+}
+
 func replyPolicyContentVersion(it *InboxItem) string {
 	if it == nil {
 		return ""
 	}
 	version := strconv.Itoa(len(it.Last)) + "\x00" + it.Last + "\x00" + it.Context
 	sources := replyPolicySourceSet(it)
-	if len(sources) > 1 || it.ReplyContextTruncated {
+	truncated := replyPolicyContextTruncated(it)
+	if len(sources) > 1 || truncated {
 		// A clipped append can leave Last and Context byte-for-byte unchanged. Use a separate domain and length-prefix
 		// both text fields: Context itself may contain the source/truncation marker bytes, so suffixing the legacy form
 		// would let an ordinary item collide with a different merged authorization state.
@@ -164,7 +172,7 @@ func replyPolicyContentVersion(it *InboxItem) string {
 		for _, source := range sources {
 			version += "\x00" + strconv.Itoa(len(source)) + "\x00" + source
 		}
-		version += "\x00truncated\x00" + strconv.FormatBool(it.ReplyContextTruncated)
+		version += "\x00truncated\x00" + strconv.FormatBool(truncated)
 	}
 	sum := sha256.Sum256([]byte(version))
 	return hex.EncodeToString(sum[:])
@@ -346,7 +354,7 @@ func (s *Service) classifyInboxReplyPolicies(ctx context.Context, cfg *assistant
 	b.mu.Unlock()
 	for _, it := range todo {
 		b.mu.Lock()
-		version, text, truncated := replyPolicyContentVersion(it), it.Context, it.ReplyContextTruncated
+		version, text, truncated := replyPolicyContentVersion(it), it.Context, replyPolicyContextTruncated(it)
 		b.mu.Unlock()
 		category, err := "unknown", errors.New("merged reply context was truncated")
 		if !truncated {
