@@ -223,7 +223,7 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 		if !ok || t.DoneAt == nil || !sameTaskCompletion(*t.DoneAt, a.doneAt) {
 			continue
 		}
-		if open, _ := s.openTaskOf(key); open {
+		if open, _, _ := s.openTaskOf(key); open {
 			continue
 		}
 		if s.retireAgent(ctx, refused, "task "+a.todo, a.machine, c, now) {
@@ -364,7 +364,7 @@ func (s *Service) archiveRetiredTaskAgent(ctx context.Context, a doneTaskAgent, 
 	if !ok || t.DoneAt == nil || !sameTaskCompletion(*t.DoneAt, a.doneAt) {
 		return
 	}
-	if open, _ := s.openTaskOf([2]string{a.machine, a.session}); open {
+	if open, _, _ := s.openTaskOf([2]string{a.machine, a.session}); open {
 		return
 	}
 	if s.sessionActivityReason(ctx, a.machine, a.session, time.Now()) != "" {

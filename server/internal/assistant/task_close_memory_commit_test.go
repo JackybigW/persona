@@ -34,7 +34,7 @@ func TestMemoryReviewLateActivityLeavesClosureAndLedgerUnchanged(t *testing.T) {
 				var closed bool
 				var reviewErr error
 				go func() {
-					closed, reviewErr = s.reviewDoneTodoWithSupervision(ctx, todo.ID, "Checked", verdict == reviewAccepted, ledger)
+					closed, reviewErr = s.reviewDoneTodoWithSupervision(ctx, todo.ID, "Checked", verdict == reviewAccepted, ledger, false)
 					close(done)
 				}()
 				defer func() {
