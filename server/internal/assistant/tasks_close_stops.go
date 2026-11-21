@@ -19,6 +19,12 @@ func (a doneTaskAgent) stopKey() string {
 	return a.todo + "/" + runtimeListID(a.machine, a.session)
 }
 
+// A manual edit returns its Go timestamp while Postgres stores done_at to
+// microsecond precision. The stop ledger may also contain old nanosecond values.
+func sameTaskCompletion(a, b time.Time) bool {
+	return a.Truncate(time.Microsecond).Equal(b.Truncate(time.Microsecond))
+}
+
 func (s *Service) loadTaskCloseStops(ctx context.Context) error {
 	b := &s.taskCloseStops
 	if b.completions != nil {
@@ -56,6 +62,7 @@ func (s *Service) archivedStopAfterTaskDone(a doneTaskAgent) bool {
 }
 
 func (b *taskCloseStopBook) note(key string, doneAt time.Time) {
+	doneAt = doneAt.Truncate(time.Microsecond)
 	if !b.completions[key].Equal(doneAt) {
 		b.completions[key] = doneAt
 		b.dirty = true
@@ -64,7 +71,7 @@ func (b *taskCloseStopBook) note(key string, doneAt time.Time) {
 
 func (b *taskCloseStopBook) prune(current map[string]time.Time) {
 	for key, recorded := range b.completions {
-		if !recorded.Equal(current[key]) {
+		if !sameTaskCompletion(recorded, current[key]) {
 			delete(b.completions, key)
 			b.dirty = true
 		}

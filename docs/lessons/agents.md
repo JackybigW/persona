@@ -1566,6 +1566,8 @@ runtime and check cancellation and pending/recent input under its typing lock be
 Input recorded between keys prevents the second interrupt. A cancelled or refused stop grants no recovery.
 Reload the stop observation for the current task completion after a manager restart. A live row from a resumed
 Agent then keeps the ordinary idle window, even though its first-seen clock starts over.
+Match the completion at Postgres microsecond precision. A manual edit and older JSON stop records can carry
+the original nanoseconds.
 Keep the new preflight on that guarded RPC: applying it to legacy stop/retire can rediscover a different engine and
 erase a retained session row before its established stop/recovery path runs. Verify those full-package regressions too.
 Install a test transport gate before linking or closing a task: both start background token/outcome work, so replacing

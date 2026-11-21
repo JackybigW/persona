@@ -100,6 +100,80 @@ func TestResumedDoneTaskAgentSurvivesManagerRestart(t *testing.T) {
 	}
 }
 
+func TestManualCloseTimestampSurvivesRetirementRestart(t *testing.T) {
+	ctx := t.Context()
+	database := todoTestDB(t)
+	s, f := newTaskServiceOn(t, database)
+	todo, err := s.createTodo(ctx, "Verify follow-up", "", "conv1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.linkTodoAgent(ctx, todo.ID, "box", "s1", "Follow-up", "/code", "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	closedAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Microsecond).Add(277 * time.Nanosecond)
+	done := true
+	row, err := database.UpdateTodo(ctx, todo.ID, nil, nil, &done, closedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, ok := s.applyTodoRow(ctx, todo.ID, *row, nil); !ok || stored.DoneAt == nil {
+		t.Fatal("the manager did not apply the owner's completion")
+	}
+	key := [2]string{"box", "s1"}
+	f.setSessions("box", idleAgent(closedAt))
+	seen, refused := doneSeen{key: {done: closedAt, running: closedAt}}, taskCloseRefused{}
+	s.closeDoneTaskAgents(ctx, refused, seen)
+	if got := f.retires(); len(got) != 1 {
+		t.Fatalf("the original completion did not stop the Agent: %v", got)
+	}
+
+	resumed := idleAgent(time.Now().Add(-time.Hour))
+	f.setSessions("box", resumed)
+	if err := s.noteAgentArchive(ctx, resumed, false); err != nil {
+		t.Fatal(err)
+	}
+	// Restoring the archive removed its close timestamp. Exercise the stop ledger
+	// left by a manager that wrote the original nanosecond value to JSON.
+	stopKey := (doneTaskAgent{todo: todo.ID, machine: key[0], session: key[1]}).stopKey()
+	var markers map[string]time.Time
+	if ok, err := database.Setting(ctx, taskCloseStopsKey, &markers); err != nil || !ok || markers[stopKey].IsZero() {
+		t.Fatalf("no durable stop marker was written: %v %v", markers, err)
+	}
+	firstMarker := markers[stopKey]
+	markers[stopKey] = closedAt
+	if err := database.PutSetting(ctx, taskCloseStopsKey, markers); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := restartTaskRetirementManager(t, f, database)
+	pgTime := closedAt.Truncate(time.Microsecond)
+	readback := todoNow(restarted, todo.ID).DoneAt
+	if readback == nil || !readback.Equal(pgTime) {
+		t.Fatalf("Postgres did not truncate the completion to microseconds: %v, want %v", readback, pgTime)
+	}
+	t.Logf("manager returned %s, Postgres reloaded %s, legacy stop marker %s",
+		row.DoneAt.Format(time.RFC3339Nano), readback.Format(time.RFC3339Nano), closedAt.Format(time.RFC3339Nano))
+	seen, refused = doneSeen{}, taskCloseRefused{}
+	restarted.closeDoneTaskAgents(ctx, refused, seen)
+	w := seen[key]
+	w.running = resumed.UpdatedAt // observation window has aged past the task-close grace
+	seen[key] = w
+	restarted.closeDoneTaskAgents(ctx, refused, seen)
+	idle := idleSeen{}
+	restarted.closeIdleAgents(ctx, refused, seen, idle)
+	if got := f.retires(); len(got) != 1 {
+		t.Fatalf("new manager repeated the task-completed stop for the same round: stops=%v", got)
+	}
+	if idle[key].IsZero() {
+		t.Fatal("the resumed Agent did not enter the ordinary idle pass")
+	}
+	if !firstMarker.Equal(pgTime) {
+		t.Fatalf("new stop markers must use Postgres precision: %s, want %s", firstMarker, pgTime)
+	}
+}
+
 func TestCompletedTaskStopEvidenceAcrossManagerRestart(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

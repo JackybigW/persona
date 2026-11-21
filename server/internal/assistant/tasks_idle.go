@@ -75,7 +75,7 @@ func (s *Service) closeIdleAgents(ctx context.Context, refused taskCloseRefused,
 	closedTasks := map[[2]string]bool{}
 	for _, a := range s.doneTaskAgents() {
 		key := [2]string{a.machine, a.session}
-		if w := completed[key]; !w.resumed || !w.done.Equal(a.doneAt) {
+		if w := completed[key]; !w.resumed || !sameTaskCompletion(w.done, a.doneAt) {
 			closedTasks[key] = true
 		}
 	}

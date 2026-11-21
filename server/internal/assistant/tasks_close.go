@@ -197,7 +197,7 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 		if !ok {
 			continue
 		}
-		stopped := stops.completions[id].Equal(a.doneAt) || s.archivedStopAfterTaskDone(a)
+		stopped := sameTaskCompletion(stops.completions[id], a.doneAt) || s.archivedStopAfterTaskDone(a)
 		w := seen.see(key, a.doneAt, c, now, stopped)
 		if w.stopped {
 			stops.note(id, a.doneAt)
@@ -220,7 +220,7 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 		}
 		// A takeover or reopen may have happened while the node's session was read.
 		t, ok := s.todoNow(a.todo)
-		if !ok || t.DoneAt == nil || !t.DoneAt.Equal(a.doneAt) {
+		if !ok || t.DoneAt == nil || !sameTaskCompletion(*t.DoneAt, a.doneAt) {
 			continue
 		}
 		if open, _ := s.openTaskOf(key); open {
@@ -246,7 +246,7 @@ func (s *Service) closeDoneTaskAgents(ctx context.Context, refused taskCloseRefu
 // see notes c, the row of an agent of a task done at done, and returns what has been seen of it by now.
 func (seen doneSeen) see(key [2]string, done time.Time, c proto.Session, now time.Time, stopped bool) doneSeenAgent {
 	w := seen[key]
-	if !w.done.Equal(done) {
+	if !sameTaskCompletion(w.done, done) {
 		w = doneSeenAgent{done: done}
 	}
 	w.stopped = w.stopped || stopped
@@ -361,7 +361,7 @@ func (s *Service) archiveRetiredTaskAgent(ctx context.Context, a doneTaskAgent, 
 	// session.stop can take seconds; new ownership or owner activity wins over
 	// archiving the session the earlier snapshot said was safe to retire, including during the provenance read.
 	t, ok := s.todoNow(a.todo)
-	if !ok || t.DoneAt == nil || !t.DoneAt.Equal(a.doneAt) {
+	if !ok || t.DoneAt == nil || !sameTaskCompletion(*t.DoneAt, a.doneAt) {
 		return
 	}
 	if open, _ := s.openTaskOf([2]string{a.machine, a.session}); open {
