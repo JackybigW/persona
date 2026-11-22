@@ -205,6 +205,41 @@ func TestResumeOntoTodoRollsBackWhenTheResumeIsRefused(t *testing.T) {
 	}
 }
 
+// When the stopped session is still the active Agent on another open to-do, resuming it onto an older released to-do
+// must refuse before any re-link: the upsert would otherwise release the other to-do's active link, and a failed start
+// could not restore it (#13225 QA review).
+func TestResumeOntoTodoRefusesWhileAgentStaysOnAnotherOpenTodo(t *testing.T) {
+	s, f := newQuietService(t)
+	row := stoppedBoxAgent("both0001")
+	f.setSessions("box", row)
+	resumingNode(f)
+	first := onBoxTask(t, s, "both0001", "conv1", false, "first part")
+	releaseBoxLink(t, s, first.ID, "both0001")
+	second, err := s.createTodo(t.Context(), "Task B", "notes", "conv1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.linkTodoAgent(t.Context(), second.ID, "box", "both0001", "B", "/code/both0001", "claude"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = runJSON(t, s, "conv1", "agent_send", map[string]any{"machine": "box", "session_id": "both0001",
+		"text": "Fix the first part again", "resume": true, "resume_why": "it knows the code", "todo_id": first.ID})
+	if err == nil || !strings.Contains(err.Error(), "still on to-do "+second.ID) {
+		t.Fatalf("err = %v, want the still-on-another-to-do refusal", err)
+	}
+	if starts := startCalls(f); len(starts) != 0 {
+		t.Fatalf("nothing may start on a refusal, got %d", len(starts))
+	}
+	got, ok := s.openTodoOfAgent("box", "both0001")
+	if !ok || got.ID != second.ID {
+		t.Fatalf("the other to-do must keep its Agent: %+v ok=%v", got, ok)
+	}
+	older, _ := s.todoNow(first.ID)
+	if len(older.Agents) != 1 || older.Agents[0].ReleasedAt == nil || older.Agents[0].Via == "resume" {
+		t.Fatalf("the first to-do's historical link must stay released and untouched: %+v", older.Agents)
+	}
+}
+
 // A lead re-links its own still-open, unassigned to-do the same way the main conversation can.
 func TestALeadResumesItsAgentOntoItsOwnTodo(t *testing.T) {
 	s, f := leadTakeEnv(t, stoppedBoxAgent("leadback1"))

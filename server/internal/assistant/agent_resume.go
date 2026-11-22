@@ -138,6 +138,12 @@ func (s *Service) resumeTodoForAgent(ctx context.Context, self string, am Device
 			return Todo{}, fmt.Errorf("todo_id %s: an agent is already working on it; send that Agent instead of resuming another", id)
 		}
 	}
+	// Reject before the re-link when the session still serves another open to-do: writeTodoAgentLink would release that
+	// other active link, and rollbackResumeTodo only releases this to-do's link, so a later refusal/failed start would
+	// leave the other to-do with no Agent even though nothing was sent (#13225 QA).
+	if other, ok := s.openTodoOfAgent(am.ID, c.SessionID); ok && other.ID != t.ID {
+		return Todo{}, fmt.Errorf("todo_id %s: this Agent is still on to-do %s; resume it there, or hand that to-do over first", id, other.ID)
+	}
 	last := lastReleasedAgent(t)
 	if last == nil || last.MachineID != am.ID || last.SessionID != c.SessionID {
 		return Todo{}, fmt.Errorf("todo_id %s: this Agent is not the to-do's latest released Agent; resume onto a to-do only with the Agent that last worked on it", id)
