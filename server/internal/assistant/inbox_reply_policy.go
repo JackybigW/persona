@@ -271,6 +271,33 @@ func mirroredLegacyReply(it *InboxItem) *InboxSuggestion {
 	return g
 }
 
+// replyInstructionForSuggestion returns the latest owner rewrite instruction not consumed by a later owner decision.
+// Reported progress and other unrelated chain entries do not consume it. A published replacement carries the chain ID,
+// so later drafts can tell an already-classified instruction from one that still needs generated-text authorization.
+func replyInstructionForSuggestion(it *InboxItem) (*InboxChainEntry, bool) {
+	if it == nil {
+		return nil, false
+	}
+	var instruction *InboxChainEntry
+	for i := len(it.Chain) - 1; i >= 0; i-- {
+		switch it.Chain[i].Kind {
+		case ChainConfirmed, ChainRejected:
+			return nil, false
+		case ChainInstructed:
+			instruction = &it.Chain[i]
+		}
+		if instruction != nil {
+			break
+		}
+	}
+	if instruction == nil {
+		return nil, false
+	}
+	g := currentSuggestion(it)
+	needsClassification := instruction.ID == "" || g == nil || g.ReplyInstruction != instruction.ID
+	return instruction, needsClassification
+}
+
 func snapshotReplyPolicy(g *InboxSuggestion, it *InboxItem, cfg *assistantwire.InboxReplyPolicyConfig) {
 	if g == nil || g.Kind != SuggestReply && g.Kind != SuggestAgent || !replyPolicyItemApplies(cfg, it) {
 		return

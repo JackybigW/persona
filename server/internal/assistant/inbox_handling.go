@@ -65,6 +65,9 @@ type InboxSuggestion struct {
 	ReplyClassifiedOf string `json:"reply_classified_of,omitempty"`
 	ReplyPolicyRev    string `json:"reply_policy_rev,omitempty"`
 	ReplyReviewed     bool   `json:"reply_reviewed,omitempty"`
+	// ReplyInstruction is the owner rewrite instruction whose generated replacement was already classified. It is
+	// internal authorization provenance, not part of the physical send identity and not listed to clients.
+	ReplyInstruction string `json:"reply_instruction,omitempty"`
 }
 
 // InboxHandoff is one hand-off of the event to Persona's main conversation (POST /api/v1/inbox/{id}/handoff): that

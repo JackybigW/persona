@@ -165,7 +165,6 @@ func TestInboxReplyPolicyClassifiesTwinFirstFYIBeforeQueue(t *testing.T) {
 	t.Cleanup(h.inbox.handing.Unlock)
 	setPolicyFor(t, h, InboxPolicy{Source: "lark", Tag: "chat", Value: "synthetic-fyi-chat", Twin: TwinFirst})
 	h.handPass(context.Background())
-	h.classifyInboxReplyPolicies(context.Background(), h.inboxConfig(context.Background()).ReplyPolicy)
 	if it.ReplyCategory != "no_reply" || it.ReplyMode != "no_reply" || !replyPolicyClassificationCurrent(it, replyPolicyTestConfig()) {
 		t.Fatalf("TwinFirst FYI remained unclassifiable: %+v", it)
 	}
@@ -683,11 +682,12 @@ func TestInboxReplySuggestionSendGate(t *testing.T) {
 		g := currentSuggestion(it)
 		old := copySuggestion(g)
 		old.ReplyCategory, old.ReplyMode, old.ReplyPolicyRev, old.ReplyReviewed = "acknowledgement", "owner_draft", "test-v0", true
+		old.ReplyClassifiedOf = "synthetic-previous-content-version"
 		proof := &InboxSuggestionAttempt{Version: 0, Status: suggestionUnknown, Text: g.Text, ClientID: namedClientID("same synthetic send"),
 			Proposal: old, Target: suggestionReplyTarget(it)}
 		keepSuggestionAttempt(it, proof)
 		if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err == nil {
-			t.Fatal("an uncertain equivalent reply was allowed to send again")
+			t.Error("an uncertain equivalent reply was allowed to send again")
 		}
 		if len(lark.got) != 0 {
 			t.Fatalf("policy snapshot change defeated send-once protection: %+v", lark.got)

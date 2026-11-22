@@ -479,11 +479,18 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		b.mu.Unlock()
 		return "", errNoInboxItem
 	}
+	applies := replyPolicyItemApplies(cfg.ReplyPolicy, it)
+	if !applies && !authorization.applied {
+		// A legacy transient draft took no authorization snapshot. Unrelated triage/read updates during generation must
+		// not turn the old, policy-disabled endpoint into a stale-suggestion failure.
+		b.mu.Unlock()
+		return text, nil
+	}
 	if !bytes.Equal(authorization.before, itemState(it)) {
 		b.mu.Unlock()
 		return "", errSuggestionStale
 	}
-	if !replyPolicyItemApplies(cfg.ReplyPolicy, it) {
+	if !applies {
 		b.mu.Unlock()
 		return text, nil
 	}
@@ -644,16 +651,43 @@ func (s *Service) replyInboxDoModeVersion(ctx context.Context, id, text, clientI
 }
 
 func (s *Service) replyInboxDoModeVersionRole(ctx context.Context, id, text, clientID string, fromCard, file, followDirect bool, expectedVersion int, full bool, changes ...DocChange) (InboxItem, error) {
-	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, expectedVersion, full, changes); rerouted {
+	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, expectedVersion, full, nil, nil, changes); rerouted {
 		return out, err
 	}
 	return s.replyInboxDoModeDirect(ctx, id, text, clientID, fromCard, file, followDirect, changes...)
 }
 
+// uncertainLegacyReplyAttempt finds the same unresolved physical action even after its mirror was rejected, replaced,
+// or left policy scope. A fresh caller UUID is not evidence that the previous external reply is known not to exist.
+// The caller holds inbox.mu.
+func uncertainLegacyReplyAttempt(it *InboxItem, text string, changes []DocChange) *InboxSuggestionAttempt {
+	if it == nil {
+		return nil
+	}
+	text = strings.TrimSpace(text)
+	target := suggestionReplyTarget(it)
+	for _, a := range it.SuggestionAttempts {
+		if a == nil || a.Status != suggestionUnknown && a.Status != suggestionSending || a.Target != target {
+			continue
+		}
+		actual := actualReply(a)
+		if actual == nil {
+			if a.Text == text && len(changes) == 0 {
+				return a
+			}
+			continue
+		}
+		if actual.Text == text && slices.Equal(actual.Changes, changes) {
+			return a
+		}
+	}
+	return nil
+}
+
 // routeLegacyReplyConfirmation recognizes both a visible old-App AI mirror and a current suggestion whose durable
 // attempt survived a restart. It runs before any collection or per-item send lock, so the nested suggestion send cannot
 // self-deadlock or lose its AI identity while waiting.
-func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, clientID string, fromCard, followDirect bool, expectedVersion int, full bool, changes []DocChange) (InboxItem, bool, error) {
+func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, clientID string, fromCard, followDirect bool, expectedVersion int, full bool, mailUID *uint32, mailVersion *string, changes []DocChange) (InboxItem, bool, error) {
 	if attempt, _ := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt); attempt != nil || !followDirect && !fromCard {
 		return InboxItem{}, false, nil
 	}
@@ -663,6 +697,8 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	var g *InboxSuggestion
 	var durable *InboxSuggestionAttempt
 	var sources []string
+	var uncertain *InboxSuggestionAttempt
+	var out InboxItem
 	if it != nil {
 		g = mirroredLegacyReply(it)
 		if g == nil {
@@ -673,8 +709,15 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 			}
 		}
 		sources = replyPolicySourceSet(it)
+		uncertain = uncertainLegacyReplyAttempt(it, text, changes)
+		if uncertain != nil {
+			out = it.listed()
+		}
 	}
 	b.mu.Unlock()
+	if uncertain != nil {
+		return out, true, unknownSuggestionReply()
+	}
 	workbench := fromCard && strings.HasPrefix(clientID, "feishu-workbench-")
 	if g == nil && !workbench {
 		return InboxItem{}, false, nil
@@ -685,6 +728,12 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	}
 	if !replyPolicySourcesApply(cfg.ReplyPolicy, sources) {
 		return InboxItem{}, false, nil
+	}
+	if g != nil && (mailUID != nil || mailVersion != nil) {
+		target := g.MailTarget
+		if target == nil || mailUID != nil && *mailUID != target.UID || mailVersion != nil && *mailVersion != target.Version {
+			return InboxItem{}, true, errMailReplyTargetChanged
+		}
 	}
 	if workbench {
 		switch {
@@ -703,7 +752,7 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	if g == nil {
 		return InboxItem{}, false, nil
 	}
-	out, err := s.actOnSuggestion(ctx, id, suggestionReq{Version: g.Version, Action: suggestConfirm, Text: &text, ClientID: clientID, Changes: &changes}, full)
+	out, err = s.actOnSuggestion(ctx, id, suggestionReq{Version: g.Version, Action: suggestConfirm, Text: &text, ClientID: clientID, Changes: &changes}, full)
 	return out, true, err
 }
 

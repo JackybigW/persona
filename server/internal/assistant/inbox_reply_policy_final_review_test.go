@@ -251,7 +251,5 @@ func TestInboxReplyPolicyQueueRechecksLaterJobAuthorization(t *testing.T) {
 			t.Fatalf("later job started with its stale prompt and authorization: %+v", start)
 		}
 	}
-	if second.Agent.State != AgentQueued && second.Agent.SessionID != "" {
-		t.Fatalf("restricted later job retained a live handling session: %+v", second.Agent)
-	}
+	checkPolicyReleased(t, second, h.inbox.userLang())
 }

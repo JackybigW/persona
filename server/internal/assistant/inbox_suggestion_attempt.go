@@ -204,6 +204,7 @@ func sameReplySuggestionMode(a, b *InboxSuggestion, ignoreDraftingProvenance boo
 	x.ReplyCategory, y.ReplyCategory, x.ReplyMode, y.ReplyMode = "", "", "", ""
 	x.ReplyClassifiedOf, y.ReplyClassifiedOf, x.ReplyPolicyRev, y.ReplyPolicyRev = "", "", "", ""
 	x.ReplyReviewed, y.ReplyReviewed = false, false
+	x.ReplyInstruction, y.ReplyInstruction = "", ""
 	if !slices.Equal(x.Changes, y.Changes) {
 		return false
 	}
@@ -236,7 +237,8 @@ func restoreSuggestionAttempts(previous, current []*InboxSuggestionAttempt) []*I
 
 func sameReplyAuthorization(a, b *InboxSuggestion) bool {
 	return a != nil && b != nil && a.ReplyCategory == b.ReplyCategory && a.ReplyMode == b.ReplyMode &&
-		a.ReplyClassifiedOf == b.ReplyClassifiedOf && a.ReplyPolicyRev == b.ReplyPolicyRev && a.ReplyReviewed == b.ReplyReviewed
+		a.ReplyClassifiedOf == b.ReplyClassifiedOf && a.ReplyPolicyRev == b.ReplyPolicyRev && a.ReplyReviewed == b.ReplyReviewed &&
+		a.ReplyInstruction == b.ReplyInstruction
 }
 
 func sameReplyCard(a, b *InboxSuggestion) bool {

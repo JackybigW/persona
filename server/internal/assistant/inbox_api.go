@@ -273,7 +273,7 @@ func (s *Service) replyInboxCheckedDoModeRole(ctx context.Context, id, text, cli
 	}
 	// Reroute an AI-mirror confirmation before taking the collection mutex: its durable-attempt send reacquires the
 	// same mutex for the frozen MailTarget. Genuine direct checked sends remain serialized with collection below.
-	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, 0, full, changes); rerouted {
+	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, 0, full, uid, version, changes); rerouted {
 		return out, err
 	}
 	// Collection and checked sends must not change the target between validation and sending.
