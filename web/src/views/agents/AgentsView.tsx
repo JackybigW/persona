@@ -338,10 +338,10 @@ function AgentSessionView({ id, onToggleSidebar }: { id: string; onToggleSidebar
         className="min-h-0 flex-1 overflow-y-auto"
       >
         <div className="mx-auto flex max-w-[760px] flex-col gap-3 px-5 py-6 sm:px-8">
-          {session?.proactive === "unsupported" && <p className="text-[12px] leading-relaxed text-ink-3">{t("agents-agentsview.proactive_unsupported")}</p>}
-          {session?.reviewState === "pending_review" && <p role="status" className="text-[12px] leading-relaxed text-ink-2">{t("agents-agentsview.pending_review")}</p>}
-          {session?.lifecycle === "completed" && <p role="status" className="text-[12px] text-ink-3">{t("agents-agentsview.lifecycle_completed")}</p>}
-          {session?.lifecycle === "abandoned" && <p role="status" className="text-[12px] text-ink-3">{t("agents-agentsview.lifecycle_abandoned")}</p>}
+          {session?.proactive === "unsupported" && <p className="text-label leading-relaxed text-ink-3">{t("agents-agentsview.proactive_unsupported")}</p>}
+          {session?.reviewState === "pending_review" && <p role="status" className="text-label leading-relaxed text-ink-2">{t("agents-agentsview.pending_review")}</p>}
+          {session?.lifecycle === "completed" && <p role="status" className="text-label text-ink-3">{t("agents-agentsview.lifecycle_completed")}</p>}
+          {session?.lifecycle === "abandoned" && <p role="status" className="text-label text-ink-3">{t("agents-agentsview.lifecycle_abandoned")}</p>}
           {hasMore && (
             <div className="flex justify-center">
               <Button tone="quiet" busy={older} onClick={() => void loadOlder()}>{t("agents-agentsview.load_older")}</Button>
