@@ -6,6 +6,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api, enc } from "./api";
 import { compactTokens } from "./tokens";
+import { formatCost } from "./turn-cost";
 
 export interface TodoUsageTokens {
   in: number;
@@ -115,12 +116,8 @@ export async function loadTodoUsage(id: string): Promise<TodoUsageDetail> {
   return api<TodoUsageDetail>(`/todos/${enc(id)}/usage`);
 }
 
-/** "$123.45", "<$0.01" under a cent. */
-export function formatUSD(usd: number): string {
-  if (usd <= 0) return "$0";
-  if (usd < 0.01) return "<$0.01";
-  return usd >= 100 ? `$${Math.round(usd).toLocaleString("en-US")}` : `$${usd.toFixed(2)}`;
-}
+/** An amount as the reply bar writes one (turn-cost.ts formatCost): two decimals, "<$0.01" under a cent. */
+export const formatUSD = formatCost;
 
 /** A token count as the cards write it (12.3M). */
 export const formatUsageTokens = compactTokens;

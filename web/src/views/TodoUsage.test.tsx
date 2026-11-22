@@ -62,10 +62,9 @@ describe("a to-do's usage (#12936)", () => {
     expect(host.querySelector('[data-testid="todo-usage-subagent"]')?.textContent).toContain("Explore · Find the card");
   });
 
-  it("formats dollars", () => {
-    expect(formatUSD(0)).toBe("$0");
+  it("formats dollars as the reply bar does", () => {
+    expect(formatUSD(0)).toBe("$0.00");
     expect(formatUSD(0.004)).toBe("<$0.01");
-    expect(formatUSD(12.345)).toBe("$12.35");
-    expect(formatUSD(1234.4)).toBe("$1,234");
+    expect(formatUSD(1234.4)).toBe("$1234.40");
   });
 });
