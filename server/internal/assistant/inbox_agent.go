@@ -211,6 +211,7 @@ func (s *Service) handPass(ctx context.Context) {
 	cfg := fullCfg.Agent
 	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
 	b := &s.inbox
+	s.forwardInboxToTodos(ctx)
 	s.linkInboxTaskURLs(ctx)
 	s.checkInboxFollowUps(ctx, cfg, time.Now())
 	if !cfg.Enabled {
