@@ -119,11 +119,11 @@ func testReviewActivityRetry(t *testing.T, worker bool) {
 						markActive()
 					}
 					var lock *sync.Mutex
-					method := "updateSupervision"
+					method := "updateSupervisionWithClose"
 					if boundary == "ledger" {
 						lock = &s.supervise.writeMu
 					} else if boundary == "closure" {
-						lock, method = &s.todos.writing, "reviewDoneTodo"
+						lock = &s.todos.writing
 					}
 					if lock != nil {
 						lock.Lock()

@@ -81,6 +81,7 @@ func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
 							if todo.Supervision != nil {
 								t.Fatal("the fixture unexpectedly has a supervision ledger")
 							}
+							setSettings(t, s, func(v *Settings) { v.Main = "conv1" }) // main can review legacy tasks
 						}
 						if _, err := s.ensureTaskBrief(ctx, todo); err != nil {
 							t.Fatal(err)
@@ -106,9 +107,12 @@ func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
 						decisionBefore := askOf(s, todo.ID)
 						briefBefore, _ := s.briefOfTodo(todo.ID)
 
-						lock, method := &s.supervise.writeMu, "updateSupervision"
+						lock, method := &s.supervise.writeMu, "updateSupervisionWithClose"
 						if boundary == "closure" {
-							lock, method = &s.todos.writing, "reviewDoneTodo"
+							lock = &s.todos.writing
+							if reviewer == "no ledger" && verdict == reviewCancelled {
+								method = "reviewDoneTodo"
+							}
 						}
 						lock.Lock()
 						unlock := sync.OnceFunc(lock.Unlock)
@@ -142,6 +146,12 @@ func TestTaskReviewLateOwnerActivityCommitsNothing(t *testing.T) {
 							}
 							return false
 						})
+						if boundary == "closure" && method == "updateSupervisionWithClose" {
+							if !s.supervise.writeMu.TryLock() {
+								t.Fatal("terminal review took the ledger lock before the to-do lock")
+							}
+							s.supervise.writeMu.Unlock()
+						}
 						if activity == "view" {
 							setTaskViewer(t, s, agent.MachineID, agent.SessionID, true)
 						} else {
