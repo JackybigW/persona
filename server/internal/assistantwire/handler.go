@@ -121,6 +121,10 @@ type SessionRef struct {
 type UserSpokeParams struct {
 	SessionRef
 	Text string `json:"text,omitempty"`
+	// ClientMsgID is the send's client_msg_id, when it has one: the same id its session.assistant_sent
+	// (ConversationSent) names, so the manager can wait for the send's outcome before an irreversible step
+	// (#13041). An older hub sends none; an older manager ignores it.
+	ClientMsgID string `json:"client_msg_id,omitempty"`
 }
 
 // ContextParams is assistant.context's params. MachineID is the asking node's machine: the hub sets it from the

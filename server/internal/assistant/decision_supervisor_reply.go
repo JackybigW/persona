@@ -2,8 +2,10 @@ package assistant
 
 import (
 	"context"
+	"sync"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/lazyre"
 	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/proto"
@@ -22,7 +24,13 @@ var (
 // session via activeTodoOf, which a supervisor conversation never is; this is the reverse
 // lookup: the open needs_user to-dos supervised by the conversation the owner wrote in.
 //
-// An exact option label settles the single to-do it uniquely matches. A lone option letter
+// An exact option label settles the single to-do it uniquely matches, but only once the hub
+// says the message was delivered (#13041): the hub tells session.user_spoke before it sends, so
+// the choice waits by the send's client_msg_id (deferSupervisorSettle) and settles on a
+// session.assistant_sent reporting delivered (supervisorSettleOutcome). A failed or unknown send
+// leaves the card waiting. A spoke without an id (an older hub, or a client that names no
+// message) cannot be matched to its outcome, so it is handed back like free text instead of
+// settling. A lone option letter
 // ("A", "b") never settles here: unlike an Agent session, a supervisor / direction conversation
 // is usually the owner's main chat and carries unrelated replies (its own lettered or yes/no
 // questions), so a one-letter message cannot be tied to the card and is treated as free text
@@ -32,7 +40,7 @@ var (
 // side-conversation input is not the owner answering and changes nothing. When one message
 // could settle several to-dos at once, none is settled silently: every candidate is handed back
 // for an explicit choice.
-func (s *Service) supervisorDecisionSpoke(ctx context.Context, r SessionRef, at time.Time, text string) {
+func (s *Service) supervisorDecisionSpoke(ctx context.Context, r SessionRef, at time.Time, text, clientMsgID string) {
 	if !supervisorOwnerText(text) {
 		return
 	}
@@ -53,8 +61,12 @@ func (s *Service) supervisorDecisionSpoke(ctx context.Context, r SessionRef, at 
 		matched = append(matched, t)
 	}
 	switch {
+	case len(matched) == 1 && len(candidates) == 1 && clientMsgID != "":
+		s.deferSupervisorSettle(r, clientMsgID, matched[0].ID, at, text)
 	case len(matched) == 1 && len(candidates) == 1:
-		s.settleSupervisorChoice(ctx, matched[0], at, r, text)
+		// No id to learn the send's outcome by: never close the card irreversibly on a message that may not
+		// have gone in; the supervisor reads the words and confirms with task_decided.
+		s.handBackSupervisorReplies(ctx, r, at, candidates, text)
 	case len(matched) == 1:
 		// One exact match among several open questions is still ambiguous: the same words may be
 		// meant for another card, so do not settle; hand every candidate back to the supervisor.
@@ -117,15 +129,14 @@ func supervisorOptionLabel(text string, options []DecisionOption) string {
 }
 
 // settleSupervisorChoice records a unique exact option label typed in the supervisor
-// conversation and delivers it to the worker Agent. chooseOption is the same delivery path the
+// conversation, once its send was delivered, and delivers it to the worker Agent. chooseOption is the same delivery path the
 // card and task_decided (told_agent=false) use: it relays the choice to the task's Agent before
 // recording it, and askRound revalidates the whole round under the lock (acceptAskEnded, the
 // latest review's staleness, RecheckAt and ownerDecisionReturned), so neither an undelivered
 // record-only close nor a superseded round can settle. The action lock here only fences a
 // concurrent deadline/sweep; chooseOption takes the same per-card lock itself, so it runs after
 // this one is released (the locks are not reentrant).
-func (s *Service) settleSupervisorChoice(ctx context.Context, t Todo, at time.Time, r SessionRef, text string) {
-	id := t.ID
+func (s *Service) settleSupervisorChoice(ctx context.Context, id string, at time.Time, text string) {
 	s.reviewDismissals.actions.acquire(id)
 	cur, ok := s.todoNow(id)
 	if !ok || cur.DoneAt != nil || cur.Supervision == nil || cur.Supervision.State != reviewNeedsUser {
@@ -195,4 +206,102 @@ func (s *Service) handBackOneSupervisorReply(ctx context.Context, r SessionRef, 
 		defer cancel()
 		s.updateAskCards(ctx, id, cp)
 	}()
+}
+
+// Exact choices typed in a supervisor conversation wait here for their send's outcome (#13041). The book is memory
+// only on purpose: nothing about the decision is persisted until delivery settles it, so a manager restart while one
+// waits leaves the card exactly as the accept ledger has it (still waiting, its default as before), and a delivered
+// notice the new process cannot match settles nothing.
+const (
+	// supervisorSettleTTL outlives the hub's longest wait for a send (five minutes to a session still starting, plus
+	// the manager's preparation): an entry whose notice never comes (a send the manager refused or kept to send
+	// later, a hub restart) stops holding the default after this.
+	supervisorSettleTTL = 10 * time.Minute
+	// supervisorSettleMax bounds the book: each entry is one owner message waiting for its own send.
+	supervisorSettleMax = 64
+)
+
+type supervisorSettle struct {
+	todo    string
+	at      time.Time // when the owner spoke: a round asked after it is not the one answered
+	text    string
+	expires time.Time
+}
+
+type supervisorSettleBook struct {
+	mu      sync.Mutex
+	pending map[[3]string]supervisorSettle // machine, session, client_msg_id
+}
+
+func supervisorSettleKey(r SessionRef, clientMsgID string) [3]string {
+	return [3]string{r.MachineID, r.SessionID, clientMsgID}
+}
+
+// pruneLocked drops expired entries and, when the book is full, the ones closest to expiring.
+func (b *supervisorSettleBook) pruneLocked(now time.Time, room int) {
+	for k, p := range b.pending {
+		if !now.Before(p.expires) {
+			delete(b.pending, k)
+		}
+	}
+	for len(b.pending) > supervisorSettleMax-room {
+		var oldest [3]string
+		var at time.Time
+		for k, p := range b.pending {
+			if at.IsZero() || p.expires.Before(at) {
+				oldest, at = k, p.expires
+			}
+		}
+		delete(b.pending, oldest)
+	}
+}
+
+// deferSupervisorSettle keeps an exact choice until the hub says how its send went. While it waits, the decision's
+// deadline default holds (supervisorSettlePending): the owner has answered, and the answer may only be in flight.
+func (s *Service) deferSupervisorSettle(r SessionRef, clientMsgID, todo string, at time.Time, text string) {
+	b := &s.supervisorSettles
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pending == nil {
+		b.pending = map[[3]string]supervisorSettle{}
+	}
+	now := time.Now()
+	b.pruneLocked(now, 1)
+	b.pending[supervisorSettleKey(r, clientMsgID)] = supervisorSettle{todo: todo, at: at, text: text,
+		expires: now.Add(supervisorSettleTTL)}
+}
+
+// supervisorSettlePending says whether an exact choice for to-do id still waits for its send's outcome.
+func (s *Service) supervisorSettlePending(id string, now time.Time) bool {
+	b := &s.supervisorSettles
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, p := range b.pending {
+		if p.todo == id && now.Before(p.expires) {
+			return true
+		}
+	}
+	return false
+}
+
+// supervisorSettleOutcome settles a waiting exact choice whose send was delivered; a failed or unknown send drops it
+// and leaves the card waiting (the owner's words may not be in the conversation, so they decide nothing).
+func (s *Service) supervisorSettleOutcome(ctx context.Context, r ConversationSent) {
+	if r.ClientMsgID == "" {
+		return
+	}
+	b := &s.supervisorSettles
+	b.mu.Lock()
+	key := supervisorSettleKey(SessionRef{MachineID: r.MachineID, SessionID: r.SessionID}, r.ClientMsgID)
+	p, ok := b.pending[key]
+	delete(b.pending, key)
+	b.mu.Unlock()
+	if !ok || !time.Now().Before(p.expires) {
+		return
+	}
+	if r.Outcome != assistantwire.ConversationDelivered {
+		s.logf("task %s: decision: supervisor choice not settled, its send was %s", p.todo, r.Outcome)
+		return
+	}
+	s.settleSupervisorChoice(ctx, p.todo, p.at, p.text)
 }

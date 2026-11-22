@@ -895,7 +895,7 @@ func (b *BusHub) event(ctx context.Context, ev busEvent) error {
 		if err := decode(&p); err != nil {
 			return err
 		}
-		s.userSpokeText(ctx, p.SessionRef, p.Text)
+		s.userSpokeMessage(ctx, p.SessionRef, p.Text, p.ClientMsgID)
 	case assistantwire.EventUserStopped:
 		var p SessionRef
 		if err := decode(&p); err != nil {

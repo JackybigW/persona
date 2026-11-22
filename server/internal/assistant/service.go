@@ -239,8 +239,9 @@ type Service struct {
 	prEventRoute   prEventRouteBook  // pr_status_route.go: opt-in direct PR-event routing dedupe
 	parkReplies    parkReplyBook     // park_reply.go: bounded source reads for explicitly bound person replies
 
-	reviewDismissals taskReviewDismissalBook // task_review_dismissals.go
-	repoRootsMu      sync.Mutex              // pr_number_ref.go: one write of the repository roots at a time
+	reviewDismissals  taskReviewDismissalBook // task_review_dismissals.go
+	supervisorSettles supervisorSettleBook    // decision_supervisor_reply.go: exact choices waiting for their send (#13041)
+	repoRootsMu       sync.Mutex              // pr_number_ref.go: one write of the repository roots at a time
 	// ownerVerifiesAll: every deployed task asks the owner to verify, not only the big ones (ownerVerifies; tests).
 	ownerVerifiesAll         bool
 	later                    laterBook    // later.go: questions that can wait for a briefing
@@ -971,6 +972,13 @@ func (s *Service) UserSpoke(ctx context.Context, r SessionRef) {
 }
 
 func (s *Service) userSpokeText(ctx context.Context, r SessionRef, text string) {
+	s.userSpokeMessage(ctx, r, text, "")
+}
+
+// userSpokeMessage is session.user_spoke as the hub tells it: the owner's text when a person's own app sent it, and
+// the send's client_msg_id ("" from an older hub or a client that names none), which its session.assistant_sent
+// carries too.
+func (s *Service) userSpokeMessage(ctx context.Context, r SessionRef, text, clientMsgID string) {
 	s.availOwnerSpoke(r, time.Now()) // before anything else: what the conversation is doing as the message comes (availability.go)
 	if exitText(text) {
 		s.retireTodoWork([2]string{r.MachineID, r.SessionID}) // /exit or /quit starts no turn that could cancel the wake
@@ -980,7 +988,7 @@ func (s *Service) userSpokeText(ctx context.Context, r SessionRef, text string) 
 	// Agent-chat path above finds nothing for it. Settle the needs_user cards it supervises by
 	// reverse lookup instead (decision_supervisor_reply.go). Provenance-marked input is ignored.
 	if s.activeTodoOf(r.MachineID, r.SessionID) == "" {
-		s.supervisorDecisionSpoke(ctx, r, time.Now(), text)
+		s.supervisorDecisionSpoke(ctx, r, time.Now(), text, clientMsgID)
 	}
 	s.ownerHeard(r.SessionID)
 	s.clearToolLoop([2]string{r.MachineID, r.SessionID}, loopUserInput)

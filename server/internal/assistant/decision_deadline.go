@@ -130,6 +130,9 @@ func (s *Service) sweepTaskDeadlines(now time.Time) {
 	b.mu.Unlock()
 	slices.Sort(due)
 	for _, id := range due {
+		if s.supervisorSettlePending(id, now) {
+			continue // the owner's exact choice is on its way (decision_supervisor_reply.go): no default meanwhile
+		}
 		if t, ok := s.todoNow(id); ok {
 			if t.Supervision.legacyOwnerPriorityReview() != nil {
 				continue // an old park never authorizes replaying its superseded recommendation

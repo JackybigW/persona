@@ -87,6 +87,9 @@ func TestAgentSendTellsManagerTheOwnerSpoke(t *testing.T) {
 				if got.Text != tc.text {
 					t.Fatalf("owner text for %s: %q, want %q", tc.name, got.Text, tc.text)
 				}
+				if got.ClientMsgID != "decision-reply-1" {
+					t.Fatalf("the spoke does not name the send (#13041): %q", got.ClientMsgID)
+				}
 			case <-timer.C:
 				t.Fatal("the Agent send did not tell the manager the owner spoke")
 			}
@@ -144,16 +147,30 @@ func TestAssistantConversationSendCarriesOwnerText(t *testing.T) {
 			h.busRoutes(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
-			manager := connectGuardManager(t, h, srv.URL, assistantwire.AssistantID, func(string, json.RawMessage) (any, error) {
+			manager := connectGuardManager(t, h, srv.URL, assistantwire.AssistantID, func(method string, raw json.RawMessage) (any, error) {
+				if method == assistantwire.MethodSendParams { // the manager keeps the message's fields, client_msg_id too
+					var p assistantwire.SendParams
+					if err := json.Unmarshal(raw, &p); err != nil {
+						return nil, err
+					}
+					return map[string]any{"params": p.Params}, nil
+				}
 				return map[string]any{}, nil
 			})
 			spoke := make(chan assistantwire.UserSpokeParams, 1)
+			sent := make(chan assistantwire.ConversationSent, 1)
 			manager.mu.Lock()
 			manager.onEvent = func(method string, raw json.RawMessage) {
-				if method == assistantwire.EventUserSpoke {
+				switch method {
+				case assistantwire.EventUserSpoke:
 					var r assistantwire.UserSpokeParams
 					if json.Unmarshal(raw, &r) == nil {
 						spoke <- r
+					}
+				case assistantwire.EventConversationSent:
+					var r assistantwire.ConversationSent
+					if json.Unmarshal(raw, &r) == nil {
+						sent <- r
 					}
 				}
 			}
@@ -179,11 +196,23 @@ func TestAssistantConversationSendCarriesOwnerText(t *testing.T) {
 				if got.Text != tc.text {
 					t.Fatalf("assistant-conversation owner text for %s: %q, want %q", tc.name, got.Text, tc.text)
 				}
+				if got.ClientMsgID != "dir-reply-1" {
+					t.Fatalf("the spoke does not name the send (#13041): %q", got.ClientMsgID)
+				}
 			case <-timer.C:
 				t.Fatal("the assistant-conversation send did not tell the manager the owner spoke")
 			}
 			unblock()
 			<-done
+			// The send's outcome names the same message, so the manager can join the two (#13041).
+			select {
+			case got := <-sent:
+				if got.ClientMsgID != "dir-reply-1" || got.SessionID != "dir1" || got.Outcome != assistantwire.ConversationDelivered {
+					t.Fatalf("the send's outcome cannot be joined to its spoke: %+v (status %d %s)", got, rec.Code, rec.Body.String())
+				}
+			case <-timer.C:
+				t.Fatalf("no session.assistant_sent for the send (status %d %s)", rec.Code, rec.Body.String())
+			}
 		})
 	}
 }
