@@ -631,10 +631,17 @@ func (s *Service) workbenchInboxAction(ctx context.Context, a *feishubot.CardAct
 		if op == "draft" {
 			list = mid // pressed on the Inbox card: it is redrawn once the reply goes out
 		}
+		expectedVersion, _ := strconv.Atoi(a.Str("version"))
 		go func() {
 			cctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			text, err := s.draftReply(cctx, id, instruction)
+			var text string
+			var err error
+			if op == "redraft" {
+				text, err = s.draftReplyVersion(cctx, id, instruction, expectedVersion)
+			} else {
+				text, err = s.draftReply(cctx, id, instruction)
+			}
 			cardItem := it
 			if live, ok := s.workbenchItem(id); ok {
 				// draftReply publishes the authoritative mirror asynchronously. Render its actual version, not the item

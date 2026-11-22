@@ -68,6 +68,9 @@ type InboxSuggestion struct {
 	// ReplyInstruction is the owner rewrite instruction whose generated replacement was already classified. It is
 	// internal authorization provenance, not part of the physical send identity and not listed to clients.
 	ReplyInstruction string `json:"reply_instruction,omitempty"`
+	// ReplyPublicationFailed keeps a draft whose only publication write failed from becoming an owner-authored direct
+	// reply after the store recovers. It is an internal fail-closed marker, never listed to clients.
+	ReplyPublicationFailed bool `json:"reply_publication_failed,omitempty"`
 }
 
 // InboxHandoff is one hand-off of the event to Persona's main conversation (POST /api/v1/inbox/{id}/handoff): that

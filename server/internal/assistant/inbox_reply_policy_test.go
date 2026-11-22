@@ -842,7 +842,7 @@ func TestInboxReplyPolicyOnDemandDraftGate(t *testing.T) {
 			h.in.model = fakeModel(t, `{"category":"approval_permission"}`)
 			edited := "I approve the synthetic on-demand permission request"
 			if tc.fromCard {
-				_, err = h.replyInboxFrom(t.Context(), it.ID, edited, "synthetic-workbench-send", true)
+				_, err = h.replyInboxFromVersion(t.Context(), it.ID, edited, "feishu-workbench-synthetic-send", true, 1)
 			} else {
 				_, err = h.replyInboxChecked(t.Context(), it.ID, edited, "", false, nil, nil)
 			}
@@ -952,11 +952,13 @@ func TestInboxReplyPolicyMirroredSendUsesDurableAttempt(t *testing.T) {
 				t.Fatal(err)
 			}
 			text := currentSuggestion(it).Text
+			firstID := recoveryFirstID
 			var firstErr error
 			if fromCard {
-				_, firstErr = h.replyInboxFrom(t.Context(), it.ID, text, recoveryFirstID, true)
+				firstID = "feishu-workbench-" + recoveryFirstID
+				_, firstErr = h.replyInboxFromVersion(t.Context(), it.ID, text, firstID, true, 1)
 			} else {
-				_, firstErr = h.replyInboxChecked(t.Context(), it.ID, text, recoveryFirstID, false, nil, nil)
+				_, firstErr = h.replyInboxChecked(t.Context(), it.ID, text, firstID, false, nil, nil)
 			}
 			if !replyInDoubt(firstErr) {
 				t.Fatalf("first mirrored send error = %v, want an uncertain outcome", firstErr)
@@ -971,13 +973,19 @@ func TestInboxReplyPolicyMirroredSendUsesDurableAttempt(t *testing.T) {
 			loaded := restarted.inbox.items[it.ID]
 			a := suggestionAttempt(loaded, 1)
 			restarted.inbox.mu.Unlock()
-			if a == nil || a.Status != suggestionUnknown || a.ClientID != recoveryFirstID {
+			wantAttemptID := firstID
+			if fromCard {
+				// Workbench's routing prefix is not a client UUID, so the durable attempt uses the existing
+				// deterministic suggestion identity rather than persisting that prefix as the caller ID.
+				wantAttemptID = namedClientID("suggestion\n" + it.ID + "\n1")
+			}
+			if a == nil || a.Status != suggestionUnknown || a.ClientID != wantAttemptID {
 				t.Fatalf("mirrored send has no persisted uncertain reservation after reload: %+v", a)
 			}
 			c.answer(nil)
 			var secondErr error
 			if fromCard {
-				_, secondErr = restarted.replyInboxFrom(t.Context(), it.ID, text, "feishu-workbench-"+recoveryFreshID, true)
+				_, secondErr = restarted.replyInboxFromVersion(t.Context(), it.ID, text, "feishu-workbench-"+recoveryFreshID, true, 1)
 			} else {
 				_, secondErr = restarted.replyInboxChecked(t.Context(), it.ID, text, recoveryFreshID, false, nil, nil)
 			}
@@ -1007,7 +1015,7 @@ func TestInboxReplyPolicyMirroredSendChecksRecipientBinding(t *testing.T) {
 			h.inbox.mu.Unlock()
 			var err error
 			if fromCard {
-				_, err = h.replyInboxFrom(t.Context(), it.ID, text, "synthetic-target-card", true)
+				_, err = h.replyInboxFromVersion(t.Context(), it.ID, text, "feishu-workbench-synthetic-target-card", true, 1)
 			} else {
 				_, err = h.replyInboxChecked(t.Context(), it.ID, text, "synthetic-target-direct", false, nil, nil)
 			}
@@ -1148,6 +1156,9 @@ func TestInboxReplyPolicyDraftFailedWriteWithoutRollbackDoesNotReturnText(t *tes
 	text, err := h.draftReply(t.Context(), it.ID, "")
 	if err == nil || text != "" {
 		t.Fatalf("unpersisted intact mirror returned a successful draft: text=%q err=%v", text, err)
+	}
+	if !errors.Is(err, errInboxNotPersisted) {
+		t.Fatalf("unpersisted intact mirror returned the wrong persistence error: %v", err)
 	}
 }
 

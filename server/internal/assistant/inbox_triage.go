@@ -394,6 +394,12 @@ type onDemandDraftAuthorization struct {
 
 // draftReply writes a reply to an inbox item in the user's voice (optionally following their instruction).
 func (s *Service) draftReply(ctx context.Context, id, instruction string) (string, error) {
+	return s.draftReplyVersion(ctx, id, instruction, 0)
+}
+
+// draftReplyVersion binds Workbench redraft generation to the suggestion version rendered on that card. The version
+// and the pre-generation item snapshot are checked under the same lock; finishOnDemandDraft catches later changes.
+func (s *Service) draftReplyVersion(ctx context.Context, id, instruction string, expectedVersion int) (string, error) {
 	hello := s.hello(ctx)
 	language := answerLanguage(hello.Locale)
 	initialCfg, err := s.inboxConfigFresh(ctx)
@@ -409,6 +415,13 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 	var item prompts.InboxItem
 	var authorization onDemandDraftAuthorization
 	if ok {
+		if expectedVersion > 0 {
+			g := currentSuggestion(it)
+			if g == nil || g.Kind != SuggestReply || g.Version != expectedVersion {
+				b.mu.Unlock()
+				return "", errSuggestionStale
+			}
+		}
 		authorization.before = itemState(it)
 		authorization.policy = initialCfg.ReplyPolicy
 		authorization.applied = replyPolicyItemApplies(initialCfg.ReplyPolicy, it)
@@ -550,6 +563,13 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 	failed := s.saveWrites(ctx, []*inboxWrite{w}, "its on-demand reply suggestion")
 	b.mu.Lock()
 	undone := w.undone
+	if failed[id] && !undone && b.items[id] == it && currentSuggestion(it) == g {
+		// A concurrent mutation can make the generic rollback unsafe even though this exact mirror was never saved.
+		// Keep its AI provenance as a fail-closed tombstone instead of letting a later old-client /reply treat the
+		// unpublished model text as an owner-authored direct reply.
+		g.ReplyPublicationFailed = true
+		b.touched(it.ID)
+	}
 	current := b.items[id] == it && mirroredLegacyReply(it) == g && bytes.Equal(itemState(it), w.applied)
 	b.mu.Unlock()
 	if failed[id] || undone {
@@ -721,6 +741,12 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	workbench := fromCard && strings.HasPrefix(clientID, "feishu-workbench-")
 	if g == nil && !workbench {
 		return InboxItem{}, false, nil
+	}
+	if g != nil && g.ReplyPublicationFailed {
+		// This mirror never completed publication. Keep it on the suggestion denial path even if policy scope later
+		// changes; falling through would reclassify its model text as an owner-authored direct reply.
+		out, err := s.actOnSuggestion(ctx, id, suggestionReq{Version: g.Version, Action: suggestConfirm, Text: &text, ClientID: clientID, Changes: &changes}, full)
+		return out, true, err
 	}
 	cfg, err := s.inboxConfigFresh(ctx)
 	if err != nil {

@@ -271,6 +271,7 @@ func (it *InboxItem) listed() InboxItem {
 		g.Changes, g.Cwd = slices.Clone(g.Changes), ""
 		g.MailTarget = nil // the reply's internal conflict check, not a client's target to choose
 		g.Owner, g.SourceOf, g.ReplyInstruction = nil, "", ""
+		g.ReplyPublicationFailed = false
 		c.Suggestion = &g
 		if c.Handling == nil && g.Conversation == nil && it.Agent != nil { // an old draft: its conversation is done with this round
 			c.Handling = &InboxHandling{Owner: HandlingOwner, State: HandlingDone, MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}

@@ -100,8 +100,22 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		sourceKnown := false
 		policyConfirm := false
 		if it != nil {
-			sources, sourceKnown = replyPolicySourceSet(it), true
 			g := currentSuggestion(it)
+			if g != nil && g.Kind == SuggestReply && !g.Handback && g.Version == in.Version {
+				if a := suggestionAttempt(it, g.Version); a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
+					// The durable physical outcome outranks any later policy/configuration failure. Reporting "none" here
+					// would invite the owner to repeat a send whose first result is still unresolved.
+					out := it.listed()
+					b.mu.Unlock()
+					return out, unknownSuggestionReply()
+				}
+				if g.ReplyPublicationFailed {
+					out := it.listed()
+					b.mu.Unlock()
+					return out, errInboxNotPersisted
+				}
+			}
+			sources, sourceKnown = replyPolicySourceSet(it), true
 			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent)
 		}
 		b.mu.Unlock()
