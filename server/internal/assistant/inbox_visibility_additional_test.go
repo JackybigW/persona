@@ -134,6 +134,30 @@ func TestInboxVisibilityHistoricalMixedMergeBlocksSuggestionLifecycle(t *testing
 	})
 }
 
+func TestInboxVisibilityLegacyMirroredFinalSend(t *testing.T) {
+	h, lark, it := handledHub(t)
+	it.Source = "lark"
+	it.Lark.FeedID = "synthetic-private"
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Synthetic old-client mirrored reply"}`); err != nil {
+		t.Fatal(err)
+	}
+	g := mirroredLegacyReply(it)
+	if g == nil {
+		t.Fatal("test setup did not expose an old-client mirrored draft")
+	}
+	// The first fresh read authorizes the edit-veto preflight. Exclusion arrives only at the final fresh read, so the
+	// earlier visibility gate cannot mask the legacy mirror's own final-send authorization in this test.
+	h.in.mu.Lock()
+	h.in.configQueue = []assistantwire.InboxConfig{{}, {Visibility: visibilityTestConfig()}}
+	h.in.mu.Unlock()
+	if _, err := h.replyInboxChecked(t.Context(), it.ID, g.Text, "", false, nil, nil); err == nil {
+		t.Fatal("an old-client mirrored reply bypassed the final fresh visibility gate")
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("denied old-client mirrored reply called the sender: %+v", lark.got)
+	}
+}
+
 func TestInboxVisibilityGroupingFiltersHistoricalMixedMerge(t *testing.T) {
 	h := newInboxHub(t)
 	survivor := actionItem("lark:F1:1051", time.Now())

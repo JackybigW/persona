@@ -185,7 +185,6 @@ func TestReplyVisibilityPollPreservesLegacySearchState(t *testing.T) {
 	c := testConnector(t, "inbox_p2p")
 	c.inboxState.PageToken = "saved-search-page"
 	c.inboxState.TopicsSeeded = false
-	c.inboxStateLoaded = true
 	setReplyVisibility(t, c, `{"inbox_exclude_chats":["oc_example_dm"]}`)
 	if _, err := c.pollChat(context.Background()); err != nil {
 		t.Fatal(err)
