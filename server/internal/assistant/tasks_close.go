@@ -371,12 +371,17 @@ func (s *Service) archiveRetiredTaskAgent(ctx context.Context, a doneTaskAgent, 
 		return
 	}
 	c.ReadOnlyReason = i18n.T(s.lang(ctx), "hub-agent_archives.task_closed")
-	if err := s.noteAgentArchive(ctx, c, true); err != nil {
+	changedAt, err := s.noteAgentArchiveAt(ctx, c, true)
+	if err != nil {
 		s.logf("closed task agent %s/%s: archive: %v", c.MachineID, short(c.SessionID), err)
 		return
 	}
-	if err := s.noteAgentArchiveClosed(ctx, c, time.Now().UTC()); err != nil {
+	c.ArchiveChangedAt = archiveChangedAt(changedAt)
+	publishMark, err := s.noteAgentArchiveClosed(ctx, c, time.Now().UTC(), false)
+	if err != nil {
 		s.logf("closed task agent %s/%s: archive close reason: %v", c.MachineID, short(c.SessionID), err)
+		s.publishList(c.MachineID) // the archive committed even when recording its close metadata failed
+	} else if publishMark != 0 {
+		s.publishListAtArchiveMark(c.MachineID, publishMark)
 	}
-	s.publishList(c.MachineID)
 }

@@ -128,16 +128,16 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	s.reviewDismissals.actions.acquire(t.ID)
 	defer s.reviewDismissals.actions.release(t.ID)
 	t, _ = s.todoNow(t.ID)
-	// The main conversation may review any supervised task: after the main conversation changes, the old tasks'
-	// supervision messages come to the new one, which has to be able to close them (#4262).
-	// The background supervisor reviews the tasks no leader supervises, whose ledgers name the main conversation
-	// (supervise_background.go); the main conversation may still review them, as it may a leader's.
+	// Main supervises ordinary conversation-dispatched tasks (#5732). Origin alone never lets a side conversation
+	// accept one. Delegated reviewers are an explicitly assigned manual leader, a task leader for its worker, the legacy
+	// background with durable evidence, or the explicit capable-runtime side topology introduced with policy support.
 	isMain := s.isMain(ctx, self)
 	background := s.backgroundSupervises(ctx, self, t)
-	if t.Origin == "" || t.Origin != self && (t.Supervision == nil || t.Supervision.Supervisor != self && !isMain) {
-		if !background && !s.mayReviewForLeader(ctx, self, t) {
-			return "", fmt.Errorf("task %s was not handed out from this conversation", t.ID)
-		}
+	manualLeader := t.Supervision != nil && t.Supervision.Supervisor == self && s.isLeader(ctx, self)
+	capableRuntime := t.Supervision != nil && t.Supervision.Supervisor == self && t.Origin == self && s.runtimeWithSupervisionPolicy(ctx, s.settings(ctx).MachineID, self)
+	allowed := isMain || background || manualLeader || capableRuntime || s.mayReviewForLeader(ctx, self, t)
+	if t.Origin == "" || !allowed {
+		return "", fmt.Errorf("task %s was not handed out from this conversation", t.ID)
 	}
 	if t.DoneAt != nil && (a.Verdict == reviewRework || a.Verdict == reviewNeedsUser || a.Verdict == reviewParked) {
 		return "", fmt.Errorf("task %s is done already (%s): hand out a new task for what is left", t.ID, cmp.Or(t.DoneReason, "closed"))
@@ -210,11 +210,12 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 			return "", errors.New(acceptGuardRefusal(matched))
 		}
 	}
-	// A conversation supervises what it handed out (task_plan, quietAgentTask): a task without a ledger
-	// gets none here either, or its signals would go into the main conversation's supervision messages (#4262). It can still
-	// be closed; rework, needs_user and parked are what supervision is for.
-	ledger := t.Supervision != nil || isMain || a.UserCheck
-	if !ledger && (verdict == reviewRework || verdict == reviewNeedsUser || verdict == reviewParked) {
+	// An explicit main acceptance records its verdict even for a legacy task without a ledger: accepted prerequisites
+	// use that durable receipt to release their dependents. user_check likewise persists the owner's personal verification.
+	// Dispatch-time topology is decided where the task is created, and nonterminal reviews still require an existing
+	// supervised task. Cancellation needs no such receipt ledger.
+	ledger := t.Supervision != nil || isMain && verdict == reviewAccepted || a.UserCheck
+	if t.Supervision == nil && (verdict == reviewRework || verdict == reviewNeedsUser || verdict == reviewParked) {
 		return "", fmt.Errorf("task %s is not supervised: send what is missing to its agent with agent_send, or ask the user in your answer", t.ID)
 	}
 	if verdict == reviewParked && s.agentSupervised(t) {
@@ -367,15 +368,22 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	b := &s.supervise
 	b.mu.Lock()
 	b.init()
-	for _, k := range []string{sigReview, sigIdle, sigUnjudged, sigNeedsYou, sigStalled, sigNoProgress, sigTimedOut, sigOrphaned, sigOverdue, sigEstimateDue, sigRecheck, sigUndecidable, sigOwnerCannot, sigParkedDue} {
-		delete(b.pending, t.ID+"|"+k) // reviewed: what waited is answered
+	var keys []string
+	for _, k := range []string{sigReview, sigIdle, sigUnjudged, sigNeedsYou, sigStalled, sigNoProgress, sigAllStopped, sigTimedOut, sigOrphaned, sigOverdue, sigEstimateDue, sigRecheck, sigUndecidable, sigOwnerCannot, sigParkedDue} {
+		key := t.ID + "|" + k
+		delete(b.pending, key) // reviewed: what waited is answered
+		keys = append(keys, key)
 	}
 	if verdict == reviewAccepted || verdict == reviewCancelled {
 		// Closed: a decision that ended a parking has nothing left to move. A review that leaves the task open, parking
 		// it again included, does not say its supervisor heard of the decision: that waits for its message (decidedPark).
-		delete(b.pending, t.ID+"|"+sigParkDecided)
+		key := t.ID + "|" + sigParkDecided
+		delete(b.pending, key)
+		keys = append(keys, key)
 	}
+	s.forgetSupervisePending(keys...)
 	b.mu.Unlock()
+	s.resetBackgroundBreakerForTodo(t.ID)
 	// How it ended against what was asked (task_brief_result.go): each criterion of the brief, as scope changes left them.
 	var result *BriefResult
 	if verdict == reviewAccepted || verdict == reviewCancelled {
@@ -602,16 +610,18 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	}
 	stalled := v.stalledReworkRounds()
 	if isStalledReworkKind(a.ReworkKind) && v.Round == stalled {
-		return fmt.Sprintf("Rework round %d of %d is %s. When the agent stops again you get a 督办 message to review it again.", v.Round,
-			maxReworkRounds, sent), nil
+		return fmt.Sprintf("Rework round %d of %d is %s. ", v.Round, maxReworkRounds, sent) + reviewAgainNote, nil
 	}
 	if a.ReworkKind != "" {
-		return fmt.Sprintf("Rework round %d of %d (%s; stalled/low-ROI %d of %d) is %s. When the agent stops again you get a 督办 message to review it again.", v.Round,
-			maxTotalReworkRounds, a.ReworkKind, stalled, maxReworkRounds, sent), nil
+		return fmt.Sprintf("Rework round %d of %d (%s; stalled/low-ROI %d of %d) is %s. ", v.Round,
+			maxTotalReworkRounds, a.ReworkKind, stalled, maxReworkRounds, sent) + reviewAgainNote, nil
 	}
-	return fmt.Sprintf("Rework round %d of %d (stalled/low-ROI %d of %d) is %s. When the agent stops again you get a 督办 message to review it again.", v.Round,
-		maxTotalReworkRounds, stalled, maxReworkRounds, sent), nil
+	return fmt.Sprintf("Rework round %d of %d (stalled/low-ROI %d of %d) is %s. ", v.Round,
+		maxTotalReworkRounds, stalled, maxReworkRounds, sent) + reviewAgainNote, nil
 }
+
+// reviewAgainNote ends every rework reply: the supervisor is told where its next look comes from.
+const reviewAgainNote = "When the agent stops again you get a 督办 message to review it again."
 
 // reviewReply is what a review says of the work, as the reply a "Please verify" card's three lines are read from.
 func reviewReply(note string, checks []ReviewCheck) string {
@@ -666,7 +676,17 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		s.loadSeen(ctx)
 		_ = s.loadTaskActivity(ctx)
 	}
-	s.todos.writing.Lock() // check activity after any competing task writer, not before waiting for it
+	s.todos.writing.Lock()
+	ok, after, err := s.reviewDoneTodoLocked(ctx, id, reason, accepted, ledger, ownerPass)
+	s.todos.writing.Unlock()
+	if after != nil {
+		after()
+	}
+	return ok, err
+}
+
+// reviewDoneTodoLocked commits the closure while todos.writing is held and returns its post-commit effects.
+func (s *Service) reviewDoneTodoLocked(ctx context.Context, id, reason string, accepted bool, ledger *Supervision, ownerPass bool) (bool, func(), error) {
 	guard := func() error {
 		if ownerPass {
 			return nil // the owner explicitly completed this verification round
@@ -677,12 +697,10 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		return nil
 	}
 	if err := guard(); err != nil {
-		s.todos.writing.Unlock()
-		return false, err
+		return false, nil, err
 	}
 	if t, ok := s.todoNow(id); ok && t.isConcern() {
-		s.todos.writing.Unlock()
-		return false, nil // only its report closes a concern (concerns.go)
+		return false, nil, nil // only its report closes a concern (concerns.go)
 	}
 	now := time.Now().UTC()
 	var row db.TodoRow
@@ -696,15 +714,13 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		}
 		r, ok, err := st.ReviewTodo(ctx, id, reason, accepted, now, review, guard)
 		if err != nil || !ok {
-			s.todos.writing.Unlock()
-			return false, err
+			return false, nil, err
 		}
 		row = *r
 	} else {
 		t, ok := s.todoNow(id)
 		if !ok {
-			s.todos.writing.Unlock()
-			return false, db.ErrTodoNotFound
+			return false, nil, db.ErrTodoNotFound
 		}
 		row = db.TodoRow{ID: t.ID, Title: t.Title, Notes: t.Notes, CreatedAt: t.CreatedAt, Origin: t.Origin, PlanID: t.PlanID,
 			ReopenedAt: t.ReopenedAt, Quiet: t.Quiet}
@@ -735,30 +751,32 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		}
 		return false
 	})
-	s.todos.writing.Unlock()
 	if activityErr != nil {
-		return false, activityErr
+		return false, nil, activityErr
 	}
-	if ok {
+	if !ok {
+		return false, nil, nil
+	}
+	return true, func() {
 		s.todoRowSet(ctx, doneKeys)
-	}
-	// Recording an outcome and telling the planning conversation belong to a newly closed open task, not a failed start.
-	if ok && before.DoneAt == nil {
-		if accepted && row.DoneAt != nil {
-			s.goRecordTaskOutcome(before, *row.DoneAt)
-			s.learnAcceptedEstimate(ctx, id)
-			s.goLearnTaskLessons(ctx, before, *row.DoneAt) // what it taught its project's next Agents (task_lessons.go)
-			// Post-closure PR lifecycle: keep watching this to-do's own still-open delivery PRs without reopening it (#12371).
-			if cur, ok := s.todoNow(id); ok {
-				s.createPRFollowups(ctx, cur)
+		// Recording an outcome and telling the planning conversation belong to a newly closed open task, not a failed start.
+		if before.DoneAt == nil {
+			if accepted && row.DoneAt != nil {
+				s.goRecordTaskOutcome(before, *row.DoneAt)
+				s.learnAcceptedEstimate(ctx, id)
+				s.goLearnTaskLessons(ctx, before, *row.DoneAt) // what it taught its project's next Agents (task_lessons.go)
+				// Post-closure PR lifecycle: keep watching this to-do's own still-open delivery PRs without reopening it (#12371).
+				if cur, ok := s.todoNow(id); ok {
+					s.createPRFollowups(ctx, cur)
+				}
+				s.evaluateTodoAfterDependents(ctx, id)
+			}
+			if t, now := s.todoNow(id); ok && now {
+				// A side conversation's task the main conversation supervised: the planning conversation hears it ended (#4669).
+				go s.taskEndedNotice(context.WithoutCancel(ctx), t, accepted, reason)
 			}
 		}
-		if t, now := s.todoNow(id); ok && now {
-			// A side conversation's task the main conversation supervised: the planning conversation hears it ended (#4669).
-			go s.taskEndedNotice(context.WithoutCancel(ctx), t, accepted, reason)
-		}
-	}
-	return ok, nil
+	}, nil
 }
 
 // pickTaskAgent is the agent of a task that most needs what is sent to it: one waiting for the user, then working,

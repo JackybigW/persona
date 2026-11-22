@@ -9,12 +9,13 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
-func TestAutomaticCloseLateActivityRollsBackAndRetriesJudgment(t *testing.T) {
+func TestReporterCloseLateActivityRollsBackAndRetriesJudgment(t *testing.T) {
 	for _, activity := range []string{"message", "view"} {
 		t.Run(activity, func(t *testing.T) {
 			ctx := context.Background()
 			st := &reviewActivityStore{DB: todoTestDB(t)}
 			s, f := newTaskServiceOn(t, st)
+			s.markReporter(ctx, "server", "conv1")
 			todo := startedTask(t, s, f)
 			items := turnPage("automatic-close", "The result is checked.", true)
 			row := turnRow(proto.StatusDone, 3, "The result is checked.")

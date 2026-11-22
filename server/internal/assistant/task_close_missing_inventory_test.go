@@ -64,8 +64,8 @@ func TestDeferredUnsupervisedTurnRetriesWithoutInventory(t *testing.T) {
 			sweeps(t, s, todo.ID, 2)
 			got := todoNow(s, todo.ID)
 			if change == "same turn" {
-				if got.DoneAt == nil {
-					t.Fatal("the durable completed turn was never retried after inactivity without an inventory row")
+				if got.DoneAt != nil || got.Supervision == nil || got.Supervision.State != reviewPending {
+					t.Fatalf("the durable completed turn did not reach review: %+v", got)
 				}
 				f.mu.Lock()
 				judged := f.judged
@@ -99,6 +99,7 @@ func TestDeferredUnsupervisedTurnRetriesFromDurableLedgerWithoutInventory(t *tes
 	s.rememberSessionActivity(ctx, "box", "s1")
 	s.applyTaskDone(ctx, todo, work, true, taskDoneCheck{Verdict: verdictDone, WouldClose: true, Reason: "Finished"}, nil)
 	again, f2 := restartedOn(t, database)
+	setSettings(t, again, func(v *Settings) { v.Main = "conv1" })
 	f2.judge = `{"verdict":"done","reason":"Finished and verified"}`
 	f2.setItems(items...)
 	f2.setSessions("box")
@@ -113,12 +114,15 @@ func TestDeferredUnsupervisedTurnRetriesFromDurableLedgerWithoutInventory(t *tes
 	if e, ok := again.turnOf(ctx, todo.ID); !ok || e.Key != end.Key || e.Judged != nil {
 		t.Fatalf("the pending turn did not survive restart: %+v", e)
 	}
+	if err := again.loadTaskActivity(ctx); err != nil {
+		t.Fatal(err)
+	}
 	again.taskActivity.mu.Lock()
 	again.taskActivity.times[runtimeListID("box", "s1")] = time.Now().Add(-taskUserIdle - time.Second)
 	again.taskActivity.mu.Unlock()
 	sweeps(t, again, todo.ID, 2)
-	if got := todoNow(again, todo.ID); got.DoneAt == nil {
-		t.Fatal("the restarted manager never retried its durable turn without inventory")
+	if got := todoNow(again, todo.ID); got.DoneAt != nil || got.Supervision == nil || got.Supervision.State != reviewPending {
+		t.Fatalf("the restarted manager did not recover the turn for review: %+v", got)
 	}
 	f2.mu.Lock()
 	defer f2.mu.Unlock()

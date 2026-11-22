@@ -238,15 +238,11 @@ func TestTaskJudgmentDefersAndRetriesOwnerActivity(t *testing.T) {
 					// No row change or new turn: the existing sweep must retry the deferred judgment.
 					sweeps(t, s, todo.ID, 2)
 					now := todoNow(s, todo.ID)
-					if supervised {
-						if e, _ := s.turnOf(ctx, todo.ID); e.Judged == nil {
-							t.Fatal("inactivity left the turn pending forever")
-						}
-						if now.DoneAt != nil || now.Supervision.State != reviewPending {
-							t.Fatalf("inactivity did not restore supervised review: %+v", now)
-						}
-					} else if now.DoneAt == nil {
-						t.Fatalf("inactivity did not close the unsupervised task: %+v", now)
+					if e, _ := s.turnOf(ctx, todo.ID); e.Judged == nil {
+						t.Fatal("inactivity left the turn pending forever")
+					}
+					if now.DoneAt != nil || now.Supervision == nil || now.Supervision.State != reviewPending {
+						t.Fatalf("inactivity did not restore supervised review: %+v", now)
 					}
 				})
 			}

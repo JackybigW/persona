@@ -26,6 +26,10 @@ func TestCancelledTaskStaysClosed(t *testing.T) {
 				ctx := context.Background()
 				sid := "s1" + randomHex(6) // Durable activity must not leak between synthetic sessions.
 				s, f := e.s, e.f
+				setSettings(t, s, func(v *Settings) { v.Main = "conv1" })
+				if !tc.supervised {
+					setSettings(t, s, func(v *Settings) { v.Main = "conv-main" }) // a legacy task with no ledger
+				}
 				todo, err := s.createTodo(ctx, "Update the report", "Update the report and check the results.", "conv1", "")
 				if err != nil {
 					t.Fatal(err)
@@ -40,7 +44,7 @@ func TestCancelledTaskStaysClosed(t *testing.T) {
 				}
 				f.setSessions("box", proto.Session{MachineID: "box", SessionID: sid, Status: proto.StatusWorking, State: proto.StateWorking})
 				s.TurnStarted(ctx, SessionRef{MachineID: "box", SessionID: sid})
-				if _, err := runJSON(t, s, "conv1", "task_review", map[string]any{
+				if _, err := runJSON(t, s, s.settings(ctx).Main, "task_review", map[string]any{
 					"todo_id": todo.ID, "verdict": reviewCancelled, "note": "The report is no longer needed.",
 				}); err != nil {
 					t.Fatal(err)

@@ -35,7 +35,7 @@ func TestLeaderlessCancellationLateOwnerActivityCommitsNothing(t *testing.T) {
 			}
 			lock, method := &s.supervise.writeMu, "updateSupervisionWithClose"
 			if boundary == "closure" {
-				lock, method = &s.todos.writing, "reviewDoneTodoWithSupervision"
+				lock, method = &s.todos.writing, "updateSupervisionWithClose"
 			}
 			lock.Lock()
 			unlock := sync.OnceFunc(lock.Unlock)

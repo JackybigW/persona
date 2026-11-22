@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -163,7 +164,7 @@ func (s *Service) closeStalledTask(ctx context.Context, task Todo, agents []prot
 				v.State = reviewRework
 			}
 			return true
-		}, nil)
+		})
 	}
 	if !recovering {
 		updated, changed, err := s.updateSupervisionLockedAt(ctx, task.ID, now, func(v *Supervision) bool {
@@ -172,7 +173,7 @@ func (s *Service) closeStalledTask(ctx context.Context, task Todo, agents []prot
 			}
 			v.State = reviewClosing
 			return true
-		}, nil)
+		})
 		if err != nil {
 			s.logf("task %s: record timeout intent: %v", task.ID, err)
 			return
@@ -227,7 +228,7 @@ func (s *Service) closeStalledTask(ctx context.Context, task Todo, agents []prot
 		v.State = reviewTimedOut
 		v.Reviews = append(v.Reviews, TaskReview{At: now.UTC(), Verdict: reviewTimedOut, By: "system"})
 		return true
-	}, nil); err != nil {
+	}); err != nil {
 		s.logf("task %s: record timeout: %v", task.ID, err)
 	}
 }
@@ -243,6 +244,10 @@ func (s *Service) continueTimedOut(ctx context.Context, task Todo) (json.RawMess
 	agents := s.taskAgents(ctx, current)
 	byID := map[[2]string]proto.Session{}
 	for _, c := range agents {
+		if proto.UnrecoverableTurnErrorCode(c.TurnError) != "" || c.TurnErrorKind == proto.TurnErrorUnrecoverable ||
+			c.TurnErrorCode == proto.TurnErrorCompactionSealed {
+			return nil, i18n.Err("assistant-agents_work.conversation_invalid")
+		}
 		byID[[2]string{c.MachineID, c.SessionID}] = c
 	}
 	st, claimed := s.claimTaskStart(task.ID)

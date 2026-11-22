@@ -31,6 +31,7 @@ func TestTaskReviewRefusesOwnerActivityWithoutSideEffects(t *testing.T) {
 		for _, activity := range []string{"message", "message bus", "view", "recent read"} {
 			t.Run(verdict+"/"+activity, func(t *testing.T) {
 				s, f := newTaskService(t)
+				setSettings(t, s, func(v *Settings) { v.Main = "conv1" })
 				todo := startedTask(t, s, f)
 				ctx := context.Background()
 				switch activity {
@@ -259,13 +260,14 @@ func TestClosedTaskAgentWaitsForOwnerThenArchivesWithReason(t *testing.T) {
 // closed-task cleanup can still run; the task's conversation sending more (agent_send, the card) still reopens it.
 func TestAcceptedPlannedTaskStaysClosedWhenOwnerChatsDirectly(t *testing.T) {
 	s, f := newTaskService(t)
+	setSettings(t, s, func(v *Settings) { v.Main = "conv1" })
 	todo := startedTask(t, s, f)
 	if todo.PlanID == "" {
 		t.Fatal("fixture is not a planned task")
 	}
 	agentTurn(s, f, proto.StatusIdle, "READY", 0)
 	reviewed := make(chan error, 1)
-	raw, _ := json.Marshal(map[string]any{"todo_id": todo.ID, "verdict": reviewAccepted, "note": "Disposable lifecycle probe"})
+	raw, _ := json.Marshal(map[string]any{"todo_id": todo.ID, "verdict": reviewAccepted, "note": "Disposable lifecycle probe", "checks": completeReviewChecks(todo)})
 	go func() {
 		_, err := s.runTool(context.Background(), "server", "conv1", "task_review", raw)
 		reviewed <- err
