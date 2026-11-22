@@ -31,8 +31,8 @@ extension Theme {
         /// A status dot (online, unread).
         static let dot = "circle.fill"
         static let time = "clock"
-        /// Someday on a to-do (#10465): the owner's own "not now", put aside for some other day (its swipe, its menu and
-        /// the list's Show Someday). Not `time`, which is Waiting's clock.
+        /// Someday on a to-do (#10465): the owner's own "not now", put aside for some other day (its swipe and its
+        /// menu). Not `time`, which is Waiting's clock.
         static let someday = "moon.stars.fill"
         /// An agent that only waits on background commands (Waiting in the Background, #6045): the mark in place of its dot.
         static let backgroundWaiting = "clock.fill"
@@ -307,6 +307,8 @@ extension Theme {
         /// Archive a conversation (out of the list, kept under Archived) and bring it back.
         static let archive = "archivebox"
         static let unarchive = "tray.and.arrow.up"
+        /// Move To…: file a chat or an Agent under one of the owner's long-running matters, or on its own (#11516).
+        static let moveTo = "rectangle.stack.badge.plus"
         static let mute = "bell.slash"
         static let unmute = "bell"
         /// An Inbox rule: where a chat's, sender's or repository's items go and what the AI twin does with them.
@@ -760,10 +762,6 @@ extension Theme {
         static let findText = "text.magnifyingglass"
         /// A command watched in the background, each line it prints an event (Claude Code's Monitor, its task notes).
         static let monitor = "waveform.path.ecg"
-        /// Running and recently completed background tasks in Agent chat.
-        static let backgroundTasks = taskPlan
-        /// A background command that watches an ongoing signal.
-        static let backgroundMonitor = monitor
         /// A subagent the agent started (the Agent / Task tool, a session's subagents); one at work.
         static let subagent = "person.2"
         static let subagentWorking = "person.2.badge.gearshape"

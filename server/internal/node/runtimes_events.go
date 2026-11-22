@@ -89,14 +89,20 @@ func (n *Node) runtimeEvent(h *runtimeConn, event string, params json.RawMessage
 		}
 		n.runtimes.pushed(p.SessionID, last, p.History, p.FromSeq != nil && *p.FromSeq == 0)
 		if n.peer != nil {
-			_ = n.peer.Notify("session.items", n.echoedRaw(p.SessionID, params, "items")) // echo.go
+			raw := n.echoedRaw(p.SessionID, params, "items") // echo.go
+			raw = n.ttft.annotateRaw(p.SessionID, raw, "items", true)
+			_ = n.peer.Notify("session.items", raw)
 		}
 	case "session.delta":
 		var p struct {
 			SessionID string `json:"session_id"`
+			Text      string `json:"text"`
 		}
 		if json.Unmarshal(params, &p) != nil || !n.runtimes.owns(h, p.SessionID) || n.peer == nil {
 			return
+		}
+		if p.Text != "" {
+			n.ttft.firstToken(p.SessionID, time.Now(), "")
 		}
 		n.deltaMu.Lock()
 		_ = n.peer.Notify("session.delta", params)
@@ -172,8 +178,8 @@ func normalizeRuntimeSessions(h *runtimeConn, list []proto.Session) []proto.Sess
 		if s.Agent == "" {
 			s.Agent = agent
 		}
-		if s.AgentLabel == "" && (s.Agent == rt || daemon && s.Agent != "claude") {
-			// The runtime runs its own agent (DSH): the apps call it by the runtime's name. A daemon is called by the
+		if s.AgentLabel == "" && (s.Agent == rt || (agent != "" && s.Agent == agent && agent != "claude") || daemon && s.Agent != "claude") {
+			// The runtime runs its own agent (DSH, opencode-<pid>): the apps call it by the runtime's name. A daemon is called by the
 			// name its config gives, whatever agent it runs (a platform running DSH), unless that is Claude Code.
 			s.AgentLabel = label
 		}
@@ -184,7 +190,7 @@ func normalizeRuntimeSessions(h *runtimeConn, list []proto.Session) []proto.Sess
 		// sending, interrupting, answering cards and every terminal control on capabilities, the hub guards sends.
 		// What a runtime declared, never more: no terminal, no attach, cards always answerable (they are its own asks).
 		s.SourceKind, s.SourceInstanceID, s.SourceThreadID, s.ParentThreadID = proto.SourceRuntime, rt, "", ""
-		if rt == paseoRuntimeID || rt == cindyRuntimeID {
+		if rt == paseoRuntimeID || rt == cindyRuntimeID || rt == t3codeRuntimeID {
 			s.Host = rt // an engine host, though no terminal (#2576)
 		} else {
 			s.Host = ""
@@ -211,12 +217,13 @@ func normalizeRuntimeSessions(h *runtimeConn, list []proto.Session) []proto.Sess
 		}
 		// The permission modes it lists for an agent that is not Claude Code (#8261) go with its modes too, and only where
 		// the apps' Claude Code chips do not stand (claudeModes): the apps switch between those instead.
-		claudeModes := modes && runtimeModes(caps.Modes, rt, s)
+		claudeModes := modes && runtimeModes(caps.Modes, rt, agent, s)
 		permissionModes := own.PermissionModes
 		if !modes || claudeModes {
 			permissionModes = 0
 		}
 		rowCaps := proto.SessionCapabilities{Read: true, Send: caps.Send, Interrupt: caps.Interrupt, Approve: true,
+			A2AWakeOnSend:     caps.Send && own.A2AWakeOnSend && !sub && !s.Archived,
 			SupervisionPolicy: caps.Assistant && caps.SupervisionPolicy && !sub,
 			Close:             capBool(caps.Close), Rename: capBool(caps.Rename && !sub), Modes: capBool(claudeModes),
 			Rewind: capBool(rewind), RewindCode: capBool(rewindCode), Fork: caps.Fork && !sub,
@@ -261,6 +268,14 @@ func normalizeRuntimeSessions(h *runtimeConn, list []proto.Session) []proto.Sess
 			s.UpdatedAt = time.Now().UTC()
 		}
 		s.UpdatedAt = s.UpdatedAt.UTC()
+		if bd := s.ContextBreakdown().Sanitized(); bd != nil {
+			if bd.Free == nil && s.ContextWindow > 0 && s.ContextTokens > 0 {
+				bd.Free = proto.Int(max(int(s.ContextWindow)-int(s.ContextTokens), 0))
+			}
+			s.SetContextBreakdown(bd)
+		} else if s.ContextBreakdown() != nil {
+			s.SetContextBreakdown(nil)
+		}
 		runtimeWork(&s)
 		out = append(out, s)
 	}
@@ -424,7 +439,7 @@ func runtimeHealth(h *runtimeConn, ix proto.Interaction) bool {
 // takes only its own approval and Allow all for those and for Codex (bridge.js modes). So a Paseo row running Codex,
 // opencode or any other agent gets none, and older apps show no chips there; its row lists the modes it takes instead
 // (capabilities.permission_modes, #8261).
-func runtimeModes(declared bool, rt string, s proto.Session) bool {
-	own := s.Agent == rt && rt != paseoRuntimeID
+func runtimeModes(declared bool, rt, rtAgent string, s proto.Session) bool {
+	own := (s.Agent == rt || (rtAgent != "" && s.Agent == rtAgent)) && rt != paseoRuntimeID
 	return declared && !strings.Contains(s.SessionID, subagentSep) && (s.Agent == "claude" || own)
 }

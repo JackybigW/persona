@@ -216,6 +216,7 @@ func (s *Service) handPass(ctx context.Context) {
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
 	b := &s.inbox
+	s.forwardInboxToTodos(ctx)
 	s.linkInboxTaskURLs(ctx)
 	s.checkInboxFollowUps(ctx, cfg, time.Now())
 	if !cfg.Enabled {

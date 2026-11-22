@@ -202,6 +202,10 @@ struct SettingsView: View {
                 settingsLink(.storage, "Storage", Theme.Icon.storage, id: "settings-storage", value: storage?.storageText ?? "")
                 #if os(iOS)
                 settingsLink(.health, "Health", Theme.Icon.health, id: "settings-health")
+                // The alarms and timers Persona set (#12805): AlarmKit's, iOS 26 and later, as the alarm tools.
+                if AlarmsAccess.isSupported {
+                    settingsLink(.alarms, "Alarms and Timers", Theme.Icon.alarmClock, id: "settings-alarms")
+                }
                 NavigationLink(value: SettingsPage.phoneData) {
                     SettingsRow(title: ConnectorText.device, symbol: Theme.Icon.thisDevice, tint: Theme.accent)
                 }
@@ -368,6 +372,11 @@ struct SettingsView: View {
             p.append(SettingsPage.liveScreen)
             #endif
         }
+        else if d.string(forKey: "openAlarms") != nil { // Settings › Alarms and Timers on made-up data (#12805)
+            #if os(iOS)
+            p.append(SettingsPage.alarms)
+            #endif
+        }
         else if d.bool(forKey: "openMeetingSettings") { // Settings › Meetings (#2981)
             #if os(iOS)
             p.append(SettingsPage.meetings)
@@ -419,6 +428,8 @@ enum SettingsPage: Hashable {
     case meetings
     /// Settings › Live Screen (#6396, #6398): the live screen's route and its quality on mobile data.
     case liveScreen
+    /// Settings › Alarms and Timers (#12805): the alarms and timers Persona set through AlarmKit.
+    case alarms
     #endif
     case persona, themeColor, style, colorScheme, language, assistant, claude, codex, agy, devices, phoneData, mail, feishuBot, notifications, storage, translation, modelConfiguration
     /// Settings › Connectors › This iPhone › iPhone Control: the guided setup (#8199).
@@ -582,6 +593,7 @@ private struct SettingsDestinations: ViewModifier {
         case .health: WorkoutReportSettingsView()
         case .meetings: MeetingSettingsView()
         case .liveScreen: LiveScreenSettingsView()
+        case .alarms: AlarmsPage()
         #endif
         case .notifications: NotificationSettingsView()
         case .storage: StorageView()
@@ -697,6 +709,9 @@ struct PhoneDataView: View {
                         VStack(alignment: .leading, spacing: Theme.Space.xxs) {
                             Text(s.title).lineLimit(1)
                             Text(s.detail).font(Theme.Font.label).foregroundStyle(.secondary)
+                            #if os(iOS)
+                            if s == .location, isOn(s) { LocationLevelRow() } // when the assistant may read it (#13200)
+                            #endif
                         }
                         Spacer(minLength: Theme.Space.s)
                         if asking == s {
@@ -752,7 +767,12 @@ struct PhoneDataView: View {
     }
 
     private func set(_ s: PhoneDataSource, _ on: Bool) async {
-        defer { model.registerPhone() } // what the hub may call follows the switch
+        defer {
+            model.registerPhone() // what the hub may call follows the switch
+            #if os(iOS)
+            if s == .location { BackgroundLocation.shared.apply() } // Location off: no Always session, no wakes (#13200)
+            #endif
+        }
         guard on else {
             s.isEnabled = false
             enabled[s] = false
@@ -780,6 +800,40 @@ struct PhoneDataView: View {
 }
 
 #if os(iOS)
+/// Under Location in Settings › Connectors › This iPhone (#13200): whether the assistant can read it while Persona isn't
+/// open, and the one thing to do about it: Allow Always while iOS can still ask, else iOS Settings. Words and button on
+/// one line where they fit, the button under the words where they don't.
+private struct LocationLevelRow: View {
+    var body: some View {
+        let location = BackgroundLocation.shared
+        if let line = BackgroundLocationPolicy.line(location.level, asked: location.state.asked) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) { words(line); button(line) }
+                VStack(alignment: .leading, spacing: Theme.Space.xxs) { words(line); button(line) }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("location-level")
+        }
+    }
+
+    private func words(_ line: LocationLevelLine) -> some View {
+        Text(line.text).font(Theme.Font.label).foregroundStyle(.secondary)
+    }
+
+    private func button(_ line: LocationLevelLine) -> some View {
+        Button {
+            Haptics.tap()
+            if line.action == .allowAlways, BackgroundLocation.shared.allowAlways() { return }
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        } label: {
+            Text(line.actionTitle).font(Theme.Font.labelStrong).lineLimit(1)
+        }
+        .buttonStyle(.borderless) // in the row: only the button takes its taps, not the switch beside it
+        .tapTargetOutset()
+        .accessibilityIdentifier(line.action == .allowAlways ? "location-allow-always" : "location-open-settings")
+    }
+}
+
 /// Settings › Phone Data › Reminders: import the reminders of the lists picked as to-dos, one way (#4009,
 /// `RemindersImport`). Off by default; every list until the user turns some off.
 private struct RemindersImportSection: View {
