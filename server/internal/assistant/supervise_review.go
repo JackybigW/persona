@@ -770,6 +770,7 @@ func (s *Service) reviewDoneTodoLocked(ctx context.Context, id, reason string, a
 					s.createPRFollowups(ctx, cur)
 				}
 				s.evaluateTodoAfterDependents(ctx, id)
+				s.evaluateParentCloseoutForChild(ctx, id)
 			}
 			if t, now := s.todoNow(id); ok && now {
 				// A side conversation's task the main conversation supervised: the planning conversation hears it ended (#4669).
