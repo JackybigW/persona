@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
+	"github.com/nwverse/persona/server/internal/proto"
+	"github.com/nwverse/persona/server/internal/rpc"
 )
 
 // Exact choices typed in a supervisor / direction conversation settle only once the hub says their send was
@@ -51,12 +55,28 @@ func stillWaiting(t *testing.T, s *Service, f *fakeHub, id string, sent int, whe
 	if got := askOf(s, id); got == nil || !got.AcceptedAt.IsZero() || got.Chosen != "" || got.ByDefault {
 		t.Fatalf("%s: the decision closed: %+v", when, got)
 	}
-	if delivered := sentToAgent(f)[sent:]; len(delivered) != 0 {
+	if delivered := workerSends(f)[sent:]; len(delivered) != 0 {
 		t.Fatalf("%s: the worker was told a choice: %q", when, delivered)
 	}
 	if todoNow(s, id).Supervision.State != reviewNeedsUser {
 		t.Fatalf("%s: the decision left needs_user", when)
 	}
+}
+
+// workerSends are the texts sent to Agents other than the owner's own kept messages (which carry their client_msg_id):
+// what the worker was told.
+func workerSends(f *fakeHub) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for _, a := range f.agentSent {
+		if id, _ := a["client_msg_id"].(string); id != "" {
+			continue
+		}
+		text, _ := a["text"].(string)
+		out = append(out, text)
+	}
+	return out
 }
 
 // The spoke alone settles nothing; the matching delivered notice settles the owner's option and relays it.
@@ -86,26 +106,180 @@ func TestSupervisorChoiceSettlesOnlyWhenDelivered(t *testing.T) {
 	}
 }
 
-// A failed or unknown send leaves the card waiting, and the default works as before; a late delivered notice for the
-// dropped message settles nothing.
+// A failed or unknown send the hub never keeps (a refusal for good, or a manager that did not take it) leaves the card
+// waiting: the choice holds the default only until the keep could still arrive, then the default works as before, and
+// a late delivered notice for the dropped message settles nothing.
 func TestSupervisorChoiceUndeliveredLeavesCardWaiting(t *testing.T) {
 	for _, outcome := range []string{assistantwire.ConversationFailed, assistantwire.ConversationUnknown} {
 		t.Run(outcome, func(t *testing.T) {
 			s, f, todo := decisionAgentReplyService(t)
 			want := askOf(s, todo.ID).Options[1].Label
-			sent := len(sentToAgent(f))
+			sent := len(workerSends(f))
 			spokeOnBus(t, s, supervisorRef(), want, "msg-"+outcome)
 			sentNotice(s, supervisorRef(), "msg-"+outcome, outcome)
 			stillWaiting(t, s, f, todo.ID, sent, outcome)
+			if !s.supervisorSettlePending(todo.ID, time.Now()) {
+				t.Fatal("the choice stopped waiting before the hub could keep its message")
+			}
+			if s.supervisorSettlePending(todo.ID, time.Now().Add(supervisorKeepGrace+time.Second)) {
+				t.Fatal("a choice whose message was never kept still holds the default")
+			}
 			sentNotice(s, supervisorRef(), "msg-"+outcome, assistantwire.ConversationDelivered)
 			stillWaiting(t, s, f, todo.ID, sent, "a late delivered notice after "+outcome)
-			if s.supervisorSettlePending(todo.ID, time.Now()) {
-				t.Fatal("the dropped choice still holds the default")
-			}
 			pastDeadline(t, s, todo.ID)
 			s.sweepDecisionDeadlines(time.Now())
 			if got := askOf(s, todo.ID); got == nil || !got.ByDefault {
 				t.Fatalf("the default no longer works after an undelivered choice: %+v", got)
+			}
+		})
+	}
+}
+
+// keptChoice is an owner's exact choice typed in conversation conv1 whose send did not go in at once: the hub's
+// failed notice, then the hub keeping the same message for the manager to send later (hub/send.go).
+func keptChoice(t *testing.T, s *Service, todo Todo, id string) string {
+	t.Helper()
+	want := askOf(s, todo.ID).Options[1].Label
+	spokeOnBus(t, s, supervisorRef(), want, id)
+	sentNotice(s, supervisorRef(), id, assistantwire.ConversationFailed) // e.g. 409 conversation_busy
+	keepFor(t, s, id, want)
+	return want
+}
+
+// settledTo fails unless to-do id's decision settled on the owner's option want, relayed to the worker once.
+func settledTo(t *testing.T, s *Service, f *fakeHub, id, want string, sent int) {
+	t.Helper()
+	if got := askOf(s, id); got == nil || got.AcceptedAt.IsZero() || got.Chosen != want || got.ByDefault {
+		t.Fatalf("the delivered choice did not settle: %+v", got)
+	}
+	if delivered := workerSends(f)[sent:]; len(delivered) != 1 || !strings.Contains(delivered[0], want) {
+		t.Fatalf("the delivered choice was not relayed to the worker: %q", delivered)
+	}
+	if s.supervisorSettlePending(id, time.Now()) {
+		t.Fatal("the settled choice still waits")
+	}
+}
+
+// Review on #13189: a failed send the hub keeps goes in later from the manager's own queue, which tells no
+// session.assistant_sent. The choice keeps holding the default while the message is kept (past the keep grace and
+// past the deadline), and settles on the owner's option when the kept message goes in.
+func TestSupervisorChoiceKeptThenSentSettles(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	if askOf(s, todo.ID).Options[1].Label == askOf(s, todo.ID).Recommend {
+		t.Fatal("fixture: option 1 is the recommendation")
+	}
+	sent := len(workerSends(f))
+	want := keptChoice(t, s, todo, "msg-kept")
+	if !s.supervisorSettlePending(todo.ID, time.Now().Add(supervisorKeepGrace+time.Minute)) {
+		t.Fatal("a choice whose message is kept stopped holding the default")
+	}
+	pastDeadline(t, s, todo.ID)
+	s.sweepDecisionDeadlines(time.Now())
+	stillWaiting(t, s, f, todo.ID, sent, "the deadline passing while the message is kept")
+	s.undeliveredSend(context.Background(), "conv1")
+	if got := ownerSends(f); len(got) != 1 || got[0] != "msg-kept" {
+		t.Fatalf("the kept message was not sent once: %q", got)
+	}
+	if q := undeliveredOf(t, s, "conv1"); len(q) != 0 {
+		t.Fatalf("still kept: %+v", q)
+	}
+	settledTo(t, s, f, todo.ID, want, sent)
+	s.sweepDecisionDeadlines(time.Now())
+	if got := askOf(s, todo.ID); got.ByDefault || got.Chosen != want {
+		t.Fatalf("the default replaced the owner's delivered choice: %+v", got)
+	}
+}
+
+// The keep can reach the manager before the notice (they travel separately), and a message kept behind older ones
+// is kept with no notice at all: either way the choice waits on the kept message and settles when it goes in.
+func TestSupervisorChoiceKeptBeforeNoticeSettles(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	sent := len(workerSends(f))
+	want := askOf(s, todo.ID).Options[1].Label
+	spokeOnBus(t, s, supervisorRef(), want, "msg-early-keep")
+	keepFor(t, s, "msg-early-keep", want)
+	sentNotice(s, supervisorRef(), "msg-early-keep", assistantwire.ConversationFailed)
+	if !s.supervisorSettlePending(todo.ID, time.Now().Add(supervisorSettleTTL+time.Minute)) {
+		t.Fatal("a kept choice stopped holding the default after the plain wait")
+	}
+	s.undeliveredSend(context.Background(), "conv1")
+	settledTo(t, s, f, todo.ID, want, sent)
+}
+
+// An unknown outcome is kept to be looked for, never sent again by itself: found in the conversation, it is taken as
+// delivered, and so is the owner's choice.
+func TestSupervisorChoiceKeptInDoubtFoundSettles(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	sent := len(workerSends(f))
+	want := askOf(s, todo.ID).Options[1].Label
+	started := time.Now().Add(-time.Minute)
+	spokeOnBus(t, s, supervisorRef(), want, "msg-in-doubt")
+	sentNotice(s, supervisorRef(), "msg-in-doubt", assistantwire.ConversationUnknown)
+	keepUnknown(t, s, "msg-in-doubt", want, started)
+	stillWaiting(t, s, f, todo.ID, sent, "while the in-doubt message is looked for")
+	f.mu.Lock()
+	f.items = []proto.Item{{ID: "u1", Seq: 1, Role: "user", Kind: proto.KindText, Text: want, ClientMsgID: "msg-in-doubt", TS: time.Now()}}
+	f.mu.Unlock()
+	s.undeliveredPass(context.Background(), time.Now().Add(time.Hour))
+	if got := ownerSends(f); len(got) != 0 {
+		t.Fatalf("an in-doubt message was sent again: %q", got)
+	}
+	if q := undeliveredOf(t, s, "conv1"); len(q) != 0 {
+		t.Fatalf("still kept after it was found: %+v", q)
+	}
+	settledTo(t, s, f, todo.ID, want, sent)
+}
+
+// A kept message that does not go in (given up after its day, the conversation gone, not found after a try in doubt,
+// or deleted by the owner) drops the choice: the card keeps waiting, nothing is relayed, the default holds no more and
+// works as before, and the book is empty.
+func TestSupervisorChoiceKeptButNotDeliveredDrops(t *testing.T) {
+	cases := map[string]func(t *testing.T, s *Service, f *fakeHub){
+		"given up": func(t *testing.T, s *Service, f *fakeHub) {
+			s.undelivered.mu.Lock()
+			s.updateKeptLocked("conv1", "msg-kept", func(m *keptMessage) { m.At = time.Now().Add(-undeliveredGiveUp - time.Minute) })
+			s.undelivered.mu.Unlock()
+			s.undeliveredPass(context.Background(), time.Now().Add(time.Hour))
+		},
+		"conversation gone": func(t *testing.T, s *Service, f *fakeHub) {
+			failSends(f, &rpc.Error{Code: "conversation_deleted", Message: "deleted"})
+			s.undeliveredPass(context.Background(), time.Now().Add(time.Hour))
+			failSends(f, nil) // only the kept message's conversation is gone; the worker still takes the default
+		},
+		"not found after a try in doubt": func(t *testing.T, s *Service, f *fakeHub) {
+			tryInDoubt(t, s, f, "msg-kept")
+			endLook(s, "msg-kept")
+			s.undeliveredPass(context.Background(), time.Now().Add(time.Hour))
+			failedMaybeIn(t, s, "msg-kept")
+		},
+		"deleted by the owner": func(t *testing.T, s *Service, f *fakeHub) {
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/v1/assistant/conversations/conv1/undelivered/msg-kept", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("delete: %d %s", rec.Code, rec.Body)
+			}
+		},
+	}
+	for name, end := range cases {
+		t.Run(name, func(t *testing.T) {
+			s, f, todo := decisionAgentReplyService(t)
+			sent := len(workerSends(f))
+			keptChoice(t, s, todo, "msg-kept")
+			end(t, s, f)
+			stillWaiting(t, s, f, todo.ID, sent, name)
+			if s.supervisorSettlePending(todo.ID, time.Now()) {
+				t.Fatal("a choice whose kept message did not go in still holds the default")
+			}
+			s.supervisorSettles.mu.Lock()
+			n := len(s.supervisorSettles.pending)
+			s.supervisorSettles.mu.Unlock()
+			if n != 0 {
+				t.Fatalf("%d entries left in the book", n)
+			}
+			pastDeadline(t, s, todo.ID)
+			s.sweepDecisionDeadlines(time.Now())
+			if got := askOf(s, todo.ID); got == nil || !got.ByDefault {
+				t.Fatalf("the default no longer works after a kept message failed: %+v", got)
 			}
 		})
 	}
@@ -223,4 +397,30 @@ func TestSupervisorChoiceRestartWhileWaitingKeepsCard(t *testing.T) {
 	sent := len(sentToAgent(nextHub))
 	sentNotice(reloaded, supervisorRef(), "msg-restart", assistantwire.ConversationDelivered)
 	stillWaiting(t, reloaded, nextHub, todo.ID, sent, "after a restart")
+}
+
+// A manager restart while the choice waits on a kept message: the kept message survives (it is saved), the choice does
+// not (memory only, as for any waiting choice). The reloaded manager sends the kept message, and nothing settles: the
+// card stays waiting and the owner answers it again.
+func TestSupervisorChoiceRestartWhileKeptKeepsCard(t *testing.T) {
+	presenceTimes(t, 0, 0)
+	ownerTurnTimes(t, 0, 0)
+	database := todoTestDB(t)
+	s, f, todo := newSupervisedServiceOn(t, database)
+	waitsForReview(t, s, f, todo.ID, "The agent needs a choice between two rollout options.")
+	reviewTask(t, s, todo.ID, rolloutDecision())
+	keptChoice(t, s, todo, "msg-kept-restart")
+	reloaded, nextHub := newQuietServiceOn(t, database)
+	if err := reloaded.ensureTodosLoaded(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reloaded.askCopy(todo.ID); !ok {
+		t.Fatal("the reloaded ledger lost the waiting decision")
+	}
+	sent := len(workerSends(nextHub))
+	reloaded.undeliveredSend(context.Background(), "conv1")
+	if got := ownerSends(nextHub); len(got) != 1 || got[0] != "msg-kept-restart" {
+		t.Fatalf("the reloaded manager did not send the kept message once: %q", got)
+	}
+	stillWaiting(t, reloaded, nextHub, todo.ID, sent, "a kept message sent after a restart")
 }

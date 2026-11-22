@@ -229,6 +229,8 @@ func (s *Service) KeepUndelivered(ctx context.Context, p assistantwire.KeepUndel
 		return proto.UndeliveredMessage{}, err
 	}
 	s.logf("undelivered: kept a message for %s (%d waiting)", short(p.SessionID), s.undeliveredCount(p.SessionID))
+	// An exact decision choice waiting on this message waits on the kept one now (decision_supervisor_reply.go).
+	s.markSupervisorSettleKept(SessionRef{MachineID: p.MachineID, SessionID: p.SessionID}, id, time.Time{})
 	s.publish(context.WithoutCancel(ctx))
 	s.wakeUndelivered()
 	return k.wire(), nil
@@ -466,6 +468,7 @@ func (s *Service) undeliveredPass(ctx context.Context, now time.Time) {
 	if changed {
 		s.publish(context.WithoutCancel(ctx))
 	}
+	defer s.reapSupervisorSettles(time.Now()) // choices waiting on kept messages that failed meanwhile
 	var wg sync.WaitGroup
 	for _, id := range due {
 		wg.Add(1)
@@ -545,9 +548,12 @@ func (s *Service) undeliveredSend(ctx context.Context, id string) {
 		b.mu.Lock()
 		m := s.keptLocked(id, k.ID)
 		var saveErr error
+		var settle supervisorSettle
+		settles := false
 		switch {
 		case err == nil:
 			s.dropKeptLocked(id, k.ID)
+			settle, settles = s.takeKeptSupervisorSettleLocked(k)
 			s.logf("undelivered: sent a kept message to %s after %d tries", short(id), k.Attempts)
 		case errors.Is(err, errKeptSignedOut):
 			b.recordRevocationLocked(k.CredentialID)
@@ -587,6 +593,7 @@ func (s *Service) undeliveredSend(ctx context.Context, id string) {
 			s.logf("undelivered: %s still does not take a kept message (try %d): %v", short(id), k.Attempts+1, err)
 		}
 		b.mu.Unlock()
+		s.settleKeptSupervisorChoice(ctx, settle, settles)
 		if saveErr != nil {
 			// The saved mark of the try stays, in memory too: the next pass only looks for it.
 			s.logf("undelivered: the outcome of a try to %s is not saved: %v", short(id), saveErr)
@@ -618,12 +625,15 @@ func (s *Service) undeliveredLook(ctx context.Context, id string, k keptMessage)
 	}
 	b := &s.undelivered
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if landed {
 		s.dropKeptLocked(id, k.ID)
+		settle, settles := s.takeKeptSupervisorSettleLocked(k)
+		b.mu.Unlock()
 		s.logf("undelivered: a kept message to %s whose try was in doubt is in the conversation, taken as delivered", short(id))
+		s.settleKeptSupervisorChoice(ctx, settle, settles)
 		return true
 	}
+	defer b.mu.Unlock()
 	if revoked {
 		b.recordRevocationLocked(k.CredentialID)
 		s.failRevokedKeptLocked()
