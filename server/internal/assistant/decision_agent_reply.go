@@ -334,16 +334,26 @@ func (s *Service) signalAgentDecisionReply(id string, a acceptAsk) {
 	if r == nil || !r.ToldAt.IsZero() || !r.Handled && !a.AcceptedAt.IsZero() {
 		return
 	}
+	s.signal(superviseSignal{Todo: id, Kind: sigDecisionReply, Key: agentDecisionReplyKey(a),
+		At: r.At, Machine: r.MachineID, Session: r.SessionID})
+}
+
+// signalSupervisorDecisionReply hands an owner reply written in a supervisor / direction
+// conversation back to that very conversation. It is distinct from signalAgentDecisionReply,
+// which keeps the shared routing (an Agent-chat reply and the restart sweep rely on digestTo's
+// needs_user escalation to the main conversation and digestTarget's runtime-policy handling).
+// A leader distinct from Main is named explicitly so the reverse-lookup hand-back reaches the
+// direction that raised the card; a main-conversation card keeps the legacy no-To route.
+func (s *Service) signalSupervisorDecisionReply(ctx context.Context, id string, a acceptAsk) {
+	r := a.AgentReply
+	if r == nil || !r.ToldAt.IsZero() || !r.Handled && !a.AcceptedAt.IsZero() {
+		return
+	}
 	g := superviseSignal{Todo: id, Kind: sigDecisionReply, Key: agentDecisionReplyKey(a),
 		At: r.At, Machine: r.MachineID, Session: r.SessionID}
-	// Without an explicit To, digestTo sends a needs_user signal to the main conversation even
-	// when an independent direction (leader) supervises the task. The owner's reply written in
-	// that direction's conversation must hand back to the direction that raised the card. Name
-	// it directly; a main-conversation task keeps the legacy no-To route (background supervisor
-	// while one runs) unchanged.
 	if t, ok := s.todoNow(id); ok && t.Supervision != nil {
 		lead := t.Supervision.Supervisor
-		if lead != "" && lead != s.settings(context.Background()).Main {
+		if lead != "" && lead != s.settings(ctx).Main {
 			g.To = lead
 		}
 	}

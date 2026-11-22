@@ -16,17 +16,23 @@ func supervisorRef() SessionRef {
 }
 
 // An exact option label typed in the supervisor / direction conversation settles that
-// conversation's own pending decision card, the same way an Agent-chat exact choice does.
+// conversation's own pending decision card and is delivered to the worker Agent, the same way
+// an answer on the card or task_decided with told_agent=false is (review P1: the record-only
+// path left the worker with no answer even though the card closed).
 func TestSupervisorConversationExactChoiceSettles(t *testing.T) {
 	s, f, todo := decisionAgentReplyService(t)
 	a := askOf(s, todo.ID)
 	// Use the non-recommended option: a recommended label is recorded with an empty Chosen by
 	// the existing "OK takes the recommendation" rule, so the second option asserts Chosen too.
 	want := a.Options[1].Label
+	sent := len(sentToAgent(f))
 	s.userSpokeText(context.Background(), supervisorRef(), want)
 	got := askOf(s, todo.ID)
 	if got == nil || got.AcceptedAt.IsZero() || got.Chosen != want || got.ByDefault {
 		t.Fatalf("the supervisor reply did not settle the exact option: %+v", got)
+	}
+	if delivered := sentToAgent(f)[sent:]; len(delivered) != 1 || !strings.Contains(delivered[0], want) {
+		t.Fatalf("the exact supervisor choice was not relayed to the worker: %q", delivered)
 	}
 	if todoNow(s, todo.ID).Supervision.State == reviewNeedsUser {
 		t.Fatal("the decision stayed in needs_user")
@@ -275,5 +281,59 @@ func TestMainConversationDecisionReplyKeepsLegacyRouting(t *testing.T) {
 	to, _ := decisionReplyTarget(t, s, todo.ID)
 	if to != "" {
 		t.Fatalf("main-conversation task got explicit To %q; legacy no-To routing changed", to)
+	}
+}
+
+// An exact choice in an independent direction settles the card and reaches the worker Agent,
+// while the direction keeps no spurious hand-back signal. It reuses the standard fixture, whose
+// to-do has a live worker session, and moves its supervision to a leader first.
+func TestLeaderDirectionExactChoiceDeliversToWorker(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	setSettings(t, s, func(v *Settings) { v.Leaders = []string{"lead1"} })
+	s.todos.mu.Lock()
+	s.todos.todos[todo.ID].Supervision.Supervisor = "lead1"
+	s.todos.mu.Unlock()
+	want := askOf(s, todo.ID).Options[1].Label
+	sent := len(sentToAgent(f))
+	s.userSpokeText(context.Background(), leaderDirectionRef(), want)
+	if delivered := sentToAgent(f)[sent:]; len(delivered) != 1 || !strings.Contains(delivered[0], want) {
+		t.Fatalf("the leader's exact choice was not relayed to the worker: %q", delivered)
+	}
+	if got := askOf(s, todo.ID); got == nil || got.AcceptedAt.IsZero() || got.Chosen != want {
+		t.Fatalf("the leader exact choice did not settle: %+v", got)
+	}
+	if todoNow(s, todo.ID).Supervision.State == reviewNeedsUser {
+		t.Fatal("the leader decision stayed in needs_user")
+	}
+	if signalled(s, f, todo.ID, sigDecisionReply, "task_decided") {
+		t.Fatal("an exact leader choice emitted a hand-back signal")
+	}
+}
+
+// An owner reply in the task's own Agent chat keeps the shared, legacy routing even when an
+// independent leader supervises the task: its decision_reply carries no explicit To, so
+// digestTo's needs_user escalation to the main conversation and digestTarget's runtime-policy
+// handling still apply (review P1: the supervisor-conversation fix must not reroute this path).
+func TestAgentChatReplyOnLeaderTaskKeepsLegacyRouting(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	setSettings(t, s, func(v *Settings) { v.Leaders = []string{"lead1"} })
+	s.todos.mu.Lock()
+	s.todos.todos[todo.ID].Supervision.Supervisor = "lead1"
+	s.todos.mu.Unlock()
+	a := askOf(s, todo.ID)
+	s.userSpokeText(context.Background(), SessionRef{MachineID: a.MachineID, SessionID: a.SessionID},
+		"let me think about the rollout risk first")
+	waitFor(t, "the Agent-chat hand-off", func() bool {
+		return signalled(s, f, todo.ID, sigDecisionReply, "task_decided")
+	})
+	b := &s.supervise
+	b.mu.Lock()
+	g, ok := b.pending[todo.ID+"|"+sigDecisionReply]
+	b.mu.Unlock()
+	if !ok {
+		t.Fatal("no pending decision_reply for the Agent-chat reply")
+	}
+	if g.To != "" {
+		t.Fatalf("the Agent-chat reply was rerouted to %q; legacy no-To escalation changed", g.To)
 	}
 }

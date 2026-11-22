@@ -117,16 +117,23 @@ func supervisorOptionLabel(text string, options []DecisionOption) string {
 }
 
 // settleSupervisorChoice records a unique exact option label typed in the supervisor
-// conversation, sourcing the answer from that conversation rather than the worker Agent.
+// conversation and delivers it to the worker Agent. chooseOption is the same delivery path the
+// card and task_decided (told_agent=false) use: it relays the choice to the task's Agent before
+// recording it, and askRound revalidates the whole round under the lock (acceptAskEnded, the
+// latest review's staleness, RecheckAt and ownerDecisionReturned), so neither an undelivered
+// record-only close nor a superseded round can settle. The action lock here only fences a
+// concurrent deadline/sweep; chooseOption takes the same per-card lock itself, so it runs after
+// this one is released (the locks are not reentrant).
 func (s *Service) settleSupervisorChoice(ctx context.Context, t Todo, at time.Time, r SessionRef, text string) {
 	id := t.ID
 	s.reviewDismissals.actions.acquire(id)
-	defer s.reviewDismissals.actions.release(id)
 	cur, ok := s.todoNow(id)
 	if !ok || cur.DoneAt != nil || cur.Supervision == nil || cur.Supervision.State != reviewNeedsUser {
+		s.reviewDismissals.actions.release(id)
 		return
 	}
 	a, ok := s.askCopy(id)
+	s.reviewDismissals.actions.release(id)
 	if !ok || !decisionOpen(&a, cur) || !a.RecheckAt.IsZero() || ownerDecisionReturned(cur.Supervision) ||
 		!at.After(a.AskedAt) {
 		return
@@ -135,14 +142,8 @@ func (s *Service) settleSupervisorChoice(ctx context.Context, t Todo, at time.Ti
 	if label == "" {
 		return
 	}
-	taken, err := s.decisionToldLocked(ctx, id, label, r.MachineID, r.SessionID, text)
-	if err != nil {
-		s.logf("task %s: decision: record supervisor reply: %v", id, err)
-		return
-	}
-	if taken {
-		// decisionToldLocked's endAsk already asks a change and redraws the card.
-		s.askChanged(ctx)
+	if _, err := s.chooseOption(ctx, id, "", label); err != nil {
+		s.logf("task %s: decision: deliver supervisor choice: %v", id, err)
 	}
 }
 
@@ -188,7 +189,7 @@ func (s *Service) handBackOneSupervisorReply(ctx context.Context, r SessionRef, 
 	cp := *a
 	b.mu.Unlock()
 	s.askChanged(ctx)
-	s.signalAgentDecisionReply(id, cp)
+	s.signalSupervisorDecisionReply(ctx, id, cp)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
