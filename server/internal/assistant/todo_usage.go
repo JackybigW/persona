@@ -17,7 +17,7 @@ import (
 
 // Token usage and its estimated cost per to-do (#12936, docs/assistant/todos.md "Usage and cost"). A to-do's usage is
 // what every Agent session linked to it used (Todo.Agents, released ones too): the hub asks each computer for its
-// sessions with one session.usage call (the node reads its own records, node/session_usage.go) and keeps the last
+// sessions with one usage.sessions call (the node reads its own records, node/session_usage.go) and keeps the last
 // answer per session, saved, so a computer that is offline still shows its last known numbers, marked stale. The rows
 // keep the session, subagent, model and day, so the same data can later be summed per conversation, project or day.
 //

@@ -44,7 +44,7 @@ type Node struct {
 	cacheWarm     *assistantCachePool
 	segmentStarts segmentStarts
 	runtimeUsage  runtimeUsageReports
-	// sessionUsageCache keeps the files session.usage read (session_usage.go).
+	// sessionUsageCache keeps the files usage.sessions read (session_usage.go).
 	sessionUsageCache sessionUsageCache
 
 	// Only the manager's initial node.info can negotiate source delivery on this connection.
@@ -789,9 +789,6 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 }
 
 func (n *Node) handleMethod(ctx context.Context, method string, params json.RawMessage) (result any, resultErr error) {
-	if method == proto.MethodSessionUsage {
-		return n.sessionUsage(ctx, params)
-	}
 	if strings.HasPrefix(method, "assistant.segment.") {
 		switch method {
 		case "assistant.segment.check", "assistant.segment.prepare", "assistant.segment.receipt", "assistant.segment.input", "assistant.segment.retire", "assistant.segment.restore":

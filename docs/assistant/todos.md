@@ -741,7 +741,7 @@ A to-do shows what its Agents used and what that would cost at public prices (#1
 Agents: a line on its card (`{tokens} tokens · ≈ $X (estimated at public prices)`) and, in its detail, the total, each
 session and each subagent, and each model with the price it was counted at.
 
-- **Where the numbers come from.** Each computer reads its own records: the manager calls the node's `session.usage`
+- **Where the numbers come from.** Each computer reads its own records: the manager calls the node's `usage.sessions`
   (`docs/protocol/protocol.md`, "hub ↔ node RPC") once per computer with all of that computer's sessions linked to the
   to-do (`todo_agents`, released ones included). The hub never reads another computer's files. A Claude Code session
   counts its transcript and every subagent and workflow agent under `<session>/subagents/`, each request once by

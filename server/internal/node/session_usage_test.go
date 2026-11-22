@@ -1,7 +1,6 @@
 package node
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,7 +9,7 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
-// session.usage (#12936): a session's transcript and its subagents, each request once by message.id, in four kinds.
+// usage.sessions (#12936): a session's transcript and its subagents, each request once by message.id, in four kinds.
 func TestSessionUsageSumsTranscriptAndSubagents(t *testing.T) {
 	n, home := testNode(t)
 	const id = "aaaaaaaa-0000-0000-0000-000000012936"
@@ -38,7 +37,7 @@ func TestSessionUsageSumsTranscriptAndSubagents(t *testing.T) {
 	writeUsageLines(t, filepath.Join(dir, "workflows", "run1", "agent-w1.jsonl"), usagePrompt,
 		usageReply("w1r1", "claude-opus-5-5", `{"input_tokens":2,"output_tokens":4}`))
 
-	got, err := n.sessionUsage(t.Context(), json.RawMessage(`{"session_ids":["`+id+`","bbbbbbbb-0000-0000-0000-000000000001"]}`))
+	got, err := n.sessionUsage(t.Context(), proto.SessionUsageParams{SessionIDs: []string{id, "bbbbbbbb-0000-0000-0000-000000000001"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +63,7 @@ func TestSessionUsageSumsTranscriptAndSubagents(t *testing.T) {
 	f.WriteString(usageReply("m3", "claude-opus-5-5", `{"input_tokens":5,"output_tokens":5}`) + "\n")
 	f.Close()
 	before := n.sessionUsageCache.files[path].off
-	got, _ = n.sessionUsage(t.Context(), json.RawMessage(`{"session_ids":["`+id+`"]}`))
+	got, _ = n.sessionUsage(t.Context(), proto.SessionUsageParams{SessionIDs: []string{id}})
 	if got.Rows[0].Input != 16 || got.Rows[0].Requests != 3 {
 		t.Fatalf("after growth: %+v", got.Rows[0])
 	}
@@ -87,7 +86,7 @@ func TestSessionUsageCodexRollout(t *testing.T) {
 		`{"timestamp":"2026-11-12T08:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":50,"total_tokens":1050},"total_token_usage":{"total_tokens":1050}}}}`,
 		`{"timestamp":"2026-11-12T08:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":50,"total_tokens":1050},"total_token_usage":{"total_tokens":1050}}}}`,
 	)
-	got, err := n.sessionUsage(t.Context(), json.RawMessage(`{"session_ids":["`+id+`"]}`))
+	got, err := n.sessionUsage(t.Context(), proto.SessionUsageParams{SessionIDs: []string{id}})
 	if err != nil {
 		t.Fatal(err)
 	}

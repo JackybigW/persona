@@ -20,10 +20,16 @@ type UsageBucket struct {
 }
 
 // MethodSessionUsage is the node call that sums sessions' token usage from the records on that computer (#12936):
-// params {session_ids}, result SessionUsage. The hub never reads another computer's files; it asks the node.
-const MethodSessionUsage = "session.usage"
+// params SessionUsageParams, result SessionUsage. The hub never reads another computer's files; it asks the node. It
+// names many sessions at once and is bound to none, so it is in the node's method table, not under "session.".
+const MethodSessionUsage = "usage.sessions"
 
-// SessionUsage is session.usage's answer: which sessions had a record on the computer, and their usage as rows.
+// SessionUsageParams are usage.sessions' params: the sessions to sum.
+type SessionUsageParams struct {
+	SessionIDs []string `json:"session_ids"`
+}
+
+// SessionUsage is usage.sessions' answer: which sessions had a record on the computer, and their usage as rows.
 type SessionUsage struct {
 	Sessions []SessionUsageFound `json:"sessions"`
 	Rows     []SessionUsageRow   `json:"rows"`

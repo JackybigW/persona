@@ -3,7 +3,6 @@ package node
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,7 +14,7 @@ import (
 	"github.com/nwverse/persona/server/internal/tokenuse"
 )
 
-// session.usage (#12936): what sessions of this computer used, from their records here, for the hub's usage per to-do
+// usage.sessions (#12936): what sessions of this computer used, from their records here, for the hub's usage per to-do
 // (assistant/todo_usage.go). A Claude Code session is its transcript and every file under <session>/subagents (its
 // subagents, and its workflow runs' agents in workflows/<run>/); a Codex or traex thread is its rollout. Records are
 // read with the tokenuse parsers, so a Claude request counts once by its message.id, at the most its lines said; a
@@ -59,13 +58,9 @@ type sessionUsageSource struct {
 	parser                               func() tokenuse.Parser
 }
 
-func (n *Node) sessionUsage(_ context.Context, params json.RawMessage) (proto.SessionUsage, error) {
-	var p struct {
-		SessionIDs []string `json:"session_ids"`
-	}
-	if err := json.Unmarshal(params, &p); err != nil {
-		return proto.SessionUsage{}, err
-	}
+func init() { nodeRPC(proto.MethodSessionUsage, (*Node).sessionUsage) }
+
+func (n *Node) sessionUsage(_ context.Context, p proto.SessionUsageParams) (proto.SessionUsage, error) {
 	out := proto.SessionUsage{Sessions: []proto.SessionUsageFound{}, Rows: []proto.SessionUsageRow{}}
 	seen := map[string]bool{}
 	type rowKey struct{ session, subagent, agent, model, day string }

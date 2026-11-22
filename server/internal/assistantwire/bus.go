@@ -362,10 +362,6 @@ var Routes = []string{
 	"GET /api/v1/todos/places",              // the To-dos places and counts (todo_view_routes.go, #10226); the literal wins over {id}
 	"GET /api/v1/todos/{id}",                // one to-do as the list has it, with its view
 	"GET /api/v1/todos/{id}/images/{image}", // one attached picture's exact bytes (todo_images.go, #11084)
-	"GET /api/v1/todos/usage",               // to-dos' token usage and estimated cost (todo_usage.go, #12936); literals win over {id}
-	"GET /api/v1/todos/usage/prices",
-	"PUT /api/v1/todos/usage/prices",
-	"GET /api/v1/todos/{id}/usage",
 	"GET /api/v1/todos/{id}/repositories",
 	"GET /api/v1/todos/{id}/backend-workspace",
 	"GET /api/v1/todos/{id}/backend-workspace/operations/{operation_id}",
