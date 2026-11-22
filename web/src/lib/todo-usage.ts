@@ -101,7 +101,7 @@ function subscribe(l: () => void) {
 
 /** A to-do's total for its card; undefined until known, or when it has no Agents or used nothing. */
 export function useTodoUsage(id: string, hasAgents: boolean): TodoUsageSummary | undefined {
-  useSyncExternalStore(subscribe, () => version);
+  useSyncExternalStore(subscribe, () => version, () => version);
   useEffect(() => {
     if (hasAgents) want(id);
   }, [id, hasAgents]);
