@@ -731,6 +731,15 @@ export class HubTransport {
   }
 
   private processFrames(): void {
+    try { this.consumeFrames(); }
+    finally {
+      // Release the completed frames' storage. Only a partial last frame may
+      // need to be copied for the next socket read.
+      if (this.rx.byteOffset !== 0) this.rx = this.rx.slice();
+    }
+  }
+
+  private consumeFrames(): void {
     while (!this.closed && !this.closing && this.rx.length >= 2) {
       const first = this.rx[0], second = this.rx[1];
       const fin = (first & 0x80) !== 0, rsv = first & 0x70, opcode = first & 0x0f;
@@ -756,7 +765,7 @@ export class HubTransport {
       if (opcode !== 0 && opcode !== 1 && opcode !== 2 && !control) { this.failSocket(new Error('invalid_frame')); return; }
       if (this.rx.length < offset + length) return;
       const payload = this.rx.slice(offset, offset + length);
-      this.rx = this.rx.slice(offset + length);
+      this.rx = this.rx.subarray(offset + length);
       if (control) { this.processControl(opcode, payload); continue; }
       if (opcode === 0) {
         if (!this.fragmentOpcode) { this.failSocket(new Error('unexpected_continuation')); return; }
