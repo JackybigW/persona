@@ -133,7 +133,7 @@ export struct AssistantBriefCard {
         Rect().fill(tint).opacity(0.14).radius(6).width('100%').height('100%')
         SymbolGlyph(icon).fontSize(Tokens.interfaceFontVp(14, nativeEnvironment.fontScale)).fontColor([tint])
       }.width(PhoneStyle.formSize(24, 32, nativeEnvironment.fontScale)).aspectRatio(1)
-      Text(label).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.SemiBold).fontColor(Colors.secondary)
+      Text(label).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600).fontColor(Colors.secondary)
     }.padding({top: 4}).accessibilityGroup(true)
   }
 
@@ -160,14 +160,14 @@ export struct AssistantBriefCard {
             this.stageDot(index, STAGES.indexOf(stage))
             if (this.stageNamesFit) Text(tr('session_brief_stage_' + name)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
               .fontColor(name === stage ? Colors.link : index < STAGES.indexOf(stage) ? Colors.ink : Colors.secondary)
-              .fontWeight(name === stage ? FontWeight.SemiBold : FontWeight.Normal).textAlign(TextAlign.Center).maxLines(1)
+              .fontWeight(name === stage ? 600 : FontWeight.Normal).textAlign(TextAlign.Center).maxLines(1)
           }.layoutWeight(1).accessibilityGroup(!this.stageNamesFit)
             .accessibilityText(this.stageNamesFit ? '' : this.stepAccessibility(name, stage, index))
             .id('assistant.brief.stage.' + stage + '.' + name)
         }, (name: string) => name)
       }.width('100%')
       if (!this.stageNamesFit) Text(this.stageText('session_brief_stage_summary', stage))
-        .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.SemiBold).fontColor(Colors.link)
+        .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600).fontColor(Colors.link)
     }.width('100%').onAreaChange((_: Area, area: Area) => { this.stageWidth = Number(area.width); })
       .alignItems(HorizontalAlign.Start).accessibilityGroup(this.stageNamesFit)
       .accessibilityText(this.stageNamesFit ? this.stageText('session_brief_stage_accessibility', stage) : '')
@@ -180,7 +180,7 @@ export struct AssistantBriefCard {
     Button(tr('open'), { type: ButtonType.Capsule })
       .height(this.buttonHeight())
       .responseRegion({x: 0, y: (this.buttonHeight() - 44) / 2, width: '100%', height: 44})
-      .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.SemiBold)
+      .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600)
       .padding({left: 12, right: 12}).backgroundColor(Colors.control).fontColor(Colors.link)
       .accessibilityText(tr('session_brief_open_named').replace('{title}', Wire.text(row, 'title')))
       .onClick(() => { const to = this.destination(section, row); if (to) this.onOpen(to); })
@@ -252,7 +252,7 @@ export struct AssistantBriefCard {
           Text(Wire.text(line, 'text')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.ink).layoutWeight(1)
           if (['triage_decide', 'triage_auto_continue', 'triage_wake'].includes(Wire.text(line, 'id')) && this.owned()) {
             Button(tr('open_settings'), {type: ButtonType.Capsule}).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-              .fontWeight(FontWeight.SemiBold).padding({left: 12, right: 12}).backgroundColor(Colors.control).fontColor(Colors.link)
+              .fontWeight(600).padding({left: 12, right: 12}).backgroundColor(Colors.control).fontColor(Colors.link)
               .onClick(() => { if (this.owned()) this.onOpenTriage(); }).id('assistant.brief.setup.' + Wire.text(line, 'id'))
           }
         }.width('100%').padding({top: 4, bottom: 4})
@@ -263,20 +263,20 @@ export struct AssistantBriefCard {
   build() {
     Column({ space: 8 }) {
       Row({ space: 8 }) {
-        SymbolGlyph(Symbols.calendar).fontSize(Tokens.interfaceFontVp(13, nativeEnvironment.fontScale)).fontColor([Colors.secondary])
+        SymbolGlyph($r('sys.symbol.sun_max_fill')).fontSize(Tokens.interfaceFontVp(13, nativeEnvironment.fontScale)).fontColor([Colors.secondary])
         Text(Wire.text(this.body, 'title') || tr('assistant_detail_brief')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-          .maxLines(1).fontWeight(FontWeight.SemiBold).fontColor(Colors.secondary)
+          .maxLines(1).fontWeight(600).fontColor(Colors.secondary)
       }
       if (Wire.bool(this.body, 'waiting_unknown')) {
-        this.heading(tr('session_brief_waiting_unknown'), $r('sys.symbol.hand_raised'), Colors.needs)
+        this.heading(tr('session_brief_waiting_unknown'), $r('sys.symbol.hand_raised_fingers_spread'), Colors.needs)
         this.note(tr('session_brief_waiting_note'))
-      } else { this.section('waiting', $r('sys.symbol.hand_raised'), Colors.needs) }
+      } else { this.section('waiting', $r('sys.symbol.hand_raised_fingers_spread'), Colors.needs) }
       Divider().color(Colors.divider)
       this.past()
       Divider().color(Colors.divider)
       this.section('accept', $r('sys.symbol.checkmark_circle'), Colors.positive)
       if (this.count('later')) { Divider().color(Colors.divider); this.section('later', $r('sys.symbol.questionmark_circle'), Colors.secondary) }
-      if (this.count('progress')) { Divider().color(Colors.divider); this.section('progress', $r('sys.symbol.clock'), Colors.working) }
+      if (this.count('progress')) { Divider().color(Colors.divider); this.section('progress', $r('sys.symbol.gearshape_fill'), Colors.working) }
       if (this.setupRows.length) { Divider().color(Colors.divider); this.setup() }
     }.width('100%').alignItems(HorizontalAlign.Start).padding(PhoneStyle.page).backgroundColor(Colors.surface)
       .border({width: Tokens.divider, color: Colors.divider, radius: Tokens.card}).borderRadius(Tokens.card).id('assistant.brief.card')
