@@ -39,6 +39,16 @@ Today row uses the existing `NavigationLink` to this same page and disappears wh
 No new visual token, component style, polling loop or background task is introduced. All text ships in English,
 Simplified Chinese and Japanese; use Apple Health / Apple 健康 consistently.
 
+## Module actions and Settings pages (Android, #13847)
+
+Audience: everyone, though no default screen changes: a module's actions and pages appear only when a module adds some.
+A feature module (`docs/architecture/core-and-modules.md`) adds to a surface it does not own in one way only: its
+actions go **after** the surface's own, under a rule, as a group of their own (the composer's ⊕ menu, a message's menu;
+in a conversation's ⋯ menu before Close and Delete, so the destructive actions stay last), and its Settings pages are
+rows at the end of the assistant's group, with the module's own title and icon token. A module that is off adds
+nothing, and nothing is left greyed out (principle 2). No new component or token: rows and actions reuse `JRow` and
+`JAction`.
+
 ## Product design principles
 
 The seven product design principles, with their rules, how to check each one and recent cases, live in `docs/design/PRINCIPLES.md`: 1 defaults first, 2 progressive disclosure, 3 user control, 4 consistency first, 5 model and product are separate, 6 rules are checkable, 7 fast, local-first and stateful. They decide product questions before any rule in this document applies. "Principle N" below refers to that numbering. Apple's Human Interface Guidelines are a source for this document, not its authority: what Persona takes from them is rewritten here as Persona rules (sections 2 to 6), and `docs/design/HIG_AUDIT.md` records where the code still falls short.
@@ -731,6 +741,13 @@ A `ReadinessCard` with `choices` puts those choices in the shared measured `Stac
 `.card()` uses the system grouped background, not the style's card color, so it does not follow Clay, Island or Lark (DS-07). The space page's cards (`SlotCard` and the dashed new-tab card in `apple/Persona/Views/Chats/SpaceView.swift`) are `.card(padding: 12)` with a minimum height of `box150`; Android Glass draws the same page with `AgentSlotCard`, `AgentNewTabCard` and `AgentCardRow` (`android/core/designsystem/src/main/kotlin/persona/core/designsystem/AgentSpaceCards.kt`), on its opaque card color with the hairline stroke, since its translucent card color is nearly invisible on the dark page (#4338). The page of a computer's projects that the space page's computer opens (`apple/Persona/Views/Chats/MachineSpacesView.swift`) is an inset grouped list: a summary row, a Working section and an Idle section, each with its count in the state's tone, each project a row that opens its space page; Android sets the same rows in `JGroupItem` cards and `JRow`s (`AgentMachineSummary`, `AgentProjectLine`, `AgentIdleProjectLine`, #4338 A11); in dark the cards are the system's lighter gray on the black page (`JGroupItem(grouped = true)`, the opaque card color, as Settings' grouped surfaces), since the translucent glass fill is near-invisible there. Inset wells (`Fill.well`) are rebuilt by hand in 24+ places. Web has no shared card outside the admin app.
 
 **Place map card** (iOS, #5543, `PlaceMapCard`): a quick result like the added-reminder card (`QuickResultCard`): the same `Fill.well` and `Radius.card`, under the turn's work line, with the tool calls still folded (super rule 2). On top, a still map `Size.chatMap` tall (160, scaled), made by `MKMapSnapshotter` off the main thread for the card's size and appearance and cached (bound 24); while it is made the well's fill holds the same height, so nothing below moves. Places carry `CountBadge` numbers on the accent in the order the tool returned them, which is the order the answer counts in; the phone's own fix is an accent dot. Under the map, the first three places as rows (number, name in `secondaryStrong`, distance and address in `caption`) with an icon-only Directions button (`Icon.directions`, 44 pt target, spoken "Directions to <place>"), then "N more on the map". Tapping the map opens a sheet with a live `Map`, the same numbers as `Marker` monograms, every place's row and Done. Why a new card: no existing component shows places, and a live map in the chat would redraw while scrolling (`docs/apple/performance.md`, P8). No setting; nothing is drawn for a failed, empty or running call. **Hand-off** (#5545): directions `phone_maps_navigate` opened in Apple Maps are the same card with one place, the destination: on the map a white `Icon.place` in an accent circle (the accent dot stays the phone's own fix), and one row with Maps' app icon (`BrandMark`, `Brand.iosMaps`, as Settings › Connectors draws it), the destination's name, the mode and "Opened in Maps" in `caption`, and the icon-only button (`Icon.directions`, spoken "Open directions to <place> in Maps") that opens the same directions in the same mode again. Nothing opens Maps without a tap, and the words say Maps navigates, not Persona. **Route** (#5544): a route `phone_maps_route` worked out is the same card with the destination: on the map the route's line in the accent (`Size.barWide`, round caps and joins) from the phone's accent dot to the destination's mark, the same line as a `MapPolyline` in the sheet with the same accent dot (an `Annotation` titled "Start") where it begins, since the phone may have moved since; one row with `Icon.place`, the destination and "Walking · 6 min · 420 m" in `caption`, and under it a full-width prominent "Start in Maps" button (`Icon.directions`, `labelStrong`, one line that scales down rather than wraps, spoken "Start directions to <place> in Maps") that hands the route to Maps in its mode (#6177). It is labeled, not icon-only like Directions and the hand-off's button, because starting the route is what the card is for. Transit has no line (Apple Maps gives apps none), only the destination with its time and distance.
+
+The iPhone/iPad Health water-extension migration (#13636) reuses `NoticeBanner` above Today,
+with unrestricted body lines and one single-line, tap-target-sized action. The notice states
+what moves and what turns off, including the Android page, before the person chooses.
+The existing intake busy state disables the action and shows Moving into Health while the
+request runs. Success uses the shared result toast with the count and replacement reminder;
+failure keeps the notice and shows the reason in the shared error toast. No card in demo mode.
 
 #### Adaptive card grids
 
@@ -1747,7 +1764,15 @@ VoiceOver reads the label and percentage; finite ratios are clamped to 0–1 and
 The circular gauge is independent of `progress.style`. `accessory_rectangular` uses a bar and `accessory_inline`
 omits progress.
 
-The watch widget extension doesn't build `Theme`, so complications take their fonts, marks and colors from `WatchFaceTokens` (`apple/Shared/Design/WatchFaceTokens.swift`, the documented fixed-size exception in 2.2), whose symbols mirror `Theme.Icon` with an `// icon:` note. A complication only draws what its app last wrote (a snapshot file in the watch App Group); all-day recording reloads only its own kind's timeline (`AllDaySnapshot.widgetKind`), not the other faces'.
+The watch widget extension doesn't build `Theme`, so complications take their fonts, marks and colors from `WatchFaceTokens` (`apple/Shared/Design/WatchFaceTokens.swift`, the documented fixed-size exception in 2.2), whose symbols mirror `Theme.Icon` with an `// icon:` note. Recording and pet complications draw snapshots the app writes in the watch App Group; all-day recording reloads only its own kind's timeline (`AllDaySnapshot.widgetKind`), not the other faces'. Extension and intake complications can read directly with the watch's own shared credential.
+
+- **Water and Protein** (#13275): circular, rectangular and inline only. The circle uses the system circular capacity
+  gauge with today's amount in its center; the rectangle shows the name, total, goal and unit above a straight capacity
+  bar; inline keeps the name, amount and unit. They share the phone's blue/amber `HealthIntakePalette`, system accent
+  grouping, and the `.xxxLarge` text cap with shrinking. VoiceOver reads name, total, goal and unit. On a failed read,
+  cached values remain, identified in the rectangle and VoiceOver; an old hub's 403 says Update the hub instead.
+  No watch app page or Health permission is added. Hub choice lives on the complication; the default is the default
+  paired group, or the only available group. Data and 15-minute refresh rules are in `docs/apple/home-widgets.md`.
 
 - **All-Day Recording** (#4741, `AllDayRecordingComplication`; circular, corner, rectangular, inline, the Smart Stack): five faces, each in words and a mark, never by color alone. Off: "All-Day Recording" (the corner says "All-Day"), "Tap to start". Recording: "Recording all day" with the running time (`Text(_:style: .timer)`, so it needs no reload), in red as the system shows a microphone in use. Paused (by the user or a call): "Paused", "Tap to continue", `allDayPausedSymbol`, orange. Stopped by itself: "Stopped", "Tap to continue", the triangle, orange.
 - **The stale face**: a recording snapshot is trusted only while the app keeps rewriting it (every 10 minutes while recording); the timeline carries a second entry at `AllDaySnapshot.staleAfter` (25 minutes after the last write), which shows "Check recording", how long since it was last heard, the triangle, orange. Why: if the app dies without a word, a face still saying "Recording all day" would be a lie.
@@ -1786,6 +1811,16 @@ The widget extension doesn't build `Theme`: Persona's widgets take their colors,
 - **Choices live on the widget** (Edit Widget), never in the app's Settings: each starts at a default that works on a fresh install (every agent, every computer, the fullest account), and its list is the snapshot's, named as the widget names them.
 - **A widget's own switch and buttons** (the Calendar widget's Today · Week · Month and its days, #6946): a segmented control drawn in `HomeWidgetTokens` (`segment…`: a track, the chosen part filled, fixed sizes like a hero), and days as buttons. Each is a widget button (an App Intent) that changes only that widget and redraws it at once, without the app or the network; Edit Widget keeps where it starts. Why a new pattern: a view people flip between often does not belong behind Edit Widget's sheet, and a widget has no other control.
 - **The Lock Screen** shows the same hero in one color: the circle holds the hero alone, the rectangle the widget's line and one or two under it, the inline one line beside the clock.
+
+Water and Protein (#13275) share `HealthIntakePalette` with `Theme.Health`, keeping the app's blue and amber exactly.
+Today's Health has four separate rings (Water, Protein, Steps, Sleep), chosen independently in Edit Widget; repeated
+items retain their positions. Its steps token is purple, apart from Move's red; the existing Health widget keeps pink.
+Sleep remains indigo. Activity uses only short neutral straight bars and values, never rings or UIKit: Move, Exercise,
+Stand, with absent goals removing rows. Small has values, medium adds names, goals and units. The compact Activity
+numbers and cell captions use fixed widget tokens to fit the system canvas, with shrinking and a `.xxxLarge` cap.
+VoiceOver reads each cell's label, value and goal or average, including the compact rows' omitted names and units.
+Today's Health is privacy sensitive; standalone Water and Protein remain readable while locked. See
+`docs/apple/home-widgets.md` for day boundaries, data ownership, sizes and refresh rules.
 
 ### 3.15 Charts (iOS)
 
@@ -1933,13 +1968,20 @@ The web Changes panel's secondary file tree (#10477) reuses the existing `Resize
 
 ### 4.3 Feedback and haptics
 
+Settings › Hub uses the update group's status row for Web development progress. Pair the
+phase title with the localized step. Use a thin accent bar on the inset track when the
+step supplies a percentage, and the shared spinner while its total is unknown. Use
+`text-meta` for the phase and `text-label` for the step and measurements. Announce
+step changes through the live status label and let the measurements wrap at narrow widths.
+
 Message feedback (#5258, principle 7, super rule 5) reuses the chat's status line and pending bubble, not a new card or
 style. Show Sending immediately from local state, then Processing on the hub's `message_send_state` receipt; do not wait
 for a model token or overwrite `Session.status`. The pending-send overlay is scoped to the conversation and message,
 survives stale snapshots, and hands off to actual execution or queued state on delivery. Failure removes only its own
-overlay and keeps the existing draft, failed-bubble and uncertain-delivery recovery. On the web the state is said once,
-by the status line under the last message (Sending, Processing, delivery unknown); the pending bubble only dims, with no
-second line under it (a queued message's bubble keeps its Queued). The full wire and reconnect rules
+overlay and keeps the existing draft, failed-bubble and uncertain-delivery recovery. On the web, a direct send's state
+appears on the status line under the last message, and its pending bubble dims. A follow-up headed for the queue while
+the turn works shows its state and local photo previews in its queue row as soon as it is sent (#13958). The hub's queue
+update confirms that row in place. The full wire and reconnect rules
 are in `docs/protocol/protocol.md` ("Message feedback (#5258)"). Apply the same definition in Assistant and Agent chats.
 
 | Message state | en | zh-Hans | ja |
@@ -2098,6 +2140,10 @@ A computer's dev server opened from a chat (a forwarded port, `docs/web/preview.
 ### 4.7 Tool execution collapsed (super rule 2)
 
 Tool execution is one summary line, never opens by itself, shows the latest text segment while running and the result when done, and expands by hand. Opened by hand, a step (and the summary itself) changes in place: the tapped row stays under the finger, what opens fades in, what closes goes at once, and the list holds still while the turn goes on (new steps, the answer, the next turn, the footer under the list changing) until the user scrolls, taps ↓ or sends (`toggleInPlace`, `ChatFollow.toggledRow`, #3005). iOS complies: `isOpen` ignores `live` (`apple/Persona/Views/Chat/ChatLines.swift:293`) and tool rows use `autoExpand: false`. The "latest segment only" half was not confirmed from code reading and needs a screenshot test.
+
+**Blank replies** (web, #13957). An interrupted turn shows the localized interruption notice below its work summary. A
+settled user turn without visible output shows “No response returned” there. Retry sends that turn's message again, with
+its attachments, when the conversation can send. Silent supervision keeps its existing visibility.
 
 **The opened summary** (web, #10247) is a flat sequence of narration and action groups, sharing one rail and indentation. The outer summary keeps the whole-exchange clock and collapsed default. Action headers name at most three kinds in first-seen order, with the first kind's icon; read/edit/search/command kinds have localized counts, and other kinds retain their existing labels. Earlier live groups start collapsed, the current one opens within the trace the reader manually opened, and a superseded run closes; all groups can be opened and closed by hand. Newly loaded completed groups start open; remembered disclosure choices remain available. Latest narration stays only in its text slot until superseded, and the final reply appears once. Rows lead with the file, query and target, or command; command descriptions remain in tooltips and expanded detail. Reliable per-call durations appear only from 30 seconds; the total exchange clock stays on the outer summary and run bar. The current run previews edit diffs using the existing diff renderer. The flatter layout replaces repeated time headings and nested rails so the inspected work is scannable, while preserving the top-level progressive disclosure required by super rule 2.
 
@@ -2321,7 +2367,7 @@ Kinds: questions, plan approvals, tool approvals, secret entry, MCP forms, and w
   notification and its Needs you row open the parent's page with that side shown. A request of a row that belongs to a
   side (`folded_side`, its own Codex child) goes with that side.
 - **One count, per session**: the Agents list's Needs you section, its Needs you filter and the tab's badge count the sessions that wait for the user, each once, its requests in its row oldest first, the way `docs/assistant/managers.md` ("Counts") counts an assistant's waiting agents (principle 4). The Inbox's Agent section and the Assistant's composer entries open the same requests; the composer's entries count tasks (`docs/assistant/unified-entry.md`).
-- **Background rounds and supervisors** (#4314, `docs/assistant/assistant.md` "Background rounds"): in the main conversation a round another conversation, a scheduled task or a follow-up started reuses the quiet supervision record, one muted line `@<source> · Background round` that always opens, never a new component; a round that asked or told the user stays shown. A completed, non-live round with a successful silent finish and no promotion instead leaves no timeline row and adds no unread count or badge. **Background activity**, reachable from the conversation menu and Inbox, retains the full round, its inline tools and its `task` / `routed` / `answered` feed cards inside the same half-open interval; plans, message cards, notices and decisions stay in the main timeline. Opening the list marks nothing seen and full-history APIs stay complete. The main conversation's waiting count contains only current direct user questions, user-only authorizations and explicit user-acceptance deliveries: unstarted or failed-start tasks, agent permission requests, terminal dialogs and superseded questions stay out. Tapping it opens exactly the counted items on iPhone and the shared web/Mac UI, without changing the Agents list's separate count. While background folding is on, the composer's Needs you groups rows under the conversation supervising them, this one's first, with a plain caption header and no other change: the same rows, order within a group and count.
+- **Background rounds and supervisors** (#4314, `docs/assistant/assistant.md` "Background rounds"): in the main conversation a round another conversation, a scheduled task or a follow-up started reuses the quiet supervision record, one muted line `@<source> · Background round` that always opens, never a new component; a round that asked or told the user stays shown. A completed, non-live round with a successful silent finish and no promotion instead leaves no timeline row and adds no unread count or badge. **Background activity**, reachable from the conversation menu and Inbox, retains the full round, its inline tools and its `task` / `routed` / `answered` feed cards inside the same half-open interval; plans, message cards, notices and decisions stay in the main timeline. Opening the list marks nothing seen and full-history APIs stay complete. A successful internal `task_review accepted` receipt with hub-issued `background=true` follows this same split; the hub derives it only from the current plan's `user_requested` / `parent` and the supervision ledger's current completed `auto_review` / `round`, while `user_check`, `needs_user`, unmarked legacy reviews and unknown provenance stay visible. The main conversation's waiting count contains only current direct user questions, user-only authorizations and explicit user-acceptance deliveries: unstarted or failed-start tasks, agent permission requests, terminal dialogs and superseded questions stay out. Tapping it opens exactly the counted items on iPhone and the shared web/Mac UI, without changing the Agents list's separate count. While background folding is on, the composer's Needs you groups rows under the conversation supervising them, this one's first, with a plain caption header and no other change: the same rows, order within a group and count.
 - **Cut off** (web, 2026-11-14): the dock's cards over the composer keep to their cap (55% of the visible height, #5375) and
   scroll; a card whose answer row stands at the box's bottom edge while the end of its body is under that row or below
   the box says so in that row: its title and what it asks (the command) beside the answers, the whole of it as the
@@ -2629,6 +2675,7 @@ your permission" (section 5, "Notifications"); moving them to the card's words i
 - Primary screens (list rows, top-bar titles, the Assistant home and notifications) never show raw model IDs, session IDs, paths or engine names (herdr, Orca, Paseo); this is principle 2 applied to Agent work. A row may name the model by its short name.
 - An agent an engine runs under the engine's own id (Paseo's providers: Grok, Kimi, Cursor…, whose `agent` is `paseo`) is called by its provider's label (`agent_label`) and drawn with the mark the client has for that provider, else its label's letter; cards, pushes, filters and model pickers name it the same way (#8142).
 - Views grouped by location (By Repository, By Machine, By Project) may show workspaces, tabs, worktrees and branches. The web Agents row may also carry an associated terminal tab as the secondary **Tab {name}** metadata described in 3.4; it is not the session title and requires a real tab association. Other location details stay in the session's info sheet, opened from its title, and in tool views (terminal, files, changes).
+- Each level of such a view says something its heading does not. A level that would only repeat the name above it is left out, and the heading carries what it had: its marks, its ⋯ and its right-click menu. By Repository lists a lone workspace named after its repository's folder under the repository's heading, as By Project's space headings carry a space's menu (#13454). A row under these headings leaves out the place they name (3.4).
 - State words come from one place per platform, `StateName` on Apple and `web/src/lib/state-labels.ts` on the web; no screen invents its own.
 - An Agent page says the agent's state once. On iOS and Android that is the header's title line (dot and words); other
   marks in the header count or describe (the loop and background pill is a count by a neutral glyph, #3719), and only the
@@ -4140,3 +4187,11 @@ through Configure runners, and saving an empty list disables polling.
 ## First-run pairing
 
 Center the Persona mark and title above the primary control. A phone opens its scanner. A browser takes a pairing link and submits it with the arrow inside the field group. Place the secondary actions in one centered row of icons with short labels. Keep the action and its label in a single tap target. Allow wrapping or stacking at larger text sizes. Help explains where to get a code or link. A warning about replacing an existing pairing stays beside the action.
+
+## Removable chips (#13500)
+
+A chip the user may take away (a space conversation's categories on iOS) is a `Chip` with the close mark whose tap opens
+a menu with one destructive Remove, never a bare x that removes on touch: a chip is small, and a slip should cost
+nothing. iOS draws the close mark before the words, where every `Chip` draws its symbol (#6578; the web puts its
+button after them), and the menu's label is a finger's height (`tapTargetHeight`). A chip the user may not take away carries the lock mark and is read as set by its owner. What was removed comes
+back from a + menu at the end of the row. The change shows at once and rolls back with a toast when the hub refuses it.
