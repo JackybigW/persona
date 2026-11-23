@@ -43,6 +43,7 @@ export struct TodoWorkspacePage {
   @Param row: ResourceRow | undefined = undefined;
   @Param list: boolean = true;
   @Param phoneList: boolean = false;
+  @Param phoneDetail: boolean = false;
   @Param createRevision: number = 0;
   @Param visible: boolean = true;
   @Event onOpen: (row: ResourceRow) => void = (_row: ResourceRow) => {};
@@ -54,6 +55,7 @@ export struct TodoWorkspacePage {
   @Local detailWidth:number=402;
   @Local detailEditor: PhoneTodoDetailEditor = new PhoneTodoDetailEditor();
   private detailPlanKey: string = '';
+  private seenNoticeTimer: number = -1;
   @Local sectionBindings: BoundTodoSection[] = [];
   @Local expandedGroups:string[] = [];
   @Local showDone:boolean = false;
@@ -99,6 +101,7 @@ export struct TodoWorkspacePage {
     this.openWorkspace();
   }
   aboutToDisappear(): void {
+    clearTimeout(this.seenNoticeTimer);
     this.pageAvailable = false; this.clearDrag();
     clearInterval(this.clockTimer); this.clockTimer=-1;
     this.openSerial++;
@@ -149,11 +152,14 @@ export struct TodoWorkspacePage {
     if (!this.list) {
       this.detailEditor.sync(this.workspace);
       const row=this.workspace.selected, key=JSON.stringify([this.model.scope(),row.manager,row.id]);
-      if (row.id && key!==this.detailPlanKey) { this.detailPlanKey=key; this.workspace.loadDetailProjects().catch(() => {}); }
+      if (row.id && key!==this.detailPlanKey) {
+        this.detailPlanKey=key; this.workspace.loadDetailProjects().catch(() => {});
+        if (this.phoneDetail && this.visible) this.workspace.markSeen(row,true).catch(() => {});
+      }
     }
   }
   @Monitor('workspace.items', 'workspace.search', 'workspace.statusFilter', 'workspace.groupBy','workspace.dueFilter','workspace.order','clock',
-    'workspace.hubCounts', 'workspace.hubChoice',
+    'workspace.hubCounts', 'workspace.hubChoice','workspace.seenPreview',
     'workspace.projects', 'workspace.sessions', 'workspace.machines') rowsChanged(): void { this.syncRowBindings(); }
 
   private openWorkspace(): void {
@@ -170,6 +176,14 @@ export struct TodoWorkspacePage {
         this.workspace.refresh().catch(() => undefined);
       }
     });
+  }
+
+  @Monitor('workspace.seenUndo','workspace.saving') seenNoticeChanged():void {
+    clearTimeout(this.seenNoticeTimer);
+    const notice=this.workspace.seenUndo;
+    if (notice && !this.workspace.saving) this.seenNoticeTimer=setTimeout(()=>{
+      if (this.workspace.seenUndo===notice) this.workspace.seenUndo=undefined;
+    }, 6000);
   }
 
   private refreshWhenReady(retryOpening: boolean = false): void {
@@ -532,6 +546,34 @@ export struct TodoWorkspacePage {
       }.width('100%').alignItems(VerticalAlign.Top)
     }
   }
+  @Builder phoneStatusWords(group:TodoWorkspaceGroup) {
+    Row({space:6}) {
+        Circle().width(7).height(7).fill(group.phone.urgentState==='needs_you' ? Colors.needs : group.phone.urgentState==='working' ? Colors.link : Colors.secondary)
+          .accessibilityLevel('no')
+        Text(this.rowStatus(group)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).maxLines(1)
+          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(!group.lead.startError && group.state==='needs_you' ? Colors.needs : Colors.secondary)
+        if (group.phone.activeAgents) Text(this.leadMetadata(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+          .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).flexShrink(1)
+        if (group.phone.lead && group.phone.activeAgents>1) Text('+'+String(group.phone.activeAgents-1)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+          .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1)
+      }.constraintSize({maxWidth:'100%'})
+  }
+  @Builder seenChip(todo:TodoWorkspaceItem) {
+    Button({type:ButtonType.Capsule}) {
+      Row({space:4}) {
+        Stack() {
+          Circle().width(this.phoneMeasure(12,17)).height(this.phoneMeasure(12,17)).fill(Color.Transparent)
+            .stroke(Colors.link).strokeWidth(1)
+          SymbolGlyph(Symbols.check).fontSize(this.phoneMeasure(8,11)+'vp').fontColor([Colors.link])
+        }.accessibilityLevel('no')
+        Text(tr('phone_todo_got_it')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(FontWeight.Medium)
+          .fontColor(Colors.link).maxLines(1)
+      }
+    }.height(this.phoneMeasure(20,27)).padding({left:6,right:6}).margin({top:-3,bottom:-3}).backgroundColor(Colors.selection)
+      .responseRegion({x:0,y:-12,width:'100%',height:44})
+      .accessibilityText(tr(todo.kind==='concern' && !todo.isDone() ? 'phone_todo_seen_open_a11y' : 'phone_todo_seen_done_a11y').replace('{title}',todo.title))
+      .enabled(!this.workspace.saving).onClick(()=>this.workspace.markSeen(todo)).id('todos.seen.'+todo.id)
+  }
   @Builder phoneRowWords(group:TodoWorkspaceGroup) {
     Column({space:4}) {
       Row({space:5}) {
@@ -543,16 +585,14 @@ export struct TodoWorkspacePage {
         if (this.since(group.lead)) Text(this.since(group.lead)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
           .letterSpacing(this.phoneMeasure(0,-0.45)+'vp').lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(Colors.secondary).margin({top:5}).maxLines(1)
       }.width('100%').alignItems(VerticalAlign.Top)
-      Row({space:6}) {
-        Circle().width(7).height(7).fill(group.phone.urgentState==='needs_you' ? Colors.needs : group.phone.urgentState==='working' ? Colors.link : Colors.secondary)
-          .accessibilityLevel('no')
-        Text(this.rowStatus(group)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).maxLines(1)
-          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(!group.lead.startError && group.state==='needs_you' ? Colors.needs : Colors.secondary)
-        if (group.phone.activeAgents) Text(this.leadMetadata(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-          .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).flexShrink(1)
-        if (group.phone.lead && group.phone.activeAgents>1) Text('+'+String(group.phone.activeAgents-1)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-          .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1)
-      }.width('100%')
+      if (group.phone.canFileSeen && this.workspace.supportsSeen()) {
+        Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center,space:{main:LengthMetrics.vp(4),cross:LengthMetrics.vp(4)}}) {
+          this.phoneStatusWords(group)
+          Row() { this.seenChip(group.lead) }.justifyContent(FlexAlign.End).flexGrow(1)
+        }.width('100%')
+      } else {
+        Row() { this.phoneStatusWords(group) }.width('100%')
+      }
       this.phonePlan(group.lead)
       if (this.rowLine(group)) Text(this.rowLine(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
         .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(this.rowLineColor(group))
@@ -607,7 +647,7 @@ export struct TodoWorkspacePage {
             }.alignItems(HorizontalAlign.Start).layoutWeight(1)
             SymbolGlyph(Symbols.expand).fontSize((this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : 12)+'vp').fontColor([Colors.secondary])
               .width(this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : undefined)
-          }.layoutWeight(1).constraintSize({minHeight:44}).accessibilityGroup(true)
+          }.layoutWeight(1).constraintSize({minHeight:44}).accessibilityGroup(!(this.phoneList && !this.hubMode() && binding.value.phone.canFileSeen && this.workspace.supportsSeen()))
             .onClick(() => this.onOpenResource(this.workspace.todoResource(binding.value.lead)))
             .bindContextMenu(this.rowMenu(binding.value.lead),ResponseType.LongPress).id('todos.open.'+binding.value.lead.id)
         }.width('100%').alignItems(this.phoneList && !this.hubMode() ? VerticalAlign.Top : VerticalAlign.Center)
@@ -622,9 +662,10 @@ export struct TodoWorkspacePage {
           if (this.expandedGroups.includes(binding.value.key)) ForEach(binding.value.related(),(todo:TodoWorkspaceItem) => {
             Row({space:8}) {
               Text(todo.title).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.ink).layoutWeight(1).maxLines(2)
+              if (this.phoneList && !this.hubMode() && this.workspace.showsSeenOnMember(todo)) this.seenChip(todo)
               SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
             }.constraintSize({minHeight:44}).width('100%').padding({left:57,right:14})
-              .accessibilityGroup(true).onClick(() => this.onOpenResource(this.workspace.todoResource(todo))).id('todos.member.'+todo.id)
+              .accessibilityGroup(!(this.phoneList && !this.hubMode() && this.workspace.showsSeenOnMember(todo))).onClick(() => this.onOpenResource(this.workspace.todoResource(todo))).id('todos.member.'+todo.id)
           },(todo:TodoWorkspaceItem) => JSON.stringify([todo.id,todo.title]))
         }
         if (this.phoneList && !this.hubMode() && section.rows[section.rows.length-1]!==binding) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:20})
@@ -1303,6 +1344,17 @@ export struct TodoWorkspacePage {
   build() {
     Column() {
       if (this.list && this.workspace.calendarOpen) this.calendarContent()
+      else if (this.list && this.phoneList) Stack({alignContent:Alignment.Bottom}) {
+        this.listContent()
+        if (this.workspace.seenUndo) Row({space:12}) {
+          SymbolGlyph(Symbols.check).fontSize(15).fontColor([Colors.positive]).accessibilityLevel('no')
+          Text(tr(this.workspace.seenUndo.otherOpen ? 'phone_todo_seen_open' : 'phone_todo_seen_done')).fontSize(15)
+            .maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.ink).flexShrink(1)
+          Button(tr('ks_undo'),{buttonStyle:ButtonStyleMode.TEXTUAL}).padding({left:8,right:8}).fontSize(15)
+            .fontColor(Colors.link).onClick(()=>this.workspace.undoSeen()).id('todos.seen.undo')
+        }.padding({left:16,right:8}).constraintSize({minHeight:44,maxWidth:'94%'}).margin({bottom:12})
+          .backgroundColor(Colors.surface).borderRadius(18).shadow(ShadowStyle.OUTER_DEFAULT_SM).id('todos.seen.notice')
+      }.width('100%').height('100%')
       else if (this.list) this.listContent()
       else this.detailContent()
     }.width('100%').height('100%')

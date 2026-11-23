@@ -173,6 +173,56 @@ async function opened(options = {}) {
 
 function pathOnly(path) { return path.split('?')[0]; }
 
+test('Got It files an eligible phone row immediately, preserves its list fields and queues Undo behind the owner acknowledgement',async()=>{
+  const when=new Date(Date.now()-60000).toISOString(), gate=deferred();
+  const task=todo('report',{ask:{verdict:'ready',asked_at:when,outcome:'done'},notes:'Keep this summary'});
+  const {workspace,state}=await opened({features:['todo_seen'],todos:[task]});
+  const section=()=>workspace.sections().find(group=>group.rows.some(row=>row.lead.id==='report'))?.key;
+  assert.equal(section(),'just_done');
+  state.request=async({path,method})=>{
+    assert.equal(path,'/api/v1/todos/report/seen?manager=work');
+    if(method==='PUT'){await gate.promise;return {todo:{id:'report',seen_at:new Date().toISOString()}};}
+    assert.equal(method,'DELETE');return {todo:{id:'report'}};
+  };
+  const first=workspace.markSeen(workspace.items[0]);
+  assert.equal(section(),'done');
+  assert.equal(await workspace.markSeen(workspace.items[0]),false);
+  const undo=workspace.undoSeen();
+  gate.resolve();
+  assert.equal(await first,true);
+  assert.equal(await undo,true);
+  assert.equal(section(),'just_done');
+  assert.deepEqual(workspace.items[0].ask,task.ask);
+  assert.equal(workspace.items[0].notes,task.notes);
+  assert.deepEqual(state.calls.filter(call=>call.method!=='GET').map(call=>call.method),['PUT','DELETE']);
+});
+
+test('seen respects feature, acceptance, current owner and failed writes',async()=>{
+  const when=new Date(Date.now()-5000).toISOString();
+  const task=todo('report',{ask:{verdict:'ready',asked_at:when,outcome:'done'}});
+  for(const fields of [{delivery:{state:'live'}},{supervision:{state:'pending_review'}},{supervision:{supervisor:'leader'}}]){
+    const {workspace,state}=await opened({features:['todo_seen'],todos:[{...task,...fields}]});
+    assert.equal(await workspace.markSeen(workspace.items[0]),false);
+    assert.equal(state.calls.filter(x=>x.method!=='GET').length,0);
+  }
+  const legacy=await opened({todos:[task]});
+  assert.equal(await legacy.workspace.markSeen(legacy.workspace.items[0]),false);
+  const {workspace,state,client}=await opened({features:['todo_seen'],todos:[task]});
+  state.request=async()=>{throw new HttpFailure(403,'forbidden');};
+  assert.equal(await workspace.markSeen(workspace.items[0]),false);
+  assert.equal(workspace.seenUndo,undefined);
+  assert.equal(workspace.error,'permission_denied');
+  assert.equal(workspace.sections()[0].key,'just_done');
+  const gate=deferred();
+  state.request=async({method})=>method==='PUT'?gate.promise:{todos:[]};
+  const old=workspace.markSeen(workspace.items[0]);
+  state.generation++;await workspace.open(client);
+  gate.resolve({todo:{id:'report',seen_at:new Date().toISOString()}});
+  assert.equal(await old,false);
+  assert.equal(workspace.items.length,0);
+  assert.equal(await workspace.undoSeen(),false);
+});
+
 test('a reopened calendar restores its mode and local date even when the user leaves immediately',async()=>{
   const e=await opened(), anchor=new Date(2026,10,25,16).getTime();
   e.workspace.setCalendar(true,'week',anchor); e.workspace.close();

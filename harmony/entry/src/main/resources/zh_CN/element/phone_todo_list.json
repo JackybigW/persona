@@ -51,6 +51,26 @@
     {
       "name": "phone_todo_sort_by",
       "value": "排序方式"
+    },
+    {
+      "name": "phone_todo_got_it",
+      "value": "知道了"
+    },
+    {
+      "name": "phone_todo_seen_done_a11y",
+      "value": "知道了：把「{title}」移到已完成"
+    },
+    {
+      "name": "phone_todo_seen_open_a11y",
+      "value": "知道了：把「{title}」移到其余没完成"
+    },
+    {
+      "name": "phone_todo_seen_done",
+      "value": "已移到「已完成」"
+    },
+    {
+      "name": "phone_todo_seen_open",
+      "value": "已移到「其余没完成」"
     }
   ]
 }

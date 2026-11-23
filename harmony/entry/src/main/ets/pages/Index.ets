@@ -2803,7 +2803,7 @@ struct Index {
         else this.targetLoading(name, param)
       } else if (name === 'todo' || name === 'resources' && param === 'todo') {
         if (name === 'resources' || this.targetReady(name, param)) TodoWorkspacePage({ model: name === 'resources' ? this.model : this.detailModel, row: name === 'todo' ? this.routeRow(param) : undefined, list: name === 'resources', visible: this.activeChild === this.childKey(name, param),
-          phoneList:!this.wide() && name==='resources' && param==='todo', createRevision:this.todoCreateRevision,
+          phoneList:!this.wide() && name==='resources' && param==='todo', phoneDetail:!this.wide() && name==='todo', createRevision:this.todoCreateRevision,
           onTitle: (title: string) => { if (name === 'todo' && this.activeChild === this.childKey(name, param)) this.todoTitle = title; }, onOpen: (row: ResourceRow) => this.openFrom(name, param, row), onOpenResource: (row: ResourceRow) => this.openFrom(name, param, row), onLink: (address: string) => this.openReader(address), onCreateAgent: (todo: ResourceRow) => this.createAgentFrom(name, param, todo) })
         else this.targetLoading(name, param)
       } else if (name === 'knowledge_map') {

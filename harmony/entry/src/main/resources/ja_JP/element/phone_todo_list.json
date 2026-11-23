@@ -51,6 +51,26 @@
     {
       "name": "phone_todo_sort_by",
       "value": "並べ替え"
+    },
+    {
+      "name": "phone_todo_got_it",
+      "value": "了解"
+    },
+    {
+      "name": "phone_todo_seen_done_a11y",
+      "value": "了解：「{title}」を完了に移動"
+    },
+    {
+      "name": "phone_todo_seen_open_a11y",
+      "value": "了解：「{title}」をその他の未完了に移動"
+    },
+    {
+      "name": "phone_todo_seen_done",
+      "value": "「完了」に移動しました"
+    },
+    {
+      "name": "phone_todo_seen_open",
+      "value": "「その他の未完了」に移動しました"
     }
   ]
 }

@@ -5,7 +5,13 @@ import { ResourceRow, Wire } from './Wire';
 export const TODO_PHONE_SECTIONS:string[]=['needs_you','working','pr','other','just_done','shelved','done'];
 export interface TodoPhonePlacement { section:string; last:number; superseded:boolean; awaitingReview:boolean; }
 
+export function phoneTodoSeenCanFile(todo:TodoWorkspaceItem):boolean {
+  return (todo.kind==='concern' || Wire.text(todo.delivery,'state')!=='live') &&
+    Wire.text(todo.supervision,'state')!=='pending_review' && !Wire.text(todo.supervision,'supervisor');
+}
+
 export class TodoPhoneRowContext {
+  canFileSeen:boolean = false;
   lead: ResourceRow | undefined = undefined;
   activeAgents: number = 0;
   urgentState: string = '';
@@ -45,6 +51,7 @@ export class TodoPhoneSections {
 
   rowContext(todo: TodoWorkspaceItem, placement?: TodoPhonePlacement): TodoPhoneRowContext {
     const row = new TodoPhoneRowContext();
+    row.canFileSeen=placement?.section==='just_done' && phoneTodoSeenCanFile(todo);
     let best = -1, leadMoved = Number.NEGATIVE_INFINITY;
     for (const agent of todo.activeAgents()) {
       row.activeAgents++;
@@ -84,10 +91,10 @@ export class TodoPhoneSections {
     return row;
   }
 
-  place(todo:TodoWorkspaceItem,superseded:boolean=false):TodoPhonePlacement {
+  place(todo:TodoWorkspaceItem,superseded:boolean=false,seenOverride?:string):TodoPhonePlacement {
     const sup=todo.supervision,reviews=Wire.rows(sup,'reviews'),review:Record<string,Object>=reviews[reviews.length-1] || Wire.payload([],[]);
     const reviewAt=time(Wire.text(review,'at')),delivery=Wire.text(todo.delivery,'state'),deliveredAt=time(Wire.text(todo.delivery,'at'));
-    const askTime=time(Wire.text(todo.ask,'asked_at')),doneAt=time(todo.doneAt),seenAt=time(Wire.text(todo.data(),'seen_at'));
+    const askTime=time(Wire.text(todo.ask,'asked_at')),doneAt=time(todo.doneAt),seenAt=time(seenOverride ?? Wire.text(todo.data(),'seen_at'));
     let last=Math.max(time(todo.updatedAt),time(todo.createdAt),time(todo.reopenedAt),doneAt,time(Wire.text(sup,'updated_at')),
       time(Wire.text(Wire.object(sup,'progress'),'at')),reviewAt,deliveredAt,askTime);
     let asks=false,interrupted=false,limit=false,unread=false,working=false;
@@ -119,8 +126,7 @@ export class TodoPhoneSections {
     else if (todo.isDone()) section=todo.kind==='concern' && current(doneAt) ? 'just_done' : 'done';
     else if (!concern && reviewState==='accepted' && Wire.text(review,'verdict')==='accepted') section='done';
     else if (!concern && delivery==='live') section='just_done';
-    else if (finished && reviewState!=='parked' && (!(Number.isFinite(seenAt) && seenAt>=last) ||
-      reviewState==='pending_review' || !!Wire.text(sup,'supervisor'))) section='just_done';
+    else if (finished && reviewState!=='parked' && (!(Number.isFinite(seenAt) && seenAt>=last) || !phoneTodoSeenCanFile(todo))) section='just_done';
     else if (delivery==='pr' || !!todo.prUrl && (!delivery || delivery==='none')) section='pr';
     else if (finished && !concern) section='done';
     else if (!concern && (todo.agents.length>0 || !!todo.origin) && !(todo.dueBy>=this.now) && this.now-last>=172800000) section='shelved';

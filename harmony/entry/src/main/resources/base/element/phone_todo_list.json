@@ -51,6 +51,26 @@
     {
       "name": "phone_todo_sort_by",
       "value": "Sort By"
+    },
+    {
+      "name": "phone_todo_got_it",
+      "value": "Got It"
+    },
+    {
+      "name": "phone_todo_seen_done_a11y",
+      "value": "Got It: move {title} to Done"
+    },
+    {
+      "name": "phone_todo_seen_open_a11y",
+      "value": "Got It: move {title} to Other open"
+    },
+    {
+      "name": "phone_todo_seen_done",
+      "value": "Moved to Done"
+    },
+    {
+      "name": "phone_todo_seen_open",
+      "value": "Moved to Other open"
     }
   ]
 }

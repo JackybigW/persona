@@ -5,10 +5,12 @@ import { todoDetailPatchAccepted } from './PhoneTodoDetailEditor';
 import { ResourceRow, Wire } from './Wire';
 import { TODO_HUB_CHOICES, TODO_HUB_SECTIONS, TodoHubCounts, TodoHubRow, todoHubChoiceIncludes, todoHubLabel } from './TodoHubView';
 import type { TodoPhonePlacement } from './TodoPhoneSections';
-import { TODO_PHONE_SECTIONS, TodoPhoneRowContext, TodoPhoneSections, phoneTodoTitle } from './TodoPhoneSections';
+import { TODO_PHONE_SECTIONS, TodoPhoneRowContext, TodoPhoneSections, phoneTodoSeenCanFile, phoneTodoTitle } from './TodoPhoneSections';
 
 const TODO_STATES: string[] = ['needs_you', 'checking', 'working', 'followup', 'not_started', 'done'];
 const TODO_STATUS_ORDER: string[] = ['needs_you', 'checking', 'working', 'followup', 'not_started', 'done'];
+
+interface TodoSeenChange { id:string; manager:string; stamp:string; otherOpen:boolean; }
 
 interface TodoOwnerSnapshot {
   root: ClientModel;
@@ -433,6 +435,9 @@ export class TodoWorkspace {
   @Trace selected: TodoWorkspaceItem = new TodoWorkspaceItem();
   @Trace loading: boolean = false;
   @Trace saving: boolean = false;
+  @Trace seenPreview:TodoSeenChange|undefined = undefined;
+  @Trace seenUndo:TodoSeenChange|undefined = undefined;
+  private seenRequest:Promise<boolean>|undefined = undefined;
   @Trace error: string = '';
   @Trace writeState: string = '';
   @Trace titleDraft: string = '';
@@ -488,6 +493,7 @@ export class TodoWorkspace {
     this.order = 'recent';
     this.calendarOpen=false; this.calendarMode='day'; this.calendarAnchor=Date.now(); this.calendarReady=false;
     this.resetCalendarMove();
+    this.clearSeenActions();
     this.sessions = [];
     this.machines = [];
     this.conversations = [];
@@ -531,6 +537,7 @@ export class TodoWorkspace {
 
   close(): void {
     this.resetCalendarMove();
+    this.clearSeenActions();
     this.calendarReady=false;
     this.active = false;
     this.revision++;
@@ -792,6 +799,7 @@ export class TodoWorkspace {
           rootScope !== this.rootScope || !root.owns(rootGeneration, rootScope)) return;
         this.hubCounts = undefined;
         this.resetCalendarMove();
+        this.clearSeenActions();
         this.ownerClient = next;
         this.boundRepo = next.repo();
         this.ownerGeneration = next.connectionGeneration();
@@ -1058,6 +1066,82 @@ export class TodoWorkspace {
     return true;
   }
 
+  private clearSeenActions():void {
+    this.seenPreview=undefined; this.seenUndo=undefined; this.seenRequest=undefined;
+  }
+
+  supportsSeen():boolean { return !!this.ownerClient?.features.includes('todo_seen'); }
+
+  showsSeenOnMember(todo:TodoWorkspaceItem):boolean {
+    return this.supportsSeen() && phoneTodoSeenCanFile(todo) && this.seenPlacement(todo).section==='just_done';
+  }
+
+  private seenPlacement(todo:TodoWorkspaceItem):TodoPhonePlacement {
+    const superseded=!!todo.startError && todo.isDone() && relatedTodoMembers(this.items,todo).some((row:TodoWorkspaceItem)=>row.isDone() && !row.startError);
+    return new TodoPhoneSections(this.sessions,Date.now()).place(todo,superseded);
+  }
+
+  markSeen(todo:TodoWorkspaceItem, opened:boolean=false):Promise<boolean> {
+    if (!this.supportsSeen() || this.saving || this.seenRequest || !this.items.includes(todo) || !this.capture(todo)) return Promise.resolve(false);
+    const place=this.seenPlacement(todo);
+    if (place.section!=='just_done' || !opened && !phoneTodoSeenCanFile(todo)) return Promise.resolve(false);
+    const change:TodoSeenChange={id:todo.id,manager:todo.manager || this.managerId,
+      stamp:new Date(Math.max(Date.now(),place.last)).toISOString(),otherOpen:todo.kind==='concern' && !todo.isDone()};
+    this.seenPreview=change;
+    this.seenUndo=opened ? undefined : change;
+    const work:Promise<boolean>=this.sendSeen(todo,change,true,opened).finally(()=>{
+      if (this.seenRequest===work) this.seenRequest=undefined;
+    });
+    this.seenRequest=work;
+    return work;
+  }
+
+  async undoSeen():Promise<boolean> {
+    const previous=this.seenUndo;
+    if (!previous) return false;
+    if (this.seenRequest) await this.seenRequest;
+    if (this.seenUndo!==previous || this.saving || !this.supportsSeen()) return false;
+    const todo=this.items.find((row:TodoWorkspaceItem)=>row.id===previous.id && (row.manager || this.managerId)===previous.manager);
+    if (!todo || Wire.text(todo.data(),'seen_at')!==previous.stamp) { this.seenUndo=undefined; this.error='request_updated'; return false; }
+    this.seenUndo=undefined;
+    const change:TodoSeenChange={id:previous.id,manager:previous.manager,stamp:'',otherOpen:previous.otherOpen};
+    this.seenPreview=change;
+    return this.sendSeen(todo,change,false,false,previous.stamp);
+  }
+
+  private async sendSeen(todo:TodoWorkspaceItem,change:TodoSeenChange,mark:boolean,opened:boolean,previousStamp:string=''):Promise<boolean> {
+    const owner=this.capture(todo);
+    let accepted=false;
+    try {
+      if (!owner) return false;
+      const current=():TodoWorkspaceItem|undefined=>this.items.find((row:TodoWorkspaceItem)=>row.id===change.id && (row.manager || owner.managerId)===change.manager);
+      const admit=():boolean=>{
+        const row=current();
+        return !!row && this.supportsSeen() && (mark ? this.seenPlacement(row).section==='just_done' &&
+          (opened || phoneTodoSeenCanFile(row)) : Wire.text(row.data(),'seen_at')===previousStamp);
+      };
+      const path='/api/v1/todos/'+pathPart(todo.id)+'/seen'+managerQuery(change.manager);
+      const result=await this.write(path,mark?'PUT':'DELETE',Wire.payload([],[]),todo,!opened,admit);
+      const row=current();
+      if (!result || !row || !this.owns(owner,opened)) return false;
+      const ack=Wire.object(result,'todo'),stamp=Wire.text(ack,'seen_at');
+      if (Wire.text(ack,'id')!==todo.id || Wire.text(ack,'manager',change.manager)!==change.manager ||
+        (mark ? !Number.isFinite(Date.parse(stamp)) : !!stamp)) { this.error='request_updated'; return false; }
+      // The acknowledgement can omit list-only fields such as the open ask.
+      const data=row.data(); data['seen_at']=stamp;
+      change.stamp=stamp;
+      this.invalidateListReads();
+      this.upsert(data,change.manager);
+      accepted=true;
+      return true;
+    } finally {
+      if (this.seenPreview===change) {
+        this.seenPreview=undefined;
+        if (this.seenUndo===change && !accepted) this.seenUndo=undefined;
+      }
+    }
+  }
+
   async setDone(todo: TodoWorkspaceItem, done: boolean, listRow:boolean=false): Promise<boolean> {
     if (!todo.id || this.rejectGoneTarget(todo)) return false;
     const owner = this.capture(todo);
@@ -1242,7 +1326,9 @@ export class TodoWorkspace {
     const placed=new Map<TodoWorkspaceItem,TodoPhonePlacement>();
     this.items.forEach((item:TodoWorkspaceItem)=>{
       const superseded=!!item.startError && item.isDone() && relatedTodoMembers(this.items,item).some((other:TodoWorkspaceItem)=>other.isDone() && !other.startError);
-      placed.set(item,triage.place(item,superseded));
+      const preview=this.seenPreview;
+      const stamp=preview && preview.id===item.id && preview.manager===(item.manager || this.managerId) ? preview.stamp : undefined;
+      placed.set(item,triage.place(item,superseded,stamp));
     });
     return placed;
   }
