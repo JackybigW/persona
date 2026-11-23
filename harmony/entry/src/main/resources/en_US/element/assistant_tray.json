@@ -19,6 +19,22 @@
     {
       "name": "tray_empty_tasks_detail",
       "value": "Tell Persona what needs doing in a chat, and it'll turn it into a task."
+    },
+    {
+      "name": "tray_orphaned",
+      "value": "Nobody is working on this"
+    },
+    {
+      "name": "tray_orphaned_error",
+      "value": "closed after an error"
+    },
+    {
+      "name": "tray_orphaned_offline",
+      "value": "computer offline"
+    },
+    {
+      "name": "tray_orphaned_closed",
+      "value": "closed"
     }
   ]
 }

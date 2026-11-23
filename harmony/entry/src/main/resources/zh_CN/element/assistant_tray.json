@@ -19,6 +19,22 @@
     {
       "name": "tray_empty_tasks_detail",
       "value": "在对话里说要做的事，Persona 会把它变成任务。"
+    },
+    {
+      "name": "tray_orphaned",
+      "value": "没人在做"
+    },
+    {
+      "name": "tray_orphaned_error",
+      "value": "出错后关闭"
+    },
+    {
+      "name": "tray_orphaned_offline",
+      "value": "电脑离线"
+    },
+    {
+      "name": "tray_orphaned_closed",
+      "value": "已关闭"
     }
   ]
 }

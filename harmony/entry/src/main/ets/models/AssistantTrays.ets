@@ -113,9 +113,58 @@ function independentAgentRows(todos: TodoWorkspaceItem[], lookup: Map<string,Res
   return rows;
 }
 
+export interface BoardDetails {
+  requests: TrayRequest[];
+  plans: Fields;
+  machineName: (id: string) => string;
+  orphanedLine: (reason: string) => string;
+}
+
+function boardAgentName(session: ResourceRow): string {
+  const data=session.data(), agent=Wire.text(data,'agent'), source=Wire.text(data,'source_kind');
+  if (agent==='codex' || source==='codex_history' || source==='codex_app_server') return 'Codex';
+  if (!agent || agent==='claude') return 'Claude';
+  if (['traex','traecli','trae-cli'].includes(agent)) return 'TRAE CLI';
+  const label=Wire.text(data,'agent_label'), launcher=Wire.text(data,'launcher');
+  if (agent.toLowerCase()==='paseo' && launcher && (!label || agent.toLowerCase()===label.toLowerCase())) return launcher;
+  return label || agent;
+}
+
+function boardFolder(path: string): string {
+  const parts=path.split('/').filter((part:string) => !!part);
+  return parts[parts.length-1] || '';
+}
+
+function boardQuestion(sessions: ResourceRow[], requests: TrayRequest[]): string {
+  const keys=new Set<string>(sessions.map((s:ResourceRow) => pair(s.machine,s.session || s.id)));
+  const pending=requests.filter((request:TrayRequest) => keys.has(pair(request.machine,request.session)) && !!request.title.trim());
+  pending.sort((a:TrayRequest,b:TrayRequest) => a.at-b.at || a.id.localeCompare(b.id));
+  return pending[0]?.title.trim().split(/\s*\n\s*/).join(' ') || '';
+}
+
+function boardSubtitle(todo: TodoWorkspaceItem, sessions: ResourceRow[], planned: Fields, state: string, details: BoardDetails): string {
+  const priorities=['needs_you','unread','working','idle','unknown','offline'];
+  const priority=(s:ResourceRow):number => { const ix=priorities.indexOf(s.state); return ix<0 ? 4 : ix; };
+  const lead=sessions.slice().sort((a:ResourceRow,b:ResourceRow) => priority(a)-priority(b) ||
+    date(Wire.text(b.data(),'updated_at'))-date(Wire.text(a.data(),'updated_at')))[0];
+  const first=todo.activeAgents()[0] || todo.agents[0];
+  const machine=first?.machineId || Wire.text(planned,'machine'), folder=boardFolder(first ? first.cwd : Wire.text(planned,'cwd'));
+  const place=[machine ? details.machineName(machine) : '',folder,lead ? boardAgentName(lead) : ''].filter((s:string) => !!s).join(' · ');
+  const data=lead?.data() || {}, words=Wire.text(data,'last_text').trim(), step=Wire.text(data,'activity').trim();
+  const failure=todo.startError || (!todo.agents.length ? Wire.text(planned,'error') : '');
+  const question=state==='needs_you' ? boardQuestion(sessions,details.requests) : '';
+  const raw=todo.data(), orphan=Wire.object(raw,'orphaned');
+  if (!failure && !question && state!=='needs_you' && !todo.isDone() && Wire.has(raw,'orphaned') && raw['orphaned'] &&
+      typeof raw['orphaned']==='object' && !Array.isArray(raw['orphaned'])) {
+    return [details.orphanedLine(Wire.text(orphan,'reason')),place].filter((s:string) => !!s).join(' · ');
+  }
+  const progress=step && (state==='working' || !words) ? step : words;
+  return [place,failure || question || progress].filter((s:string) => !!s).join(' · ');
+}
+
 /** The board keeps every task handed out by this conversation, including older finished work. */
 export function assistantBoardRows(directory: Fields[], sessions: ResourceRow[], manager: string, group: string,
-  conversation: string, main: string): TaskTrayRow[] {
+  conversation: string, main: string, details?: BoardDetails): TaskTrayRow[] {
   if (!conversation) return [];
   const lookup = new Map<string,ResourceRow>();
   for (const row of sessions) {
@@ -124,16 +173,45 @@ export function assistantBoardRows(directory: Fields[], sessions: ResourceRow[],
   const todos = directory.filter((raw: Fields) => !!Wire.text(raw,'id') && Wire.text(raw,'manager',manager) === manager)
     .map((raw: Fields) => new TodoWorkspaceItem(raw,manager));
   const folded = new Set<string>(), rows: TaskTrayRow[] = [];
+  const plans = details?.plans || {};
+  const planTasks = new Map<string,Fields>();
+  for (const key of Object.keys(plans)) {
+    const plan=Wire.record(plans[key]);
+    if (Wire.text(plan,'state')!=='dismissed') for (const task of Wire.rows(plan,'tasks')) {
+      const id=Wire.text(task,'todo_id'); if (id && !planTasks.has(id)) planTasks.set(id,task);
+    }
+  }
   for (const todo of todos) {
-    if (todo.origin && !todo.isDone()) for (const agent of todo.activeAgents()) folded.add(pair(agent.machineId,agent.sessionId));
+    const active=todo.activeAgents();
+    if (todo.origin && !todo.isDone()) for (const agent of active) folded.add(pair(agent.machineId,agent.sessionId));
     if (todo.origin !== conversation) continue;
-    const status = statusOf(todo,todo.activeAgents(),lookup), data = Wire.parse(todo.raw), resource = ResourceRow.from(data,'todo');
-    resource.manager=manager; resource.group=group;
-    const row = new TaskTrayRow('todo',todo.id,'',status,todo.title,todo.notes,data,resource);
+    const ownPlan=Wire.record(plans[todo.planId]);
+    const planned=Wire.rows(ownPlan,'tasks').find((task:Fields) => Wire.text(task,'todo_id')===todo.id) || planTasks.get(todo.id) || {};
+    let status=statusOf(todo,active,lookup);
+    if (status==='not_started' && !todo.agents.length && Wire.text(planned,'error')) status='failed';
+    else if (!todo.isDone() && status!=='failed' && Wire.text(todo.ask,'asked_at')) status='needs_you';
+    const linked:ResourceRow[]=[];
+    for (const agent of active) { const session=lookup.get(pair(agent.machineId,agent.sessionId)); if (session) linked.push(session); }
+    const data=todo.data(), resource=ResourceRow.from(data,'todo'); resource.manager=manager; resource.group=group;
+    const note=details ? boardSubtitle(todo,linked,planned,status,details) : '';
+    const row = new TaskTrayRow('todo',todo.id,'',status,todo.title,note,data,resource);
     row.at=date(todo.createdAt); rows.push(row);
   }
   rows.sort((a:TaskTrayRow,b:TaskTrayRow) => b.at-a.at || a.id.localeCompare(b.id));
-  if (conversation === main) rows.push(...independentAgentRows(todos,lookup,folded));
+  if (conversation === main) {
+    const agents=independentAgentRows(todos,lookup,folded);
+    agents.sort((a:TaskTrayRow,b:TaskTrayRow) => a.order-b.order || b.at-a.at || a.id.localeCompare(b.id));
+    for (const agent of agents) {
+      const row=agent.resource;
+      if (details && row) {
+        const data=row.data();
+        const question=row.state==='needs_you' ? boardQuestion([row],details.requests) : '';
+        agent.note=[details.machineName(row.machine),boardFolder(Wire.text(data,'cwd')),boardAgentName(row),
+          question || Wire.text(data,'last_text').trim()].filter((v:string) => !!v).join(' · ');
+      }
+      rows.push(agent);
+    }
+  }
   for (const row of rows) {
     if (row.status === 'needs_you') row.bucket='needs';
     else if (['done','failed','unread'].includes(row.status)) row.bucket=row.status;

@@ -194,3 +194,27 @@ test('the Agent header distinguishes a shown permission mode from an allowed swi
   const source=row({permission_mode:'default'}),other=row({permission_mode:'plan'});other.group='other';
   assert.equal(headerPermissionRow(source,[other],'g','m'),source);assert.equal(headerPermissionRow(other,[source],'g','m').kind,'');
 });
+
+test('the board shows the supervising conversation’s actual ask, work and machine, keeps finished and failed distinct, and leaves the draft alone',()=>{
+  const now=Date.now();
+  const question=new TrayRequest('machine','own','ask','Use suite A?\nOr suite B?',now,true);
+  const foreignQ=new TrayRequest('other','own','foreign','Unrelated',now-1,true);
+  const details={requests:[foreignQ,question],machineName:id=>({machine:'Mac',elsewhere:'Desk'})[id]||id,
+    orphanedLine:reason=>'Orphaned '+reason,plans:{p:{id:'p',conversation:'main',tasks:[{todo_id:'failed',machine:'machine',cwd:'/source/pkg',error:'machine refused'}]}}};
+  const shell=(id,title,overrides={})=>({id,title,origin:'main',manager:'owner',notes:'unrelated private notes',...overrides});
+  const link={machine_id:'machine',session_id:'own',cwd:'/src/lab'};
+  const active=session('own','needs_you',{last_text:'old words',cwd:'/src/lab'});
+  const other=session('manual','working',{agent:'codex',cwd:'/src/side',last_text:'shipping'});
+  const warm=session('working','working',{agent:'claude',cwd:'/src/lab',last_text:'last',activity:'testing'});
+  const tasks=[shell('asked','Asked',{agents:[link]}),shell('working','Working',{agents:[{...link,session_id:'working'}]}),
+    shell('failed','Start failed',{plan_id:'p',start_error:'machine refused',done_at:'2026-01-01T10:00:00Z'}),
+    shell('done','Completed',{done_at:'2026-01-01T10:00:00Z'}),shell('orphan','No owner',{orphaned:{reason:'closed'}}),
+    shell('scope','Other space',{origin:'other',agents:[{...link,session_id:'unrelated'}]})];
+  const rows=assistantBoardRows(tasks,[active,other,warm],'owner','group','main','main',details);
+  const find=id=>rows.find(v=>v.id===id), actual=(id,group,text)=>{assert.equal(find(id).bucket,group);assert.equal(find(id).note,text);};
+  actual('asked','needs','Mac · lab · Claude · Use suite A? Or suite B?');
+  actual('working','working','Mac · lab · Claude · testing');
+  actual('failed','failed','Mac · pkg · machine refused');actual('done','done','');actual('orphan','working','Orphaned closed');
+  assert.equal(find('scope'),undefined);assert.equal(rows.find(r=>r.kind==='agent').note,'Mac · side · Codex · shipping');
+  assert.equal(tasks[0].notes,'unrelated private notes');
+});

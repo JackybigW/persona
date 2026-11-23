@@ -19,6 +19,22 @@
     {
       "name": "tray_empty_tasks_detail",
       "value": "チャットでやることを伝えると、Personaがタスクにします。"
+    },
+    {
+      "name": "tray_orphaned",
+      "value": "誰も作業していません"
+    },
+    {
+      "name": "tray_orphaned_error",
+      "value": "エラー後に終了"
+    },
+    {
+      "name": "tray_orphaned_offline",
+      "value": "パソコンがオフライン"
+    },
+    {
+      "name": "tray_orphaned_closed",
+      "value": "終了済み"
     }
   ]
 }
