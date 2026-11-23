@@ -349,7 +349,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			continue
 		}
 		if inboxVisibilityWithMembersExcludedLocked(b, it, fullCfg.Visibility) {
-			if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
+			if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now, false); w != nil {
 				released = append(released, w)
 			}
 			continue
@@ -513,7 +513,9 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)
-		machineID, sessionID, err := s.startInboxAgentAuthorized(cctx, cfg, j.it, j.prompt(kbc, allowKBContext), j.contentVersion, j.turn)
+		promptCfg := cfg
+		promptCfg.ReadProfile = jobCfg.Agent.ReadProfile // the profile that actually governed this rebuilt prompt
+		machineID, sessionID, err := s.startInboxAgentAuthorized(cctx, promptCfg, j.it, j.prompt(kbc, allowKBContext), j.contentVersion, j.turn)
 		cancel()
 		if errors.Is(err, errInboxStartAuthorization) {
 			// No outward session was created. Return the reservation to queued without consuming its attempt budget.
@@ -615,11 +617,17 @@ func (s *Service) startInboxAgentAuthorized(ctx context.Context, cfg InboxAgentC
 	b := &s.inbox
 	b.mu.Lock()
 	a := it.Agent
+	visibilityDenied := inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility)
 	authorized := b.items[it.ID] == it && it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" &&
 		a.ProcessingTurn == turn && replyPolicyContentVersion(it) == contentVersion && b.policyTwin(it) != TwinNever &&
+		!visibilityDenied && cfg.ReadProfile == freshCfg.Agent.ReadProfile &&
 		!replyPolicyQueueBlocked(it, freshCfg.ReplyPolicy) && !replyPolicyQueuePending(it, freshCfg.ReplyPolicy)
 	b.mu.Unlock()
+	if visibilityDenied {
+		s.quarantineInboxVisibility(ctx, freshCfg.Visibility)
+	}
 	if !authorized {
+		// In particular, never reuse a prompt built under an older read profile after KB/device preparation.
 		return "", "", errInboxStartAuthorization
 	}
 	sess, err := s.Start(ctx, StartParams{Text: prompt, Purpose: purposeAgent, MachineID: machine, Untitled: true, Origin: OriginInbox,

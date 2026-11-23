@@ -46,7 +46,7 @@ func directChatType(chatType, chatMode string) (direct, known bool) {
 	}
 	for _, kind := range values {
 		switch kind {
-		case "group", "topic", "private", "public":
+		case "group", "topic":
 			return false, true
 		}
 	}

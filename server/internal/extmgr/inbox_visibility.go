@@ -45,16 +45,15 @@ func (h *Manager) inboxVisibilityBlocksSource(source string) bool {
 	return cfg != nil && (cfg.DirectChats || len(cfg.Chats) > 0) && cfg.AppliesTo(source) && !h.InboxVisibilityProvider(source)
 }
 
-func (h *Manager) inboxVisibilityHasUnsupportedSource() bool {
-	if h == nil || h.cfg == nil || h.cfg.Inbox.Visibility == nil {
-		return false
+func (h *Manager) inboxVisibilitySubscriptionAllowed(id, backing string) bool {
+	if h == nil || h.cfg == nil {
+		return true
 	}
-	for _, source := range h.cfg.Inbox.Visibility.Sources {
-		if h.inboxVisibilityBlocksSource(source) {
-			return true
-		}
+	cfg := h.cfg.Inbox.Visibility
+	if cfg == nil || !cfg.DirectChats && len(cfg.Chats) == 0 || !cfg.AppliesTo(id) && !cfg.AppliesTo(backing) {
+		return true
 	}
-	return false
+	return h.InboxVisibilityProvider(backing)
 }
 
 // enforceIMessageVisibility also stops its background Watch loop, which otherwise constructs unread DM context before

@@ -23,14 +23,21 @@ func inboxVisibilityMatch(it *InboxItem, cfg *assistantwire.InboxVisibilityConfi
 		return false
 	}
 	chatID, direct, known := "", false, false
+	ambiguous := false
 	if it.Lark != nil {
-		chatID, direct, known = it.Lark.FeedID, !it.Lark.IsGroup, true
+		chatID, direct, known = strings.TrimSpace(it.Lark.FeedID), !it.Lark.IsGroup, true
 	} else if it.Connector != nil {
 		for _, tag := range it.Connector.Tags {
-			if tag.Key == connector.TagChat {
-				chatID = tag.Value
-				break
+			if tag.Key != connector.TagChat {
+				continue
 			}
+			id := strings.TrimSpace(tag.Value)
+			if chatID == "" {
+				chatID = id
+			} else if id != chatID {
+				ambiguous = true
+			}
+			ambiguous = ambiguous || id == ""
 		}
 		switch it.Kind {
 		case "dm", "bot":
@@ -39,8 +46,8 @@ func inboxVisibilityMatch(it *InboxItem, cfg *assistantwire.InboxVisibilityConfi
 			known = true
 		}
 	}
-	if chatID == "" && (cfg.DirectChats || len(cfg.Chats) > 0) {
-		// A selected source without a verifiable chat id cannot prove that it is outside an explicit list either.
+	if (chatID == "" || ambiguous) && (cfg.DirectChats || len(cfg.Chats) > 0) {
+		// Empty, whitespace-only or conflicting chat tags cannot prove that the row is outside either boundary.
 		return true
 	}
 	for _, excluded := range cfg.Chats {
@@ -109,6 +116,20 @@ func inboxVisibilityWithMembersExcludedLocked(b *inboxBook, it *InboxItem, cfg *
 		for _, ref := range current.MergedFrom {
 			member := b.items[ref.ID]
 			if member != nil && member.MergedInto == current.ID && excluded(member) {
+				return true
+			}
+		}
+		for _, ref := range current.VisibilityContentRefs {
+			member := b.items[ref.ID]
+			if member == nil {
+				// The survivor still holds the contributor's text. A selected source whose metadata row was purged cannot
+				// prove that retained text is outside the active boundary.
+				if cfg != nil && (cfg.DirectChats || len(cfg.Chats) > 0) && cfg.AppliesTo(ref.Source) {
+					return true
+				}
+				continue
+			}
+			if excluded(member) {
 				return true
 			}
 		}

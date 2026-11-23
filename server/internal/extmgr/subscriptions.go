@@ -58,7 +58,10 @@ func (h *Manager) subscriptionOptions(store subscriptions.Store) subscriptions.O
 	return subscriptions.Options{
 		Store:      store,
 		Connectors: subscriptionConnectors{h},
-		Location:   h.userLocation,
+		ReadAllowed: func(_ context.Context, sub subscriptions.Subscription) bool {
+			return h.inboxVisibilitySubscriptionAllowed(sub.ID, sub.Connector)
+		},
+		Location: h.userLocation,
 		Audit: func(ctx context.Context, id, action string, by subscriptions.Actor, detail map[string]any) {
 			h.audit(ctx, id, action, by.ID, detail)
 		},
@@ -111,22 +114,6 @@ func (h *Manager) readSubscriptions(ctx context.Context, r *assistantwire.InboxR
 		}
 		return
 	}
-	if h.inboxVisibilityHasUnsupportedSource() {
-		// InboxSources reads every ready subscription in one call. If any selected source cannot preflight its own
-		// bodies, do not issue that mixed read and filter afterward; list metadata only and leave all subscriptions unread.
-		list, _, err := h.subs.List(ctx, subscriptions.Filter{})
-		if err != nil {
-			h.logf("inbox: subscriptions: %v", err)
-			return
-		}
-		for _, sub := range list {
-			r.Names[sub.ID] = sub.Label
-			if h.inboxVisibilityBlocksSource(sub.ID) {
-				r.Sources = append(r.Sources, assistantwire.InboxSource{ID: sub.ID, Name: sub.Label, Off: true, Things: []connector.InboxThing{}})
-			}
-		}
-		return
-	}
 	srcs, err := h.subs.InboxSources(ctx)
 	if err != nil {
 		h.logf("inbox: subscriptions: %v", err)
@@ -138,14 +125,14 @@ func (h *Manager) readSubscriptions(ctx context.Context, r *assistantwire.InboxR
 			// A built-in read through its default subscription (#6381): its round entry is the built-in's, with the
 			// subscription's rows and read error.
 			in := assistantwire.InboxSource{ID: c.ID(), Name: connector.DisplayName(ctx, c), Extension: fromExtension(c.ID()),
-				Migrated: isMigrated(c.ID()), Counts: !src.ConnectorRows, Things: src.Things, ReadError: src.ReadError}
+				Migrated: isMigrated(c.ID()), Counts: !src.ConnectorRows, Things: src.Things, ReadError: src.ReadError, Off: src.Off}
 			withAbilities(&in, c)
 			r.Names[src.ID] = in.Name
 			r.Sources = append(r.Sources, in)
 			continue
 		}
 		r.Sources = append(r.Sources, assistantwire.InboxSource{ID: src.ID, Name: src.Name, Extension: true, Counts: true, Kinds: src.Kinds,
-			Things: src.Things, ReadError: src.ReadError, Via: src.Connector, ViaSource: src.SourceName, Chats: src.Chats})
+			Things: src.Things, ReadError: src.ReadError, Via: src.Connector, ViaSource: src.SourceName, Chats: src.Chats, Off: src.Off})
 	}
 }
 
@@ -242,9 +229,9 @@ func (sc subscriptionConnectors) info(ctx context.Context, c connector.Connector
 			Inbox:   c.Manifest().Has(connector.CapInbox) && r.Feeds(c.ID(), connector.FeedInbox),
 			Archive: c.Manifest().Has(connector.CapArchive) && r.Feeds(c.ID(), connector.FeedArchive),
 		}}
-	if sc.h.inboxVisibilityHasUnsupportedSource() {
-		// The runner calls c.Conn directly after ready(); InboxSources' guard cannot cover that independent loop. Match
-		// its conservative all-subscription pause before catalog, dry-run or scheduled pull can reach a source body.
+	if sc.h.inboxVisibilityBlocksSource(c.ID()) {
+		// Only the selected backing connector is paused. Per-subscription selections are fenced by ReadAllowed before
+		// this connector's catalog or source bodies can be read.
 		out.Enabled = false
 	}
 	if hp := sc.h.extensions.ownerOf(c); hp != nil {
@@ -265,7 +252,7 @@ func (sc subscriptionConnectors) Find(ctx context.Context, id string) (subscript
 func (sc subscriptionConnectors) All(ctx context.Context) []subscriptions.ConnectorInfo {
 	var out []subscriptions.ConnectorInfo
 	for _, c := range sc.h.connectors.All() {
-		info := subscriptions.ConnectorInfo{ID: c.ID(), Conn: c, Enabled: sc.h.connectors.Enabled(c.ID()) && !sc.h.inboxVisibilityHasUnsupportedSource()}
+		info := subscriptions.ConnectorInfo{ID: c.ID(), Conn: c, Enabled: sc.h.connectors.Enabled(c.ID()) && !sc.h.inboxVisibilityBlocksSource(c.ID())}
 		if hp := sc.h.extensions.ownerOf(c); hp != nil {
 			info.Extension = hp.id
 		}

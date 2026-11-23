@@ -34,6 +34,23 @@ type InboxMergeRef struct {
 	Title       string `json:"title,omitempty"`
 }
 
+// inboxVisibilityRefUnion retains each contributor once, including contributors of a row that was itself merged before.
+func inboxVisibilityRefUnion(groups ...[]InboxMergeRef) []InboxMergeRef {
+	var out []InboxMergeRef
+	seen := map[string]bool{}
+	for _, refs := range groups {
+		for _, ref := range refs {
+			key := ref.Source + "\x00" + ref.ID
+			if ref.ID == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, ref)
+		}
+	}
+	return out
+}
+
 // tierRank orders tiers by how much they need the user: Needs you, FYI, Collapsed, untriaged.
 func tierRank(t string) int {
 	switch t {
@@ -83,9 +100,11 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 		// provenance before dropping the member refs, including for survivors merged before the durable fields existed.
 		it.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(it))
 		it.ReplyContextTruncated = replyPolicyContextTruncated(it)
+		it.VisibilityContentRefs = inboxVisibilityRefUnion(it.VisibilityContentRefs, it.MergedFrom)
 		it.MergedFrom = nil
 		it.MergedInto = sv.ID
 		sv.MergedFrom = append(sv.MergedFrom, InboxMergeRef{ID: it.ID, Source: it.Source, AccountName: it.AccountName, Title: it.Title})
+		sv.VisibilityContentRefs = inboxVisibilityRefUnion(sv.VisibilityContentRefs, sv.MergedFrom, it.VisibilityContentRefs)
 		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
 		sv.ReplyContextTruncated = replyPolicyContextTruncated(sv) || replyPolicyContextTruncated(it)
 		sv.Count += it.Count
@@ -184,6 +203,7 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 	// dropping MergedFrom, or Undo would make that retained text look like an unmerged, fully classified survivor.
 	sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv))
 	sv.ReplyContextTruncated = replyPolicyContextTruncated(sv)
+	sv.VisibilityContentRefs = inboxVisibilityRefUnion(sv.VisibilityContentRefs, sv.MergedFrom)
 	sv.MergedFrom = nil
 	if t := sv.PreMergeTier; t != "" {
 		sv.Tier = t[:len(t)-1]

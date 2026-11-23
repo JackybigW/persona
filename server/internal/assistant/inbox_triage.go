@@ -533,6 +533,11 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		b.mu.Unlock()
 		return "", errNoInboxItem
 	}
+	if inboxVisibilityWithMembersExcludedLocked(b, it, cfg.Visibility) {
+		b.mu.Unlock()
+		s.quarantineInboxVisibility(ctx, cfg.Visibility)
+		return "", errCannotReply
+	}
 	applies := replyPolicyItemApplies(cfg.ReplyPolicy, it)
 	if !applies && !authorization.applied {
 		// A legacy transient draft took no authorization snapshot. Unrelated triage/read updates during generation must

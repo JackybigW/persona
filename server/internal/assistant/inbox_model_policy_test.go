@@ -41,9 +41,6 @@ func (e *policyExtensions) ConnectorTool(name string) bool {
 	return known
 }
 
-// ConnectorTool: none of its tools is a connector's.
-func (e *policyExtensions) ConnectorTool(string) bool { return false }
-
 func (e *policyExtensions) ToolAccess(name string) (bool, bool) {
 	read, known := e.read[name]
 	return known, known && read

@@ -3549,31 +3549,32 @@ var ConnectorErrorCodes = []string{"rate_limited", "no_machine", "offline", "nod
 // read-only sources and calls their short tool names. An extension's connector with one this hub does not know loses
 // only that capability.
 const (
-	ConnectorCapabilityStatus         = "status"
-	ConnectorCapabilityTools          = "tools"
-	ConnectorCapabilityActions        = "actions"
-	ConnectorCapabilityEvents         = "events"
-	ConnectorCapabilityInbox          = "inbox"
-	ConnectorCapabilitySettle         = "settle"
-	ConnectorCapabilityArchive        = "archive"
-	ConnectorCapabilityChats          = "chats"
-	ConnectorCapabilityItems          = "items"
-	ConnectorCapabilityLogin          = "login"
-	ConnectorCapabilityOptions        = "options"
-	ConnectorCapabilityThreads        = "threads"
-	ConnectorCapabilitySnapshot       = "snapshot"
-	ConnectorCapabilityGroup          = "group"
-	ConnectorCapabilityMeta           = "meta"
-	ConnectorCapabilityFallback       = "fallback"
-	ConnectorCapabilityMachines       = "machines"
-	ConnectorCapabilityRecall         = "recall"
-	ConnectorCapabilityHistory        = "history"
-	ConnectorCapabilityHistoryAnchors = "history_anchors"
-	ConnectorCapabilityCatalog        = "catalog"
+	ConnectorCapabilityStatus          = "status"
+	ConnectorCapabilityTools           = "tools"
+	ConnectorCapabilityActions         = "actions"
+	ConnectorCapabilityEvents          = "events"
+	ConnectorCapabilityInbox           = "inbox"
+	ConnectorCapabilitySettle          = "settle"
+	ConnectorCapabilityArchive         = "archive"
+	ConnectorCapabilityChats           = "chats"
+	ConnectorCapabilityItems           = "items"
+	ConnectorCapabilityLogin           = "login"
+	ConnectorCapabilityOptions         = "options"
+	ConnectorCapabilityThreads         = "threads"
+	ConnectorCapabilitySnapshot        = "snapshot"
+	ConnectorCapabilityGroup           = "group"
+	ConnectorCapabilityMeta            = "meta"
+	ConnectorCapabilityFallback        = "fallback"
+	ConnectorCapabilityMachines        = "machines"
+	ConnectorCapabilityRecall          = "recall"
+	ConnectorCapabilityHistory         = "history"
+	ConnectorCapabilityHistoryAnchors  = "history_anchors"
+	ConnectorCapabilityCatalog         = "catalog"
+	ConnectorCapabilityInboxVisibility = "inbox_visibility"
 )
 
 // ConnectorCapabilities are the values of ConnectorCapability, in order.
-var ConnectorCapabilities = []string{"status", "tools", "actions", "events", "inbox", "settle", "archive", "chats", "items", "login", "options", "threads", "snapshot", "group", "meta", "fallback", "machines", "recall", "history", "history_anchors", "catalog"}
+var ConnectorCapabilities = []string{"status", "tools", "actions", "events", "inbox", "settle", "archive", "chats", "items", "login", "options", "threads", "snapshot", "group", "meta", "fallback", "machines", "recall", "history", "history_anchors", "catalog", "inbox_visibility"}
 
 // ConnectorState: connectorStatus.state. disabled is the hub's own (the user switched it off); a program never
 // answers it.

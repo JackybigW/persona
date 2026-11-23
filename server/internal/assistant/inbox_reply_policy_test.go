@@ -1607,16 +1607,21 @@ func TestInboxReplyPolicyDeniedEditSurvivesConcurrentDisable(t *testing.T) {
 	}
 }
 
-func TestInboxReplyPolicyConfigFailureDoesNotBlockOtherSuggestions(t *testing.T) {
+func TestInboxReplyPolicyConfigFailureBlocksOtherSuggestions(t *testing.T) {
 	for _, kind := range []string{SuggestConclusion, SuggestTodo} {
 		t.Run(kind, func(t *testing.T) {
 			h, _, it := handledHub(t)
 			it.Suggestion = &InboxSuggestion{Version: 1, Kind: kind, Text: "Synthetic non-reply action", At: time.Now()}
 			h.in.mu.Lock()
-			h.in.configErr = errors.New("synthetic reply-policy configuration outage")
+			h.in.configErr = errors.New("synthetic visibility configuration outage")
 			h.in.mu.Unlock()
-			if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true); err != nil {
-				t.Fatalf("reply-policy configuration outage blocked %s confirmation: %v", kind, err)
+			before := append([]byte(nil), itemState(it)...)
+			_, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestConfirm}, true)
+			if !errors.Is(err, errCannotReply) {
+				t.Fatalf("visibility configuration outage permitted %s confirmation: %v", kind, err)
+			}
+			if after := itemState(it); !bytes.Equal(after, before) {
+				t.Fatalf("configuration outage consumed %s suggestion state", kind)
 			}
 		})
 	}

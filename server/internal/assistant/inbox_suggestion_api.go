@@ -120,8 +120,6 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		}
 		b.mu.Unlock()
 		if policyConfirm {
-			// Only reply and Agent confirmations use reply-policy authorization. A conclusion or to-do keeps its legacy
-			// path even when the manager's policy configuration is unavailable.
 			// The veto itself needs fresh authorization: a disabled display cache must not skip classification of an edited
 			// handback. A second fresh read after its model calls closes a policy change before any card or handoff is consumed.
 			vetoCfg, err := s.inboxConfigFresh(ctx)
@@ -148,6 +146,14 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 			freshApplies := sourceKnown && replyPolicySourcesApply(freshCfg.ReplyPolicy, sources)
 			if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
 				return InboxItem{}, errReplyPolicyDenied
+			}
+			fullCfg = freshCfg
+		} else if it != nil {
+			// To-do and conclusion confirmations also authorize against fresh visibility. A display-cache outage cannot
+			// turn a newly excluded suggestion into a completed action.
+			freshCfg, err := s.inboxConfigFresh(ctx)
+			if err != nil {
+				return InboxItem{}, errCannotReply
 			}
 			fullCfg = freshCfg
 		}

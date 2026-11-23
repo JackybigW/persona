@@ -3809,8 +3809,8 @@ export const CONNECTOR_ERROR_CODES = ["rate_limited", "no_machine", "offline", "
  * and calls their short tool names. An extension's connector with one this hub does not know loses only that
  * capability.
  */
-export type ConnectorCapability = "status" | "tools" | "actions" | "events" | "inbox" | "settle" | "archive" | "chats" | "items" | "login" | "options" | "threads" | "snapshot" | "group" | "meta" | "fallback" | "machines" | "recall" | "history" | "history_anchors" | "catalog" | (string & {});
-export const CONNECTOR_CAPABILITIES = ["status", "tools", "actions", "events", "inbox", "settle", "archive", "chats", "items", "login", "options", "threads", "snapshot", "group", "meta", "fallback", "machines", "recall", "history", "history_anchors", "catalog"] as const;
+export type ConnectorCapability = "status" | "tools" | "actions" | "events" | "inbox" | "settle" | "archive" | "chats" | "items" | "login" | "options" | "threads" | "snapshot" | "group" | "meta" | "fallback" | "machines" | "recall" | "history" | "history_anchors" | "catalog" | "inbox_visibility" | (string & {});
+export const CONNECTOR_CAPABILITIES = ["status", "tools", "actions", "events", "inbox", "settle", "archive", "chats", "items", "login", "options", "threads", "snapshot", "group", "meta", "fallback", "machines", "recall", "history", "history_anchors", "catalog", "inbox_visibility"] as const;
 
 /**
  * ConnectorStatus.state. disabled is the hub's own (the user switched it off); a program never answers it.

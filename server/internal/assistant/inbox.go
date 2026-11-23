@@ -149,6 +149,9 @@ type InboxItem struct {
 	// VisibilityExcluded is a persistent quarantine marker set by the configured source visibility boundary. The
 	// message and sent-attempt history remain intact, but AI queue, suggestions and confirmation stay closed.
 	VisibilityExcluded bool `json:"visibility_excluded,omitempty"`
+	// VisibilityContentRefs follows retained contributor text through merge and Undo, when MergedFrom no longer names it.
+	// It is persisted authorization state and is never listed.
+	VisibilityContentRefs []InboxMergeRef `json:"visibility_content_refs,omitempty"`
 	// Reply policy classification is server-owned. Models supply a category candidate; only the configured route
 	// decides whether an owner draft may exist. The content and revision stamps make older drafts fail closed.
 	ReplyCategory     string `json:"reply_category,omitempty"`
@@ -262,6 +265,7 @@ func (it *InboxItem) listed() InboxItem {
 	c.Context, c.Last, c.TriagedAt, c.BodyOf, c.JudgedAt, c.Rules, c.ArrivedOf, c.FolderOf = "", "", "", "", "", "", "", ""
 	c.TriageRev, c.SettledOf, c.RuleOf, c.RepliedOf = 0, "", "", ""
 	c.ReplyContentSources, c.ReplyContextTruncated = nil, false
+	c.VisibilityContentRefs = nil
 	c.ReplyInstruction, c.RejectedReplyDraft = nil, ""
 	c.RejectedReplyDrafts = nil
 	c.ArrivedAt = time.Time{}
