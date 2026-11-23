@@ -79,6 +79,14 @@ export struct PhoneAppearanceSettings {
     const palette = this.look.palette(style);
     return this.environment.dark ? palette.dark.brand : palette.light.brand;
   }
+  private previewBubble(style: string): string {
+    const colors=this.look.palette(style);
+    return this.environment.dark ? colors.dark.userBubble : colors.light.userBubble;
+  }
+  private previewPage(style: string): ResourceColor {
+    if (style==='glass') return '#1A'+this.styleAccent(style).slice(1);
+    return this.styleSurface(style).page || Colors.sheetBackground;
+  }
   private previewRadius(style: string): number {
     if (style === 'clay') return 10.8;
     if (style === 'island') return 11.7;
@@ -184,19 +192,23 @@ export struct PhoneAppearanceSettings {
   @Builder styles() {
     Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Start}) {
       ForEach(this.options('phone_look_style'),(style:string) => {
-        Column({space:7}) {
+        Column({space:8}) {
           Column({space:6}) {
             Row().width('100%').height(16).backgroundColor(this.styleSurface(style).card || Colors.card(true))
               .borderRadius(this.previewRadius(style)).shadow({radius:style==='clay' || style==='island' ? 3 : 0,
                 offsetY:2,color:this.styleSurface(style).shadow || Color.Transparent})
-            Row().width(44).height(5).borderRadius(3).backgroundColor(Colors.secondary).opacity(0.25)
+            Row() {
+              Blank()
+              Row().width(40).height(12).borderRadius(6).backgroundColor(this.previewBubble(style))
+            }.width('100%')
+            Row().width(46).height(8).borderRadius(4).backgroundColor(Colors.secondary).opacity(0.25)
             Row({space:4}) {
-              Circle().width(12).height(12).fill(this.styleAccent(style))
-              Row().layoutWeight(1).height(5).borderRadius(3).backgroundColor(this.styleAccent(style)).opacity(0.35)
+              Circle().width(10).height(10).fill(this.styleAccent(style))
+              Row().layoutWeight(1).height(8).borderRadius(4).backgroundColor(this.styleAccent(style)).opacity(0.35)
             }
           }.width('100%').height(PhoneStyle.formSize(120,157,this.environment.fontScale)).padding(12)
             .alignItems(HorizontalAlign.Start).justifyContent(FlexAlign.Center)
-            .backgroundColor(this.styleSurface(style).page || Colors.selectedFilterFill).borderRadius(16)
+            .backgroundColor(this.previewPage(style)).borderRadius(14)
             .borderWidth(this.selected('phone_look_style')===style ? 2.5 : 1)
             .borderColor(this.selected('phone_look_style')===style ? this.styleAccent(style) : Colors.divider)
           Row({space:3}) {
@@ -212,33 +224,43 @@ export struct PhoneAppearanceSettings {
       }, (style:string) => style)
     }.width('100%')
   }
-  @Builder line(w: number, accented: boolean = false) {
-    Row().width(w).height(4).borderRadius(2).backgroundColor(accented ? Colors.link : Colors.control)
+  @Builder sketchLine(width: number, color: ResourceColor = Colors.control) {
+    Row().width(width).height(6).borderRadius(3).backgroundColor(color)
+  }
+  @Builder sketchSidebar(merged: boolean, wide: boolean) {
+    Column({space:4}) {
+      this.sketchLine(38)
+      this.sketchLine(42)
+      this.sketchLine(36)
+      if (merged) {
+        this.sketchLine(26,Colors.iconAccent)
+        this.sketchLine(40)
+        this.sketchLine(20,Colors.needsMark)
+        Row().width(46).height(14).borderRadius(3).backgroundColor(Colors.control)
+        Row().width(40).height(14).borderRadius(3).backgroundColor(Colors.control)
+      }
+    }.width(wide ? 50 : 56).height('100%').alignItems(HorizontalAlign.Start).padding(4)
+      .backgroundColor(Colors.sheetBackground).borderRadius(3)
   }
   @Builder navigationSketch(key: string, wide: boolean) {
-    Stack({alignContent:Alignment.TopStart}) {
+    Stack({alignContent:Alignment.Top}) {
       Row({space:4}) {
-        if (key==='merged' || wide) {
-          Column({space:5}) {
-            this.line(wide ? 30 : 26)
-            this.line(18,true)
-            this.line(23)
-            this.line(19)
-          }.width(wide ? 45 : 43).height('100%').alignItems(HorizontalAlign.Start).padding(4).backgroundColor(Colors.control)
-        }
-        Column({space:5}) {
-          this.line(wide ? 36 : 16,true)
-          this.line(wide ? 52 : 15)
-          this.line(wide ? 34 : 12)
-          this.line(wide ? 45 : 17)
-        }.height('100%').layoutWeight(1).alignItems(HorizontalAlign.Start).padding({top:key==='separate' ? 15 : 3,left:1})
-      }.width('100%').height('100%').padding(4)
-      if (key==='separate') Row({space:2}) {
-        Row().width(11).height(5).backgroundColor(Colors.link).borderRadius(2)
-        Row().width(11).height(5).backgroundColor(Colors.control).borderRadius(2)
-      }.padding(2).margin({left:7,top:4}).backgroundColor(Colors.grouped).borderRadius(5)
+        if (key==='merged' || wide) this.sketchSidebar(key==='merged',wide)
+        Column({space:4}) {
+          if (key!=='merged' || wide) {
+            this.sketchLine(50)
+            this.sketchLine(64)
+            this.sketchLine(40)
+            Blank()
+            if (!wide) Row().width('100%').height(16).borderRadius(8).backgroundColor(Colors.control)
+          }
+        }.height('100%').layoutWeight(1).alignItems(HorizontalAlign.Start).clip(true)
+          .padding({top:key==='separate' && !wide ? 24 : 4})
+      }.width('100%').height('100%').padding({top:wide && key==='separate' ? 16 : 4,
+        left:wide && key==='separate' ? 0 : 4,right:wide && key==='separate' ? 0 : 4,bottom:4})
+      if (key==='separate') Row().width(40).height(8).borderRadius(4).backgroundColor(Colors.iconAccent).margin({top:8})
     }.width(wide ? 150 : 76).height(wide ? 110 : 140).backgroundColor(Colors.card(true))
-      .borderWidth(0.5).borderColor(Colors.divider).borderRadius(wide ? 9 : 13).clip(true)
+      .borderWidth(0.5).borderColor(Colors.divider).borderRadius(wide ? 10 : 14).clip(true)
   }
   @Builder navigationSample(key: string) {
     Row({space:16}) { this.navigationSketch(key,false); this.navigationSketch(key,true); }
