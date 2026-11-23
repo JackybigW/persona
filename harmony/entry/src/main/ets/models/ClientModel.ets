@@ -12,6 +12,7 @@ import { deviceLook } from './DeviceLook';
 import { storedPhoneInterfaceStyle } from '../core/PhoneInterfaceStyle';
 import { clientLocale, initializeClientLanguage, setClientLanguage } from '../core/ClientLocale';
 import { dictationLocale, dictationTexts } from '../core/DictationLanguage';
+import { ChatSendFeedback } from '../core/ChatSendFeedback';
 import { dictationPreference } from '../platform/DictationPreference';
 import { i18n } from '@kit.LocalizationKit';
 import { DemoRepository } from './DemoRepository';
@@ -139,6 +140,10 @@ export class ClientModel {
   @Trace draftRevision: string = '';
   private localMessages: ChatOutboxEntry[] = [];
   private activeMessages: Set<string> = new Set();
+  private sendAttempts: Map<string, ChatSendFeedback> = new Map();
+  @Trace private sendFeedbackRevision: number = 0;
+  private feedbackTimer: number = -1;
+  private feedbackDeadline: number = 0;
   private renderedMessages: ChatMessage[] = [];
   private echoedMessages: Set<string> = new Set();
   @Trace private heldActions: string[] = [];
@@ -645,6 +650,7 @@ export class ClientModel {
     this.ssh.stop(); this.stopReconnect(); this.cancelDraftTimer(); const keep = preserve && profile.id === this.profile.id && profile.manager === this.profile.manager;
     const saved = this.persistDraft(); this.closeTranscript(); this.releaseTerminal(); this.repository?.close(); this.repository = undefined;
     const generation = ++this.generation; this.selectionGeneration++; const selection = this.selected;
+    this.sendAttempts.clear(); this.feedbackChanged();
     this.profile = profile; const scope = this.scope(); this.connected = false;
     this.clearPendingDecisions();
     this.unresolvedWrites = []; this.operationState = ''; this.mainId = ''; this.mainMachineId = ''; this.sidebarConfig = ''; this.features = []; this.managers = []; this.rosterDefaultId = '';
@@ -791,6 +797,7 @@ export class ClientModel {
       this.stopReconnect(); this.cancelDraftTimer(); this.closeTranscript(); this.releaseTerminal();
       this.repository?.close(); this.repository = undefined; this.generation++; this.selectionGeneration++;
       this.profile = new HubProfile(); this.connected = false; this.selected = new ResourceRow();
+      this.sendAttempts.clear(); this.feedbackChanged();
       this.sessionsReady = false; this.sessions = []; this.conversations = []; this.machines = []; this.managers = []; this.todos = []; this.knowledge = []; this.inbox = [];
       this.clearPendingDecisions();
       this.messages = []; this.draft = ''; this.sourceContext = ''; this.draftRevision = ''; this.localMessages = []; this.renderedMessages = []; this.echoedMessages.clear(); this.detail = ''; this.reply = ''; this.mainId = ''; this.mainMachineId = ''; this.sidebarConfig = '';
@@ -886,6 +893,7 @@ export class ClientModel {
       if (heldRevision !== owner.heldRevision(scope)) { this.queueRefresh(); return; }
       sessions.forEach((row: ResourceRow) => row.group = this.profile.id); machines.forEach((row: ResourceRow) => row.group = this.profile.id);
       this.sessions = sessions; this.sessionsReady = true; this.machines = machines; this.managers = managers; this.rosterDefaultId = rosterDefault;
+      this.updateSendFeedbackSessions(sessions);
       if (owner.heldReceipts.length) owner.heldReceipts = owner.heldReceipts.filter((receipt: HeldActionReceipt) => {
         if (receipt.scope !== scope) return true;
         const row = sessions.find((item: ResourceRow) => this.target(item) === receipt.target);
@@ -997,6 +1005,53 @@ export class ClientModel {
     const row = ResourceRow.from(data, kind); row.group = this.profile.id; row.raw = Wire.text(data, 'raw', '{}'); row.session = Wire.text(data, 'session', row.id); return row;
   }
   private cancelDraftTimer(): void { if (this.draftTimer !== -1) clearTimeout(this.draftTimer); this.draftTimer = -1; }
+  sendFeedbackPhase(): string {
+    if (!this.sendFeedbackRevision) return '';
+    const current = this.sendAttempts.get(this.target());
+    const phase = current?.visible(Date.now()) || '';
+    // After its own echo, actual running work has its own status line.
+    if (phase === 'processing' && current && current.echoSequence >= 0 && this.renderedMessages.some((m: ChatMessage) => m.role === 'work' && m.running)) return '';
+    return phase;
+  }
+  isSendingMessage(id: string): boolean { return this.sendFeedbackPhase() === 'sending' && this.sendAttempts.get(this.target())?.id === id; }
+  private feedbackChanged(): void {
+    this.sendFeedbackRevision++;
+    const current = this.sendAttempts.get(this.target()), now = Date.now();
+    const deadline = this.isForegroundChat() && current?.visible(now) === 'processing' ? current.acceptedAt + ChatSendFeedback.acceptedWindow : 0;
+    if (deadline === this.feedbackDeadline) return;
+    if (this.feedbackTimer !== -1) clearTimeout(this.feedbackTimer);
+    this.feedbackTimer = -1; this.feedbackDeadline = deadline;
+    if (deadline) this.feedbackTimer = setTimeout(() => { this.feedbackTimer = -1; this.feedbackDeadline = 0; this.feedbackChanged(); }, Math.max(1, deadline-now));
+  }
+  private makeSendFeedback(row: ResourceRow, entry: ChatOutboxEntry): ChatSendFeedback {
+    const current = this.sessionRow(row), data = current.data();
+    return new ChatSendFeedback(entry.id, row.machine, row.session || row.id, entry.afterSequence, entry.at,
+      Wire.text(data,'status',current.state), Wire.text(data,'failure_reason'), Wire.text(data,'state_since'));
+  }
+  private updateSendFeedbackSessions(rows: ResourceRow[]): void {
+    if (!this.sendAttempts.size) return;
+    const now = Date.now();
+    for (const target of this.sendAttempts.keys()) {
+      const attempt = this.sendAttempts.get(target); if (!attempt) continue;
+      if (!attempt.visible(now) && now - Math.max(attempt.acceptedAt,attempt.startedAt) >= ChatSendFeedback.acceptedWindow) {
+        this.sendAttempts.delete(target); continue;
+      }
+      const row = rows.find((r: ResourceRow) => r.machine === attempt.machine && (r.session || r.id) === attempt.session);
+      if (row) {
+        const data = row.data();
+        const wasProcessing = attempt.visible(now) === 'processing';
+        attempt.observeSession(Wire.text(data,'status',row.state), Wire.text(data,'failure_reason'), Wire.text(data,'state_since'));
+        if (wasProcessing && !attempt.visible(now)) this.endSendFeedback(this.scope(),target,attempt);
+      }
+    }
+    this.feedbackChanged();
+  }
+  private async endSendFeedback(scope: string, target: string, attempt: ChatSendFeedback): Promise<void> {
+    attempt.finish(); this.feedbackChanged();
+    try { await new ChatDraftStore(this.local).finishFeedback(scope,attempt.id); } catch (_) {
+      if (this.scope() === scope && this.target() === target) this.error = 'cache_unavailable';
+    }
+  }
   async select(row: ResourceRow): Promise<void> {
     if (row.group && row.group !== this.profile.id || row.manager && row.manager !== this.profile.manager) throw new Error('request_updated');
     const generation = this.generation, scope = this.scope(), selection = ++this.selectionGeneration;
@@ -1004,6 +1059,7 @@ export class ClientModel {
     this.closeTranscript(); this.releaseTerminal(); this.selected = row; this.messages = []; this.clearPendingDecisions(); this.error = '';
     this.draft = ''; this.sourceContext = ''; this.draftRevision = ''; this.draftLoading = true;
     this.localMessages = []; this.renderedMessages = []; this.echoedMessages.clear(); this.operationState = '';
+    this.feedbackChanged();
     try {
       const saved = await new ChatDraftStore(this.local).read(this.target());
       if (!this.owns(generation, scope) || selection !== this.selectionGeneration) return;
@@ -1012,6 +1068,7 @@ export class ClientModel {
     } finally { if (this.owns(generation, scope) && selection === this.selectionGeneration) this.draftLoading = false; }
     if (!this.owns(generation, scope) || selection !== this.selectionGeneration) return;
     this.chatVisible = this.isChat();
+    this.feedbackChanged();
     if (this.chatVisible) await this.loadChat(row);
     // Dedicated resource workspaces own their reads and endpoint-specific loading/error state.
   }
@@ -1035,6 +1092,13 @@ export class ClientModel {
     const epoch = this.local.revision('outbox:' + scope), target = this.target(), repository = this.repository, entries = await new ChatDraftStore(this.local).list(scope);
     if (!this.owns(generation, scope) || target !== this.target() || !this.local.accepts('outbox:' + scope, epoch)) return;
     this.localMessages = entries;
+    if (!this.sendAttempts.has(target)) {
+      const now = Date.now(), last = entries.filter((entry: ChatOutboxEntry) => entry.target === target).pop();
+      if (last && last.state === 'done' && last.acceptedAt > 0 && now < last.acceptedAt + ChatSendFeedback.acceptedWindow) {
+        const attempt = this.makeSendFeedback(this.selected,last); attempt.accept(last.acceptedAt);
+        this.sendAttempts.set(target,attempt); this.feedbackChanged();
+      }
+    }
     for (const entry of entries) if (this.local.accepts('outbox:' + scope, epoch) && entry.state === 'pending' && !entry.confirmedPending && !this.activeMessages.has(entry.id) && !this.unresolvedWrites.some((record: MutationRecord) => record.id === entry.id)) { entry.state = 'unknown'; await new ChatDraftStore(this.local).settle(scope, entry.id, 'unknown'); }
     for (const entry of entries) if (entry.target === target && entry.state === 'done') await this.completeLocalDelivery(entry, scope, repository);
     if (!this.owns(generation, scope) || target !== this.target() || !this.local.accepts('outbox:' + scope, epoch)) return;
@@ -1088,6 +1152,8 @@ export class ClientModel {
     this.activityOwner = isMain ? this.target() : '';
     this.activityRounds = projection?.rounds || [];
     this.renderedMessages = this.projectMessages(projection?.timeline || items, running);
+    const feedback = this.sendAttempts.get(this.target());
+    if (feedback) { feedback.observeItems(projection?.timeline || items); this.feedbackChanged(); }
     this.echoedMessages = new Set(items.filter((item: TranscriptItem) => item.role === 'user').map((item: TranscriptItem) => Wire.text(Wire.record(item as Object), 'client_msg_id')).filter((id: string) => !!id));
     this.reconcileMessageCopies();
   }
@@ -1130,7 +1196,7 @@ export class ClientModel {
     const store = new ChatDraftStore(this.local);
     const journal = repository?.mutations?.blocked().find((record: MutationRecord) => record.id === entry.id);
     if (journal) await repository?.mutations?.finish(journal, 'done');
-    await store.settle(scope, entry.id, 'done'); await store.acknowledge(entry.target, entry.revision);
+    await store.settle(scope, entry.id, 'done', entry.acceptedAt); await store.acknowledge(entry.target, entry.revision);
     if (entry.attachmentSnapshot) {
       if (!this.context) throw new Error('chat_attachment_storage_unavailable');
       await ChatAttachments.commitStoredSnapshot(this.context, entry.attachmentSnapshot, entry.target, valid);
@@ -1217,8 +1283,8 @@ export class ClientModel {
       step.results.map((item: TranscriptItem) => item.text || '').join('\n')].filter((value: string) => !!value).join('\n');
   }
   private closeTranscript(): void { this.transcriptHistoryReady = false; this.transcript?.close(); this.transcript = undefined; this.transcriptKey = ''; this.revisionItems = []; }
-  showConversation(row: ResourceRow): void { this.chatVisible = true; this.loadChat(row).catch((error: Error) => this.failure(error)); }
-  hideConversation(releaseTools: boolean = true): void { this.chatVisible = false; this.closeTranscript(); this.clearPendingDecisions(); if (releaseTools) this.releaseTerminal(); this.persistDraft().catch(() => this.error = 'failed'); }
+  showConversation(row: ResourceRow): void { this.chatVisible = true; this.feedbackChanged(); this.loadChat(row).catch((error: Error) => this.failure(error)); }
+  hideConversation(releaseTools: boolean = true): void { this.chatVisible = false; this.feedbackChanged(); this.closeTranscript(); this.clearPendingDecisions(); if (releaseTools) this.releaseTerminal(); this.persistDraft().catch(() => this.error = 'failed'); }
   decisionSourceMessage(toolUseId: string): string {
     return this.transcriptKey === this.target() ? this.transcript?.decisionSource(toolUseId) || '' : '';
   }
@@ -1356,11 +1422,14 @@ export class ClientModel {
     const paired = (): boolean => (ClientModel.pairingEpochs.get(hub) || 0) === pairing && this.local.accepts('outbox:' + scope, entry.localEpoch);
     if (!this.draftRevision) this.draftRevision = util.generateRandomUUID();
     entry.id = util.generateRandomUUID(); entry.target = target; entry.revision = this.draftRevision; entry.text = text; entry.context = context; entry.draft = draft; entry.imageCount = images.length; entry.attachmentSnapshot = attachmentSnapshot; entry.at = Date.now(); entry.localEpoch = this.local.revision('outbox:' + scope);
+    entry.afterSequence = this.revisionItems.length ? this.revisionItems[this.revisionItems.length-1].seq : 0;
+    const feedback = this.makeSendFeedback(row,entry);
+    this.sendAttempts.set(target,feedback); this.feedbackChanged();
     this.activeMessages.add(entry.id); this.cancelDraftTimer(); this.operationState = 'pending'; this.error = ''; let dispatched = false, staged = false;
     try {
       const captured = new ChatDraft(); captured.text = draft; captured.context = context; captured.revision = entry.revision;
       await store.save(target, captured);
-      if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo) { this.activeMessages.delete(entry.id); if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; } return false; }
+      if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo) { feedback.finish(); this.feedbackChanged(); this.activeMessages.delete(entry.id); if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; } return false; }
       if (context.includes('"forward"') && draftForwardRows(context).length) {
         const current=():boolean=>this.owns(generation,scope) && this.target()===target && this.repository===repo && this.draftRevision===entry.revision && (!admit || admit());
         const extras=await store.forwardedImages(target,context,4-images.length,current);
@@ -1368,10 +1437,16 @@ export class ClientModel {
         if (utf8Bytes(JSON.stringify(Wire.payload(['text','images'],[text,images])))>=4*1024*1024) throw new Error('chat_attachment_request_too_large');
       }
       await store.stage(scope, entry); staged = true;
-      if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo || this.draftRevision !== entry.revision || !this.canSend()) { await store.settle(scope, entry.id, 'failed'); this.activeMessages.delete(entry.id); entry.state = 'failed'; if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; this.publishMessages(); } return false; }
+      if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo || this.draftRevision !== entry.revision || !this.canSend()) { feedback.finish(); this.feedbackChanged(); await store.settle(scope, entry.id, 'failed'); this.activeMessages.delete(entry.id); entry.state = 'failed'; if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; this.publishMessages(); } return false; }
       this.localMessages = this.localMessages.concat([entry]); this.publishMessages();
       dispatched = true;
       const reply = await repo.send(row, text, entry.id, '', images, (): boolean => (!admit || admit()) && this.owns(generation, scope) && this.target() === target && this.repository === repo && this.draftRevision === entry.revision && this.canSend());
+      if (reply && Wire.text(reply,'delivered') === 'later') feedback.finish();
+      else if (paired()) {
+        const now = Date.now(); feedback.accept(now);
+        if (feedback.visible(now) === 'processing') entry.acceptedAt = now;
+      }
+      this.feedbackChanged();
       if (reply && row.kind === 'session' && Wire.text(reply, 'delivered') === 'later') {
         const raw = Wire.object(reply, 'undelivered'), held = HeldAgentMessage.from(raw);
         if (held?.id === entry.id) {
@@ -1402,6 +1477,7 @@ export class ClientModel {
         }
       }
     } catch (error) {
+      feedback.finish(); this.feedbackChanged();
       if (entry.state === 'done') {
         this.activeMessages.delete(entry.id);
         try { await this.completeLocalDelivery(entry, scope, repo); } catch (_) { if (this.owns(generation, scope) && this.target() === target) this.error = 'cache_unavailable'; }
@@ -1473,12 +1549,14 @@ export class ClientModel {
   async stop(admission?: () => boolean): Promise<void> {
     if (!this.canStop() || admission && !admission()) return;
     const generation = this.generation, scope = this.scope(), target = this.target(), row = this.selected, repo = this.repo();
+    const feedback = this.sendAttempts.get(target);
     const pending = this.interruptIdentity(), admit = (): boolean => this.owns(generation, scope) && this.target() === target && this.repository === repo && this.canInterrupt() && this.turnWorking() && (!admission || admission());
     this.interruptPendingKey = pending;
     try { await repo.stop(row, admit); } catch (error) {
       if (this.owns(generation, scope) && this.target() === target && this.repository === repo) this.failure(error as Error);
       return;
     } finally { if (this.interruptPendingKey === pending) this.interruptPendingKey = ''; }
+    if (feedback && this.owns(generation,scope) && this.sendAttempts.get(target) === feedback) await this.endSendFeedback(scope,target,feedback);
     if (!this.owns(generation, scope) || this.target() !== target || this.repository !== repo) return;
     if (this.demo && this.demoRepository === repo) this.refreshDemo();
   }
@@ -1926,6 +2004,7 @@ export class ClientModel {
   useDemo(): void {
     this.ssh.stop(); this.stopReconnect(); this.cancelDraftTimer(); this.closeTranscript(); this.releaseTerminal(); this.retireViews(); this.repository?.close(); this.generation++; this.selectionGeneration++;
     this.demo = true; this.connected = true; this.profile = new HubProfile('demo', tr('local_demo')); this.profile.hubId = 'demo'; this.profile.manager = 'demo';
+    this.sendAttempts.clear(); this.feedbackChanged();
     this.demoRepository = new DemoRepository(this.local); this.repository = this.demoRepository;
     this.selected = new ResourceRow(); this.messages = []; this.revisionItems = []; this.clearPendingDecisions(); this.draft = ''; this.sourceContext = ''; this.draftRevision = ''; this.draftLoading = false;
     this.localMessages = []; this.renderedMessages = []; this.echoedMessages.clear(); this.unresolvedWrites = []; this.operationState = ''; this.resourceRows = []; this.detail = ''; this.reply = '';
@@ -1934,11 +2013,12 @@ export class ClientModel {
   releaseTerminal(): void { this.workspace?.hide(); this.terminalControl = false; }
   async background(): Promise<void> {
     this.foreground = false; this.ssh.stop(); this.stopReconnect(); this.cancelDraftTimer(); this.closeTranscript(); this.clearPendingDecisions(); this.releaseTerminal();
+    this.feedbackChanged();
     const repository = this.repository; repository?.close();
     const children = Array.from(this.views.values()).map((view: ClientModel): Promise<void> => view.background());
     await this.persistDraft(); await Promise.all(children);
   }
-  activateForeground(): void { this.foreground = true; for (const view of this.views.values()) view.activateForeground(); }
+  activateForeground(): void { this.foreground = true; this.feedbackChanged(); for (const view of this.views.values()) view.activateForeground(); }
   async foregrounded(): Promise<void> { if (this.retired) return; this.activateForeground(); await this.retryCleanup(); if (this.retired || !this.foreground) return; if (this.profile.id && !this.demo) await this.selectProfile(this.profile, true); await this.flushNotification(); }
   async shutdown(): Promise<void> { await this.background(); this.retireViews(); if (!this.detached) await this.local.close(); }
 }

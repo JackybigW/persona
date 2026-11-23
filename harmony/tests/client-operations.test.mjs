@@ -13,7 +13,7 @@ registerHooks({
       return {url:new URL('../core/Markdown.ts',context.parentURL).href,shortCircuit:true};
     if (specifier === '@kit.ArkTS') return {url:'client-boundary:'+specifier,shortCircuit:true};
     if (context.parentURL?.endsWith('/ClientModel.ets')) {
-      if (['../core/BackgroundActivity', '../core/DictationLanguage', './Wire', './AgentAttention', './AssistantView', './DemoRepository', './NavigationContext', './ChatDraftStore', './HubRepository', './MutationStore', './Compatibility', './InteractionDecision', '../core/ClientLocale', '../core/ClientLocale', '../core/Domain', '../core/ScopePolicy', '../core/StorageOwnership', '../core/MessageContent', '../core/TranscriptCache'].includes(specifier)) {
+      if (['../core/BackgroundActivity', '../core/ChatSendFeedback', '../core/DictationLanguage', './Wire', './AgentAttention', './AssistantView', './DemoRepository', './NavigationContext', './ChatDraftStore', './HubRepository', './MutationStore', './Compatibility', './InteractionDecision', '../core/ClientLocale', '../core/ClientLocale', '../core/Domain', '../core/ScopePolicy', '../core/StorageOwnership', '../core/MessageContent', '../core/TranscriptCache'].includes(specifier)) {
         const base = new URL(specifier, context.parentURL);
         return {url: base.href + (existsSync(new URL(base.href + '.ts')) ? '.ts' : '.ets'), shortCircuit: true};
       }
@@ -128,6 +128,84 @@ test('only an identity-matched hello on the current live scope and connection ge
 });
 function decision(model,id='request-one') { const value=new Decision(); value.id=id; value.kind='permission'; value.raw=JSON.stringify({id}); model.decision=value; return value; }
 function deferred() { let resolve,reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no;}); return {promise,resolve,reject}; }
+
+test('send feedback belongs to the current input and distinguishes acceptance, transcript echo and actual reply', async () => {
+  const {model} = fixture(), received = deferred(), response = deferred();
+  model.sourceContext = ''; model.draft = 'same request text';
+  model.repository.send = async (_row, _text, uuid) => { received.resolve(uuid); await response.promise; return {ok:true}; };
+  const turn = model.send();
+  assert.equal(model.sendFeedbackPhase(), 'sending');
+  const id = await received.promise, target = model.target(), original = model.selected;
+  const post = (seq,role,kind,text,id) => ({id:'item-'+seq,seq,role,kind,text,client_msg_id:id});
+  const rows = [post(40,'user','text','same request text','another-device'),post(41,'assistant','text','older answer')];
+  model.publishTranscript(rows,false);
+  assert.equal(model.sendFeedbackPhase(), 'sending');
+  rows.push(post(42,'user','text','same request text',id));
+  model.publishTranscript(rows,false);
+  assert.equal(model.sendFeedbackPhase(), 'sending', 'a transcript echo alone cannot accept this request');
+  model.selected = new ResourceRow('other','Other','session');
+  response.resolve(); assert.equal(await turn,true); assert.equal(model.sendFeedbackPhase(),'');
+  model.selected = original; assert.equal(model.target(),target); assert.equal(model.sendFeedbackPhase(),'processing');
+  rows.push(post(43,'assistant','thinking','thinking'),post(44,'assistant','tool_use','tool'));
+  model.publishTranscript(rows,false); assert.equal(model.sendFeedbackPhase(),'processing');
+  rows.push(post(45,'assistant','text','answer'));
+  model.publishTranscript(rows,false); assert.equal(model.sendFeedbackPhase(),'');
+  model.publishTranscript(rows,false); await model.restoreLocalDelivery(); assert.equal(model.sendFeedbackPhase(),'');
+});
+
+test('rejected, held and stopped sends keep their native recovery paths and release only the matching activity', async () => {
+  const {model} = fixture(); model.sourceContext = '';
+  model.repository.send = async () => { throw new Error('offline'); };
+  assert.equal(await model.send(), false); assert.equal(model.sendFeedbackPhase(),'');
+  const rejected = model.messages.find(m=>m.localOperation); assert.ok(rejected);
+  assert.equal(model.draft,'exact draft ');
+  const {model:heldModel} = heldFixture();
+  heldModel.draft='for offline machine';
+  heldModel.repository.send=async (_row,text,id)=>({delivered:'later',undelivered:{id,text,state:'waiting',ts:'2026-01-01T00:00:00Z'}});
+  assert.equal(await heldModel.send(),true); assert.equal(heldModel.sendFeedbackPhase(),'');
+  const {model:live} = fixture(); live.sourceContext='';
+  await live.send(); assert.equal(live.sendFeedbackPhase(),'processing');
+  live.selected.state='working';
+  const stop=deferred(), entered=deferred();
+  live.repository.stop=async()=>{entered.resolve();await stop.promise;};
+  const stopping=live.stop();await entered.promise;
+  live.draft='newer request'; await live.send(); stop.resolve(); await stopping;
+  assert.equal(live.sendFeedbackPhase(),'processing','the prior stop cannot finish a newer local attempt');
+  await live.stop(); assert.equal(live.sendFeedbackPhase(),'');
+});
+
+test('cold chat restores only an accepted outbox operation for its owner without resending', async () => {
+  const {model} = fixture(); model.sourceContext='';
+  await model.send();
+  const cold=fixture().model; cold.local=model.local;
+  let writes=0; cold.repository.send=async()=>{writes++;};
+  cold.profile.manager='other-manager';
+  await cold.restoreLocalDelivery(); assert.equal(cold.sendFeedbackPhase(),'');
+  cold.profile.manager='personal'; await cold.restoreLocalDelivery();
+  assert.equal(cold.sendFeedbackPhase(),'processing'); assert.equal(writes,0);
+  cold.selected.state='working'; await cold.stop();
+  const reopened=fixture().model; reopened.local=model.local; await reopened.restoreLocalDelivery();
+  assert.equal(reopened.sendFeedbackPhase(),'');
+  const {ChatDraftStore,ChatOutboxEntry}=await import('../entry/src/main/ets/models/ChatDraftStore.ets');
+  const legacy=new ChatOutboxEntry();legacy.id='old-done';legacy.target=reopened.target();legacy.at=Date.now();legacy.state='done';
+  await new ChatDraftStore(reopened.local).stage(reopened.scope(),legacy);
+  await reopened.restoreLocalDelivery();assert.equal(reopened.sendFeedbackPhase(),'');
+});
+
+test('the accepted window starts on the receipt and fresh terminal snapshots alone can retire it', async () => {
+  const {ChatSendFeedback}=await import('../entry/src/main/ets/core/ChatSendFeedback.ts');
+  const activity=()=>new ChatSendFeedback('local','machine','session',10,1000,'idle','old failure','yesterday');
+  const first=activity();assert.equal(first.visible(1000000),'sending');
+  first.observeSession('offline','','');assert.equal(first.visible(1000000),'sending');
+  first.accept(1000000);first.accept(1001000);assert.equal(first.visible(1059999),'processing');assert.equal(first.visible(1060000),'');
+  const fresh=activity();fresh.accept(1200);fresh.observeSession('idle','old failure','yesterday');assert.equal(fresh.visible(1300),'processing');
+  fresh.observeSession('working','','');fresh.observeSession('idle','','');assert.equal(fresh.visible(1400),'processing');
+  fresh.observeItems([{id:'own',role:'user',kind:'text',seq:11,client_msg_id:'LOCAL'}]);
+  fresh.observeSession('working','','');fresh.observeSession('idle','','');assert.equal(fresh.visible(1500),'');
+  fresh.accept(1600);assert.equal(fresh.visible(1700),'');
+  const failed=activity();failed.accept(1200);failed.observeSession('idle','old failure','today');assert.equal(failed.visible(1500),'');
+  const blocked=activity();blocked.accept(1200);blocked.observeSession('blocked','','');assert.equal(blocked.visible(1500),'');
+});
 
 test('a follow-up during Agent approvals sends once to the active session and leaves every request unanswered', async () => {
   const { model, writes } = fixture();

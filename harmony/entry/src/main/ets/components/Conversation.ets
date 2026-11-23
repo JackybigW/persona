@@ -100,6 +100,27 @@ struct MessageSurface {
 }
 
 @ComponentV2
+struct ChatSendStatus {
+  @Require @Param phase: string;
+  @Require @Param reduced: boolean;
+  @Local lit: boolean = false;
+  build() {
+    Row({space:12}) {
+      Row({space:4}) {
+        ForEach([0,1,2], (index:number) => {
+          Circle().width(7).height(7).fill(Colors.interfaceAccent)
+            .opacity(this.reduced ? .35+.325*index : this.lit ? 1 : .35)
+            .animation(this.reduced ? undefined : { duration:600, delay:index*110, curve:Curve.EaseInOut, iterations:-1, playMode:PlayMode.Alternate })
+        }, (index:number) => String(index))
+      }
+      Text(tr('chat_feedback_'+this.phase)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+    }.width('100%').padding({left:Tokens.page,right:Tokens.page,top:2,bottom:3})
+      .accessibilityGroup(true).accessibilityText(tr('chat_feedback_'+this.phase)).id('chat.sendFeedback.'+this.phase)
+      .onAppear(() => { this.lit = true; })
+  }
+}
+
+@ComponentV2
 struct RunningTurnLabel {
   @Require @Param start: number;
   @Require @Param active: boolean;
@@ -1662,7 +1683,8 @@ export struct Conversation {
         }
       }
       if (entry.item.message!.held) this.heldStatus(entry.item.message!)
-      if (entry.item.message!.deliveryState && entry.item.message!.deliveryState !== 'done' && !entry.item.message!.failed) Text(tr(entry.item.message!.deliveryState === 'unknown' ? 'result_unknown' : entry.item.message!.deliveryState)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor($r('sys.color.font_secondary'))
+      if (entry.item.message!.deliveryState && entry.item.message!.deliveryState !== 'done' && !entry.item.message!.failed &&
+        !(entry.item.message!.deliveryState === 'pending' && this.model.isSendingMessage(entry.item.message!.localOperation))) Text(tr(entry.item.message!.deliveryState === 'unknown' ? 'result_unknown' : entry.item.message!.deliveryState)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor($r('sys.color.font_secondary'))
       if (entry.item.message!.failed) Text(tr('failed')).fontColor($r('app.color.persona_danger')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta))
       if (entry.item.message!.localOperation && this.model.canCheckLocalMessage(entry.item.message!.localOperation)) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('checked')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('checked', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('checked')).bindTips(tr('checked')).onClick(() => this.confirmChecked(entry.item.message!.localOperation))
       if (entry.item.message!.localOperation && this.model.canRestoreMessage(entry.item.message!.localOperation)) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('restore_draft')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('restore_draft', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('restore_draft')).bindTips(tr('restore_draft')).onClick(() => this.restoreDraft(entry.item.message!))
@@ -1776,6 +1798,9 @@ export struct Conversation {
           .backgroundColor(entry.item.id === this.highlightedLine ? Colors.selection : Color.Transparent).borderRadius(12)
           .id('chat.line.' + entry.item.id)
       }).key((line: ConversationLine) => line.id).virtualScroll({ totalCount: this.lines.length, reusable: false })
+      if (this.active && this.model.sendFeedbackPhase()) ListItem() {
+        ChatSendStatus({phase:this.model.sendFeedbackPhase(),reduced:this.environment.reduceMotion})
+      }
     }.stackFromEnd(!this.showWelcome())
       // The native Agent list leaves 48 points between its last text and the footer.
       // Four are already inside the message row. This space scrolls with its contents.

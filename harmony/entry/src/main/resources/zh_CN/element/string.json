@@ -441,6 +441,14 @@
       "value": "已发送"
     },
     {
+      "name": "chat_feedback_sending",
+      "value": "正在发送…"
+    },
+    {
+      "name": "chat_feedback_processing",
+      "value": "处理中…"
+    },
+    {
       "name": "pending",
       "value": "等待中"
     },

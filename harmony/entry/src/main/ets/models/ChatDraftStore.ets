@@ -50,6 +50,8 @@ export class ChatOutboxEntry {
   // Rebound from the local store on read; never trust a persisted process epoch.
   localEpoch: number = 0;
   at: number = 0;
+  acceptedAt: number = 0;
+  afterSequence: number = 0;
   state: string = 'pending';
   confirmedPending: boolean = false;
   draft: string = '';
@@ -189,7 +191,8 @@ export class ChatDraftStore {
     const entry = new ChatOutboxEntry(); entry.id = Wire.text(data, 'id'); entry.target = Wire.text(data, 'target');
     entry.revision = Wire.text(data, 'revision'); entry.text = Wire.text(data, 'text'); entry.context = Wire.text(data, 'context');
     entry.draft = Wire.text(data, 'draft', entry.text); entry.confirmedPending = Wire.bool(data, 'confirmedPending');
-    entry.attachmentSnapshot = Wire.text(data, 'attachmentSnapshot'); entry.imageCount = Wire.number(data, 'imageCount'); entry.at = Wire.number(data, 'at'); entry.state = Wire.text(data, 'state', 'unknown'); return entry;
+    entry.attachmentSnapshot = Wire.text(data, 'attachmentSnapshot'); entry.imageCount = Wire.number(data, 'imageCount'); entry.at = Wire.number(data, 'at'); entry.state = Wire.text(data, 'state', 'unknown');
+    entry.acceptedAt = Wire.number(data, 'acceptedAt'); entry.afterSequence = Wire.number(data, 'afterSequence'); return entry;
   }
   private async entries(key: string): Promise<ChatOutboxEntry[]> {
     const raw = await this.local.get(key), data = raw ? Wire.record(JSON.parse(raw) as Object) : Wire.payload([], []), entries: ChatOutboxEntry[] = [];
@@ -221,7 +224,7 @@ export class ChatDraftStore {
       for (const old of removed) { try { await this.local.remove(key + ':' + old.id, epoch); } catch (_) {} }
     });
   }
-  async settle(scope: string, id: string, state: string): Promise<void> {
+  async settle(scope: string, id: string, state: string, acceptedAt: number = 0): Promise<void> {
     if (!['pending', 'unknown', 'failed', 'done', 'checked'].includes(state)) throw new Error('unsupported');
     const key = 'outbox:' + scope;
     return this.transaction(key, async (epoch: number): Promise<void> => {
@@ -230,7 +233,16 @@ export class ChatDraftStore {
       // An acknowledged message cannot become retryable because a later read or cleanup failed.
       if (entry.state === 'done' && state !== 'done') return;
       entry.state = state === 'checked' ? 'failed' : state; entry.confirmedPending = state === 'pending';
+      if (state === 'done' && acceptedAt > 0 && !entry.acceptedAt) entry.acceptedAt = acceptedAt;
       await this.local.put(key + ':' + entry.id, JSON.stringify(entry), epoch);
+    });
+  }
+  async finishFeedback(scope: string, id: string): Promise<void> {
+    const key = 'outbox:' + scope;
+    return this.transaction(key, async (epoch: number): Promise<void> => {
+      const raw = await this.local.get(key + ':' + id); if (!raw) return;
+      const entry = this.decodeEntry(Wire.parse(raw)); entry.acceptedAt = -1;
+      await this.local.put(key + ':' + id, JSON.stringify(entry), epoch);
     });
   }
   async attachmentsCommitted(scope: string, id: string): Promise<void> {

@@ -441,6 +441,14 @@
       "value": "Sent"
     },
     {
+      "name": "chat_feedback_sending",
+      "value": "Sending…"
+    },
+    {
+      "name": "chat_feedback_processing",
+      "value": "Processing…"
+    },
+    {
       "name": "pending",
       "value": "Pending"
     },
