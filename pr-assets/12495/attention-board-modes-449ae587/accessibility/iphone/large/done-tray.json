@@ -1,0 +1,564 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "61a40a2770f4ab64df76e001da7d0beb9f2066831fb89a7007c7e42328fd21d9",
+  "originalNativePNGSHA256": "de902553669c31afa80d006c153fc32e919e3f1fab83ffafb65b9909616b8e82",
+  "screenPNG": "screens/iphone/large/done-tray.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "历史对话",
+      "boundsLogicalPoints": [
+        16.0,
+        64.0,
+        57.7,
+        57.7
+      ],
+      "identifier": "assistant-sidebar-button"
+    },
+    {
+      "role": "Button",
+      "label": "助手",
+      "boundsLogicalPoints": [
+        106.3,
+        68.0,
+        94.7,
+        47.3
+      ],
+      "identifier": "shell-assistant"
+    },
+    {
+      "role": "StaticText",
+      "label": "助手",
+      "boundsLogicalPoints": [
+        106.3,
+        68.0,
+        94.7,
+        47.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "Agents",
+      "boundsLogicalPoints": [
+        201.0,
+        68.0,
+        94.7,
+        47.3
+      ],
+      "identifier": "shell-agents"
+    },
+    {
+      "role": "StaticText",
+      "label": "3 个需要你",
+      "boundsLogicalPoints": [
+        280.0,
+        62.0,
+        23.7,
+        25.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "新对话",
+      "boundsLogicalPoints": [
+        328.3,
+        64.0,
+        57.7,
+        57.7
+      ],
+      "identifier": "assistant-new"
+    },
+    {
+      "role": "StaticText",
+      "label": "可以晚点答（2）",
+      "boundsLogicalPoints": [
+        32.0,
+        8.3,
+        170.5,
+        31.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "对话气泡中的问号",
+      "boundsLogicalPoints": [
+        37.7,
+        14.7,
+        20.0,
+        19.0
+      ],
+      "identifier": "questionmark.bubble"
+    },
+    {
+      "role": "StaticText",
+      "label": "可以晚点答（2）",
+      "boundsLogicalPoints": [
+        71.5,
+        12.7,
+        131.0,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "统一用 snake_case 还是 camelCase 命名新接口？",
+      "boundsLogicalPoints": [
+        32.0,
+        47.9,
+        334.3,
+        51.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "已等 1天2小时 · 来自 Agent「网络层测试」",
+      "boundsLogicalPoints": [
+        32.0,
+        101.3,
+        307.7,
+        47.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "打开：统一用 snake_case 还是 camelCase 命名新接口？",
+      "boundsLogicalPoints": [
+        219.3,
+        154.3,
+        62.0,
+        37.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "标记为已处理：统一用 snake_case 还是 camelCase 命名新接口？",
+      "boundsLogicalPoints": [
+        289.3,
+        154.3,
+        80.7,
+        37.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "发布说明里要不要写内部编号？",
+      "boundsLogicalPoints": [
+        32.0,
+        203.3,
+        271.0,
+        25.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "已等 3小时 · 来自 Agent「发布」",
+      "boundsLogicalPoints": [
+        32.0,
+        230.6,
+        267.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "标记为已处理：发布说明里要不要写内部编号？",
+      "boundsLogicalPoints": [
+        289.3,
+        259.7,
+        80.7,
+        37.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "进行中（2）",
+      "boundsLogicalPoints": [
+        32.0,
+        321.0,
+        132.9,
+        31.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "齿轮形状，实心",
+      "boundsLogicalPoints": [
+        38.3,
+        327.3,
+        19.0,
+        19.0
+      ],
+      "identifier": "gearshape.fill"
+    },
+    {
+      "role": "StaticText",
+      "label": "进行中（2）",
+      "boundsLogicalPoints": [
+        71.5,
+        325.2,
+        93.3,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        32.0,
+        366.3,
+        140.7,
+        25.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "打开：小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        308.0,
+        360.3,
+        62.0,
+        37.0
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "已选择",
+      "boundsLogicalPoints": [
+        54.0,
+        406.0,
+        12.3,
+        12.0
+      ],
+      "identifier": "checkmark"
+    },
+    {
+      "role": "StaticText",
+      "label": "第 2 步，共 6 步 · 开发",
+      "boundsLogicalPoints": [
+        32.0,
+        426.5,
+        192.0,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "补齐网络层的单元测试",
+      "boundsLogicalPoints": [
+        32.0,
+        467.3,
+        200.7,
+        25.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "打开：补齐网络层的单元测试",
+      "boundsLogicalPoints": [
+        308.0,
+        461.3,
+        62.0,
+        37.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        262.3,
+        566.3,
+        62.0,
+        57.7
+      ],
+      "identifier": "action-tray.board"
+    },
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        332.3,
+        566.3,
+        57.7,
+        57.7
+      ],
+      "identifier": "action-tray.close"
+    },
+    {
+      "role": "StaticText",
+      "label": "已完成",
+      "boundsLogicalPoints": [
+        24.0,
+        583.7,
+        56.7,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "已完成、统一连接器 logo 尺寸、已完成、已合并 PR 并发了 TestFlight",
+      "boundsLogicalPoints": [
+        12.0,
+        624.0,
+        378.0,
+        68.7
+      ],
+      "identifier": "action-tray.finished-row"
+    },
+    {
+      "role": "StaticText",
+      "label": "统一连接器 logo 尺寸",
+      "boundsLogicalPoints": [
+        53.0,
+        632.0,
+        207.0,
+        27.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "已完成",
+      "boundsLogicalPoints": [
+        299.7,
+        634.3,
+        56.7,
+        23.0
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "已完成",
+      "boundsLogicalPoints": [
+        25.3,
+        649.3,
+        18.3,
+        18.3
+      ],
+      "identifier": "checkmark.circle.fill"
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        367.7,
+        650.3,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "已合并 PR 并发了 TestFlight",
+      "boundsLogicalPoints": [
+        53.0,
+        661.7,
+        233.3,
+        23.0
+      ],
+      "identifier": "action-tray.subtitle"
+    },
+    {
+      "role": "Button",
+      "label": "待选择、5、+5",
+      "boundsLogicalPoints": [
+        16.0,
+        713.0,
+        150.3,
+        35.0
+      ],
+      "identifier": "action-bar.to-decide"
+    },
+    {
+      "role": "StaticText",
+      "label": "待选择",
+      "boundsLogicalPoints": [
+        28.0,
+        719.0,
+        56.7,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "5",
+      "boundsLogicalPoints": [
+        88.7,
+        719.0,
+        12.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "向下移动",
+      "boundsLogicalPoints": [
+        107.0,
+        725.7,
+        17.0,
+        10.0
+      ],
+      "identifier": "chevron.down"
+    },
+    {
+      "role": "StaticText",
+      "label": "+5",
+      "boundsLogicalPoints": [
+        130.3,
+        719.0,
+        24.0,
+        23.0
+      ],
+      "identifier": "action-bar.to-decide.arrived"
+    },
+    {
+      "role": "Button",
+      "label": "要你处理、4",
+      "boundsLogicalPoints": [
+        174.3,
+        713.0,
+        115.7,
+        35.0
+      ],
+      "identifier": "action-bar.needs-you"
+    },
+    {
+      "role": "StaticText",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        186.3,
+        719.0,
+        75.7,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "4",
+      "boundsLogicalPoints": [
+        266.0,
+        719.0,
+        12.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "进行中、15",
+      "boundsLogicalPoints": [
+        298.0,
+        713.0,
+        108.3,
+        35.0
+      ],
+      "identifier": "action-bar.running"
+    },
+    {
+      "role": "StaticText",
+      "label": "进行中",
+      "boundsLogicalPoints": [
+        310.0,
+        719.0,
+        56.7,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "15",
+      "boundsLogicalPoints": [
+        370.7,
+        719.0,
+        23.7,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "添加照片或文件",
+      "boundsLogicalPoints": [
+        16.0,
+        762.0,
+        68.0,
+        68.0
+      ],
+      "identifier": "shell-composer-add"
+    },
+    {
+      "role": "Image",
+      "label": "添加",
+      "boundsLogicalPoints": [
+        16.0,
+        762.0,
+        68.0,
+        68.0
+      ],
+      "identifier": "plus"
+    },
+    {
+      "role": "Button",
+      "label": "听写",
+      "boundsLogicalPoints": [
+        318.0,
+        762.0,
+        68.0,
+        68.0
+      ],
+      "identifier": "shell-composer-mic"
+    },
+    {
+      "role": "Image",
+      "label": "麦克风",
+      "boundsLogicalPoints": [
+        318.0,
+        762.0,
+        68.0,
+        68.0
+      ],
+      "identifier": "mic"
+    },
+    {
+      "role": "StaticText",
+      "label": "问 Persona",
+      "boundsLogicalPoints": [
+        92.2,
+        779.1,
+        130.7,
+        33.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        29.6,
+        775.6,
+        40.8,
+        40.8
+      ],
+      "identifier": "xmark"
+    },
+    {
+      "role": "Image",
+      "label": "向上",
+      "boundsLogicalPoints": [
+        259.4,
+        775.6,
+        40.8,
+        40.8
+      ],
+      "identifier": "arrow.up"
+    },
+    {
+      "role": "Image",
+      "label": "停止",
+      "boundsLogicalPoints": [
+        331.6,
+        775.6,
+        40.8,
+        40.8
+      ],
+      "identifier": "stop.fill"
+    }
+  ]
+}

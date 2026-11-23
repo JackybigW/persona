@@ -1,0 +1,181 @@
+{
+  "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "7320e587d98db1d8176f29e9711617c3ef4b0e5ec52bc54b32062a121c8c8d70",
+  "originalNativePNGSHA256": "c1acf5fb0a78c1fd7d6489793ba1f0cfeac893c6aa461e3662b7a51e09be6c24",
+  "screenPNG": "screens/harmony/large/board-top.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "任务",
+      "boundsLogicalPoints": [
+        178.0,
+        91.33,
+        46.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "需要你 · 4",
+      "boundsLogicalPoints": [
+        16.0,
+        132.67,
+        108.0,
+        44.33
+      ],
+      "identifier": "tasks-board.section.needs"
+    },
+    {
+      "role": "Text",
+      "label": "照片同步支持 HEIC",
+      "boundsLogicalPoints": [
+        64.0,
+        191.0,
+        196.33,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "Mac Studio · photo-sync · Claude · 支持 HEIC",
+      "boundsLogicalPoints": [
+        64.0,
+        220.0,
+        272.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "补齐网络层的单元测试",
+      "boundsLogicalPoints": [
+        64.0,
+        271.0,
+        230.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        64.0,
+        300.0,
+        272.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "选缓存方案",
+      "boundsLogicalPoints": [
+        64.0,
+        350.67,
+        115.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        64.0,
+        379.67,
+        272.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "登录页表单",
+      "boundsLogicalPoints": [
+        64.0,
+        430.67,
+        115.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "MacBook · login-form · Claude · 要不要保留旧的记住我选项？",
+      "boundsLogicalPoints": [
+        110.67,
+        469.33,
+        272.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "工作中 · 6",
+      "boundsLogicalPoints": [
+        16.0,
+        533.33,
+        108.0,
+        44.33
+      ],
+      "identifier": "tasks-board.section.working"
+    },
+    {
+      "role": "Text",
+      "label": "接入支付回调",
+      "boundsLogicalPoints": [
+        64.0,
+        591.67,
+        138.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "首页加骨架屏",
+      "boundsLogicalPoints": [
+        64.0,
+        663.33,
+        138.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "排查 /orders 接口变慢",
+      "boundsLogicalPoints": [
+        64.0,
+        734.67,
+        225.67,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "服务器 · shop-api · Codex · 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。",
+      "boundsLogicalPoints": [
+        64.0,
+        763.67,
+        272.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "修小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        64.0,
+        814.67,
+        184.0,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "MacBook · weather · Claude · 在跑测试",
+      "boundsLogicalPoints": [
+        64.0,
+        843.67,
+        272.33,
+        22.33
+      ]
+    }
+  ]
+}

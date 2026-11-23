@@ -1,0 +1,160 @@
+{
+  "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "1da5aee94711acff3d157b0d323adb8656610ed1a5588c872f1bf01927f25f63",
+  "originalNativePNGSHA256": "26f134ec4fa2f5fd40d541e21c1bd5d0e2a66060cb4a52f2baffa6599c71f257",
+  "screenPNG": "screens/harmony/main/needs-tray.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        24.33,
+        451.67,
+        255.0,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        287.33,
+        448.67,
+        50.33,
+        21.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "照片同步脚本支持 HEIC",
+      "boundsLogicalPoints": [
+        46.33,
+        489.67,
+        270.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        324.67,
+        492.0,
+        39.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "支持 HEIC",
+      "boundsLogicalPoints": [
+        46.33,
+        511.67,
+        317.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "天气 App 发 1.3 版",
+      "boundsLogicalPoints": [
+        46.33,
+        543.67,
+        193.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "需要你 · 3 个 Agent",
+      "boundsLogicalPoints": [
+        248.0,
+        546.0,
+        116.0,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "swift test",
+      "boundsLogicalPoints": [
+        46.33,
+        565.67,
+        317.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "韩梅梅 · 客户端发版群",
+      "boundsLogicalPoints": [
+        46.33,
+        597.67,
+        257.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "起草回复",
+      "boundsLogicalPoints": [
+        311.67,
+        600.0,
+        52.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "小组件横屏崩溃今天能修好吗？下午想发一版 TestFlight",
+      "boundsLogicalPoints": [
+        46.33,
+        619.67,
+        317.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "其他对话",
+      "boundsLogicalPoints": [
+        12.33,
+        643.33,
+        377.33,
+        24.0
+      ],
+      "identifier": "chat.tasks.group.conv_demo"
+    },
+    {
+      "role": "Text",
+      "label": "登录页加验证码",
+      "boundsLogicalPoints": [
+        46.33,
+        675.67,
+        270.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        324.67,
+        678.0,
+        39.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "有事等你回答",
+      "boundsLogicalPoints": [
+        46.33,
+        697.67,
+        317.67,
+        15.33
+      ]
+    }
+  ]
+}

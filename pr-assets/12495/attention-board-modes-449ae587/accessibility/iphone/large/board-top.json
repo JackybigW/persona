@@ -1,0 +1,370 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "85d8f2b952e6cf17e6e61bd1b2a77cf31a58cf2092e373ce0acca1e1f6a94b71",
+  "originalNativePNGSHA256": "44520503397047c2fd10cb1720a55c3b2ef4cfd6740f1a14082badc0d7c005d6",
+  "screenPNG": "screens/iphone/large/board-top.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        22.0,
+        82.0,
+        32.0,
+        36.0
+      ],
+      "identifier": "tasks-board-close"
+    },
+    {
+      "role": "StaticText",
+      "label": "任务",
+      "boundsLogicalPoints": [
+        180.7,
+        87.3,
+        40.3,
+        25.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你 · 4",
+      "boundsLogicalPoints": [
+        16.0,
+        132.0,
+        370.0,
+        47.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "照片同步支持 HEIC、Mac Studio · photo-sync · Claude · 支持 HEIC",
+      "boundsLogicalPoints": [
+        16.0,
+        179.7,
+        370.0,
+        82.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "照片同步支持 HEIC",
+      "boundsLogicalPoints": [
+        69.0,
+        194.7,
+        187.3,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        213.0,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "Mac Studio · photo-sync · Claude · 支持 HEIC",
+      "boundsLogicalPoints": [
+        69.0,
+        224.3,
+        239.7,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "补齐网络层的单元测试、MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        16.0,
+        262.3,
+        370.0,
+        82.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "补齐网络层的单元测试",
+      "boundsLogicalPoints": [
+        69.0,
+        277.3,
+        219.0,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        295.7,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        69.0,
+        307.0,
+        248.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "选缓存方案、MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        16.0,
+        345.0,
+        370.0,
+        82.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "选缓存方案",
+      "boundsLogicalPoints": [
+        69.0,
+        360.0,
+        109.7,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        378.3,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · Claude · swift test",
+      "boundsLogicalPoints": [
+        69.0,
+        389.7,
+        248.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "登录页表单、MacBook · login-form · Claude · 要不要保留旧的记住我选项？",
+      "boundsLogicalPoints": [
+        16.0,
+        427.7,
+        370.0,
+        82.7
+      ],
+      "identifier": "task-board.agent"
+    },
+    {
+      "role": "StaticText",
+      "label": "登录页表单",
+      "boundsLogicalPoints": [
+        69.0,
+        442.7,
+        109.7,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        461.0,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Image",
+      "label": "嵌入代码",
+      "boundsLogicalPoints": [
+        71.3,
+        475.0,
+        26.0,
+        18.0
+      ],
+      "identifier": "chevron.left.forwardslash.chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · login-form · Claude · 要不要保留旧的记住我选项？",
+      "boundsLogicalPoints": [
+        103.7,
+        472.3,
+        214.3,
+        23.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "工作中 · 6",
+      "boundsLogicalPoints": [
+        16.0,
+        528.0,
+        370.0,
+        47.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "工作中、首页加骨架屏",
+      "boundsLogicalPoints": [
+        16.0,
+        575.7,
+        370.0,
+        73.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "首页加骨架屏",
+      "boundsLogicalPoints": [
+        69.0,
+        590.7,
+        131.7,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        604.7,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "工作中、接入支付回调",
+      "boundsLogicalPoints": [
+        16.0,
+        649.3,
+        370.0,
+        73.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "接入支付回调",
+      "boundsLogicalPoints": [
+        69.0,
+        664.3,
+        131.7,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        678.3,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "工作中、排查 /orders 接口变慢、服务器 · shop-api · Codex · 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。",
+      "boundsLogicalPoints": [
+        16.0,
+        723.0,
+        370.0,
+        82.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "排查 /orders 接口变慢",
+      "boundsLogicalPoints": [
+        69.0,
+        738.0,
+        211.7,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        756.3,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "服务器 · shop-api · Codex · 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。",
+      "boundsLogicalPoints": [
+        69.0,
+        767.7,
+        238.0,
+        23.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "工作中、修小组件横屏崩溃、MacBook · weather · Claude · 在跑测试",
+      "boundsLogicalPoints": [
+        16.0,
+        805.7,
+        370.0,
+        82.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "修小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        69.0,
+        820.7,
+        175.3,
+        27.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        355.7,
+        839.0,
+        9.3,
+        16.0
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · Claude · 在跑测试",
+      "boundsLogicalPoints": [
+        69.0,
+        850.3,
+        248.0,
+        23.0
+      ]
+    }
+  ]
+}
