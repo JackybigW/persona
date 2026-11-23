@@ -74,3 +74,61 @@ func TestReconnectInventoryOrdersConcurrentCardChanges(t *testing.T) {
 		})
 	}
 }
+
+type delayedStartupStore struct {
+	*restoreMem
+	scanning  chan struct{}
+	release   chan struct{}
+	persisted chan struct{}
+}
+
+func (s *delayedStartupStore) ExpireStaleInteractions(ctx context.Context) ([]proto.Interaction, []string, error) {
+	close(s.scanning)
+	<-s.release
+	return s.restoreMem.ExpireStaleInteractions(ctx)
+}
+
+func (s *delayedStartupStore) InsertInteraction(ctx context.Context, ix proto.Interaction) error {
+	err := s.fleetMem.InsertInteraction(ctx, ix)
+	close(s.persisted)
+	return err
+}
+
+func TestFirstInteractionCannotBeExpiredByStartup(t *testing.T) {
+	store := &delayedStartupStore{restoreMem: &restoreMem{newFleetMem()}, scanning: make(chan struct{}), release: make(chan struct{}), persisted: make(chan struct{})}
+	hub := newFakeHub()
+	devices := newFleetDevs()
+	devices.add("mac", "Mac")
+	svc := New(Options{Hub: hub, Devices: devices, Store: func() Store { return store }, Logf: testLogf(t)})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	old := proto.Interaction{ID: "left-by-previous-process", MachineID: "mac", SessionID: "old", Kind: proto.IxQuestion}
+	if err := store.fleetMem.InsertInteraction(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	restored := make(chan struct{})
+	go func() { svc.restoreInteractions(ctx); close(restored) }()
+	<-store.scanning
+	card := proto.Interaction{ID: "new-process-card", MachineID: "mac", SessionID: "new", Kind: proto.IxPermission}
+	done := make(chan struct{})
+	go func() { _, _ = svc.waitInteraction(ctx, card); close(done) }()
+	select {
+	case <-store.persisted:
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(store.release)
+	<-restored
+	select {
+	case <-store.persisted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("waiting card did not reach storage after startup")
+	}
+	store.fmu.Lock()
+	oldState, newState := store.status[old.ID], store.status[card.ID]
+	store.fmu.Unlock()
+	cancel()
+	<-done
+	if oldState != "cancelled" || newState != "pending" {
+		t.Fatalf("startup statuses: old=%s, new=%s", oldState, newState)
+	}
+}

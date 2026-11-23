@@ -318,6 +318,9 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 // notification for server-owned proposal groups. The notification is closed
 // after the pending entry and its announcement exist, before this waiter blocks.
 func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction, prepared *preparedApproval, ready chan<- struct{}) (proto.Resolution, error) {
+	// The node may send its first request while FleetUp is still restoring the last manager's cards.
+	// Do not let that recovery cancel a card this process is about to persist.
+	s.restoreInteractions(ctx)
 	ix = cleanTitle(ix)
 	// Only an operation registered by this process can advertise clarification.
 	ix.CanClarify = prepared != nil
@@ -1459,12 +1462,17 @@ func (s *Service) cancelMachineInteractions(machineID string) {
 // question asked again (#4568). A card that was on its way up to the user finds its route again (restoreRoute); one
 // the assistant was deciding on goes on (resumeDelegations). Both before the hub gets the full list (FleetUp).
 func (s *Service) restoreInteractions(ctx context.Context) {
-	st, ok := s.store().(interface {
-		ExpireStaleInteractions(ctx context.Context) ([]proto.Interaction, []string, error)
-	})
-	if !ok {
-		return
+	st, ok := s.store().(staleInteractionStore)
+	if ok {
+		s.fleet.restored.Do(func() { s.restoreStoredInteractions(context.WithoutCancel(ctx), st) })
 	}
+}
+
+type staleInteractionStore interface {
+	ExpireStaleInteractions(context.Context) ([]proto.Interaction, []string, error)
+}
+
+func (s *Service) restoreStoredInteractions(ctx context.Context, st staleInteractionStore) {
 	resumable, cancelled, err := func() (out []proto.Interaction, cancelled []string, err error) {
 		defer guard(&err) // a test's store may not keep the table
 		return st.ExpireStaleInteractions(ctx)

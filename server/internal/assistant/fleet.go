@@ -125,6 +125,8 @@ type fleetBook struct {
 	live liveState // the Live Activity's content as last told (fleet_live.go)
 
 	started sync.Once
+	// The first reconnect and the first arriving card both wait for prior-process cleanup.
+	restored sync.Once
 
 	q        fleetQueue // what the nodes' events start for the assistant, in order (fleet_follow.go)
 	followMu sync.Mutex
