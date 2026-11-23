@@ -76,9 +76,10 @@ export struct PhoneChatForwardPicker {
   @Local compactSheet:boolean=false;
   private measureSheet(area:Area):void {
     const window=this.getUIContext().px2vp(nativeEnvironment.windowHeightPx);
-    // The IME clips a full-height sheet's lower edge. Its top still distinguishes the two detents.
-    const top=Number(area.globalPosition.y);
-    if(window>0 && Number.isFinite(top))this.compactSheet=top>window*.28;
+    // Sheets report positions in their own native window. Use their height only when the keyboard is absent.
+    if(this.editingSearch || nativeEnvironment.keyboardHeightPx>0){this.compactSheet=false;return;}
+    const height=Number(area.height);
+    if(window>0 && Number.isFinite(height) && height>0)this.compactSheet=height<window*.72;
   }
   private searchField:SearchController=new SearchController();
   @Computed get refs():Record<string,Object>[] {return this.state.previews(this.source);}
