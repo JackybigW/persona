@@ -28,6 +28,10 @@ The manager sends one Ctrl+D through the selected session's terminal writer only
   (`rolloutMeta`, `mainThread`). A scan of 435 Codex rollouts on a Mac on 2026-11-01 found 203 sub-Agents, all with `thread_source` and `session_id`.
 - Rollouts live in the directory for the **day the thread started** (`sessions/YYYY/MM/DD`) and keep being appended there: a thread started six weeks ago may still be used today. When listing rollouts, scan directories from the last two weeks
   every 5 seconds and older directories every minute, retaining only files written within two weeks (`rollouts`).
+- The node indexes each Codex home separately. A folder permission prompt or an unresponsive mount can delay that
+  home's history. Other homes, terminal Agents and runtimes continue to appear. Previously observed threads in a
+  delayed home retain their titles and identities and show an unknown status until the scan finishes. If all 16
+  filesystem workers are busy, a new home's history first appears after a worker becomes available (#13812).
 - herdr's terminal title "dots | codex | Ready" is not a usable chat title. Use Codex's own thread name (`thread_name` in `~/.codex/session_index.jsonl`,
   taking the last entry for a given id), or the first user message if absent.
 - `proto.Session.agent` = `codex`. App list rows and space-page cards show an Agent tag (the same small outlined `AgentTag` for Claude and Codex); the chat subtitle includes the Agent name and the input says "Message Codex".

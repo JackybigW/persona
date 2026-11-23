@@ -20,15 +20,18 @@ import (
 )
 
 type codexRegistry struct {
-	mu           sync.Mutex
-	config       proto.CodexConfig
-	claudeIDs    map[string]bool
-	liveRollouts map[string]string // rollout id → what holds it open (codexHolder)
-	byPane       map[string]string
-	threads      map[string]codexSource
-	remotes      map[string]*codexRemote
-	retries      map[string]codexRetry // server id -> attempts that did not connect (codex_backoff.go)
-	report       func(proto.CodexConfig)
+	mu                sync.Mutex
+	index             codexHomeIndex
+	lastRows          map[string]proto.Session // immutable last observations, reused when their home is inaccessible
+	listSeq, savedSeq uint64
+	config            proto.CodexConfig
+	claudeIDs         map[string]bool
+	liveRollouts      map[string]string // rollout id → what holds it open (codexHolder)
+	byPane            map[string]string
+	threads           map[string]codexSource
+	remotes           map[string]*codexRemote
+	retries           map[string]codexRetry // server id -> attempts that did not connect (codex_backoff.go)
+	report            func(proto.CodexConfig)
 	// handed: the hub handed this connection the inventory it keeps for the computer (node.configure's codex, every
 	// connection: devices.connected). Until then the registry is a new Node's, without the threads the user joined, the
 	// homes and the app-servers the hub kept, and the hub would store it over what it kept: reports wait for it
@@ -370,8 +373,9 @@ func (n *Node) runCodex(ctx context.Context) {
 			scanAt = time.Now()
 		}
 		cfg := n.codexInventory()
+		deadline := time.Now().Add(codexHomeListWait)
 		for _, home := range cfg.Homes {
-			n.registerRollouts(home)
+			n.indexCodexHome(home, deadline)
 		}
 		for _, s := range cfg.Servers {
 			n.ensureCodexRemote(ctx, s)
@@ -442,11 +446,12 @@ func heldRecently(m quickMeta, path string, pass *codexListPass) bool {
 // row's decoration (ultracodeRow) also resolved the data directory and rebuilt that name. It lives for one pass of one
 // caller, so nothing in it is shared or needs invalidating. A nil pass looks everything up each time.
 type codexListPass struct {
-	real    map[string]string    // directory → realPath
-	stats   map[string]codexStat // rollout path → os.Stat
-	desktop map[string]bool      // Codex home → codexDesktopAvailable
-	own     string               // assistantProject, once ownSet
-	ownSet  bool
+	unavailable map[string]bool      // previously observed rows whose filesystem is unavailable on this pass
+	real        map[string]string    // directory → realPath
+	stats       map[string]codexStat // rollout path → os.Stat
+	desktop     map[string]bool      // Codex home → codexDesktopAvailable
+	own         string               // assistantProject, once ownSet
+	ownSet      bool
 	// runtimes is the runtime session each Codex thread is listed as (thread → session, runtimecodex.go): the list
 	// has that session's row, so the thread's own is left out and its subagents hang off the session.
 	runtimes map[string]codexClaim
@@ -576,11 +581,19 @@ func (n *Node) codexSessionsIn(seen map[string]bool, pass *codexListPass) []prot
 		return nil
 	}
 	cfg := n.codexInventory()
+	var unavailable map[string]bool
+	deadline := time.Now().Add(codexHomeListWait)
 	for _, home := range cfg.Homes {
-		n.registerRollouts(home)
-		n.registerCodexAppThreads(home, pass) // the App's chats whose rollout is old or gone (codex_appdb.go)
+		if !n.indexCodexHome(home, deadline) {
+			if unavailable == nil {
+				unavailable = make(map[string]bool)
+			}
+			unavailable[home] = true
+		}
 	}
 	n.codices.mu.Lock()
+	n.codices.listSeq++
+	seq, previous := n.codices.listSeq, n.codices.lastRows
 	sources := make(map[string]codexSource, len(n.codices.threads))
 	for k, v := range n.codices.threads {
 		sources[k] = v
@@ -602,6 +615,20 @@ func (n *Node) codexSessionsIn(seen map[string]bool, pass *codexListPass) []prot
 	}
 	var adopted []adoption
 	for id, src := range sources {
+		if unavailable[src.home] {
+			if last, ok := previous[id]; ok && !seen[id] && !pass.runtimeOf(src.thread).live &&
+				(!n.agentFiltered("codex", src.path) || n.keptSessions()[id]) {
+				seen[id] = true
+				out = append(out, unavailableCodexRow(last))
+				if pass != nil {
+					if pass.unavailable == nil {
+						pass.unavailable = make(map[string]bool)
+					}
+					pass.unavailable[id] = true
+				}
+			}
+			continue // decorating it from the filesystem would wait on the same home
+		}
 		src, visible := n.listedCodexSource(id, src, pass)
 		if !visible || seen[id] || n.isAssistantSessionIn(id, pass) || n.ownedAssistantSource(src.thread) {
 			continue
@@ -778,5 +805,22 @@ func (n *Node) codexSessionsIn(seen map[string]bool, pass *codexListPass) []prot
 	sort.Slice(out, func(i, j int) bool { return out[i].SessionID < out[j].SessionID })
 	resolveCodexHierarchy(out)
 	slotCodexDesktop(out)
+	saved := make(map[string]proto.Session, len(out))
+	for id, last := range previous {
+		if unavailable[sources[id].home] {
+			saved[id] = last // another surface may have shown this thread on this pass
+		}
+	}
+	for i := range out {
+		id := out[i].SessionID
+		if !unavailable[sources[id].home] {
+			saved[id] = out[i]
+		}
+	}
+	n.codices.mu.Lock()
+	if seq > n.codices.savedSeq {
+		n.codices.lastRows, n.codices.savedSeq = saved, seq
+	}
+	n.codices.mu.Unlock()
 	return out
 }

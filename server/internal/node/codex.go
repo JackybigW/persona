@@ -45,6 +45,7 @@ type rolloutMeta struct {
 
 // rolloutCache is one rollout home's scan (Codex: ~/.codex, a compatible CLI: the CLI-specific data directory — the same layout).
 type rolloutCache struct {
+	mu       sync.Mutex // protects this home while its filesystem may be waiting for access
 	at       time.Time
 	rollouts []codexRollout
 	segments []codexRollout // every file of rollouts', a continued thread's older segments too (rolloutSegments)
@@ -152,15 +153,22 @@ func cacheFor(home string) *rolloutCache {
 	return c
 }
 
+// rolloutCacheFor takes the shared map lock only to look up a home. Filesystem work uses that home's lock.
+func rolloutCacheFor(home string) *rolloutCache {
+	rolloutCaches.Lock()
+	defer rolloutCaches.Unlock()
+	return cacheFor(home)
+}
+
 // rollouts lists a home's rollouts written in the last two weeks, newest first; cached for 5s. A rollout lives in the
 // directory of the day its thread started (<home>/sessions/YYYY/MM/DD) and grows there for as long as the thread is
 // resumed: one started six weeks earlier and in use every day was not found at all (2026-10-31), so the older days
 // are listed too, once a minute, and kept when written lately. Every older rollout is still looked at on each refresh,
 // so a thread resumed after weeks shows within 5 seconds.
 func rollouts(home string) []codexRollout {
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	c := cacheFor(home)
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	now := time.Now()
 	if now.Sub(c.at) < 5*time.Second {
 		return c.rollouts
@@ -241,9 +249,10 @@ func rollouts(home string) []codexRollout {
 // newest.
 func rolloutSegments(home string) []codexRollout {
 	rollouts(home)
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	return slices.Clone(cacheFor(home).segments)
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.segments)
 }
 
 // allRolloutPaths is every rollout file of a home on disk, whenever it was written, archived ones too: what a token
@@ -316,17 +325,18 @@ func readRolloutMeta(path string) (m rolloutMeta, whole bool) {
 // metaOf is a rollout's session_meta, read once it is all written (rollouts older than the scan window are read on
 // demand).
 func metaOf(home, path string) rolloutMeta {
-	rolloutCaches.Lock()
-	m, ok := cacheFor(home).metas[path]
-	rolloutCaches.Unlock()
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	m, ok := c.metas[path]
+	c.mu.Unlock()
 	if ok && m.threadID != "" {
 		return m
 	}
 	m, whole := readRolloutMeta(path)
 	if whole {
-		rolloutCaches.Lock()
-		cacheFor(home).metas[path] = m
-		rolloutCaches.Unlock()
+		c.mu.Lock()
+		c.metas[path] = m
+		c.mu.Unlock()
 	}
 	return m
 }
@@ -372,15 +382,15 @@ func rolloutPathIn(home, id string, pass *codexListPass) string {
 		return ""
 	}
 	look := pass.missLook(home)
-	rolloutCaches.Lock()
-	c := cacheFor(home)
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
 	hit, hitOK := c.hits[id]
 	missed, ok := c.misses[id]
 	if ok && look.at.Sub(missed.asked) > missAskedEvery {
 		missed.asked = look.at
 		c.misses[id] = missed
 	}
-	rolloutCaches.Unlock()
+	c.mu.Unlock()
 	if hitOK {
 		var matches []string
 		if slices.Equal(dirStamps(hit.dirs), hit.dirStamp) {
@@ -482,9 +492,10 @@ func (l *missLook) settled() bool { return slices.Max(l.stamp) < l.at.Add(-time.
 
 // relistedSince: a listing of every directory of home (relistMisses) began after at.
 func relistedSince(home string, at time.Time) bool {
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	return cacheFor(home).relistedAt.After(at)
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.relistedAt.After(at)
 }
 
 // keepHit records the paths found for id as of the look, under the same settled and relist safeguards as a miss. A hit
@@ -499,9 +510,9 @@ func (l *missLook) keepHit(id string, paths []string) {
 	if slices.Max(dirStamp) >= l.at.Add(-time.Second).UnixNano() {
 		return // a segment was added or moved in the old directory just now: the next look checks it again
 	}
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	c := cacheFor(l.home)
+	c := rolloutCacheFor(l.home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.relistedAt.After(l.at) {
 		return
 	}
@@ -530,9 +541,9 @@ func (l *missLook) keepMiss(id string) {
 	if !l.settled() {
 		return
 	}
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	c := cacheFor(l.home)
+	c := rolloutCacheFor(l.home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.relistedAt.After(l.at) {
 		return
 	}
@@ -554,10 +565,10 @@ func (l *missLook) recentNames() string {
 	if l.names != nil {
 		return *l.names
 	}
-	rolloutCaches.Lock()
-	c := cacheFor(l.home)
+	c := rolloutCacheFor(l.home)
+	c.mu.Lock()
 	names, ok := c.recentNames, c.recentStamp != nil && slices.Equal(c.recentStamp, l.stamp)
-	rolloutCaches.Unlock()
+	c.mu.Unlock()
 	if !ok {
 		var paths []string
 		for _, dir := range l.dirs {
@@ -568,9 +579,9 @@ func (l *missLook) recentNames() string {
 		// Kept only when no directory changed while they were listed: a rollout moved between two of them meanwhile
 		// may be in neither list.
 		if l.settled() && slices.Equal(dirStamps(l.dirs), l.stamp) {
-			rolloutCaches.Lock()
+			c.mu.Lock()
 			c.recentNames, c.recentStamp = names, l.stamp
-			rolloutCaches.Unlock()
+			c.mu.Unlock()
 		}
 	}
 	l.names = &names
@@ -720,20 +731,22 @@ func (n *Node) codexByTitle(a host.Agent, prefer string, taken map[string]host.A
 
 // threadTitle is the name the agent gave the thread (<home>/session_index.jsonl, last entry wins); re-read on change.
 func threadTitle(home, id string) string {
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	return threadTitles(home)[id]
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.threadTitles(home)[id]
 }
 
 // threadFormerlyNamed says whether session_index.jsonl gave thread id a name that passes match before its latest one:
 // the thread was renamed, and a title that still shows the earlier name is that same thread's.
 func threadFormerlyNamed(home, id string, match func(string) bool) bool {
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
-	if threadTitles(home) == nil {
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.threadTitles(home) == nil {
 		return false // no index (any more): what it said before is no evidence now
 	}
-	for _, t := range cacheFor(home).former[id] {
+	for _, t := range c.former[id] {
 		if match(t) {
 			return true
 		}
@@ -743,10 +756,11 @@ func threadFormerlyNamed(home, id string, match func(string) bool) bool {
 
 // threadsNamed lists the threads whose name passes match.
 func threadsNamed(home string, match func(string) bool) []string {
-	rolloutCaches.Lock()
-	defer rolloutCaches.Unlock()
+	c := rolloutCacheFor(home)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var out []string
-	for id, t := range threadTitles(home) {
+	for id, t := range c.threadTitles(home) {
 		if match(t) {
 			out = append(out, id)
 		}
@@ -754,14 +768,13 @@ func threadsNamed(home string, match func(string) bool) []string {
 	return out
 }
 
-// threadTitles reads a home's session_index.jsonl when it changed; the caller holds rolloutCaches.
-func threadTitles(home string) map[string]string {
+// threadTitles reads a home's session_index.jsonl when it changed; the caller holds the home cache lock.
+func (c *rolloutCache) threadTitles(home string) map[string]string {
 	path := filepath.Join(home, "session_index.jsonl")
 	st, err := os.Stat(path)
 	if err != nil {
 		return nil
 	}
-	c := cacheFor(home)
 	if c.titles == nil || st.ModTime().After(c.titlesAt) {
 		titles, former := map[string]string{}, map[string][]string{}
 		if f, err := os.Open(path); err == nil {

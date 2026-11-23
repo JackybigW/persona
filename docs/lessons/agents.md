@@ -62,6 +62,10 @@ nonempty arrays of nonempty strings. Walk schema keywords, not arbitrary objects
 a property, and defaults, examples and constants are data. Keep call arguments and the server's schema and validation
 unchanged. Regress with the real tool schema and proxy wire flow; a `tools/call` result containing `tools` is not a list.
 
+- Keep filesystem reads under a lock specific to the Codex home. Opening an existing directory can wait for
+  permission even after its metadata is readable. Bound the list's total wait and preserve the last observation
+  while a home's rollout and App database scan is pending (#13812).
+
 - Keep Codex app-server ancestry as raw thread IDs until session decoration maps it into home-scoped public IDs
   (#9393). Mapping a secondary home's parent twice leaves the child orphaned. Model-facing Agent lists must reuse
   `folded_under` and the parent's folded state too; fixing the client list alone still leaves helper rows in

@@ -403,9 +403,11 @@ func (n *Node) sessionListIn(ctx context.Context, refreshAgents bool, pass *code
 		if s.Status == proto.StatusWorking && (s.Agent == "" || s.Agent == "claude" || s.Agent == "codex") {
 			s.ToolLoop = n.toolLoopOf(s.SessionID)
 		}
-		s.WorkspaceCwd = n.sessionWorkspaceCwd(s.Cwd)
-		fillGitPlace(s)            // project, worktree and branch for the apps' tree (gitplace.go)
-		s.CanFork = n.forkable(*s) // "Branch to New Chat" (fork.go)
+		if pass == nil || !pass.unavailable[s.SessionID] {
+			s.WorkspaceCwd = n.sessionWorkspaceCwd(s.Cwd)
+			fillGitPlace(s)            // project, worktree and branch for the apps' tree (gitplace.go)
+			s.CanFork = n.forkable(*s) // "Branch to New Chat" (fork.go)
+		}
 		if j != i {
 			out[j] = *s
 		}
