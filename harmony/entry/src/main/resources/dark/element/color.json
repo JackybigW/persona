@@ -197,6 +197,10 @@
       "value": "#3A3A3C"
     },
     {
+      "name": "phone_project_search_field",
+      "value": "#202020"
+    },
+    {
       "name": "persona_list_background",
       "value": "#000000"
     }

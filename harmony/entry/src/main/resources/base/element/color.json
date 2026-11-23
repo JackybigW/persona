@@ -197,6 +197,10 @@
       "value": "#F3F3F8"
     },
     {
+      "name": "phone_project_search_field",
+      "value": "#F7F7FC"
+    },
+    {
       "name": "persona_list_background",
       "value": "#FFFFFF"
     }

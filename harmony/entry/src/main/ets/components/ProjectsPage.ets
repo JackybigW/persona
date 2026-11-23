@@ -469,9 +469,12 @@ export struct ProjectsPage {
         Search({value:this.catalog.browser.query,placeholder:tr(this.compact ? 'agents_search_prompt' : 'project_search'),controller:this.searchField})
           .height(this.compact ? 44 : Math.max(40,21*nativeEnvironment.fontScale+12)).margin(this.compact ? 0 : {top:8,bottom:8}).layoutWeight(1)
           .textFont({size:this.searchTextSize()}).placeholderFont({size:this.searchTextSize()})
-          .searchIcon(this.compact ? {size:this.compactSearchIcon()} : undefined)
-          .cancelButton(this.compact ? {style:CancelButtonStyle.INPUT,icon:{size:this.compactSearchIcon()}} : undefined)
-          .searchButton('').borderRadius(22).fontColor(Colors.ink).backgroundColor(Colors.surface)
+          .searchIcon(this.compact ? {size:this.compactSearchIcon(),color:$r('app.color.persona_switcher_ink')} : undefined)
+          .cancelButton(this.compact ? {style:CancelButtonStyle.INPUT,icon:{
+            size:PhoneStyle.formSize(24,32,nativeEnvironment.fontScale),color:$r('app.color.persona_switcher_ink'),src:$r('app.media.phone_search_clear')
+          }} : undefined)
+          .searchButton('').borderRadius(22).fontColor(Colors.ink)
+          .backgroundColor(this.compact && Colors.styleID === 'glass' ? $r('app.color.phone_project_search_field') : Colors.surface)
           .onFocus(() => this.setSearchMode(true)).onClick(() => this.setSearchMode(true)).onChange((value:string) => this.search(value))
           .onSubmit(() => this.searchField.stopEditing()).id('projects.search')
         if (this.searchMode) {

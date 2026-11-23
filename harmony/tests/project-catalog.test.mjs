@@ -889,7 +889,7 @@ test('active project search follows the same fixed navigation field and separate
   assert.match(source,/this\.compact \? String\(PhoneStyle\.formSize\(17, 22\.2, nativeEnvironment\.fontScale\) \* Math\.min\(1, nativeEnvironment\.fontScale\)\) \+ 'vp' : '16fp'/);
   assert.match(source,/compactSearchIcon\(\): string \{\n\s+return String\(PhoneStyle\.formSize\(20, 27\.33, nativeEnvironment\.fontScale\)\)/);
   assert.match(search,/\.searchIcon\(this\.compact \? \{size:this\.compactSearchIcon\(\)/);
-  assert.match(search,/CancelButtonStyle\.INPUT,icon:\{size:this\.compactSearchIcon\(\)/);
+  assert.match(search,/CancelButtonStyle\.INPUT,icon:\{\s*size:PhoneStyle\.formSize\(24,32,nativeEnvironment\.fontScale\),color:\$r\('app\.color\.persona_switcher_ink'\),src:\$r\('app\.media\.phone_search_clear'\)/);
   assert.match(source,/quickHeight\(\):number \{ return PhoneStyle\.formSize\(44,57\.7,/);
   assert.match(search,/\.align\(Alignment\.Start\)\.scrollable\(ScrollDirection\.Horizontal\)/);
 });
