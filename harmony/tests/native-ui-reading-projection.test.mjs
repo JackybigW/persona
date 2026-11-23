@@ -247,13 +247,17 @@ test('a recording profile retains its standard body and uses the measured mixed-
  assert.equal(p.inlineSpacing(17,0.45,false),17*0.45);
  p.agentFontScale=environment.fontScale=3.2;
  assert.equal(p.profileDisplayProse,true);assert.equal(p.agentBodyVp,48);
- assert.equal(p.proseFont(true),'45.293vp');assert.equal(p.proseFont(false),undefined);
+ assert.equal(p.proseFont(true),'45.293vp');assert.equal(p.proseFont(false),'48vp');
  assert.equal(p.inlineSpacing(17,0.26,true),0);
  assert.ok(Math.abs(parseFloat(p.inlineLineHeight(17,true,0.26,nodes))-(69+1/3))<0.001);
- assert.equal(Math.floor((330-140)/p.agentHanVp),4);assert.equal(Math.floor(330/p.agentHanVp),7);
+ // Same timestamp, measured with HarmonyOS Sans Regular at explicit 48vp and at the 16fp Span default (51.2vp).
+ assert.equal(Math.floor((330-140.30)/p.agentHanVp),4);assert.equal(Math.floor((330-149.65)/p.agentHanVp),3);
+ assert.equal(Math.floor(330/p.agentHanVp),7);
  assert.equal(Math.floor((330-140)/48),3);assert.equal(Math.floor(330/48),6);
  assert.equal(p.inlineSpacing(17,0.45,false),48*0.45,'headings, inline code and other block layouts retain their existing reading metrics');
- p.profileReading=false;assert.equal(p.profileDisplayProse,false);
- assert.match(model,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true,profileReading:true,\s*agentFontScale:nativeEnvironment.fontScale/);
- assert.match(model,/\.height\(this\.recordingMetric\(52\.3,59\.3\)\)[^\n]+id\('knowledge\.facts\.open'\)/);
+ p.profileReading=false;assert.equal(p.profileDisplayProse,false);assert.equal(p.proseFont(false),undefined);
+ assert.match(model,/export struct KnowledgeWorkspacePage\s*\{[^}]*@Local environment:NativeEnvironment=nativeEnvironment/);
+ assert.match(model,/@Computed get recordingFactsHeight\(\):number\s*\{\s*return PhoneStyle\.formSize\(52\.3,59\.3,this\.environment\.fontScale\)/);
+ assert.match(model,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true,profileReading:true,\s*agentFontScale:this\.environment\.fontScale/);
+ assert.match(model,/\.height\(this\.recordingFactsHeight\)[^\n]+id\('knowledge\.facts\.open'\)/);
 });

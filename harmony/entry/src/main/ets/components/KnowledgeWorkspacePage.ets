@@ -143,6 +143,7 @@ struct RecordingProfileCard {
 @ComponentV2
 export struct KnowledgeWorkspacePage {
   @Local look: DeviceLook = deviceLook;
+  @Local environment:NativeEnvironment=nativeEnvironment;
   @Local dispatchExpanded: boolean = false;
   @Local facts: RecordingFactsDraft = new RecordingFactsDraft();
   @Local removedFacts: string = '';
@@ -1071,6 +1072,9 @@ export struct KnowledgeWorkspacePage {
   private recordingMetric(regular:number,largest:number):number {
     return PhoneStyle.formSize(regular,largest,nativeEnvironment.fontScale);
   }
+  @Computed get recordingFactsHeight():number {
+    return PhoneStyle.formSize(52.3,59.3,this.environment.fontScale);
+  }
   @Builder recordingHeading(key:string) {
     Row() {
       Text(tr(key)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(FontWeight.Medium)
@@ -1123,7 +1127,7 @@ export struct KnowledgeWorkspacePage {
               SymbolGlyph(Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned') ? Symbols.edit : Symbols.plus).fontSize('17vp').fontColor([Colors.link])
               Text(tr(Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned') ? 'recording_facts_edit' : 'phone_kb_add_fact')).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).fontColor(Colors.link)
             }.width('100%')
-          }.width('100%').height(this.recordingMetric(52.3,59.3)).padding({left:20,right:20}).backgroundColor(Color.Transparent).onClick(() => this.openFacts()).id('knowledge.facts.open')
+          }.width('100%').height(this.recordingFactsHeight).padding({left:20,right:20}).backgroundColor(Color.Transparent).onClick(() => this.openFacts()).id('knowledge.facts.open')
         }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface).borderRadius(29)
           .bindSheet(this.facts.open,this.recordingFactsEditor(),{height:this.facts.baseline ? SheetSize.MEDIUM : SheetSize.LARGE,
             detents:this.facts.baseline ? [SheetSize.MEDIUM,SheetSize.LARGE] : [SheetSize.LARGE,SheetSize.MEDIUM],
@@ -1134,7 +1138,7 @@ export struct KnowledgeWorkspacePage {
           this.recordingHeading('phone_kb_profile')
           RecordingProfileCard() {
             MarkdownText({text:Wire.text(this.workspace.detail,'summary'),recapReading:true,profileReading:true,
-              agentFontScale:nativeEnvironment.fontScale,paragraphLineSpacingEm:0.45,onLink:(url:string) => this.openSafeLink(url)})
+              agentFontScale:this.environment.fontScale,paragraphLineSpacingEm:0.45,onLink:(url:string) => this.openSafeLink(url)})
           }
         }
         if (Wire.text(this.workspace.detail,'path')) {

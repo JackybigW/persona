@@ -89,6 +89,7 @@ export struct MarkdownText {
   }
   private proseFont(han: boolean): string | undefined {
     if (this.recapProse) return String(recapGlyphSize(this.readingPoints(Tokens.body), han)) + 'vp';
+    if (this.profileDisplayProse && !han) return String(this.agentBodyVp) + 'vp';
     return han ? String(this.agentHanVp) + 'vp' : undefined;
   }
   private recapTopInset(): number {
