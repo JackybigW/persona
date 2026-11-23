@@ -1,0 +1,200 @@
+{
+  "productCommit": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+  "gitTree": "5fbb54f4ba318ca97416eee43e0d8654871552c6",
+  "iphoneCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "iphoneAppleTree": "8c901a437c26520cf2cc3bac1f4c2258ac0ca7e5",
+  "visualHapSHA256": "baa945b9aa0499e1a3c8af0fa1b3e5eb32c99db237ea11559b4d22805876b640",
+  "width": 402,
+  "nativePixelSize": [
+    1206,
+    2622
+  ],
+  "imageCount": 11,
+  "privacy": {
+    "screenshotsWithLocalizedMasks": 1,
+    "accessibilityFilesWithLocalValuesRemoved": 7
+  },
+  "captures": [
+    {
+      "platform": "harmony",
+      "state": "selected-agents-menu",
+      "png": "raw/harmony/selected-agents-menu.png",
+      "accessibility": "raw/harmony/selected-agents-menu.ax.json",
+      "pngSHA256": "aa9f3d6b7ebdcc84f1d4b5a1a0524439d35d6bb9ec6399819545351459ec1061",
+      "accessibilitySHA256": "1c787900ed4b3bd871a9b289575a76d1fcafd91f2b79174714d0ac0b775b506d",
+      "originalPngSHA256": "aa9f3d6b7ebdcc84f1d4b5a1a0524439d35d6bb9ec6399819545351459ec1061",
+      "originalAccessibilitySHA256": "18cd9c87db3bc06ed95f72cad0e1e56ba378ef113cd5a583d692238a0e5eb99d",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "space-001-compact",
+      "png": "raw/harmony/space-001-compact.png",
+      "accessibility": "raw/harmony/space-001-compact.ax.json",
+      "pngSHA256": "89454f003a0691d5d25d500f5ac2a2070b0e134a5aeeab5e48d8f2fc77b596b3",
+      "accessibilitySHA256": "e829342d07f7a5fa08c631d51f75ccca11d2e4c8e27724d5bde0a1aa2c7f457a",
+      "originalPngSHA256": "89454f003a0691d5d25d500f5ac2a2070b0e134a5aeeab5e48d8f2fc77b596b3",
+      "originalAccessibilitySHA256": "45615c4ef2ad377381089a237a4cd1186e6b562b628d67845b3f950a39266f91",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "space-001-opened",
+      "png": "raw/harmony/space-001-opened.png",
+      "accessibility": "raw/harmony/space-001-opened.ax.json",
+      "pngSHA256": "779d95275a888c2670332b5107bd74d2424c45ff86d21039ac8eb8471a1ef293",
+      "accessibilitySHA256": "6a096f74f2fa01b489bf3d15e05243a65c17630ced464b115b28617a1310ebce",
+      "originalPngSHA256": "1cb91e838850740c1289d9500ad56cde11b28482a9f8dcdc330172a8ee374dd5",
+      "originalAccessibilitySHA256": "98928d7a3346f12c08f1c7f1d8249cb95ced23de0db949cf13b4ce0a8677e432",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+      "redactedPixelRectangles": [
+        [
+          44,
+          1672,
+          1162,
+          2197
+        ]
+      ]
+    },
+    {
+      "platform": "harmony",
+      "state": "space-001-returned",
+      "png": "raw/harmony/space-001-returned.png",
+      "accessibility": "raw/harmony/space-001-returned.ax.json",
+      "pngSHA256": "89454f003a0691d5d25d500f5ac2a2070b0e134a5aeeab5e48d8f2fc77b596b3",
+      "accessibilitySHA256": "edc135892a031bab040e1f827ff8f2daec162026caf8cda1aa3d9478cfbc8927",
+      "originalPngSHA256": "89454f003a0691d5d25d500f5ac2a2070b0e134a5aeeab5e48d8f2fc77b596b3",
+      "originalAccessibilitySHA256": "2671e04f97697e8d19b24af3814889b4df615593422da1bff5c5771c553509fd",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "repo-002-compact",
+      "png": "raw/harmony/repo-002-compact.png",
+      "accessibility": "raw/harmony/repo-002-compact.ax.json",
+      "pngSHA256": "28fdd7950f575f9f2c55317ce69ff3d064f2a604e05f4ec1021c82ee9f27bb36",
+      "accessibilitySHA256": "fcaf186c6400770ea0e5c7917c4b2d651a9e0c2ef24a930198cbe5b0149eb3fb",
+      "originalPngSHA256": "28fdd7950f575f9f2c55317ce69ff3d064f2a604e05f4ec1021c82ee9f27bb36",
+      "originalAccessibilitySHA256": "fcaf186c6400770ea0e5c7917c4b2d651a9e0c2ef24a930198cbe5b0149eb3fb",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "repo-002-opened",
+      "png": "raw/harmony/repo-002-opened.png",
+      "accessibility": "raw/harmony/repo-002-opened.ax.json",
+      "pngSHA256": "8aebf0a6cf2b87e05bca36faac3cb27d04640132aa3bb845294069852a0bfc18",
+      "accessibilitySHA256": "90fc67f153358d1a1f5932f8a74c039c60d362146976db5ae22f8c246e4a8964",
+      "originalPngSHA256": "8aebf0a6cf2b87e05bca36faac3cb27d04640132aa3bb845294069852a0bfc18",
+      "originalAccessibilitySHA256": "90fc67f153358d1a1f5932f8a74c039c60d362146976db5ae22f8c246e4a8964",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "repo-002-returned",
+      "png": "raw/harmony/repo-002-returned.png",
+      "accessibility": "raw/harmony/repo-002-returned.ax.json",
+      "pngSHA256": "9af44534023ec65b65bdeb01a4b714c65bbb583ffedb55d261b240d83a6734a3",
+      "accessibilitySHA256": "6579d998ea226c9778b550926ec54121ee7f88545c68c7b9845927a653ae268c",
+      "originalPngSHA256": "9af44534023ec65b65bdeb01a4b714c65bbb583ffedb55d261b240d83a6734a3",
+      "originalAccessibilitySHA256": "6579d998ea226c9778b550926ec54121ee7f88545c68c7b9845927a653ae268c",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "space-004-compact",
+      "png": "raw/harmony/space-004-compact.png",
+      "accessibility": "raw/harmony/space-004-compact.ax.json",
+      "pngSHA256": "e4846ee3d48ff69ebe60867ab74e5717dc362676ae67c096e181070021a6a206",
+      "accessibilitySHA256": "27bddb761379ddb459890b77fd50edd078c6a6f43af51d2cebcbad779a8e371a",
+      "originalPngSHA256": "e4846ee3d48ff69ebe60867ab74e5717dc362676ae67c096e181070021a6a206",
+      "originalAccessibilitySHA256": "7b9e8c4dc82baf75ae297b9abaea74e3f30ff183d13afe28e0ca77d37d5faca6",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "space-004-opened",
+      "png": "raw/harmony/space-004-opened.png",
+      "accessibility": "raw/harmony/space-004-opened.ax.json",
+      "pngSHA256": "cbda7e5b8fec4995e76f8acf4ab223609a697d2d36d7f312dfc4af69a7cd98de",
+      "accessibilitySHA256": "10d5d7c2c902cea9da6b3cbfab9b98b549127ad35ccaa7e56f1b4f0621010561",
+      "originalPngSHA256": "cbda7e5b8fec4995e76f8acf4ab223609a697d2d36d7f312dfc4af69a7cd98de",
+      "originalAccessibilitySHA256": "10d5d7c2c902cea9da6b3cbfab9b98b549127ad35ccaa7e56f1b4f0621010561",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "space-004-returned",
+      "png": "raw/harmony/space-004-returned.png",
+      "accessibility": "raw/harmony/space-004-returned.ax.json",
+      "pngSHA256": "ab4b474cafa70fb23ab0ad9e2f513f5b3bfedcedf6f73256e456a85d65a93769",
+      "accessibilitySHA256": "1794808eaff3098db05ba079b6ab98d312cb81221e418c49ca04a8f78160935c",
+      "originalPngSHA256": "ab4b474cafa70fb23ab0ad9e2f513f5b3bfedcedf6f73256e456a85d65a93769",
+      "originalAccessibilitySHA256": "9d704562747908992b851ae49310cbf53133cc6d92a4a5deb7a69886290f14fa",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    },
+    {
+      "platform": "harmony",
+      "state": "cold-shell-choice",
+      "png": "raw/harmony/cold-shell-choice.png",
+      "accessibility": "raw/harmony/cold-shell-choice.ax.json",
+      "pngSHA256": "a080196335eda6ab60a49bb13af69d2736cde9175f3be253c138b2b4bdc5f8a8",
+      "accessibilitySHA256": "67893b53fe3980fed2d7c8878f20a2aff85d9ce6ddac3f0db5f94ec56a58daf4",
+      "originalPngSHA256": "a080196335eda6ab60a49bb13af69d2736cde9175f3be253c138b2b4bdc5f8a8",
+      "originalAccessibilitySHA256": "3ef804bdec3c111193389000762c0219474023fe9da12f50e6dda5818a04146e",
+      "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09"
+    }
+  ],
+  "fixtureOriginalSHA256": "ce439b164bfa60af823a4cdbc55fce0687ec7b828065f68a029e87fa41a0a868",
+  "testInputWrapperSHA256": "e238f49ec22790546d479ac864cb1464ebff761b74ca95753c04a0d7501fda01",
+  "matchingGlyphIoU": {
+    "no-provider / explicit-claude": 1.0,
+    "no-provider / explicit-codex": 0.39412,
+    "codex-history / explicit-codex": 1.0,
+    "codex-history / explicit-claude": 0.39412
+  },
+  "routes": [
+    {
+      "fixtureTitle": "给天气 App 加主屏幕小组件",
+      "sourceFields": {
+        "agent": "",
+        "agent_label": "",
+        "agent_type": "",
+        "launcher": "",
+        "source_kind": ""
+      },
+      "group": "space",
+      "screenshotPrefix": "space-001",
+      "openedCorrectSession": true,
+      "returned": true
+    },
+    {
+      "fixtureTitle": "补齐网络层的单元测试",
+      "sourceFields": {
+        "agent": "",
+        "agent_label": "",
+        "agent_type": "",
+        "launcher": "",
+        "source_kind": "codex_history"
+      },
+      "group": "repo",
+      "screenshotPrefix": "repo-002",
+      "openedCorrectSession": true,
+      "returned": true
+    },
+    {
+      "fixtureTitle": "排查 /orders 接口变慢",
+      "sourceFields": {
+        "agent": "codex",
+        "agent_label": "",
+        "agent_type": "",
+        "launcher": "claude",
+        "source_kind": ""
+      },
+      "group": "space",
+      "screenshotPrefix": "space-004",
+      "openedCorrectSession": true,
+      "returned": true
+    }
+  ]
+}
