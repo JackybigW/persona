@@ -1,4 +1,4 @@
-import { directUserRequest, interactionPermissionSubject } from '../models/InteractionDecision';
+import { directUserRequest, interactionIsDelegated, interactionPermissionSubject } from '../models/InteractionDecision';
 import { IconActions } from '../design/IconActions';
 import { Symbols } from '../design/Symbols';
 import { AgentDecisionQueue, AgentDecisionCard } from '../models/AgentDecisionQueue';
@@ -187,7 +187,7 @@ export struct AssistantCards {
   private trayRequests(manager:string):TrayRequest[] {
     return this.requests.cards.filter((c:AgentDecisionCard) => c.owner===this.model && c.manager===manager)
       .map((c:AgentDecisionCard) => new TrayRequest(c.machine,c.session,c.request.id,
-        c.request.kind==='permission' ? interactionPermissionSubject(c.request) : c.preview,c.since,directUserRequest(c.request)));
+        c.request.kind==='permission' ? interactionPermissionSubject(c.request) : c.preview,c.since,directUserRequest(c.request),interactionIsDelegated(c.request)));
   }
   @Computed get trayRows(): TaskTrayRow[] {
     if (!this.dockOnly || !this.active || !this.feed.todosReady || this.feed.owner!==this.model.profile.manager) return [];
@@ -338,7 +338,9 @@ export struct AssistantCards {
 
   private machineLabel(id: string): string { return id ? this.model.machineName(id) || id : ''; }
 
-  private planId(item: Record<string, Object>): string { return Wire.text(item, 'ref'); }
+  private planId(item: Record<string, Object>): string {
+    return Wire.text(item,'ref') || (Array.isArray(item['tasks']) && Wire.text(item,'state') ? Wire.text(item,'id') : '');
+  }
   private plan(item: Record<string, Object>): Record<string, Object> {
     const id = this.planId(item), current = Wire.record(this.feed.plans[id]);
     if (Object.keys(current).length > 0) return current;

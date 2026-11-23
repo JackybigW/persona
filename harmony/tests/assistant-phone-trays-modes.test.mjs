@@ -61,14 +61,14 @@ test('main conversation combines manual and handed-out tasks, plans, draft repli
   const feed=[{id:'feed-plan',kind:'plan',ref:'plan'},{id:'reply',kind:'message',ref:'inbox',body:{sender:'Human',draft:'Reply'}},
     {id:'sent',kind:'message',ref:'inbox',body:{sent_at:time(-1)}}], plans={plan:{id:'plan',state:'open',conversation:'main',tasks:[{title:'Plan'}]}};
   const rows=assistantTrayRows(todos,sessions,feed,plans,[new TrayRequest('machine','waiting','ask','Question',now,true)],'owner','group','main','main',now);
-  assert.deepEqual(rows.filter(r=>r.bucket==='needs').map(r=>r.id),['manual','reply','held']);
+  assert.deepEqual(rows.filter(r=>r.bucket==='needs').map(r=>r.id),['manual','plan','reply','held']);
   assert.deepEqual(rows.filter(r=>r.bucket==='done').map(r=>r.id),['recent']);
   assert.deepEqual(rows.filter(r=>r.bucket==='progress').map(r=>r.kind),['todo','agent']);
   assert.equal(rows.find(r=>r.id==='recent').resource.group,'group');
   assert.equal(rows.find(r=>r.id==='manual').status,'needs_you');assert.equal(rows.find(r=>r.id==='card').status,'working');
   assert.deepEqual(assistantTrayRows(todos,sessions,[],{},[],'owner','group','other','main',now).map(r=>r.id),['held','recent']);
 });
-test('Main excludes delegated questions, ordinary permissions, plans, failed starts and supervisor reviews while keeping real user decisions', async()=>{
+test('Main lists normal open plans and direct user decisions while routing delegated questions, ordinary permissions, failed starts and supervisor reviews', async()=>{
   const {directUserRequest}=await import('../entry/src/main/ets/models/InteractionDecision.ets');
   const decision=(kind,raw={})=>directUserRequest({kind,raw:JSON.stringify({interaction:raw})});
   assert.equal(decision('question'),true);
@@ -86,11 +86,40 @@ test('Main excludes delegated questions, ordinary permissions, plans, failed sta
   const reqs=[new TrayRequest('machine','agent','perm','Permission',now,false),new TrayRequest('machine','named','ask','Question',now,true)];
   const plans={p:{id:'p',conversation:'ordinary',state:'open',tasks:[{title:'Open plan'}]}},feed=[{id:'plan',kind:'plan',ref:'p'}];
   const main=assistantTrayRows(todos,sessions,feed,plans,reqs,'owner','group','main','main',now);
-  assert.deepEqual(new Set(main.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['owner','handoff',JSON.stringify(['machine','named'])]));
-  assert.ok(!main.some(r=>['failure','supervisor','plan',JSON.stringify(['machine','agent'])].includes(r.id)));
+  assert.deepEqual(new Set(main.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['owner','handoff','p',JSON.stringify(['machine','named'])]));
+  assert.ok(!main.some(r=>['failure','supervisor',JSON.stringify(['machine','agent'])].includes(r.id)));
   const ordinary=assistantTrayRows(todos,sessions,feed,plans,reqs,'owner','group','ordinary','main',now);
-  assert.deepEqual(new Set(ordinary.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['failure','supervisor','owner','handoff','plan']));
+  assert.deepEqual(new Set(ordinary.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['failure','supervisor','owner','handoff','p']));
 });
+test('open plan rows come from the scoped plan inventory without needing a local feed item',()=>{
+  const task=(id,conversation,extra={})=>({id,conversation,state:'open',tasks:[{title:id+' title',prompt:id+' prompt'}],...extra});
+  const plans={local:task('local','main'),domain:task('domain','research',{space:'design'}),medical:task('medical','clinic',{space:'health'}),
+    legacy:task('legacy','ordinary'),done:task('done','ordinary',{state:'started'}),other:task('other','ordinary',{manager:'elsewhere'}),
+    sameHub:task('sameHub','main',{group:'foreign'}),invalidKey:task('another-id','main')};
+  const items=[{id:'first',kind:'plan',ref:'local'},{id:'duplicate',kind:'plan',ref:'local'}];
+  const tray=(id,main='main')=>assistantTrayRows([],[],items,plans,[],'owner','group',id,main,0);
+  assert.deepEqual(tray('main').map(r=>r.id),['domain','legacy','local']);
+  assert.deepEqual(tray('ordinary').map(r=>r.id),['legacy']);
+  assert.deepEqual(tray('clinic').map(r=>r.id),['medical']);
+  assert.deepEqual(tray('research').map(r=>r.id),['domain']);
+  assert.deepEqual(tray('main','').map(r=>r.id),['local']);
+  assert.equal(tray('main')[0].data,plans.domain);
+  assert.equal(tray('main')[0].title,'domain title');
+});
+
+test('a held review card and a failed supervised start do not ask the person; a newly explicit handoff does',()=>{
+  const machine='machine', supervisor={supervisor:'supervising-chat'};
+  const todos=[{id:'linked',origin:'ordinary',supervision:supervisor,agents:[{machine_id:machine,session_id:'waiting'}]},
+    {id:'failed',origin:'ordinary',start_error:'failed',supervision:supervisor}];
+  const waiting=session('waiting','needs_you'),hold=new TrayRequest(machine,'waiting','held','Held by supervisor',2,true,true);
+  const needs=(reqs,conv='ordinary')=>assistantTrayRows(todos,[waiting],[],{},reqs,'owner','group',conv,'main',3).filter(r=>r.bucket==='needs');
+  assert.deepEqual(needs([hold]),[]);
+  assert.deepEqual(needs([hold],'main'),[]);
+  const handoff=new TrayRequest(machine,'waiting','handed-out','Ask the owner',4,true);
+  assert.deepEqual(needs([hold,handoff]).map(r=>[r.id,r.note]),[['linked','Ask the owner']]);
+  assert.deepEqual(needs([hold,handoff],'main').map(r=>r.id),['linked']);
+});
+
 test('the conversation board retains its complete history, own tasks, and unclaimed main Agents',()=>{
   const todos=[
     {id:'active',origin:'main',title:'Assigned here',created_at:'2026-06-01T10:00:00Z',agents:[{machine_id:'machine',session_id:'worker'}]},

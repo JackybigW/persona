@@ -113,6 +113,10 @@ export class AssistantFeedModel {
   @Trace pendingMessageIds: string[] = [];
   @Trace messageDrafts: Record<string, Object> = {};
   private generation: number = 0;
+  private machineId: string = '';
+  private mainPendingIds: string[] | undefined;
+  private pageRead: number = 0;
+  private lastPlanPage: number = 0;
   private clientGeneration: number = -1;
   private scopeKey: string = '';
   private targetKey: string = '';
@@ -152,6 +156,7 @@ export class AssistantFeedModel {
 
   private clearState(): void {
     this.loading = false; this.loadingMore = false; this.error = ''; this.todoError = ''; this.todosReady = false; this.itemLookupStatus = '';
+    this.machineId = ''; this.mainPendingIds = undefined; this.pageRead = 0; this.lastPlanPage = 0;
     this.conversationId = ''; this.owner = ''; this.items = []; this.plans = {}; this.freshPlanIds = []; this.loadingPlanIds = []; this.planActionErrors = {}; this.taskCards = []; this.todos = []; this.directoryTodos = [];
     this.views = {}; this.viewActions = {}; this.viewBlocks = []; this.nextCursor = ''; this.hasLoaded = false; this.feedUnavailable = false;
     this.editing = false; this.editingPlanId = ''; this.editingPlanVersion = ''; this.editTasks = []; this.rememberPlans = [];
@@ -180,6 +185,7 @@ export class AssistantFeedModel {
     this.clientGeneration = model.connectionGeneration();
     this.scopeKey = model.scope();
     this.targetKey = model.target(row);
+    this.machineId = row.machine;
     this.conversationId = row.id;
     this.owner = owner;
     if (!this.current(run)) { this.error = 'request_updated'; return; }
@@ -234,8 +240,20 @@ export class AssistantFeedModel {
   private receiveEvent(raw: string, run: number): void {
     if (!this.current(run) || raw.length > 2 * 1024 * 1024) return;
     const frame = Wire.parse(raw);
-    if (Wire.has(frame, 'manager') && Wire.text(frame, 'manager') !== this.owner || Wire.text(frame, 'conversation') !== this.conversationId) return;
-    const type = Wire.text(frame, 'type');
+    if (Wire.has(frame,'manager') && Wire.text(frame,'manager')!==this.owner) return;
+    const type=Wire.text(frame,'type');
+    if (type==='task_plan') {
+      const plan=Wire.object(frame,'plan'), id=Wire.text(plan,'id'), origin=Wire.text(plan,'conversation');
+      if (!this.matchesPlanOwner(id,plan) || !origin) return;
+      if (origin!==this.conversationId && (!this.isMainConversation() || Wire.text(plan,'space')==='health')) return;
+      this.lastPlanPage=++this.pageRead;
+      if (this.plans[id] && this.planInScope(id,plan) && ['started','dismissed'].includes(Wire.text(plan,'state'))) {
+        this.setPlan(id,plan); this.freshPlanIds=updated(this.freshPlanIds,id,false);
+      }
+      this.refresh().catch(() => undefined);
+      return;
+    }
+    if (Wire.text(frame,'conversation')!==this.conversationId) return;
     if (type === 'assistant_view') {
       const view = Wire.object(frame, 'view'), id = Wire.text(view, 'id'); if (id) this.mergeViews(Wire.payload([id], [view]));
     } else if (type === 'assistant_view_action') {
@@ -365,16 +383,60 @@ export class AssistantFeedModel {
     });
   }
 
-  private mergePlans(incoming: Record<string, Object>): void {
-    const next: Record<string, Object> = {};
-    Object.keys(this.plans).forEach((id: string) => next[id] = this.plans[id]);
-    Object.keys(incoming).forEach((id: string) => {
-      const plan = Wire.record(incoming[id]);
-      const conversation = Wire.text(plan, 'conversation');
-      if (conversation && conversation !== this.conversationId) return;
-      next[id] = plan;
-    });
-    this.plans = next;
+  private isMainConversation(): boolean {
+    const client=this.client;
+    return !!client && client.mainId===this.conversationId && (!client.mainMachineId || client.mainMachineId===this.machineId);
+  }
+
+  private matchesPlanOwner(id:string,plan:Record<string,Object>):boolean {
+    return !!id && Wire.text(plan,'id')===id && (!Wire.text(plan,'manager') || Wire.text(plan,'manager')===this.owner) &&
+      (!Wire.text(plan,'group') || Wire.text(plan,'group')===this.client?.profile.id);
+  }
+
+  private planInScope(id:string,plan:Record<string,Object>):boolean {
+    if (!this.matchesPlanOwner(id,plan)) return false;
+    const origin=Wire.text(plan,'conversation'), previous=Wire.text(this.plan(id),'conversation');
+    if (previous && origin!==previous) return false;
+    if (!origin || origin===this.conversationId) {
+      return !this.isMainConversation() || Wire.text(plan,'state')!=='open' || !this.mainPendingIds || this.mainPendingIds.includes(id);
+    }
+    return this.isMainConversation() && Wire.text(plan,'space')!=='health' && !!previous &&
+      (Wire.text(plan,'state')!=='open' || !this.mainPendingIds || this.mainPendingIds.includes(id));
+  }
+
+  private dropPlan(id:string):void {
+    if (!this.plans[id]) return;
+    const next:Record<string,Object>={};
+    for (const key of Object.keys(this.plans)) if (key!==id) next[key]=this.plans[key];
+    this.plans=next; this.freshPlanIds=updated(this.freshPlanIds,id,false);
+  }
+
+  private mergePlans(result:Record<string,Object>,related:string[],complete:boolean):void {
+    const incoming=Wire.object(result,'plans'), main=this.isMainConversation();
+    const hasIndex=main && Array.isArray(result['pending_plan_ids']);
+    if (hasIndex) this.mainPendingIds=Wire.strings(result,'pending_plan_ids');
+    const next:Record<string,Object>={};
+    for (const id of Object.keys(this.plans)) {
+      if (Wire.has(incoming,id)) continue;
+      const old=this.plan(id), origin=Wire.text(old,'conversation'), foreign=!!origin && origin!==this.conversationId;
+      if (main && Wire.text(old,'state')==='open' && (this.mainPendingIds && !this.mainPendingIds.includes(id) ||
+          !hasIndex && complete && foreign)) continue;
+      next[id]=old;
+    }
+    for (const id of Object.keys(incoming)) {
+      const plan=Wire.record(incoming[id]), origin=Wire.text(plan,'conversation'), previous=this.plan(id);
+      if (!this.matchesPlanOwner(id,plan)) continue;
+      if (Wire.text(previous,'conversation') && origin!==Wire.text(previous,'conversation')) continue;
+      if (origin && origin!==this.conversationId) {
+        if (!main || Wire.text(plan,'space')==='health' || Wire.text(plan,'state')!=='open' ||
+            this.mainPendingIds && !this.mainPendingIds.includes(id)) continue;
+      } else if (!related.includes(id) && !this.plans[id] &&
+          !(main && origin && Wire.text(plan,'state')==='open')) continue;
+      if (main && this.mainPendingIds && Wire.text(plan,'state')==='open' && !this.mainPendingIds.includes(id)) continue;
+      next[id]=plan;
+    }
+    this.freshPlanIds=this.freshPlanIds.filter((id:string)=>Wire.has(next,id) && JSON.stringify(next[id])===JSON.stringify(this.plans[id]));
+    this.plans=next;
   }
 
   private mergeTaskCards(incoming: Record<string, Object>[]): void {
@@ -398,24 +460,22 @@ export class AssistantFeedModel {
     });
   }
 
-  private mergePage(result: Record<string, Object>): void {
+  private mergePage(result: Record<string, Object>, sequence:number, complete:boolean): void {
     const incomingItems = Wire.rows(result, 'items').filter((item: Record<string, Object>) => {
       const conversation = Wire.text(item, 'conversation');
       const manager = Wire.text(item, 'manager');
       return (!conversation || conversation === this.conversationId) && (!manager || manager === this.owner);
     });
     this.mergeItems(incomingItems);
-    const plans = Wire.object(result, 'plans');
     const related: string[] = [];
     incomingItems.forEach((item: Record<string, Object>) => {
       const ref = Wire.text(item, 'ref');
       if (Wire.text(item, 'kind') === 'plan' && ref && !related.includes(ref)) related.push(ref);
     });
-    const filteredPlans: Record<string, Object> = {};
-    Object.keys(plans).forEach((id: string) => {
-      if (hasId(related, id) || hasId(Object.keys(this.plans), id)) filteredPlans[id] = plans[id];
-    });
-    this.mergePlans(filteredPlans);
+    if (sequence>=this.lastPlanPage) {
+      this.lastPlanPage=sequence;
+      this.mergePlans(result,related,complete);
+    }
     if (Wire.has(result, 'task_cards') && Array.isArray(result['task_cards'])) this.mergeTaskCards(Wire.rows(result, 'task_cards'));
     this.mergeViews(Wire.object(result, 'views'));
     this.mergeViewActions(Wire.object(result, 'view_actions'));
@@ -429,10 +489,10 @@ export class AssistantFeedModel {
 
   private async readPage(run: number, cursor: string = '', since: string = ''): Promise<Record<string, Object> | undefined> {
     if (!this.current(run) || !this.repository) return undefined;
-    const path = this.feedPath(cursor, since);
+    const path = this.feedPath(cursor, since), sequence=++this.pageRead;
     const result = await this.repository.call(path);
     if (!this.current(run)) return undefined;
-    this.mergePage(result);
+    this.mergePage(result,sequence,!cursor && !since);
     return result;
   }
 
@@ -617,8 +677,7 @@ export class AssistantFeedModel {
   private markUncertain(path: string, value: boolean): void { this.uncertainKeys = updated(this.uncertainKeys, path, value); }
   private setPlan(id: string, plan: Record<string, Object>): void {
     if (!id || Wire.text(plan, 'id') !== id) return;
-    const conversation = Wire.text(plan, 'conversation');
-    if (conversation && conversation !== this.conversationId) return;
+    if (!this.planInScope(id,plan)) return;
     const next: Record<string, Object> = {};
     Object.keys(this.plans).forEach((key: string) => next[key] = this.plans[key]);
     next[id] = plan; this.plans = next;
@@ -642,17 +701,17 @@ export class AssistantFeedModel {
   private planAllowsWrites(): boolean { return !!this.client && this.client.canApprove(); }
   planCanStart(id: string): boolean {
     const path = this.planActionPath(id, 'start');
-    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planIsFresh(id) && this.planState(id) === 'open' &&
+    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planInScope(id,this.plan(id)) && this.planIsFresh(id) && this.planState(id) === 'open' &&
       !hasId(this.busyKeys, 'plan:' + id) && !this.blocked(path);
   }
   planCanDismiss(id: string): boolean {
     const path = this.planActionPath(id, 'dismiss');
-    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planIsFresh(id) && this.planState(id) === 'open' &&
+    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planInScope(id,this.plan(id)) && this.planIsFresh(id) && this.planState(id) === 'open' &&
       !hasId(this.busyKeys, 'plan:' + id) && !this.blocked(path);
   }
   planCanEdit(id: string): boolean {
     const path = this.planActionPath(id, 'start');
-    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planState(id) === 'open' &&
+    return this.current(this.generation) && this.routeAdmitted() && this.planAllowsWrites() && this.planInScope(id,this.plan(id)) && this.planState(id) === 'open' &&
       !hasId(this.busyKeys, 'plan:' + id) && !this.blocked(path);
   }
   planBusy(id: string): boolean { return hasId(this.busyKeys, 'plan:' + id); }
@@ -743,7 +802,7 @@ export class AssistantFeedModel {
     const body = Wire.payload(['remember'], [remember]);
     if (edits) body['tasks'] = edits;
     const admit = (): boolean => this.current(run) && this.repository === repository && this.routeIsCurrent(route) &&
-      this.planAllowsWrites() && this.planState(id) === 'open' && JSON.stringify(this.plan(id)) === planVersion;
+      this.planAllowsWrites() && this.planInScope(id,this.plan(id)) && this.planState(id) === 'open' && JSON.stringify(this.plan(id)) === planVersion;
     this.error = ''; this.setPlanActionError(id, ''); this.markBusy('plan:' + id, true);
     try {
       if (!admit()) {
@@ -754,7 +813,7 @@ export class AssistantFeedModel {
       const response = await repository.call(path, 'POST', body, '', admit);
       if (!this.current(run)) return false;
       const started = Wire.object(response, 'plan');
-      if (Wire.text(started, 'state') !== 'started' || Wire.text(started, 'id') !== id) {
+      if (Wire.text(started, 'state') !== 'started' || !this.planInScope(id,started)) {
         this.markUncertain(path, true); this.error = 'result_unknown'; this.setPlanActionError(id, this.error);
         await this.reconcilePlan(id, run);
         await this.refresh();
@@ -812,7 +871,7 @@ export class AssistantFeedModel {
       return false;
     }
     const admit = (): boolean => this.current(run) && this.repository === repository && this.routeIsCurrent(route) &&
-      this.planAllowsWrites() && this.planState(id) === 'open' && JSON.stringify(this.plan(id)) === planVersion;
+      this.planAllowsWrites() && this.planInScope(id,this.plan(id)) && this.planState(id) === 'open' && JSON.stringify(this.plan(id)) === planVersion;
     this.error = ''; this.setPlanActionError(id, ''); this.markBusy('plan:' + id, true);
     try {
       if (!admit()) {
@@ -823,7 +882,7 @@ export class AssistantFeedModel {
       const response = await repository.call(path, 'POST', Wire.payload([], []), '', admit);
       if (!this.current(run)) return false;
       const dismissed = Wire.object(response, 'plan');
-      if (Wire.text(dismissed, 'state') !== 'dismissed' || Wire.text(dismissed, 'id') !== id) {
+      if (Wire.text(dismissed, 'state') !== 'dismissed' || !this.planInScope(id,dismissed)) {
         this.markUncertain(path, true); this.error = 'result_unknown'; this.setPlanActionError(id, this.error);
         await this.reconcilePlan(id, run); return false;
       }
@@ -842,14 +901,17 @@ export class AssistantFeedModel {
   private async reconcilePlan(id: string, run: number): Promise<void> {
     this.freshPlanIds = updated(this.freshPlanIds, id, false);
     if (!this.current(run) || !this.repository || !this.routeAdmitted()) return;
-    const repository = this.repository;
+    const repository = this.repository, original=this.plan(id), origin=Wire.text(original,'conversation');
+    const fromAnother=!!origin && origin!==this.conversationId;
     const path = this.ownerPath('/api/v1/task-plans/' + segment(id));
     this.loadingPlanIds = updated(this.loadingPlanIds, id, true);
     try {
       const result = await repository.call(path);
       if (!this.current(run) || this.repository !== repository || !this.routeAdmitted()) return;
       const plan = Wire.object(result, 'plan');
-      if (Wire.text(plan, 'id') !== id) {
+      if (Wire.text(plan,'state')==='open' && ['started','dismissed'].includes(this.planState(id))) return;
+      if (!this.planInScope(id,plan) || (fromAnother && Wire.text(this.plan(id),'conversation')!==origin)) {
+        if (fromAnother) this.dropPlan(id);
         this.error = 'request_updated';
         this.setPlanActionError(id, this.error);
         return;
@@ -864,6 +926,7 @@ export class AssistantFeedModel {
     } catch (error) {
       if (this.current(run)) {
         this.error = this.errorKey(error as Error);
+        if (fromAnother && (this.error==='unsupported' || this.error==='permission_denied')) this.dropPlan(id);
         this.setPlanActionError(id, this.error);
       }
       // Keep the feed snapshot readable, but do not admit writes from a failed current-plan read.

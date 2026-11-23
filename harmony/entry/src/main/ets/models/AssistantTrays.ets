@@ -13,8 +13,9 @@ export class TrayRequest {
   title:string;
   at:number;
   direct:boolean;
-  constructor(machine:string,session:string,id:string,title:string,at:number,direct:boolean) {
-    this.machine=machine; this.session=session; this.id=id; this.title=title; this.at=at; this.direct=direct;
+  delegating:boolean;
+  constructor(machine:string,session:string,id:string,title:string,at:number,direct:boolean,delegating:boolean=false) {
+    this.machine=machine; this.session=session; this.id=id; this.title=title; this.at=at; this.direct=direct; this.delegating=delegating;
   }
 }
 
@@ -251,9 +252,12 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
       if (!home.has(key) || (linked && Wire.text(Wire.object(linked.data(),'todo'),'id')===t.id)) home.set(key,t.id);
     }
   }
-  const asking=new Map<string,number>(); for (const req of requests) {
-    if (isMain && !req.direct) continue;
-    const key=pair(req.machine,req.session); asking.set(key,Math.min(asking.get(key) ?? req.at,req.at));
+  const asking=new Map<string,number>(), routed=new Set<string>(), userCards=new Set<string>();
+  for (const req of requests) {
+    const key=pair(req.machine,req.session); routed.add(key);
+    if (req.delegating) continue;
+    userCards.add(key);
+    if (!isMain || req.direct) asking.set(key,Math.min(asking.get(key) ?? req.at,req.at));
   }
   for (const todo of included) {
     const active=todo.isDone() ? [] : todo.activeAgents(), own=active.filter((a:TodoWorkspaceAgent) => home.get(pair(a.machineId,a.sessionId))===todo.id);
@@ -273,13 +277,17 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
         !outcome || outcome==='decide' || !!Wire.text(todo.ask,'why_owner')));
     const decide=ask || !todo.isDone() && (['user_check','needs_user'].includes(review) || review==='pending_review' && !reviewing);
     const held=!todo.isDone() && Wire.text(todo.delivery,'unblock')==='user' && ['pr','merged','off'].includes(Wire.text(todo.delivery,'state'));
-    const failed=status==='failed';
+    const failed=status==='failed', supervised=!!Wire.text(sup,'supervisor').trim();
+    const sessionKeys=own.map((a:TodoWorkspaceAgent)=>pair(a.machineId,a.sessionId));
+    const supervisorHoldsAll=supervised && sessionKeys.some((key:string)=>routed.has(key)) &&
+      !sessionKeys.some((key:string)=>userCards.has(key));
+    const legacyWaits=failed ? !supervised : ['needs_you','interrupted'].includes(status) && !supervisorHoldsAll;
     const replaced=failed && relatedTodoMembers(todos,todo).some((other:TodoWorkspaceItem) => other.id!==todo.id && !!other.doneAt && !other.startError);
     const stale=todo.hubView?.section==='shelved' || (!todo.hubView && todo.kind!=='concern' && (todo.origin || todo.agents.length) &&
       !(todo.dueBy>=now) && ['not_started','followup','waiting'].includes(status) && !todo.prUrl && !review && now-last>=48*hour);
     let bucket='progress', order=4;
     if (nowAsks.length && (!isMain || !failed)) { bucket='needs'; order=0; }
-    else if (failed || held || decide || ['needs_you','interrupted'].includes(status)) {
+    else if (legacyWaits || held || decide) {
       // These entries belong to Needs You in a regular conversation. Its main supervisor only shows direct decisions.
       if (isMain && (failed || !held && !directDecision)) {
         for (const agent of active) folded.add(pair(agent.machineId,agent.sessionId));
@@ -296,7 +304,7 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     const row=new TaskTrayRow('todo',todo.id,bucket,held ? 'needs_you' : status,todo.title,taskNote(todo,linked),raw,resource);
     row.agentCount=active.length;
     if (row.status === 'needs_you') {
-      const request = requests.filter((req:TrayRequest) => active.some((agent:TodoWorkspaceAgent) =>
+      const request = requests.filter((req:TrayRequest) => !req.delegating && active.some((agent:TodoWorkspaceAgent) =>
         agent.machineId===req.machine && agent.sessionId===req.session)).sort((a:TrayRequest,b:TrayRequest) => a.at-b.at || a.id.localeCompare(b.id))
         .find((req:TrayRequest) => !!req.title.trim());
       row.note=request?.title.trim().split(/\s*\n\s*/).join(' ') || '';
@@ -307,17 +315,19 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     row.rank=ranking.indexOf(['not_started','followup','unread'].includes(status) && (review==='pending_review' || ask) ? 'owner_review' : status); rows.push(row);
   }
   if (isMain) rows.push(...independentAgentRows(todos,lookup,folded,asking));
+  for (const id of Object.keys(plans).sort()) {
+    const plan=Wire.record(plans[id]), origin=Wire.text(plan,'conversation');
+    if (!origin || Wire.text(plan,'id')!==id || Wire.text(plan,'state')!=='open' ||
+        Wire.text(plan,'manager',manager)!==manager || Wire.text(plan,'group',group)!==group ||
+        origin!==conversation && (!isMain || Wire.text(plan,'space')==='health')) continue;
+    const first=Wire.rows(plan,'tasks')[0] || {};
+    const row=new TaskTrayRow('plan',id,'needs','plan',Wire.text(first,'title'),Wire.text(first,'prompt'),plan);
+    row.order=1; row.at=date(Wire.text(plan,'created_at')); rows.push(row);
+  }
   for (const item of items) {
     const kind=Wire.text(item,'kind'), ref=Wire.text(item,'ref'), id=Wire.text(item,'id'), body=Wire.object(item,'body');
     if (!id || !ref) continue;
-    if (kind==='plan') {
-      if (isMain) continue;
-      const plan=Wire.record(plans[ref]);
-      if (Wire.text(plan,'conversation')!==conversation || Wire.text(plan,'state')!=='open' || rows.some((r:TaskTrayRow) => r.kind==='plan' && Wire.text(r.data,'ref')===ref)) continue;
-      const first=Wire.rows(plan,'tasks')[0] || {};
-      const row=new TaskTrayRow('plan',id,'needs','plan',Wire.text(first,'title'),Wire.text(first,'prompt'),item);
-      row.order=1; row.at=date(Wire.text(plan,'created_at')); rows.push(row);
-    } else if(kind==='message' && !Wire.text(item,'sent_at') && !Wire.text(item,'filed_at') && !Wire.text(body,'sent_at') && !Wire.text(body,'filed_at') && !Wire.text(body,'dismissal_id') && !Wire.text(body,'dismissed_at')) {
+    if(kind==='message' && !Wire.text(item,'sent_at') && !Wire.text(item,'filed_at') && !Wire.text(body,'sent_at') && !Wire.text(body,'filed_at') && !Wire.text(body,'dismissal_id') && !Wire.text(body,'dismissed_at')) {
       const row=new TaskTrayRow('message',id,'needs','message',[Wire.text(body,'sender'),Wire.text(body,'chat')].filter((s:string) => !!s).join(' · '),(Wire.text(body,'text') || Wire.text(body,'quote')).split('\n')[0],item);
       row.order=3; row.at=date(Wire.text(item,'at')); rows.push(row);
     }
