@@ -65,11 +65,14 @@ final class LarkAgentModelConfigurationTests: XCTestCase {
         let save = app.buttons["model-config-save"]
         XCTAssertTrue(save.isEnabled)
         save.tapCenter()
-        let state = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "model-config-inheritance", status)).firstMatch
-        XCTAssertTrue(state.waitForExistence(timeout: 10))
         let predicate = NSPredicate(format: "enabled == false")
         expectation(for: predicate, evaluatedWith: save)
         waitForExpectations(timeout: 10)
+        let state = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "model-config-inheritance", status)).firstMatch
+        // Following the restore button scrolls the form down. At large text sizes the top status cell then leaves the
+        // accessibility hierarchy, so bring it back on screen instead of treating its absence as a failed save.
+        for _ in 0..<6 where !state.exists { app.swipeDown() }
+        XCTAssertTrue(state.waitForExistence(timeout: 10), "saved configuration did not reach \(status)")
     }
 
     @MainActor private func exercise(scheme: String) async throws {
@@ -212,8 +215,8 @@ final class LarkAgentModelConfigurationTests: XCTestCase {
     @MainActor private func exerciseTwinPermission(scheme: String) async throws {
         _ = try await json("/mock/lark-agent/reset", method: "POST")
         let app = launch(scheme: scheme, entry: ["-openModelConfiguration", "YES", "-openModelPurpose", "inbox.agent"])
-        let picker = app.descendants(matching: .any)["model-config-permission"].firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 10), "no Inbox permission control:\n\(app.debugDescription)")
+        let picker = app.buttons["model-config-permission"].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 10), "no Inbox permission control")
         XCTAssertTrue(picker.label.contains("默认权限"), "an unset AI twin must not inherit Agents Full access: \(picker.label)")
         picker.tapCenter()
         XCTAssertFalse(app.buttons["计划模式"].exists, "Plan rejects the MCP calls the Inbox needs")
