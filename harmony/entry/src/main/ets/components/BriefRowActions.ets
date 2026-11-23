@@ -16,11 +16,11 @@ export struct BriefOpenButton {
   @Param tall: boolean = false;
   @Event onOpen: () => void = () => {};
   @Computed get buttonHeight(): number {
-    return this.tall ? 44 : PhoneStyle.formSize(30, 37, nativeEnvironment.fontScale);
+    return this.tall ? PhoneStyle.formSize(44, 53.33, nativeEnvironment.fontScale) : PhoneStyle.formSize(30, 37, nativeEnvironment.fontScale);
   }
   build() {
     Button(tr('open'), {type: ButtonType.Capsule}).height(this.buttonHeight)
-      .responseRegion({x: 0, y: (this.buttonHeight - 44) / 2, width: '100%', height: 44})
+      .responseRegion({x: 0, y: Math.min(0, (this.buttonHeight - 44) / 2), width: '100%', height: Math.max(44, this.buttonHeight)})
       .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600)
       .padding({left: 12, right: 12}).backgroundColor(Colors.control).fontColor(Colors.link)
       .accessibilityText(tr('session_brief_open_named').replace('{title}', this.title)).onClick(() => this.onOpen()).id(this.identity)
@@ -50,7 +50,7 @@ export struct BriefRowActions {
         Text(tr('brief_row_'+key)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600)
           .fontColor(prominent ? Color.White : Colors.action).textAlign(TextAlign.Center)
       }
-    }.type(ButtonType.Capsule).constraintSize({minHeight:this.section==='accept' ? 44 : PhoneStyle.formSize(30,37,nativeEnvironment.fontScale)}).padding({left:12,right:12,top:5,bottom:5})
+    }.type(ButtonType.Capsule).constraintSize({minHeight:this.section==='accept' ? PhoneStyle.formSize(44,53.33,nativeEnvironment.fontScale) : PhoneStyle.formSize(30,37,nativeEnvironment.fontScale)}).padding({left:12,right:12,top:5,bottom:5})
       .backgroundColor(prominent ? Colors.action : Colors.card(true)).enabled(this.active && this.feed.canBriefAction(this.item,this.section,this.row,kind))
       .accessibilityText(tr('brief_row_'+key)+' '+Wire.text(this.row,'title'))
       .id('brief.'+(kind==='handled'?'later':kind)+'.'+Wire.text(this.row,'id'))
