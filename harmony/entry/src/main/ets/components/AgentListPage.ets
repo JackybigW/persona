@@ -1,4 +1,3 @@
-import { LengthMetrics } from '@kit.ArkUI';
 import { IconActions } from '../design/IconActions';
 import { util } from '@kit.ArkTS';
 import { ClientModel } from '../models/ClientModel';
@@ -6,6 +5,8 @@ import { AgentDecisionCard, AgentDecisionQueue } from '../models/AgentDecisionQu
 import { AgentWorkspace, AgentWorkspaceGroup } from '../models/AgentWorkspace';
 import { ProjectAgent, ProjectCatalog, ProjectWorktree } from '../models/ProjectCatalog';
 import { AgentDirectoryRowContent } from './AgentDirectoryRowContent';
+import { AgentNeedsYouMark } from './AgentNeedsYouMark';
+import { interactionToolName } from '../models/InteractionDecision';
 import { agentPaneSource } from '../core/AgentListAdapter';
 import { WorktreeChange } from '../models/WorktreeActions';
 import { AgentRepositoryRows } from './AgentRepositoryRows';
@@ -577,45 +578,71 @@ export struct AgentListPage {
     return tr('needs_you');
   }
 
+  private decisionPreview(card:AgentDecisionCard):string {
+    if (card.request.kind==='permission') {
+      const tool=interactionToolName(card.request);
+      if (tool && card.preview.startsWith(tool+': ')) {
+        return tr('phone_agent_permission_preview').replace('{tool}',() => tool).replace('{target}',() => card.preview.slice(tool.length+2));
+      }
+    }
+    return card.preview;
+  }
+
+  @Computed get decisionButtonHeight():number { return PhoneStyle.formSize(28,35.33,this.environment.fontScale); }
+
+  @Builder decisionChoices(card:AgentDecisionCard,binding:BoundAgentRow) {
+    Scroll() {
+      Row({space:8}) {
+        ForEach(card.quickOptions(),(choice:string) => {
+          Button({type:ButtonType.Capsule}) {
+            Text(card.request.kind==='permission' ? tr(choice) : choice).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
+              .maxLines(1).fontWeight(FontWeight.Medium).fontColor(card.request.kind==='permission' && choice==='allow' ? Colors.onAction :
+                Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_quick_ink') : Colors.link)
+          }.height(this.decisionButtonHeight).padding({left:10.5,right:10.5}).flexShrink(0)
+            .backgroundColor(card.request.kind==='permission' && choice==='allow' ? Colors.action :
+              Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_quick_fill') : Colors.surface)
+            .responseRegion({x:0,y:(this.decisionButtonHeight-44)/2,width:'100%',height:44})
+            .enabled(this.active && this.decisions.enabled(this.model,binding.bound.value,card))
+            .onClick(() => this.decisions.answer(this.model,binding.bound.value,card,choice,util.generateRandomUUID(),this.workspace.actionTicket(binding.bound.value)))
+            .id('agents.answer.'+card.request.id+'.'+choice)
+        },(choice:string)=>choice)
+      }
+    }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).width('100%')
+  }
+
   @Builder needsYouCards(binding:BoundAgentRow) {
     ListItem() {
-      Column({space:0}) {
-        ForEach(this.decisions.forSession(this.model,binding.bound.value),(card:AgentDecisionCard,index:number) => {
-          Column({space:8}) {
-            Button({type:ButtonType.Normal}) {
-              Row({space:9}) {
-                SymbolGlyph(card.request.kind==='plan' ? Symbols.document : card.request.kind==='permission' ?
-                  IconActions.symbol('approve') : $r('sys.symbol.questionmark_circle')).fontSize('18vp').fontColor([Colors.link])
-                Column({space:2}) {
-                  Text(this.cardTitle(card,binding)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
-                  if (!index) Text([binding.bound.value.title,this.model.machineName(card.machine)].filter((v:string)=>!!v).join(' · '))
-                    .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).maxLines(2)
-                }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-                SymbolGlyph(Symbols.expand).fontSize('13vp').fontColor([Colors.secondary])
-              }.width('100%')
-            }.width('100%').constraintSize({minHeight:40}).padding(0).backgroundColor(Color.Transparent)
-              .onClick(() => this.openRow(binding.bound.value)).id('agents.request.'+card.request.id)
-            if (card.preview) Text(card.preview).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.ink).maxLines(3)
-              .width('100%').onClick(() => this.openRow(binding.bound.value)).id('agents.preview.'+card.request.id)
-            if (card.quickOptions().length) Flex({wrap:FlexWrap.Wrap,space:{main:LengthMetrics.vp(7),cross:LengthMetrics.vp(6)}}) {
-              ForEach(card.quickOptions(),(choice:string) => {
-                Button({type:ButtonType.Capsule}) {
-                  Text(card.request.kind==='permission' ? tr(choice) : choice).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
-                    .fontColor(card.request.kind==='permission' && choice==='allow' ? Colors.onAction : Colors.link)
-                }.constraintSize({minHeight:35}).padding({left:12,right:12,top:4,bottom:4})
-                  .backgroundColor(card.request.kind==='permission' && choice==='allow' ? Colors.action : Colors.surface)
-                  .border({width:0.5,color:Colors.divider,radius:18})
-                  .enabled(this.active && this.decisions.enabled(this.model,binding.bound.value,card))
-                  .onClick(() => this.decisions.answer(this.model,binding.bound.value,card,choice,util.generateRandomUUID(),this.workspace.actionTicket(binding.bound.value)))
-                  .id('agents.answer.'+card.request.id+'.'+choice)
-              },(choice:string)=>choice)
-            }.width('100%')
-          }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,top:10,bottom:10})
-        },(card:AgentDecisionCard) => card.key+card.request.raw)
-        if (!binding.last) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:16})
+      Column() {
+        Column() {
+          ForEach(this.decisions.forSession(this.model,binding.bound.value),(card:AgentDecisionCard,index:number) => {
+            Column({space:12}) {
+              Button({type:ButtonType.Normal}) {
+                Row({space:8}) {
+                  AgentNeedsYouMark({kind:card.request.kind,fontScale:this.environment.fontScale,surface:Colors.surface})
+                  Column({space:2}) {
+                    Text(this.cardTitle(card,binding)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(600)
+                      .lineHeight(PhoneStyle.settingsExampleLineHeight(20.33,27.67,this.environment.fontScale)).maxLines(2).fontColor(Colors.ink)
+                    if (!index) Text([binding.bound.value.title,this.model.machineName(card.machine)].filter((v:string)=>!!v).join(' · '))
+                      .fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).lineHeight(PhoneStyle.settingsExampleLineHeight(14.33,21.67,this.environment.fontScale))
+                      .fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+                  }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+                  SymbolGlyph(Symbols.expand).fontSize(Tokens.interfaceFontVp(12,this.environment.fontScale)).fontWeight(600).fontColor([Colors.tertiary])
+                }.width('100%')
+              }.width('100%').constraintSize({minHeight:0}).padding(0).backgroundColor(Color.Transparent)
+                .responseRegion([{x:0,y:-12,width:'100%',height:44},{x:0,y:0,width:'100%',height:'100%'}])
+                .onClick(() => this.openRow(binding.bound.value)).id('agents.request.'+card.request.id)
+              if (card.preview) Text(this.decisionPreview(card)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.ink)
+                .lineHeight(PhoneStyle.settingsExampleLineHeight(20.33,27.67,this.environment.fontScale)).maxLines(3).textAlign(TextAlign.Start)
+                .width('100%').onClick(() => this.openRow(binding.bound.value)).id('agents.preview.'+card.request.id)
+              if (card.quickOptions().length) this.decisionChoices(card,binding)
+            }.width('100%').alignItems(HorizontalAlign.Start).padding({left:20,right:20,top:index===0?19:20})
+          },(card:AgentDecisionCard) => card.key+card.request.raw)
+        }.width('100%').padding({bottom:19})
+        if (!binding.last) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:20})
       }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface)
         .borderRadius({topLeft:binding.first?16:0,topRight:binding.first?16:0,bottomLeft:binding.last?16:0,bottomRight:binding.last?16:0})
-    }.onVisibleAreaChange([0,1],(visible:boolean,ratio:number) => this.onVisible(binding.bound.value,visible ? ratio : 0))
+    }.margin({left:this.floatingStatusCards?16:4,right:this.floatingStatusCards?16:4})
+      .onVisibleAreaChange([0,1],(visible:boolean,ratio:number) => this.onVisible(binding.bound.value,visible ? ratio : 0))
       .onDisAppear(() => this.onVisible(binding.bound.value,0)).bindContextMenu(this.rowMenu(binding),ResponseType.LongPress)
       .id('agent.'+binding.bound.value.group+'.'+binding.bound.value.manager+'.'+binding.bound.value.machine+'.'+binding.bound.value.id)
   }

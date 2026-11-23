@@ -132,7 +132,9 @@ test('an Agent question preview names the actual provider, including an assistan
 
 test('the three-line Agents preview uses the interface text size while a question in its full form keeps the reading size',()=>{
   const page=readFileSync(new URL('../entry/src/main/ets/components/AgentListPage.ets',import.meta.url),'utf8');
-  assert.match(page,/Text\(card\.preview\)\.fontSize\(16\)\.maxFontScale\(Tokens\.interfaceScaleFor\(16\)\)[^\n]+\.maxLines\(3\)/);
+  const summary=page.slice(page.indexOf('if (card.preview) Text('),page.indexOf('if (card.quickOptions().length) this.decisionChoices'));
+  assert.match(summary,/Text\(this\.decisionPreview\(card\)\)\.fontSize\(17\)\.maxFontScale\(Tokens\.interfaceFontMaxScale\)/);
+  assert.match(summary,/\.maxLines\(3\)/);
   assert.match(page,/card\.questionAgent\(binding\.bound\.value\)/);
   assert.match(page,/onClick\(\(\) => this\.openRow\(binding\.bound\.value\)\)\.id\('agents.preview.'/);
   const detail=readFileSync(new URL('../entry/src/main/ets/components/InteractionDecisionForm.ets',import.meta.url),'utf8');

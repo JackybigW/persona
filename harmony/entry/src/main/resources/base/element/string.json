@@ -6693,6 +6693,10 @@
       "value": "Other answer…"
     },
     {
+      "name": "phone_agent_permission_preview",
+      "value": "{tool}: {target}"
+    },
+    {
       "name": "phone_agent_plan_approval",
       "value": "Plan ready for review"
     },

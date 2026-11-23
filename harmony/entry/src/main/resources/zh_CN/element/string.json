@@ -6693,6 +6693,10 @@
       "value": "其他回答…"
     },
     {
+      "name": "phone_agent_permission_preview",
+      "value": "{tool}：{target}"
+    },
+    {
       "name": "phone_agent_plan_approval",
       "value": "计划等你审批"
     },

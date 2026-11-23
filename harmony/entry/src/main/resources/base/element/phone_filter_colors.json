@@ -1,6 +1,14 @@
 {
   "color": [
     {
+      "name": "phone_agent_quick_fill",
+      "value": "#F9F9FA"
+    },
+    {
+      "name": "phone_agent_quick_ink",
+      "value": "#007AFF"
+    },
+    {
       "name": "phone_filter_fill",
       "value": "#D5E4F8"
     },
