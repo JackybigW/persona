@@ -371,5 +371,6 @@ test('Knowledge fills its compact app inset only while that library is foremost'
   shell.compactNavigationInset=()=>0;
   assert.equal(shell.knowledgeInsetHeight(),0);
   assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.knowledgeInsetHeight\(\) > 0 \? Colors\.grouped : Color\.Transparent\)/);
+  assert.match(source,/backgroundColor\(this\.knowledgeInsetHeight\(\) > 0 \? Colors\.grouped : Colors\.canvas\)\s*\.bindSheet\(\$\$this\.readerShown/);
   assert.doesNotMatch(source,/\.overlay\(this\.knowledge|@Builder knowledgeNavigationInset/);
 });
