@@ -1,6 +1,7 @@
 import { accessibility } from '@kit.AccessibilityKit';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 
+export const COMPOSER_GLOW_OUTSET: number = 24;
 const LIGHT: string[] = ['#2E6FD0', '#5856D6', '#7A5AF8', '#D62E5C'];
 const DARK: string[] = ['#5B9BFF', '#5E5CE6', '#9D8BFF', '#FF6B8B'];
 
@@ -17,6 +18,8 @@ export struct PhoneComposerGlow {
   private timer: number = -1;
   private frameWidth: number = 0;
   private frameHeight: number = 0;
+  private haloMask: ImageBitmap | undefined = undefined;
+  private rimPath: Path2D | undefined = undefined;
   private readonly animationChanged = (value: boolean): void => {
     this.reduced = value;
     this.schedule();
@@ -30,6 +33,7 @@ export struct PhoneComposerGlow {
   aboutToDisappear(): void {
     this.ready = false;
     this.schedule();
+    this.dropMask();
     try { accessibility.offAnimationReduceStateChange(this.animationChanged); } catch (_) {}
   }
 
@@ -45,31 +49,62 @@ export struct PhoneComposerGlow {
     if (!this.reduced) this.timer = setInterval(() => this.paint(), 40);
   }
 
+  private dropMask(): void {
+    this.haloMask?.close();
+    this.haloMask = undefined;
+    this.rimPath = undefined;
+  }
+
+  private makeMask(w: number, h: number): void {
+    const inset = COMPOSER_GLOW_OUTSET;
+    const r = Math.min(32, (w - 2 * inset) / 2, (h - 2 * inset) / 2);
+    const edge = new Path2D();
+    edge.moveTo(inset + r, inset);
+    edge.arcTo(w - inset, inset, w - inset, h - inset, r);
+    edge.arcTo(w - inset, h - inset, inset, h - inset, r);
+    edge.arcTo(inset, h - inset, inset, inset, r);
+    edge.arcTo(inset, inset, w - inset, inset, r);
+    edge.closePath();
+
+    // Only the edge and outer halo receive the moving gradient. Blur the two masks once per size.
+    const mask = new OffscreenCanvasRenderingContext2D(w, h, new RenderingContextSettings(true));
+    mask.strokeStyle = '#FFFFFF';
+    mask.filter = 'blur(8vp)';
+    mask.globalAlpha = .55;
+    mask.lineWidth = 12;
+    mask.stroke(edge);
+    mask.filter = 'blur(3vp)';
+    mask.globalAlpha = .8;
+    mask.lineWidth = 5;
+    mask.stroke(edge);
+    mask.filter = 'none';
+    mask.globalAlpha = 1;
+    mask.globalCompositeOperation = 'destination-out';
+    mask.fill(edge);
+    mask.globalCompositeOperation = 'source-over';
+    mask.lineWidth = 2;
+    mask.stroke(edge);
+    this.haloMask = mask.transferToImageBitmap();
+    this.rimPath = edge;
+  }
+
   private paint(): void {
     const ctx = this.ctx, w = this.frameWidth, h = this.frameHeight;
-    if (!this.ready || w <= 40 || h <= 40) return;
-    const inset = 18.5, r = Math.max(0, Math.min(25, (h - 2 * inset) / 2));
+    if (!this.ready || !this.visible || !this.env.foreground ||
+      !(w > 2 * COMPOSER_GLOW_OUTSET && h > 2 * COMPOSER_GLOW_OUTSET)) return;
+    if (!this.haloMask) this.makeMask(w, h);
+    if (!this.haloMask || !this.rimPath) return;
     const colors = this.env.dark ? DARK : LIGHT;
     const angle = this.reduced ? 0 : Date.now() % 3000 / 3000 * 2 * Math.PI;
     const color = ctx.createConicGradient(angle, w / 2, h / 2);
     colors.forEach((value: string, index: number) => color.addColorStop(index / 4, value));
     color.addColorStop(1, colors[0]);
     ctx.clearRect(0, 0, w, h);
-    ctx.beginPath();
-    ctx.moveTo(inset + r, inset);
-    ctx.arcTo(w - inset, inset, w - inset, h - inset, r);
-    ctx.arcTo(w - inset, h - inset, inset, h - inset, r);
-    ctx.arcTo(inset, h - inset, inset, inset, r);
-    ctx.arcTo(inset, inset, w - inset, inset, r);
-    ctx.closePath();
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = .035; ctx.lineWidth = 40; ctx.stroke();
-    ctx.globalAlpha = .04; ctx.lineWidth = 30; ctx.stroke();
-    ctx.globalAlpha = .055; ctx.lineWidth = 19; ctx.stroke();
-    ctx.globalAlpha = .065; ctx.lineWidth = 11; ctx.stroke();
-    ctx.globalAlpha = .09; ctx.lineWidth = 6; ctx.stroke();
-    ctx.globalAlpha = .24; ctx.lineWidth = 4; ctx.stroke();
-    ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.stroke();
+    ctx.drawImage(this.haloMask, 0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
     if (!this.reduced) {
       const highlight = ctx.createConicGradient(angle, w / 2, h / 2);
       highlight.addColorStop(0, '#00FFFFFF');
@@ -78,16 +113,20 @@ export struct PhoneComposerGlow {
       highlight.addColorStop(.58, '#00FFFFFF');
       highlight.addColorStop(1, '#00FFFFFF');
       ctx.strokeStyle = highlight;
-      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.stroke(this.rimPath);
     }
   }
 
   build() {
-    Canvas(this.ctx).width(this.barWidth + 40).height(this.barHeight + 40).hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+    Canvas(this.ctx).width(this.barWidth + 2 * COMPOSER_GLOW_OUTSET).height(this.barHeight + 2 * COMPOSER_GLOW_OUTSET).hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
       .onReady(() => { this.ready = true; this.schedule(); })
       .onAreaChange((_: Area, area: Area) => {
-        this.frameWidth = Number(area.width);
-        this.frameHeight = Number(area.height);
+        const width = Number(area.width), height = Number(area.height);
+        if (width === this.frameWidth && height === this.frameHeight) return;
+        this.dropMask();
+        this.frameWidth = width;
+        this.frameHeight = height;
         this.paint();
       })
       .onVisibleAreaChange([0], (visible: boolean, ratio: number) => {

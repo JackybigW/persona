@@ -1,6 +1,6 @@
 import { inputMethod } from '@kit.IMEKit';
 import { KeyCode } from '@kit.InputKit';
-import { PhoneComposerGlow } from './PhoneComposerGlow';
+import { COMPOSER_GLOW_OUTSET, PhoneComposerGlow } from './PhoneComposerGlow';
 import { PhoneChatForward } from '../models/PhoneChatForward';
 import { PhoneChatPickBar, PhoneChatForwardTray, PhoneForwardSentCard } from './PhoneChatForward';
 import { SessionComposerModeChip } from './SessionComposerModeChip';
@@ -1971,7 +1971,7 @@ export struct Conversation {
         this.composerFrameWidth = Number(area.width);
         this.composerFrameHeight = Number(area.height);
       })
-      .overlay(this.replyGlow(), {align:Alignment.TopStart,offset:{x:-20,y:-20}})
+      .overlay(this.replyGlow(), {align:Alignment.TopStart,offset:{x:-COMPOSER_GLOW_OUTSET,y:-COMPOSER_GLOW_OUTSET}})
   }
   @Builder composerContent() {
     Column({ space: Tokens.gap }) {
