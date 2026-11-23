@@ -91,7 +91,7 @@ for shard in node managers other; do
   # Persona Core alone (#13978): the same shard's every package with every module left out (persona_core_only); tests
   # of a module's own behaviour skip without it (needsBriefingModule, needsVoiceModule, needsVolcModule).
   if [ "$lane" = all ] || [ "$lane" = "core-$shard" ]; then
-    GOFLAGS="$GOFLAGS -tags=persona_core_only" ci_run "Server $shard tests with Postgres, core only" 600 \
+    GOFLAGS="$GOFLAGS -tags=persona_core_only" ci_run "Server $shard tests with Postgres, core only" "$shard_budget" \
       python3 scripts/ci/server-shards.py "$shard" --database-file "$fixture/database.json"
   fi
 done
