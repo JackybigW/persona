@@ -546,31 +546,62 @@ export struct TodoWorkspacePage {
       }.width('100%').alignItems(VerticalAlign.Top)
     }
   }
+  private phoneStateInk(state:string):ResourceColor {
+    if (state==='needs_you') return nativeEnvironment.dark ? '#409CFF' : '#0064C8';
+    if (state==='working' || state==='waiting') return nativeEnvironment.dark ? '#FFB224' : '#A35A00';
+    return state==='unread' ? Colors.unread : $r('app.color.project_card_secondary');
+  }
+  private phoneDotInk(state:string):ResourceColor {
+    if (state==='needs_you') return Colors.needsMark;
+    if (state==='working') return Colors.workingMark;
+    return state==='unread' ? Colors.unreadMark : $r('app.color.project_card_secondary');
+  }
+  private phoneReviewInk(tone:string):ResourceColor {
+    if (tone==='caution') return nativeEnvironment.dark ? '#FF9F0A' : '#B35400';
+    if (tone==='danger') return Colors.danger;
+    return tone==='positive' ? Colors.positive : $r('app.color.project_card_secondary');
+  }
+  private phoneReviewCaption(group:TodoWorkspaceGroup):string {
+    const review=group.phone, label=tr(review.reviewKey).replace('{round}',String(review.reviewRound));
+    return review.reviewCount ? label+' · '+review.reviewCount : label;
+  }
   @Builder phoneStatusWords(group:TodoWorkspaceGroup) {
     Row({space:6}) {
-        Circle().width(7).height(7).fill(group.phone.urgentState==='needs_you' ? Colors.needs : group.phone.urgentState==='working' ? Colors.link : Colors.secondary)
-          .accessibilityLevel('no')
-        Text(this.rowStatus(group)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).maxLines(1)
-          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(!group.lead.startError && group.state==='needs_you' ? Colors.needs : Colors.secondary)
+        Stack() {
+          if (group.phone.urgentState==='working') Circle().width(11.9).height(11.9).fill(Color.Transparent)
+            .stroke(Colors.workingMark).strokeWidth(2.5).opacity(0.45)
+          Circle().width(7).height(7).fill(this.phoneDotInk(group.phone.urgentState))
+            .opacity(group.phone.urgentState==='offline' ? 0.3 : ['needs_you','working','unread'].includes(group.phone.urgentState) ? 1 : 0.55)
+        }.width(7).height(7).clip(false)
+          .accessibilityText(tr('agent_task_state_'+(group.phone.urgentState || (group.phone.taskState==='done' ? 'idle' : 'unknown'))))
+        Text(tr(group.phone.statusKey)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(600).maxLines(1)
+          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(this.phoneStateInk(group.phone.shownState)).id('todos.status.'+group.lead.id)
         if (group.phone.activeAgents) Text(this.leadMetadata(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
           .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).flexShrink(1)
         if (group.phone.lead && group.phone.activeAgents>1) Text('+'+String(group.phone.activeAgents-1)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
           .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1)
+        if (group.phone.reviewKey) Text(this.phoneReviewCaption(group)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
+          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+          .fontColor(this.phoneReviewInk(group.phone.reviewTone)).padding({left:6,right:6,top:1,bottom:1})
+          .backgroundColor(group.phone.reviewTone==='caution' ? $r('app.color.todo_review_caution_fill') :
+            group.phone.reviewTone==='positive' ? $r('app.color.todo_review_positive_fill') :
+              group.phone.reviewTone==='danger' ? $r('app.color.todo_review_danger_fill') : $r('app.color.todo_review_neutral_fill'))
+          .borderRadius(50).id('todos.review.'+group.lead.id)
       }.constraintSize({maxWidth:'100%'})
   }
+  @Builder seenTint() {
+    Rect().width('100%').height(this.phoneMeasure(16.3,23.7)).radius(30).fill(Colors.accentWell).hitTestBehavior(HitTestMode.None)
+  }
   @Builder seenChip(todo:TodoWorkspaceItem) {
-    Button({type:ButtonType.Capsule}) {
+    Button({type:ButtonType.Normal}) {
       Row({space:4}) {
-        Stack() {
-          Circle().width(this.phoneMeasure(12,17)).height(this.phoneMeasure(12,17)).fill(Color.Transparent)
-            .stroke(Colors.link).strokeWidth(1)
-          SymbolGlyph(Symbols.check).fontSize(this.phoneMeasure(8,11)+'vp').fontColor([Colors.link])
-        }.accessibilityLevel('no')
-        Text(tr('phone_todo_got_it')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(FontWeight.Medium)
-          .fontColor(Colors.link).maxLines(1)
+        SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(this.phoneMeasure(13,19.5)+'vp')
+          .width(this.phoneMeasure(14,21.3)).height(this.phoneMeasure(14.3,21.7)).fontColor([Colors.interfaceAccent]).accessibilityLevel('no')
+        Text(tr('phone_todo_got_it')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
+          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(Colors.interfaceAccent).maxLines(1)
       }
-    }.height(this.phoneMeasure(20,27)).padding({left:6,right:6}).margin({top:-3,bottom:-3}).backgroundColor(Colors.selection)
-      .responseRegion({x:0,y:-12,width:'100%',height:44})
+    }.height(this.phoneMeasure(14.3,21.7)).padding({left:6,right:6}).clip(false).backgroundColor(Color.Transparent)
+      .background(this.seenTint).responseRegion({x:0,y:-16,width:'100%',height:this.phoneMeasure(14.3,21.7)+32})
       .accessibilityText(tr(todo.kind==='concern' && !todo.isDone() ? 'phone_todo_seen_open_a11y' : 'phone_todo_seen_done_a11y').replace('{title}',todo.title))
       .enabled(!this.workspace.saving).onClick(()=>this.workspace.markSeen(todo)).id('todos.seen.'+todo.id)
   }

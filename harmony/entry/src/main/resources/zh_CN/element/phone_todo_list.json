@@ -71,6 +71,34 @@
     {
       "name": "phone_todo_seen_open",
       "value": "已移到「其余没完成」"
+    },
+    {
+      "name": "phone_todo_row_cancelled",
+      "value": "已取消"
+    },
+    {
+      "name": "phone_todo_row_accepted",
+      "value": "已验收"
+    },
+    {
+      "name": "phone_todo_row_auto_done",
+      "value": "自动完成"
+    },
+    {
+      "name": "phone_todo_review_user_check",
+      "value": "待你验收"
+    },
+    {
+      "name": "phone_todo_review_rework",
+      "value": "返工第 {round} 轮"
+    },
+    {
+      "name": "phone_todo_review_needs_user",
+      "value": "等你决定"
+    },
+    {
+      "name": "phone_todo_review_ongoing",
+      "value": "督办中"
     }
   ]
 }

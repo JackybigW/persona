@@ -71,6 +71,34 @@
     {
       "name": "phone_todo_seen_open",
       "value": "「その他の未完了」に移動しました"
+    },
+    {
+      "name": "phone_todo_row_cancelled",
+      "value": "キャンセルしました"
+    },
+    {
+      "name": "phone_todo_row_accepted",
+      "value": "検収済み"
+    },
+    {
+      "name": "phone_todo_row_auto_done",
+      "value": "自動完了"
+    },
+    {
+      "name": "phone_todo_review_user_check",
+      "value": "あなたの確認待ち"
+    },
+    {
+      "name": "phone_todo_review_rework",
+      "value": "差し戻し {round} 回目"
+    },
+    {
+      "name": "phone_todo_review_needs_user",
+      "value": "判断待ち"
+    },
+    {
+      "name": "phone_todo_review_ongoing",
+      "value": "監督中"
     }
   ]
 }

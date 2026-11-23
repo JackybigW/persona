@@ -71,6 +71,34 @@
     {
       "name": "phone_todo_seen_open",
       "value": "Moved to Other open"
+    },
+    {
+      "name": "phone_todo_row_cancelled",
+      "value": "Canceled"
+    },
+    {
+      "name": "phone_todo_row_accepted",
+      "value": "Accepted"
+    },
+    {
+      "name": "phone_todo_row_auto_done",
+      "value": "Auto-completed"
+    },
+    {
+      "name": "phone_todo_review_user_check",
+      "value": "Awaiting your verification"
+    },
+    {
+      "name": "phone_todo_review_rework",
+      "value": "Rework round {round}"
+    },
+    {
+      "name": "phone_todo_review_needs_user",
+      "value": "Needs your call"
+    },
+    {
+      "name": "phone_todo_review_ongoing",
+      "value": "Supervised"
     }
   ]
 }

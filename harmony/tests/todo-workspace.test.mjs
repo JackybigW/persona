@@ -60,6 +60,47 @@ function machine(id = 'm1', fields = {}) {
   return ResourceRow.from({ id, manager: 'work', name: 'Computer ' + id, online: true, trust: '', ...fields }, 'machine');
 }
 
+test('compact task status follows the attached Agent and current review, independently of the list section', () => {
+  const stamp='2026-11-22T12:00:00Z', later='2026-11-23T12:00:00Z';
+  const accepted={state:'accepted',reviews:[{at:stamp,verdict:'accepted'}]};
+  const neutral={state:'',reviews:[]};
+  const linked={machine_id:'m1',session_id:'subject'};
+  const result=(fields={},row=undefined) => new TodoPhoneSections(row ? [row] : [], Date.now())
+    .rowContext(new TodoWorkspaceItem(todo('case',fields)));
+  const scenarios=[
+    [{},undefined,'not_started','not_started','todo_state_not_started'],
+    [{agents:[linked]},session('subject','unread'),'unread','unread','agent_task_state_unread'],
+    [{agents:[linked]},undefined,'followup','followup','assistant_feed_state_followup'],
+    [{agents:[{...linked,released_at:stamp}]},session('subject','needs_you'),'not_started','not_started','todo_state_not_started'],
+    [{agents:[linked]},session('subject','working',{background_working:true}),'waiting','waiting','waiting'],
+    [{agents:[linked]},session('subject','idle',{work:{phase:'blocked',on:'external'}}),'waiting','waiting','waiting'],
+    [{agents:[linked]},session('subject','idle',{starting:true,work:{phase:'blocked',on:'agent'}}),'working','working','phone_todo_section_working'],
+    [{agents:[linked]},session('subject','needs_you',{starting:true,background_working:true}),'needs_you','needs_you','phone_todo_section_needs'],
+    [{start_error:'cannot start',done_at:stamp},undefined,'failed','failed','phone_todo_did_not_start'],
+    [{supervision:accepted},undefined,'not_started','done','phone_todo_row_accepted'],
+    [{kind:'concern',supervision:accepted},undefined,'not_started','not_started','todo_state_not_started'],
+    [{done_at:stamp,done_by:'review',supervision:{state:'cancelled'}},undefined,'done','done','phone_todo_row_cancelled'],
+    [{done_at:stamp,done_by:'auto'},undefined,'done','done','phone_todo_row_auto_done'],
+    [{done_at:stamp,done_by:'review'},undefined,'done','done','phone_todo_row_accepted'],
+    [{supervision:{state:'needs_user',reviews:[{at:stamp}]},decision_review:{review_at:stamp,dismissal_id:'ack'}},undefined,'not_started','not_started','todo_state_not_started'],
+    [{supervision:{state:'needs_user',reviews:[{at:later}]},decision_review:{review_at:stamp,dismissal_id:'ack'}},undefined,'not_started','needs_you','phone_todo_section_needs'],
+    [{ask:{asked_at:stamp,outcome:'cannot'}},undefined,'needs_you','needs_you','phone_todo_section_needs'],
+    [{delivery:{state:'live'},seen_at:stamp},undefined,'not_started','unread','phone_todo_section_delivered'],
+    [{supervision:{state:'pending_review'}},undefined,'not_started','unread','phone_todo_section_delivered'],
+    [{kind:'concern',delivery:{state:'live'}},undefined,'not_started','not_started','todo_state_not_started'],
+  ];
+  for (const [fields,session,base,shown,label] of scenarios) {
+    const r=result(fields,session); assert.deepEqual([r.taskState,r.shownState,r.statusKey],[base,shown,label],JSON.stringify(fields));
+  }
+  const checks={state:'rework',round:2,done_when:['one','two'],reviews:[{checks:[{criterion:'one',met:false},{criterion:'extra',met:true}]},{checks:[{criterion:'one',met:true}]}]};
+  const rework=result({supervision:checks}); assert.deepEqual([rework.reviewKey,rework.reviewTone,rework.reviewRound,rework.reviewCount],['phone_todo_review_rework','caution',2,'2/3']);
+  const done=result({supervision:{...checks,state:'accepted',reviews:[...checks.reviews,{verdict:'accepted'}]}});
+  assert.equal(done.reviewCount,'2/2'); assert.equal(done.reviewKey,'phone_todo_row_accepted');
+  assert.equal(result({supervision:neutral}).reviewKey,'phone_todo_review_ongoing');
+  assert.equal(result({kind:'concern',supervision:accepted}).reviewKey,'');
+  assert.equal(result({done_at:stamp,supervision:accepted}).reviewKey,'');
+});
+
 test('phone rows show the most urgent Agent preview and independently name the working or most recently moved Agent', () => {
   const working = session('build', 'working', { model: 'claude-opus-5-5', effort: 'high', updated_at: '2026-11-10T08:00:00Z' });
   const needs = session('test', 'needs_you', { last_text: 'Choose a test framework.', updated_at: '2026-11-10T09:00:00Z' });

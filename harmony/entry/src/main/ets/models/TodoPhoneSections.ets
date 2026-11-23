@@ -15,12 +15,100 @@ export class TodoPhoneRowContext {
   lead: ResourceRow | undefined = undefined;
   activeAgents: number = 0;
   urgentState: string = '';
+  taskState: string = 'not_started';
+  shownState: string = 'not_started';
+  statusKey: string = 'todo_state_not_started';
+  reviewKey: string = '';
+  reviewTone: string = '';
+  reviewRound: number = 0;
+  reviewCount: string = '';
   summary: string = '';
   summaryKind: string = 'empty';
 }
 
 function time(value:string):number {
   const date=Date.parse(value); return Number.isFinite(date) ? date : Number.NEGATIVE_INFINITY;
+}
+
+// A task can be waiting while its Agent has a working dot. A question or an unread turn takes priority.
+function taskAgentState(agentFailed: boolean, session: ResourceRow | undefined, data: Record<string,Object> | undefined): string {
+  if (agentFailed || !session || !data) return 'offline';
+  const state=session.state || Wire.text(data,'state');
+  if (state==='needs_you' || state==='unread') return state;
+  if (Wire.bool(data,'starting')) return 'working';
+  const work=Wire.object(data,'work');
+  if (state==='working') return Wire.bool(data,'background_working') || Wire.bool(data,'background_waiting') ? 'waiting' : 'working';
+  return Wire.text(work,'phase')==='blocked' && ['agent','external','transient'].includes(Wire.text(work,'on')) ? 'waiting' : state;
+}
+
+function reviewCount(supervision:Record<string,Object>, reviews:Record<string,Object>[], accepted:boolean):string {
+  const latest=new Map<string,boolean>();
+  for (const review of reviews) for (const check of Wire.rows(review,'checks')) {
+    latest.set(Wire.text(check,'criterion'),Wire.bool(check,'met'));
+  }
+  const criteria=new Set<string>(latest.keys());
+  if (!accepted) for (const criterion of Wire.strings(supervision,'done_when')) criteria.add(criterion);
+  let met=0;
+  for (const criterion of criteria) if (latest.get(criterion)) met++;
+  return criteria.size ? String(met)+'/'+String(criteria.size) : '';
+}
+
+function phoneRowStatus(todo:TodoWorkspaceItem,row:TodoPhoneRowContext,states:Set<string>):void {
+  const done=todo.isDone(), openAsk=!done && !!Wire.text(todo.ask,'asked_at');
+  let state='not_started';
+  if (todo.startError) state='failed';
+  else if (done) state='done';
+  else if (openAsk || states.has('needs_you')) state='needs_you';
+  else if (states.has('unread')) state='unread';
+  else if (states.has('working')) state='working';
+  else if (states.has('waiting')) state='waiting';
+  else if (row.activeAgents) state='followup';
+  row.taskState=state;
+  row.shownState=state;
+  switch (state) {
+    case 'needs_you': row.statusKey='phone_todo_section_needs'; break;
+    case 'working': row.statusKey='phone_todo_section_working'; break;
+    case 'unread': row.statusKey='agent_task_state_unread'; break;
+    case 'waiting': row.statusKey='waiting'; break;
+    case 'followup': row.statusKey='assistant_feed_state_followup'; break;
+    case 'failed': row.statusKey='phone_todo_did_not_start'; break;
+    case 'done': row.statusKey='todo_state_done'; break;
+  }
+
+  const data=todo.data(), sup=todo.supervision, reviews=Wire.rows(sup,'reviews');
+  const last=reviews[reviews.length-1], rawReview=Wire.text(sup,'state');
+  const accepted=rawReview==='accepted' && !!last && Wire.text(last,'verdict')==='accepted';
+  let review=rawReview;
+  if (done && review==='user_check') review='accepted';
+  else if (!done && (review==='cancelled' || review==='accepted' && !accepted)) review='';
+  const decision=Wire.object(data,'decision_review'), round=Wire.text(decision,'review_at');
+  const mostRecent=last ? time(Wire.text(last,'at')) : Number.NEGATIVE_INFINITY;
+  const dismissed=!!Wire.text(decision,'dismissal_id') && !!round && (!Number.isFinite(mostRecent) || time(round)===mostRecent);
+  const ownerWait=!done && !dismissed && (review==='needs_user' || openAsk && ['decide','cannot'].includes(Wire.text(todo.ask,'outcome')));
+  const resting=state==='followup' || state==='unread' || state==='not_started';
+  const acceptedAtRest=!done && todo.kind!=='concern' && !ownerWait && accepted && resting;
+  const delivered=!done && !ownerWait && resting && (review==='pending_review' || openAsk || todo.kind!=='concern' && Wire.text(todo.delivery,'state')==='live');
+  if (acceptedAtRest) row.shownState='done';
+  else if (ownerWait) row.shownState='needs_you';
+  else if (delivered) row.shownState='unread';
+
+  if (Wire.text(data,'cancelled_at') || todo.doneBy==='cancelled' || todo.doneBy==='review' && review==='cancelled') row.statusKey='phone_todo_row_cancelled';
+  else if (acceptedAtRest || state==='done' && todo.doneBy==='review') row.statusKey='phone_todo_row_accepted';
+  else if (state==='done' && todo.doneBy==='auto') row.statusKey='phone_todo_row_auto_done';
+  else if (ownerWait) row.statusKey='phone_todo_section_needs';
+  else if (delivered) row.statusKey='phone_todo_section_delivered';
+
+  if (done || !data['supervision'] || typeof data['supervision']!=='object' || Array.isArray(data['supervision']) ||
+    todo.kind==='concern' && review==='accepted') return;
+  switch (review) {
+    case 'pending_review': case 'user_check': case 'rework': row.reviewTone='caution'; break;
+    case 'needs_user': row.reviewTone='danger'; break;
+    case 'accepted': row.reviewTone='positive'; break;
+    default: review='ongoing'; row.reviewTone='neutral'; break;
+  }
+  row.reviewKey=review==='accepted' ? 'phone_todo_row_accepted' : review==='pending_review' ? 'agent_task_review' : 'phone_todo_review_'+review;
+  row.reviewRound=Math.max(1, Wire.number(sup,'round'));
+  row.reviewCount=reviewCount(sup,reviews,accepted);
 }
 
 export function phoneTodoTitle(section:string):string {
@@ -53,10 +141,13 @@ export class TodoPhoneSections {
     const row = new TodoPhoneRowContext();
     row.canFileSeen=placement?.section==='just_done' && phoneTodoSeenCanFile(todo);
     let best = -1, leadMoved = Number.NEGATIVE_INFINITY;
-    for (const agent of todo.activeAgents()) {
+    const taskStates=new Set<string>();
+    for (const agent of todo.agents) {
+      if (agent.releasedAt) continue;
       row.activeAgents++;
       const candidate = this.session(todo.manager, agent.machineId, agent.sessionId);
       const data = candidate?.data();
+      taskStates.add(taskAgentState(!!agent.startError,candidate,data));
       if (candidate && data) {
         const moved = Math.max(time(Wire.text(data, 'updated_at')), time(Wire.text(data, 'state_since')));
         const working = candidate.state === 'working', previousWorking = row.lead?.state === 'working';
@@ -73,6 +164,7 @@ export class TodoPhoneSections {
       row.summary = agent.startError || (candidate && data ? Wire.text(data, 'last_text') || candidate.title : agent.title);
       row.summaryKind = agent.startError ? 'failure' : 'session';
     }
+    phoneRowStatus(todo,row,taskStates);
     const raw = todo.data(), closedBy = Wire.text(raw, 'done_by');
     const cancelled = !!Wire.text(raw, 'cancelled_at') || closedBy === 'cancelled' ||
       closedBy === 'review' && Wire.text(todo.supervision, 'state') === 'cancelled';
