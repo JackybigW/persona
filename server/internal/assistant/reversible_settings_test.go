@@ -78,13 +78,16 @@ func requireUnavailableBriefingAction(t *testing.T, s *Service, action, value st
 	t.Helper()
 	const key = "assistant.briefing_waits"
 	f := s.hub.(*fakeHub)
+	f.answerAppBlocking(AppSettings, AppTool, func(json.RawMessage) (any, error) {
+		return proto.TextResult("unexpected settings call to the hub", true), nil
+	})
 	before := len(f.appParams(AppSettings, AppTool))
 	r := callReversibleSettingAction(t.Context(), s, action, key, value, "conv1")
-	if !r.IsError || !strings.Contains(reversibleResultText(r), key) {
-		t.Fatalf("unavailable briefing setting %s = %+v", action, r)
-	}
 	if got := len(f.appParams(AppSettings, AppTool)); got != before {
 		t.Fatalf("manager sent its unavailable setting to the hub: %d additional calls", got-before)
+	}
+	if !r.IsError || !strings.Contains(reversibleResultText(r), key) {
+		t.Fatalf("unavailable briefing setting %s = %+v", action, r)
 	}
 }
 

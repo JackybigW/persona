@@ -133,10 +133,13 @@ func assertBriefingAbsent(t *testing.T, s *Service) {
 		t.Error("the hidden setting answered a get")
 	}
 	f := s.hub.(*fakeHub)
-	f.answerApp(AppSettings, SettingsList, func(json.RawMessage) (any, error) {
+	f.answerAppBlocking(AppSettings, SettingsList, func(json.RawMessage) (any, error) {
 		return map[string]any{"settings": []Setting{{Key: "assistant.briefing_waits"}, {Key: "inbox.rules"}}}, nil
 	})
 	list := callReversibleSettingAction(ctx, s, "list", "", `null`, "conv1")
+	if len(f.appParams(AppSettings, SettingsList)) != 1 {
+		t.Fatal("the settings list did not query the hub catalog")
+	}
 	if text := reversibleResultText(list); list.IsError || strings.Contains(text, "assistant.briefing_waits") || !strings.Contains(text, "inbox.rules") {
 		t.Fatalf("settings from both catalogs with briefing absent: %s", text)
 	}
