@@ -2561,6 +2561,14 @@
       "value": "录音"
     },
     {
+      "name": "phone_lark_meeting_notes",
+      "value": "飞书会议纪要"
+    },
+    {
+      "name": "phone_original_meeting_notes",
+      "value": "原会议纪要"
+    },
+    {
       "name": "knowledge_minutes",
       "value": "会议纪要"
     },

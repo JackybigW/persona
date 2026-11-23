@@ -2561,6 +2561,14 @@
       "value": "Recordings"
     },
     {
+      "name": "phone_lark_meeting_notes",
+      "value": "Lark Meeting Notes"
+    },
+    {
+      "name": "phone_original_meeting_notes",
+      "value": "Original Meeting Notes"
+    },
+    {
       "name": "knowledge_minutes",
       "value": "Meeting notes"
     },

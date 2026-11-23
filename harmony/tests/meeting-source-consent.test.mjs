@@ -174,7 +174,8 @@ test('the recording detail keeps its actual path explanation and its minutes ent
   const block=source.slice(source.indexOf('  @Builder recordingDetail()'),source.indexOf(".id('knowledge.recording.detail')"));
   assert.match(block,/if \(Wire\.text\(this\.workspace\.detail,'path'\)\) \{[\s\S]*?recordingFootnote\('recording_detail_folder_access'\)/);
   assert.match(block,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true/);
-  assert.match(block,/\.id\('knowledge\.recording\.tools'\)/);
+  assert.match(block,/this\.recordingToolsButton\(\)/);
+  assert.match(source.slice(source.indexOf('  @Builder recordingToolsButton()'),source.indexOf('  @Builder recordingToolContents()')),/\.id\('knowledge\.recording\.tools'\)/);
   const messages=['base','en_US','ja_JP','zh_CN'].map(locale=>JSON.parse(readFileSync(new URL('../entry/src/main/resources/'+locale+'/element/recording_detail.json',import.meta.url),'utf8')).string);
   for (const entries of messages) assert.ok(entries.find(item=>item.name==='recording_detail_folder_access')?.value.length>16);
 });
@@ -211,4 +212,51 @@ test('deleting a confirmed recording fact dismisses immediately and only its own
   timers[0].fn();assert.equal(actions.removedFacts,'initial fact');
   timers[1].fn();assert.equal(actions.removedFacts,'');assert.equal(writes.length,4);
   assert.match(source,/Stack\(\{alignContent:Alignment\.Top\}\) \{\s*this\.recordingDetailScroll\(\)\s*this\.recordingUndoNotice\(\)/);
+});
+
+test('the phone KB detail ends after the folder and opens its original tools through the tag sheet',()=>{
+ const section=(from,to)=>source.slice(source.indexOf(from),source.indexOf(to,source.indexOf(from)+from.length));
+ const detail=section('  @Builder recordingDetailScroll()', '  @Builder detailContent(');
+ const sheet=section('  @Builder metadataForm()','  @Builder editForm()');
+ const tools=section('  @Builder recordingToolContents()', '  @Builder recordingDetail()');
+ assert.match(detail,/if \(!this\.phoneRecordingDetail\)\s*\{\s*this\.recordingToolsButton\(\)\s*if \(this\.recordingTools\) this\.recordingToolContents\(\)/);
+ assert.match(sheet,/if \(this\.phoneRecordingDetail && this\.recordingTools\)/);
+ assert.match(sheet,/this\.editForm\(\)\s*if \(this\.phoneRecordingDetail\) this\.recordingToolsButton\(\)/);
+ assert.match(sheet,/onClick\(\(\) => this\.recordingTools=false\)/);
+ assert.doesNotMatch(sheet,/reset|saveMetadata|deleteRecording|beginEdit\(\)|editOpen\s*=/);
+ assert.match(detail,/dismiss\.reason===DismissReason\.PRESS_BACK\) this\.recordingTools=false/);
+ assert.match(tools,/this\.recordingSection\(/);assert.match(tools,/this\.relatedEntries\(/);
+ assert.match(tools,/this\.onOpenResource\(item\)/);assert.match(tools,/this\.workspace\.canDeleteRecording\(\)\)\.onClick\(\(\) => this\.confirmDeleteRecording\(\)/);
+ const shell=readFileSync(new URL('../entry/src/main/ets/pages/Index.ets',import.meta.url),'utf8');
+ assert.match(shell,/phoneRecordingDetail:name==='knowledge' && !this\.wide\(\)/);
+});
+
+test('imported KB recordings expose source notes only for the actual linked meeting with a supported URL',async()=>{
+ const {Wire}=await import('../entry/src/main/ets/models/Wire.ets');
+ const g=source.slice(source.indexOf('  @Computed get importedRecordingNotes()'),source.indexOf('  private recordingToolsTitle()')).replace('@Computed ','');
+ const Card=new Function('Wire','return '+stripTypeScriptTypes('class Card {'+g+'}'))(Wire);
+ const p=new Card();p.workspace={detail:{}};
+ const ref={kind:'meetings',id:'real',extra:' https://example.test/notes ',source:'larkcli'};
+ for(const detail of [{},{meta:{imported_meeting:{id:'real'}}},{meta:{imported_meeting:{id:'other'}},links:[ref]},
+   {meta:{imported_meeting:{id:'real'}},links:[{...ref,kind:'docs'}]},{meta:{imported_meeting:{id:'real'}},links:[{...ref,extra:''}]},
+   {meta:{imported_meeting:{id:'real'}},links:[{...ref,extra:'file:///not-a-web-link'}]}]){
+   p.workspace.detail=detail;assert.equal(p.importedRecordingNotes,undefined);
+ }
+ p.workspace.detail={meta:{imported_meeting:{id:'real'}},links:[{...ref,id:'unrelated'},ref]};
+ assert.equal(p.importedRecordingNotes,ref);
+});
+
+test('the recording tool sheet keeps the explicit deletion dialog and original confirmed owner',()=>{
+ const s=source.slice(source.indexOf('  private confirmDeleteRecording()'),source.indexOf('  private confirmDispatch()'));
+ const Card=new Function('tr','return '+stripTypeScriptTypes('class Card {'+s+'}'))(key=>key);const p=new Card();
+ let owner='first',reconnect=0,dialog,count=0,allowed=true;
+ p.workspace={canDeleteRecording:()=>allowed,selected:{key:()=>owner},deleteRecording:async()=>{count++;return true;}};
+ p.model={connectionGeneration:()=>reconnect,scope:()=> 'same-group',owns:(gen,scope)=>gen===reconnect && scope==='same-group'};
+ p.getUIContext=()=>({showAlertDialog:d=>{dialog=d;}});
+ p.confirmDeleteRecording();assert.equal(dialog.title,'knowledge_forget_recording');assert.equal(dialog.message,'knowledge_forget_recording_note');
+ assert.equal(count,0);dialog.primaryButton.action();assert.equal(count,0);
+ owner='second';dialog.secondaryButton.action();assert.equal(count,0);
+ p.confirmDeleteRecording();reconnect++;dialog.secondaryButton.action();assert.equal(count,0);
+ p.confirmDeleteRecording();dialog.secondaryButton.action();assert.equal(count,1);
+ dialog=undefined;allowed=false;p.confirmDeleteRecording();assert.equal(dialog,undefined);assert.equal(count,1);
 });

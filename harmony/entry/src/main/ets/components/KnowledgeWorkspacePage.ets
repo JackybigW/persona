@@ -168,6 +168,7 @@ export struct KnowledgeWorkspacePage {
   @Param landingMenu:KnowledgeLandingMenu|undefined=undefined;
   @Event onOpenMap:()=>void=()=>{};
   @Param editRevision: number = 0;
+  @Param phoneRecordingDetail: boolean = false;
   @Local metadataSheet: boolean = false;
   @Local localMeetings: boolean = false;
   @Param meetingMenu:PhoneMeetingOptions|undefined=undefined;
@@ -328,6 +329,7 @@ export struct KnowledgeWorkspacePage {
 
   @Monitor('editRevision') editTagsRequested(): void {
     if (!this.pageAvailable || !this.visible || this.row?.path!=='recordings' || this.workspace.selected.id!==this.row.id) return;
+    if (this.phoneRecordingDetail) this.recordingTools=false;
     this.workspace.beginEdit();
     this.metadataSheet=this.workspace.editOpen;
   }
@@ -941,8 +943,20 @@ export struct KnowledgeWorkspacePage {
   }
 
   @Builder metadataForm() {
-    Scroll() { Column() { this.editForm() }.width('100%').padding(16) }
+    Scroll() {
+      Column({space:Tokens.gap}) {
+        if (this.phoneRecordingDetail && this.recordingTools) {
+          Button(tr('back'),{buttonStyle:ButtonStyleMode.TEXTUAL}).fontColor(Colors.link)
+            .onClick(() => this.recordingTools=false).id('knowledge.recording.tools.back')
+          this.recordingToolContents()
+        } else {
+          this.editForm()
+          if (this.phoneRecordingDetail) this.recordingToolsButton()
+        }
+      }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
+    }
       .width('100%').height('100%').align(Alignment.TopStart).backgroundColor(Colors.grouped)
+      .id(this.phoneRecordingDetail && this.recordingTools ? 'knowledge.recording.tools.sheet' : 'knowledge.recording.metadata.sheet')
   }
 
   @Builder editForm() {
@@ -1103,6 +1117,34 @@ export struct KnowledgeWorkspacePage {
       .lineHeight(String(this.recordingMetric(15.7,22.5))+'vp').width('100%').padding({left:20,right:20,top:7,bottom:7})
   }
 
+  @Computed get importedRecordingNotes():Record<string,Object>|undefined {
+    const id=Wire.text(Wire.object(Wire.object(this.workspace.detail,'meta'),'imported_meeting'),'id');
+    if (!id) return undefined;
+    const linked=Wire.rows(this.workspace.detail,'links').find((item:Record<string,Object>) => Wire.text(item,'kind')==='meetings' && Wire.text(item,'id')===id);
+    return linked && /^https?:\/\//i.test(Wire.text(linked,'extra').trim()) ? linked : undefined;
+  }
+  private recordingToolsTitle():string { return tr('knowledge_minutes')+' · '+tr('knowledge_transcript'); }
+  @Builder recordingToolsButton() {
+    Button({type:ButtonType.Normal}) {
+      Row() {
+        Text(this.recordingToolsTitle()).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.ink).layoutWeight(1)
+        SymbolGlyph(this.recordingTools ? Symbols.down : Symbols.expand).fontSize('14vp').fontColor([Colors.secondary])
+      }.width('100%')
+    }.width('100%').constraintSize({minHeight:44}).margin({top:16}).padding(12).backgroundColor(Colors.surface).borderRadius(15)
+      .accessibilityDescription(tr(this.recordingTools ? 'control_expanded' : 'control_collapsed')).onClick(() => this.recordingTools=!this.recordingTools).id('knowledge.recording.tools')
+  }
+  @Builder recordingToolContents() {
+    this.recordingSection(UIUtils.makeBinding(():Record<string,Object> => this.workspace.detail))
+    this.relatedEntries(UIUtils.makeBinding(():Record<string,Object> => this.workspace.detail))
+    if (this.importedMeeting()) Button(this.importedMeeting()!.title,{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).onClick(() => {
+      const item=this.importedMeeting(); if (item) this.onOpenResource(item);
+    }).id('knowledge.recording.imported')
+    if (!this.phoneRecordingDetail) Button(tr('knowledge_edit_metadata'),{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).onClick(() => this.workspace.beginEdit()).id('knowledge.edit.open')
+    if (!this.phoneRecordingDetail && this.workspace.editOpen && !this.metadataSheet) this.editForm()
+    Button(tr('knowledge_forget_recording'),{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.danger)
+      .enabled(this.workspace.canDeleteRecording()).onClick(() => this.confirmDeleteRecording()).id('knowledge.recording.delete')
+  }
+
   @Builder recordingDetail() {
     Stack({alignContent:Alignment.Top}) {
       this.recordingDetailScroll()
@@ -1133,6 +1175,19 @@ export struct KnowledgeWorkspacePage {
             .onClick(() => this.askPersona()).id('knowledge.ask')
         }.width('100%').alignItems(HorizontalAlign.Start).padding({left:4,right:4,bottom:25.7})
         this.entryEvidence()
+        if (this.phoneRecordingDetail && this.importedRecordingNotes) {
+          Button({type:ButtonType.Normal}) {
+            Row({space:12}) {
+              SymbolGlyph(Symbols.document).fontSize('17vp').fontColor([Colors.link])
+              Text(tr(['lark','larkcli'].includes(Wire.text(this.importedRecordingNotes,'source')) ? 'phone_lark_meeting_notes' : 'phone_original_meeting_notes'))
+                .fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.link).layoutWeight(1).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+            }.width('100%')
+          }.width('100%').constraintSize({minHeight:44}).padding({left:20,right:20}).backgroundColor(Colors.surface).borderRadius(15)
+            .onClick(() => {
+              const notes=this.importedRecordingNotes;
+              if (notes) this.openSafeLink(Wire.text(notes,'extra'));
+            }).id('knowledge.recording.imported_notes')
+        }
         this.recordingHeading('phone_kb_confirmed')
         Column({space:6}) {
           if (Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned')) Text(Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned'))
@@ -1166,28 +1221,18 @@ export struct KnowledgeWorkspacePage {
           this.recordingFootnote('recording_detail_folder_access')
         }
         if (this.workspace.error && !(this.facts.open && this.facts.conflict && this.workspace.error==='phone_facts_changed')) Text(tr(this.workspace.error)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).width('100%')
-        Button({type:ButtonType.Normal}) {
-          Row() {
-            Text(tr('knowledge_minutes')+' · '+tr('knowledge_transcript')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.ink).layoutWeight(1)
-            SymbolGlyph(this.recordingTools ? Symbols.down : Symbols.expand).fontSize('14vp').fontColor([Colors.secondary])
-          }.width('100%')
-        }.width('100%').constraintSize({minHeight:44}).margin({top:16}).padding(12).backgroundColor(Colors.surface).borderRadius(15)
-          .accessibilityDescription(tr(this.recordingTools ? 'control_expanded' : 'control_collapsed')).onClick(() => this.recordingTools=!this.recordingTools).id('knowledge.recording.tools')
-        if (this.recordingTools) {
-          this.recordingSection(UIUtils.makeBinding(():Record<string,Object> => this.workspace.detail))
-          this.relatedEntries(UIUtils.makeBinding(():Record<string,Object> => this.workspace.detail))
-          if (this.importedMeeting()) Button(this.importedMeeting()!.title,{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).onClick(() => {
-            const item=this.importedMeeting(); if (item) this.onOpenResource(item);
-          }).id('knowledge.recording.imported')
-          Button(tr('knowledge_edit_metadata'),{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).onClick(() => this.workspace.beginEdit()).id('knowledge.edit.open')
-          if (this.workspace.editOpen && !this.metadataSheet) this.editForm()
-          Button(tr('knowledge_forget_recording'),{buttonStyle:ButtonStyleMode.TEXTUAL}).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.danger)
-            .enabled(this.workspace.canDeleteRecording()).onClick(() => this.confirmDeleteRecording()).id('knowledge.recording.delete')
+        if (!this.phoneRecordingDetail) {
+          this.recordingToolsButton()
+          if (this.recordingTools) this.recordingToolContents()
         }
       }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,top:31,bottom:24})
     }.width('100%').height('100%').align(Alignment.TopStart).backgroundColor(Colors.grouped).id('knowledge.recording.detail')
-      .bindSheet($$this.metadataSheet,this.metadataForm(),{title:{title:tr('knowledge_edit_metadata')},height:SheetSize.LARGE,showClose:true,
-        onDisappear:() => { this.workspace.editOpen=false; }})
+      .bindSheet($$this.metadataSheet,this.metadataForm(),{title:{title:this.phoneRecordingDetail && this.recordingTools ? this.recordingToolsTitle() : tr('knowledge_edit_metadata')},height:SheetSize.LARGE,showClose:true,
+        onWillDismiss:(dismiss:DismissSheetAction) => {
+          if (this.phoneRecordingDetail && this.recordingTools && dismiss.reason===DismissReason.PRESS_BACK) this.recordingTools=false;
+          else dismiss.dismiss();
+        },
+        onDisappear:() => { if (this.phoneRecordingDetail) this.recordingTools=false; this.workspace.editOpen=false; }})
   }
 
   @Builder detailContent() {
