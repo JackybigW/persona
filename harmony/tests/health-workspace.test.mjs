@@ -513,3 +513,10 @@ test('a failed readback keeps an acknowledged undo explicitly separate from a sa
   env.current.readFail=failure(403,'forbidden');await i.refresh();assert.equal(i.data,undefined);assert.equal(i.notice,'');assert.equal(i.actionId,'');
   await i.act(undo);assert.equal(env.writes.length,1);
 });
+
+test('Health upload and suggestion controls subscribe to machine readiness on their first native render',()=>{
+  const workspace=new HealthWorkspace(),observed=[];
+  Object.defineProperty(workspace,'reportUploadAllowed',{get(){observed.push('reportUploadAllowed');return false;},configurable:true});
+  assert.equal(workspace.canUploadReports(),false);assert.deepEqual(observed,['reportUploadAllowed']);
+  observed.length=0;assert.equal(workspace.canStartConversation(),false);assert.deepEqual(observed,['reportUploadAllowed']);
+});

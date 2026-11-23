@@ -106,7 +106,7 @@ export struct HealthToday {
   }
   @Builder ring(kind:string,value:IntakePortion) {
     Button({type:ButtonType.Normal}) {
-      Column({space:4}) {
+      Column() {
         Stack() {
           Progress({value:Math.max(0,Math.min(1,value.today/Math.max(1,value.goal))),total:1,type:ProgressType.Ring})
             .width(this.metric(105,135.3)).height(this.metric(105,135.3)).color(this.tint(kind))
@@ -119,7 +119,7 @@ export struct HealthToday {
         }
         Text(this.title(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(600).fontColor(Colors.ink).maxLines(1)
         Text(this.goal(kind,value)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary)
-          .width(this.metric(105,135.3)).textAlign(TextAlign.Center)
+          .width(this.metric(105,135.3)).textAlign(TextAlign.Center).margin({top:4})
       }.alignItems(HorizontalAlign.Center)
     }.padding(0).backgroundColor(Color.Transparent).buttonStyle(ButtonStyleMode.TEXTUAL)
       .accessibilityText(this.title(kind)).accessibilityDescription(this.ratioLabel(kind,value))

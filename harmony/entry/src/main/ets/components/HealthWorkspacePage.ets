@@ -361,8 +361,8 @@ export struct HealthWorkspacePage {
           Text(tr('health_try_asking')).fontSize(Tokens.body).fontWeight(FontWeight.Medium).width('100%')
           Button({ type: ButtonType.Normal }) {
             Row({space:12}) {
-              SymbolGlyph($r('sys.symbol.doc_plaintext')).fontSize(18).fontColor([Colors.link])
-              Text(tr('health_upload_report')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.link).layoutWeight(1).maxLines(1)
+              SymbolGlyph($r('sys.symbol.doc_plaintext')).fontSize(18).fontColor([this.reportTint()])
+              Text(tr('health_upload_report')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(this.reportTint()).layoutWeight(1).maxLines(1)
             }.width('100%')
           }.width('100%').constraintSize({minHeight:44}).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
             .padding({left:Tokens.page,right:Tokens.page}).accessibilityText(tr('health_upload_report')).bindMenu(this.reportUploadMenu)
@@ -380,9 +380,12 @@ export struct HealthWorkspacePage {
         this.reportsSection()
         this.conversationSection()
         this.memorySection()
-      }.padding(Tokens.page).width('100%').alignItems(HorizontalAlign.Start)
+      }.padding({left:Tokens.page,right:Tokens.page,bottom:Tokens.page,top:PhoneStyle.formSize(4,0,this.environment.fontScale)})
+        .width('100%').alignItems(HorizontalAlign.Start)
     }.scrollable(ScrollDirection.Vertical).scrollBar(BarState.Auto).layoutWeight(1).width('100%')
   }
+
+  private reportTint(): string { return this.environment.dark ? '#FF6B8B' : '#D62E5C'; }
 
   private draftOwner(): string {
     return this.workspace.composerOwner();
