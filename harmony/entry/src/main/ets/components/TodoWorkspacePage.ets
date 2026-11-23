@@ -567,6 +567,14 @@ export struct TodoWorkspacePage {
     const review=group.phone, label=tr(review.reviewKey).replace('{round}',String(review.reviewRound));
     return review.reviewCount ? label+' · '+review.reviewCount : label;
   }
+  private openLeadAt(binding:BoundRow<TodoWorkspaceGroup>, event:ClickEvent):void {
+    if (this.phoneList && !this.hubMode() && binding.value.members.length>1) {
+      const disclosure=this.windowFrame('todos.related.'+binding.value.lead.id);
+      if (disclosure && event.windowX>=disclosure.left && event.windowX<disclosure.left+disclosure.width &&
+        event.windowY>=disclosure.top && event.windowY<disclosure.top+disclosure.height) return;
+    }
+    this.openTodoAt(binding.value.lead,binding.value.phone.canFileSeen,event);
+  }
   private openTodoAt(todo:TodoWorkspaceItem,hasSeen:boolean,event:ClickEvent):void {
     if (hasSeen && this.phoneList && !this.hubMode() && this.workspace.supportsSeen()) {
       const chip=this.windowFrame('todos.seen.'+todo.id);
@@ -641,6 +649,19 @@ export struct TodoWorkspacePage {
       if (this.rowLine(binding.value)) Text(this.rowLine(binding.value)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
         .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(this.rowLineColor(binding.value))
         .maxLines(['notes','empty'].includes(binding.value.phone.summaryKind) ? 1 : 2).textOverflow({overflow:TextOverflow.Ellipsis})
+      if (binding.value.members.length>1) Button({type:ButtonType.Normal}) {
+        Row({space:4}) {
+          SymbolGlyph(this.expandedGroups.includes(binding.value.key) ? Symbols.down : Symbols.expand)
+            .fontSize(this.phoneMeasure(12,18)+'vp').width(this.phoneMeasure(9,13)).fontColor([Colors.secondary])
+            .accessibilityLevel('no')
+          Text(tr('phone_todo_related_count').replace('{count}',String(binding.value.members.length-1)))
+            .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Medium)
+            .fontColor(Colors.secondary).maxLines(1)
+        }
+      }.height(this.phoneMeasure(44,57.7)).padding(0).backgroundColor(Color.Transparent)
+        .accessibilityText(tr('phone_todo_related_count').replace('{count}',String(binding.value.members.length-1)))
+        .accessibilityDescription(tr(this.expandedGroups.includes(binding.value.key) ? 'control_expanded' : 'control_collapsed'))
+        .onClick(() => this.toggleGroup(binding.value.key)).id('todos.related.'+binding.value.lead.id)
     }.alignItems(HorizontalAlign.Start).padding({top:4,bottom:4}).layoutWeight(1)
   }
   @Builder todoRow(binding:BoundRow<TodoWorkspaceGroup>, section:BoundTodoSection) {
@@ -691,18 +712,21 @@ export struct TodoWorkspacePage {
             }.alignItems(HorizontalAlign.Start).layoutWeight(1)
             SymbolGlyph(Symbols.expand).fontSize((this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : 12)+'vp').fontColor([Colors.secondary])
               .width(this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : undefined)
-          }.layoutWeight(1).constraintSize({minHeight:44}).accessibilityGroup(!(this.phoneList && !this.hubMode() && binding.value.phone.canFileSeen && this.workspace.supportsSeen()))
-            .onClick((event:ClickEvent) => this.openTodoAt(binding.value.lead,binding.value.phone.canFileSeen,event))
+          }.layoutWeight(1).constraintSize({minHeight:44}).accessibilityGroup(!(this.phoneList && !this.hubMode() &&
+            (binding.value.members.length>1 || binding.value.phone.canFileSeen && this.workspace.supportsSeen())))
+            .onClick((event:ClickEvent) => this.openLeadAt(binding,event))
             .bindContextMenu(this.rowMenu(binding.value.lead),ResponseType.LongPress).id('todos.open.'+binding.value.lead.id)
         }.width('100%').alignItems(this.phoneList && !this.hubMode() ? VerticalAlign.Top : VerticalAlign.Center)
           .padding(this.phoneList && !this.hubMode() ? {left:20,right:20,top:15,bottom:15} : {left:6,right:13,top:8,bottom:8})
         if (binding.value.members.length > 1) {
-          Divider().strokeWidth(0.5).color(Colors.divider).margin({left:54})
-          Row({space:6}) {
-            SymbolGlyph(this.expandedGroups.includes(binding.value.key) ? Symbols.down : Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
-            Text(this.phoneList && !this.hubMode() ? tr('phone_todo_related_count').replace('{count}',String(binding.value.members.length-1)) : tr('todo_related') + ' · ' + String(binding.value.members.length-1)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.link)
-          }.height(42).width('100%').padding({left:57}).accessibilityGroup(true).onClick(() => this.toggleGroup(binding.value.key))
-            .id('todos.related.'+binding.value.lead.id)
+          if (!this.phoneList || this.hubMode()) {
+            Divider().strokeWidth(0.5).color(Colors.divider).margin({left:54})
+            Row({space:6}) {
+              SymbolGlyph(this.expandedGroups.includes(binding.value.key) ? Symbols.down : Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
+              Text(tr('todo_related') + ' · ' + String(binding.value.members.length-1)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.link)
+            }.height(42).width('100%').padding({left:57}).accessibilityGroup(true).onClick(() => this.toggleGroup(binding.value.key))
+              .id('todos.related.'+binding.value.lead.id)
+          }
           if (this.expandedGroups.includes(binding.value.key)) ForEach(binding.value.related(),(todo:TodoWorkspaceItem) => {
             Row({space:8}) {
               Text(todo.title).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.ink).layoutWeight(1).maxLines(2)
