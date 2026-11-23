@@ -30,4 +30,3 @@ export struct SshRouteFields {
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 }
-

@@ -22,4 +22,3 @@ export struct SshEndpointRow {
     }.width('100%').height(52).padding({left:18,right:18})
   }
 }
-
