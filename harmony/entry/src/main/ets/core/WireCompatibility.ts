@@ -13,6 +13,14 @@ export function canonicalPersonaLink(value: string): string {
 }
 
 export const subscriptionsPageId = '-subscriptions';
+export const healthIntakePageId = '-health-intake';
+// The Hub chooses the default manager for these routes and rejects even its explicit manager ID.
+export function defaultHealthIntakeRoute(path: string, method: string): boolean {
+  const base='/api/v1/assistant/health/intake',query='?space=health';
+  if (path===base+query) return method==='GET' || method==='POST';
+  if (path===base+'/ui'+query) return method==='POST';
+  return method==='DELETE' && /^\/api\/v1\/assistant\/health\/intake\/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\?space=health$/i.test(path);
+}
 export const subscriptionsPageUI = 'pages';
 
 export interface InboxSourcesLink {

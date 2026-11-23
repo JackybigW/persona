@@ -16,7 +16,7 @@ registerHooks({
   }
 });
 const { AgentDecisionCard, AgentDecisionQueue }=await import('../entry/src/main/ets/models/AgentDecisionQueue.ets');
-const { interactionResolution }=await import('../entry/src/main/ets/models/InteractionDecision.ets');
+const { interactionResolution, recommendedOptionTitle }=await import('../entry/src/main/ets/models/InteractionDecision.ets');
 const { ResourceRow, Wire }=await import('../entry/src/main/ets/models/Wire.ets');
 
 function pair(id) {
@@ -232,4 +232,32 @@ test('the optional project search readback retains sessionless cards and their g
   const change=queue.reload(root,a.owner,value=>results.push(value)); queue.clear(); gate.resolve(a.state.rows);
   await change;
   assert.equal(results.length,1); assert.deepEqual(a.state.writes,[]); assert.deepEqual(b.state.writes,[]);
+});
+
+
+test('recommended quick answers show a localized tag and submit the original option once', async () => {
+  const p=pair('chosen'), root=rootFor([p]), queue=new AgentDecisionQueue();
+  const rawLabel='Swift Testing (Recommended)';
+  p.state.rows[0].questions=[{question:'Test framework?',options:[{label:rawLabel},{label:'XCTest'}]}];
+  await queue.reload(root);
+  const card=queue.forSession(root,p.row)[0];
+  assert.deepEqual(card.quickOptions(),[rawLabel,'XCTest']);
+  for(const label of ['Swift Testing (Recommended)','Swift Testing（推荐）','Swift Testing(推荐)'])
+    assert.equal(recommendedOptionTitle(label),'Swift Testing');
+  assert.equal(recommendedOptionTitle('XCTest'),undefined);
+  assert.equal(recommendedOptionTitle('Recommended options'),undefined);
+  await queue.answer(root,p.row,card,rawLabel,'select-framework',()=>true);
+  assert.deepEqual(p.state.writes,[{body:{answers:{'Test framework?':rawLabel}},op:'select-framework'}]);
+});
+
+test('permissions use the requesting agent and long question lists still use their full answer form', () => {
+  const p=pair('chosen');
+  const card=data=>new AgentDecisionCard(p.owner,'assistant','machine','s',data);
+  assert.equal(card({id:'claude',kind:'permission',agent:'claude'}).namedPermissionAgent,false);
+  assert.equal(card({id:'legacy',kind:'permission'}).namedPermissionAgent,false);
+  assert.equal(card({id:'other',kind:'permission',agent:'codex'}).namedPermissionAgent,true);
+  const labels=['one','two','three','four','five'];
+  const question=card({id:'question',kind:'question',questions:[{question:'Pick one',options:labels.map(label=>({label}))}]});
+  assert.deepEqual(question.quickOptions(),[]);
+  assert.deepEqual(question.request.fields[0].choices,labels);
 });

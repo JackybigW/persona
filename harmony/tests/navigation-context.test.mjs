@@ -19,6 +19,31 @@ const names=['syncPhonePath','consumeNotification','destinationBackHidden','chat
 const NativeNavigation=new Function('NavigationContext','ResourceRow','mainConversationData','Wire','Tokens','return '+stripTypeScriptTypes('class NativeNavigation {'+names.map(method).join('\n')+'}'))(NavigationContext,ResourceRow,mainConversationData,Wire,Tokens);
 function row(id='source',manager='owner-b',kind='conversation'){const r=new ResourceRow(id,id,kind);r.manager=manager;r.machine='machine';r.session=id;return r;}
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
+
+test('the compact Health drawer entry returns to the exact route that opened it', () => {
+  const Shell = new Function('tr','return '+stripTypeScriptTypes('class Shell {'+
+    ['openSpace','openResources','phoneBack','destinationTitleText'].map(method).join('\n')+'}'))(key=>key);
+  for (const [section, name, param] of [[0,'conversation','original-chat'],[1,'session','original-agent'],[6,'resources','knowledge']]) {
+    const routes=[{name,param}];
+    const shell=Object.assign(new Shell(),{
+      model:{section,listResources:kind=>assert.equal(kind,'health')},
+      stack:{size:()=>routes.length,pushPath:route=>routes.push(route),pop:()=>routes.pop()},
+      detailModel:{releaseTerminal(){}},wide:()=>false,savePath(){},returnToPhoneSettings:()=>false,spacesShown:true
+    });
+    Object.defineProperties(shell,{
+      phoneTop:{get:()=>routes.at(-1)?.name},phoneParam:{get:()=>routes.at(-1)?.param}
+    });
+    shell.openSpace('health');
+    assert.deepEqual(routes,[{name,param},{name:'resources',param:'health'}]);
+    assert.equal(shell.spacesShown,false);
+    assert.equal(shell.model.section,section);
+    assert.equal(shell.destinationTitleText('resources','health'),'phone_drawer_health');
+    shell.openSpace('health');
+    assert.equal(routes.length,2);
+    shell.phoneBack();
+    assert.deepEqual(routes,[{name,param}]);
+  }
+});
 function fixture(){const shell=new NativeNavigation(),pushed=[];let gen=1;
  const primary={profile:{id:'hub'},selected:row('primary','owner-a'),connected:true,error:'',connectionGeneration:()=>gen,scope:()=> 'hub/owner-a',owns:(g,s)=>g===gen&&s==='hub/owner-a',reportError(e){this.error=e.message;},hideConversation(){},async listResources(){}};
  const detail={selected:row('previous'),connected:true,scope:()=> 'hub/owner-b',connectionGeneration:()=>gen,async select(r){this.selected=r;},hideConversation(){},showConversation(){},watchDecisions(){}};
@@ -365,7 +390,7 @@ test('the compact status-area background follows the visible page and drawer', (
     projectPlace:()=>false,projectSearching:false,settingsKind:value=>value});
   for (const [page,param,expected] of [
     ['resources','knowledge','grouped'],['resources','todo','grouped'],['resources','inbox','clear'],
-    ['recordings','','grouped'],['knowledge_meetings','','grouped'],['knowledge','','grouped'],
+    ['recordings','','grouped'],['knowledge_meetings','','grouped'],['knowledge','','grouped'],['resources','health','grouped'],
     ['project_tree','branch','grouped'],['settings','machines','grouped'],['settings','about','clear'],
     ['session','conversation','clear'],['','','grouped']]) {
     shell.phoneTop=page; shell.phoneParam=param;

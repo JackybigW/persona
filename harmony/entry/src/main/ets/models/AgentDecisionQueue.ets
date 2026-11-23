@@ -19,6 +19,7 @@ export class AgentDecisionCard {
   readonly supervisorHeld: boolean;
   readonly key: string;
   readonly preview: string;
+  readonly namedPermissionAgent: boolean;
   readonly since: number;
   private readonly requestAgent:string;
   readonly owner: ClientModel;
@@ -33,6 +34,8 @@ export class AgentDecisionCard {
     this.request.machine=machine; this.request.session=session;
     this.key=JSON.stringify([owner.scope(),manager,machine,session,this.request.id]);
     const nested=Wire.object(data,'interaction'), source=Object.keys(nested).length ? nested : data;
+    const requestingAgent=Wire.text(source,'agent') || Wire.text(data,'agent');
+    this.namedPermissionAgent=!!requestingAgent && requestingAgent!=='claude';
     this.parent=Wire.text(source,'folded_under') || Wire.text(data,'folded_under');
     this.since = Date.parse(Wire.text(source,'created_at') || Wire.text(data,'created_at')) || 0;
     const tool=Wire.text(source,'tool_name'), input=Wire.object(source,'tool_input');
@@ -48,8 +51,8 @@ export class AgentDecisionCard {
   quickOptions(): string[] {
     if (!interactionCanSubmit(this.request)) return [];
     if (this.request.kind==='permission' && !this.request.fields.length) return ['allow','deny'];
-    if (this.request.kind==='question' && this.request.fields.length===1 && this.request.fields[0].kind==='choice')
-      return this.request.fields[0].choices;
+    if (this.request.kind==='question' && this.request.fields.length===1 && this.request.fields[0].kind==='choice' &&
+        this.request.fields[0].choices.length<=4) return this.request.fields[0].choices;
     return [];
   }
 }

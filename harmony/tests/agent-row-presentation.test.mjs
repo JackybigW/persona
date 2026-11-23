@@ -309,3 +309,24 @@ test('choosing an Agents group keeps the resting header, active query, and list 
 test('visible selection can clear on Home without changing the cached selected Agent',()=>{
  const Page=pageClass({},key=>key),page=new Page(),binding={presentation:{selectionKey:'agent'}};page.workspace={selectedKey:'agent'};page.selectionVisible=true;assert.equal(page.isRowSelected(binding),true);page.selectionVisible=false;assert.equal(page.isRowSelected(binding),false);assert.equal(page.workspace.selectedKey,'agent');page.selectionVisible=true;assert.equal(page.isRowSelected(binding),true);
 });
+
+
+test('Needs You surfaces follow the visible oldest-first order as the decisions change', () => {
+  const getter=block(source.indexOf('  @Computed get orderedNeedsRows'), 'orderedNeedsRows').replace('@Computed ', '');
+  const methods=['displayRows','startsSurface','endsSurface'].map(methodCode).join('\n');
+  const Page=new Function('return '+stripTypeScriptTypes('class Page {\n'+getter+'\n'+methods+'\n}'))();
+  const page=new Page(), a={first:true,last:false,bound:{value:{waiting:20}}}, b={first:false,last:true,bound:{value:{waiting:10}}};
+  const group={value:{id:'state/needs'},rows:[a,b]};
+  page.groupBindings=[group];page.compactRoot=true;page.rail=false;
+  page.decisions={waitingSince:(_,row)=>row.waiting};
+  assert.deepEqual(page.displayRows(group),[b,a]);
+  assert.equal(page.startsSurface(b,group.value.id),true);assert.equal(page.endsSurface(b,group.value.id),false);
+  assert.equal(page.endsSurface(a,group.value.id),true);
+  a.bound.value.waiting=5;
+  assert.deepEqual(page.displayRows(group),[a,b]);
+  assert.equal(page.startsSurface(a,group.value.id),true);assert.equal(page.endsSurface(b,group.value.id),true);
+  group.rows=[b];
+  assert.equal(page.startsSurface(b,group.value.id),true);assert.equal(page.endsSurface(b,group.value.id),true);
+  page.rail=true;assert.equal(page.startsSurface(b,group.value.id),false);
+  assert.equal(page.endsSurface(b,'state/working'),true);
+});

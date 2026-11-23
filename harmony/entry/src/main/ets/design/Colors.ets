@@ -32,6 +32,7 @@ class NativeColors {
   readonly ink: ResourceColor = $r('app.color.persona_ink');
   readonly secondary: ResourceColor = $r('app.color.persona_secondary');
   readonly tertiary: ResourceColor = $r('app.color.project_card_tertiary');
+  readonly tertiaryFill: ResourceColor = $r('app.color.machine_session_avatar_fill');
   @Trace action: ResourceColor = $r('sys.color.comp_background_emphasize');
   @Trace onAction: ResourceColor = $r('sys.color.font_on_primary');
   @Trace link: ResourceColor = $r('sys.color.font_emphasize');

@@ -1014,6 +1014,9 @@ export class ClientModel {
     return phase;
   }
   isSendingMessage(id: string): boolean { return this.sendFeedbackPhase() === 'sending' && this.sendAttempts.get(this.target())?.id === id; }
+  sendFeedbackWorkHeader(): boolean {
+    return this.sendFeedbackPhase() === 'processing' && (this.sendAttempts.get(this.target())?.echoSequence ?? -1) >= 0;
+  }
   private feedbackChanged(): void {
     this.sendFeedbackRevision++;
     const current = this.sendAttempts.get(this.target()), now = Date.now();

@@ -60,6 +60,7 @@ export struct SessionTools {
   @Local pathDraft: string = '';
   @Local editingPath: boolean = false;
   @Local fileQuery: string = '';
+  private fileSearchField: SearchController = new SearchController();
   @Local showHidden: boolean = false;
   @Local showCommitPatch: boolean = false;
   @Local collapseChanges: boolean = false;
@@ -887,12 +888,21 @@ export struct SessionTools {
           .onClick(() => this.openPath()).id('session.files.open')
       }.width('100%')
       Row({space:Tokens.gap}) {
-        if (!this.editingPath) Search({value:this.fileQuery,placeholder:tr('session_find_in_folder').replace('{folder}',this.pathCrumbs[this.pathCrumbs.length-1]?.title || this.workspace.currentPath)})
-          .height(Math.max(34, 20 * Math.min(nativeEnvironment.fontScale, Tokens.interfaceScaleFor(15)) + 9))
-          .textFont({size:Tokens.interfaceFontVp(15, nativeEnvironment.fontScale)})
-          .placeholderFont({size:Tokens.interfaceFontVp(15, nativeEnvironment.fontScale)}).searchIcon({size:'15vp'})
-          .backgroundColor(Colors.control).borderRadius(22).layoutWeight(1)
-          .onChange((v:string) => { this.fileQuery=v; if (v.trim()) this.workspace.loadFileIndex(); }).id('session.files.query')
+        if (!this.editingPath) Row() {
+          Search({value:this.fileQuery,controller:this.fileSearchField,placeholder:tr('session_find_in_folder').replace('{folder}',this.pathCrumbs[this.pathCrumbs.length-1]?.title || this.workspace.currentPath)})
+            .height('100%').textFont({size:Tokens.interfaceFontVp(15, nativeEnvironment.fontScale)})
+            .placeholderFont({size:Tokens.interfaceFontVp(15, nativeEnvironment.fontScale)}).searchIcon({size:'15vp'})
+            .cancelButton({style:CancelButtonStyle.INVISIBLE}).backgroundColor(Color.Transparent).layoutWeight(1)
+            .onChange((v:string) => { this.fileQuery=v; if (v.trim()) this.workspace.loadFileIndex(); }).id('session.files.query')
+          if (this.fileQuery.length) {
+            Button({type:ButtonType.Normal}) {
+              Image($r('app.media.phone_search_clear'))
+                .width(PhoneStyle.formSize(18,26,nativeEnvironment.fontScale)).aspectRatio(1).fillColor(Colors.tertiary)
+            }.width(38).height('100%').margin({right:10}).padding(0).backgroundColor(Color.Transparent)
+              .accessibilityText(tr('clear')).onClick(() => { this.fileQuery=''; this.fileSearchField.stopEditing(); }).id('session.files.query.clear')
+          }
+        }.height(Math.max(34,20*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(15))+9))
+          .layoutWeight(1).backgroundColor(Colors.tertiaryFill).borderRadius(22)
         else Blank().layoutWeight(1)
         Button({type:ButtonType.Circle}) { this.horizontalMenuGlyph() }
           .width(44).height(44).padding(0).backgroundColor(Colors.control).bindMenu(this.fileMenu).accessibilityText(tr('more')).id('session.files.more')
