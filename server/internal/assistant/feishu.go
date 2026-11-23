@@ -239,6 +239,7 @@ func (t *feishuTurn) pass() {
 }
 
 type botCard struct {
+	posting   *botCardPost // only the in-flight claim; omitted from saved cards
 	MessageID string
 	Thread    string            // the topic the card was posted into (the run anchor it replies to); "" in the root chat
 	ChatID    string            // the group chat the card is in (a topic's card); "" in the owner's DM

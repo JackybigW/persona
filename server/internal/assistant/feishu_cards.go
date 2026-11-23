@@ -166,7 +166,9 @@ func (s *Service) postInteractionCard(ctx context.Context, ix proto.Interaction)
 		b.mu.Unlock()
 		return
 	}
-	s.keepBotCardLocked(ix.ID, &botCard{}) // claimed: a second announce of the same card does not post twice
+	post := &botCardPost{done: make(chan struct{})}
+	defer close(post.done)
+	s.keepBotCardLocked(ix.ID, &botCard{posting: post}) // a second announcement cannot post the same card
 	b.mu.Unlock()
 	reply, to, topic := s.interactionPlace(ix)
 	ctx = feishuSendAs(ctx, string(ix.Kind), ix.MachineID, ix.SessionID)
@@ -189,7 +191,9 @@ func (s *Service) postInteractionCard(ctx context.Context, ix proto.Interaction)
 		// Answered while its card was being made (a program that answers cards at once): nobody needs to look at it,
 		// so nothing is posted and the claim goes (#5430). One that ends during the post is closed after it, below.
 		b.mu.Lock()
-		s.keepBotCardLocked(ix.ID, nil)
+		if b.cards[ix.ID].posting == post {
+			s.keepBotCardLocked(ix.ID, nil)
+		}
 		b.mu.Unlock()
 		return
 	}
@@ -212,17 +216,26 @@ func (s *Service) postInteractionCard(ctx context.Context, ix proto.Interaction)
 	b.mu.Lock()
 	if err != nil {
 		s.logf("bots: card for %s: %v", ix.ID, err)
-		s.keepBotCardLocked(ix.ID, nil)
+		if b.cards[ix.ID].posting == post {
+			s.keepBotCardLocked(ix.ID, nil)
+		}
 		b.mu.Unlock()
 		return
 	}
-	if _, still := b.cards[ix.ID]; !still || ended { // answered while it was being posted
-		s.keepBotCardLocked(ix.ID, nil)
+	post.card = botCard{MessageID: mid, Ix: ix, At: b.clock(), Thread: reply, ChatID: to.ChatID}
+	if post.detached { // feishuDetach owns the close, even when Feishu returned the message id after the disconnect
+		b.mu.Unlock()
+		return
+	}
+	if b.cards[ix.ID].posting != post || ended { // answered while it was being posted
+		if b.cards[ix.ID].posting == post {
+			s.keepBotCardLocked(ix.ID, nil)
+		}
 		b.mu.Unlock()
 		s.botCardDone(ctx, mid, ix, i18n.T(s.botLang(ctx), "assistant-feishu_cards.handled"))
 		return
 	}
-	s.keepBotCardLocked(ix.ID, &botCard{MessageID: mid, Ix: ix, At: b.clock(), Thread: reply, ChatID: to.ChatID})
+	s.keepBotCardLocked(ix.ID, &post.card)
 	b.mu.Unlock()
 	if topic != nil {
 		// The run was asked in a topic and the card went to the DM: the topic is told where it is.
@@ -357,6 +370,13 @@ func (s *Service) feishuInteractionEnded(ix proto.Interaction, how string, inCha
 	}()
 }
 
+// A disconnect may arrive after Feishu accepted a post but before it returns the message ID.
+type botCardPost struct {
+	done     chan struct{}
+	card     botCard // immutable after done closes; zero if the post did not return an ID
+	detached bool    // under fbot.mu
+}
+
 // detachedCard is a Feishu card closed because its node's connection ended (cancelMachineInteractions): the same card
 // read again once the node is back opens it again (feishuCardBack). closed is shut once the close went out, so the
 // reopening lands after it.
@@ -380,8 +400,11 @@ func (s *Service) feishuDetach(ids []string) {
 	var closing []detachedCard
 	for _, id := range ids {
 		c, ok := b.cards[id]
-		if !ok || c.MessageID == "" {
+		if !ok || (c.MessageID == "" && c.posting == nil) {
 			continue
+		}
+		if c.posting != nil {
+			c.posting.detached = true
 		}
 		s.keepBotCardLocked(id, nil) // closed here, not again by feishuInteractionDone
 		if b.detached == nil {
@@ -395,9 +418,16 @@ func (s *Service) feishuDetach(ids []string) {
 	for _, d := range closing {
 		go func() {
 			defer close(d.closed)
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			s.botCardDone(ctx, d.card.MessageID, d.card.Ix, i18n.T(s.botLang(ctx), "assistant-channels.ended"))
+			card := d.card
+			if post := card.posting; post != nil {
+				<-post.done
+				card = post.card
+			}
+			if card.MessageID != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				s.botCardDone(ctx, card.MessageID, card.Ix, i18n.T(s.botLang(ctx), "assistant-channels.ended"))
+			}
 		}()
 	}
 }
@@ -409,6 +439,26 @@ func (s *Service) feishuCardBack(ix proto.Interaction) {
 	b := &s.fbot
 	b.mu.Lock()
 	d, ok := b.detached[ix.ID]
+	if post := d.card.posting; ok && post != nil {
+		b.mu.Unlock()
+		<-d.closed
+		current, pending := s.pendingIx(ix.ID)
+		b.mu.Lock()
+		if b.detached[ix.ID].closed != d.closed { // another reconnect claimed or replaced it while the post was in flight
+			b.mu.Unlock()
+			return
+		}
+		d.card = post.card
+		if pending && d.card.MessageID != "" {
+			owner := d.card.Ix
+			if owner.MachineID != ix.MachineID || owner.SessionID != ix.SessionID ||
+				current.MachineID != ix.MachineID || current.SessionID != ix.SessionID || !current.CreatedAt.Equal(ix.CreatedAt) {
+				b.mu.Unlock()
+				return // a notification for another session or generation must not consume this message
+			}
+		}
+		ok = pending && d.card.MessageID != ""
+	}
 	delete(b.detached, ix.ID)
 	_, posted := b.cards[ix.ID]
 	if !ok || posted || b.clock().Sub(d.at) > resumeGrace {
