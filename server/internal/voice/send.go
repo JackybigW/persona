@@ -396,7 +396,8 @@ func (t *tracker) resend(id, clearDraft string) {
 // QuietGrace and a turn that ended before it are measured from Started), after the conversation's last line then
 // (Base 0: sendTo reads it again).
 func (r *voiceRun) restart(now time.Time) {
-	r.Started, r.Base, r.rev, r.checked = now, 0, 0, time.Time{}
+	r.Started, r.checked = now, time.Time{}
+	r.Base, r.rev, r.readRev = 0, 0, 0
 	r.Seen, r.ended, r.notFound, r.waiting, r.unsent = false, false, false, false, false
 }
 
