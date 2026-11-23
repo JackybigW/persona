@@ -1899,6 +1899,8 @@ func (s *Service) restoreRoute(ctx context.Context, ix proto.Interaction) bool {
 	if !routable(ix) {
 		return false
 	}
+	s.supervise.routingMu.Lock()
+	defer s.supervise.routingMu.Unlock()
 	ladder, todo, home, ok := s.askLadder(ctx, ix)
 	if !ok {
 		return false
