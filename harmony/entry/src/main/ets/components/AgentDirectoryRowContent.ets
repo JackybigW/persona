@@ -1,6 +1,7 @@
 import { LengthMetrics } from '@kit.ArkUI';
 import { ProjectAgent } from '../models/ProjectCatalog';
 import { Colors } from '../design/Colors';
+import { PhoneStyle } from '../design/PhoneStyle';
 import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
@@ -69,6 +70,8 @@ export struct AgentDirectoryRowContent {
   }
   @Builder avatarTitle() {
     Text(this.agent.row.title || tr('agent_untitled')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17))
+      .lineHeight(this.previewRow ? PhoneStyle.settingsExampleLineHeight(20,27.67,this.fontScale) : undefined)
+      .letterSpacing(this.previewRow ? '-0.25vp' : undefined)
       .fontWeight(this.agent.state==='unread'?FontWeight.Bold:600).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
   }
   @Builder agentTitleAndTime() {
@@ -99,8 +102,9 @@ export struct AgentDirectoryRowContent {
           if (this.age) Text(this.age).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary).maxLines(1)
         }.width('100%')
         if (this.agent.preview) Row({space:8}) {
-          Text(this.agent.preview).maxLines(this.narrow ? 4 : 2).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
-            .lineSpacing(this.previewLeading(),{onlyBetweenLines:true})
+          Text(this.agent.preview).maxLines(this.previewRow && this.avatarTimeBelow && this.agent.state==='needs_you' ? 1 : this.narrow ? 4 : 2)
+            .fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+            .punctuationOverflow(this.previewRow).lineSpacing(this.previewLeading(),{onlyBetweenLines:true})
             .layoutWeight(1).textOverflow({overflow:TextOverflow.Ellipsis})
           if (this.agent.state === 'needs_you' && !this.narrow) this.needsReply()
         }.width('100%').alignItems(VerticalAlign.Top)

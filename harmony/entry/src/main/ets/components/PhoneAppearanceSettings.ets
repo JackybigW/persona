@@ -285,12 +285,16 @@ export struct PhoneAppearanceSettings {
           AgentDirectoryRowContent({agent:agent,display:key,previewRow:true,activityList:true,
             place:agent.tab,showsSource:true,sourceTitle:tr('terminal'),
             age:agent.state==='needs_you' ? '2'+tr('agent_time_minute_suffix') : tr('agent_time_just_now'),
-            fontScale:this.environment.fontScale,controlScale:Math.min(this.environment.fontScale,Tokens.interfaceFontMaxScale),
+            fontScale:this.environment.fontScale,controlScale:PhoneStyle.formSize(36,47.3,this.environment.fontScale)/36,
             tint:agent.state==='needs_you' ? Colors.needsMark : Colors.workingMark})
         }, (agent:ProjectAgent) => agent.row.id)
       }.width('100%').padding(key==='cards' ? 0 : 12)
-        .backgroundColor(key==='cards' ? Color.Transparent : Colors.card(true)).borderRadius(12)
+        .backgroundColor(key==='cards' ? Color.Transparent : this.styleSurface(phoneInterfaceStyleID(this.model.style)).card || Colors.sheetBackground).borderRadius(14)
     }.width('100%').padding(8).backgroundColor(Colors.sheetBackground).borderRadius(12).accessibilityLevel('no-hide-descendants')
+  }
+  private choiceInset(page: string): number {
+    if (page==='phone_look_layout') return PhoneStyle.formSize(19,32,this.environment.fontScale);
+    return page==='phone_look_navigation' ? 18 : 12;
   }
   @Builder choices(page: string) {
     Column() {
@@ -301,13 +305,16 @@ export struct PhoneAppearanceSettings {
               .fontSize('19vp').fontColor([Colors.ink])
             Text(this.label(page,key)).fontSize(17).fontWeight(page==='phone_look_scheme' ? FontWeight.Regular : FontWeight.Medium)
               .maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).layoutWeight(1)
+              .lineHeight(page==='phone_look_layout' ? PhoneStyle.settingsExampleLineHeight(20,27.67,this.environment.fontScale) : undefined)
             if (this.selected(page)===key) SymbolGlyph(Symbols.check).fontSize('17vp').fontColor([Colors.iconAccent]).accessibilityLevel('no')
           }.width('100%')
           if (page==='phone_look_navigation') this.navigationSample(key)
           if (page==='phone_look_layout') this.agentSample(key)
           if ((page==='phone_look_layout' || page==='phone_look_navigation'))
-            Text(tr(page+'_'+key+'_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%')
-        }.width('100%').padding({left:20,right:20,top:page==='phone_look_navigation' ? 18 : 12,bottom:page==='phone_look_navigation' ? 18 : 12})
+            Text(tr(page+'_'+key+'_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+              .punctuationOverflow(page==='phone_look_layout').width('100%')
+              .lineHeight(page==='phone_look_layout' ? PhoneStyle.settingsExampleLineHeight(15.67,23.5,this.environment.fontScale) : undefined)
+        }.width('100%').padding({left:20,right:20,top:this.choiceInset(page),bottom:this.choiceInset(page)})
           .constraintSize({minHeight:page==='phone_look_scheme' ? PhoneStyle.formSize(52,59,this.environment.fontScale) :
             page==='phone_look_navigation' ? PhoneStyle.formSize(289.7,340.3,this.environment.fontScale) : 44})
           .accessibilityGroup(true).accessibilityRole(AccessibilityRoleType.BUTTON).accessibilitySelected(this.selected(page)===key)
