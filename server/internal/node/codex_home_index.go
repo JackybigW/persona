@@ -42,6 +42,40 @@ func (n *Node) indexCodexHome(home string, deadline time.Time) bool {
 	})
 }
 
+// firstMessageRollouts reads the completed index. A start polls until its first
+// message appears, so it can pass a busy home and check again on the next look.
+func (n *Node) firstMessageRollouts(home string, deadline time.Time) []codexRollout {
+	if n.codices == nil {
+		return rollouts(home)
+	}
+	c := rolloutCacheFor(home)
+	if !c.mu.TryLock() {
+		return nil
+	}
+	if time.Since(c.at) < rolloutScanInterval {
+		list := c.rollouts
+		c.mu.Unlock()
+		return list
+	}
+	c.mu.Unlock()
+	// The rollout cache may have been invalidated since the last catalog check.
+	// Reusing an older, incomplete list could turn two candidate threads into one.
+	i := &n.codices.index
+	i.mu.Lock()
+	if s := i.homes[home]; s != nil && s.done == nil {
+		s.fresh = time.Time{}
+	}
+	i.mu.Unlock()
+	if !n.indexCodexHome(home, deadline) {
+		return nil
+	}
+	if !c.mu.TryLock() {
+		return nil
+	}
+	defer c.mu.Unlock()
+	return c.rollouts
+}
+
 // available waits only for the first short look. Once a scan overruns its budget,
 // later lists pass it immediately. A completed scan is used by the next list.
 func (i *codexHomeIndex) available(home string, deadline time.Time, scan func() time.Duration) bool {

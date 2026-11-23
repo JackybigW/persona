@@ -27,6 +27,7 @@ import (
 // guessing, and a subagent's id maps to the conversation it belongs to (rolloutMeta).
 
 const codexWindow = 14 * 24 * time.Hour
+const rolloutScanInterval = 5 * time.Second
 
 type codexRollout struct {
 	id    string
@@ -170,7 +171,7 @@ func rollouts(home string) []codexRollout {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
-	if now.Sub(c.at) < 5*time.Second {
+	if now.Sub(c.at) < rolloutScanInterval {
 		return c.rollouts
 	}
 	var files []rolloutFile

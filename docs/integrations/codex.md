@@ -32,6 +32,7 @@ The manager sends one Ctrl+D through the selected session's terminal writer only
   home's history. Other homes, terminal Agents and runtimes continue to appear. Previously observed threads in a
   delayed home retain their titles and identities and show an unknown status until the scan finishes. If all 16
   filesystem workers are busy, a new home's history first appears after a worker becomes available (#13812).
+  A terminal start also checks available homes for its first message and retries homes whose scans are still pending.
 - herdr's terminal title "dots | codex | Ready" is not a usable chat title. Use Codex's own thread name (`thread_name` in `~/.codex/session_index.jsonl`,
   taking the last entry for a given id), or the first user message if absent.
 - `proto.Session.agent` = `codex`. App list rows and space-page cards show an Agent tag (the same small outlined `AgentTag` for Claude and Codex); the chat subtitle includes the Agent name and the input says "Message Codex".

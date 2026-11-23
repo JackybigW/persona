@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -145,5 +146,58 @@ fill:
 	}
 	if dupe := n.codexSessions(map[string]bool{id: true}); len(dupe) != 0 {
 		t.Fatalf("a live row was duplicated with stale history: %v", dupe)
+	}
+}
+
+func TestCodexFirstMessageFindsHealthyHomePastABlockedOne(t *testing.T) {
+	for _, waiting := range []bool{false, true} {
+		name := "start"
+		if waiting {
+			name = "empty pane receives its first message"
+		}
+		t.Run(name, func(t *testing.T) {
+			n := remoteTestNode(t)
+			slowRoot, fastRoot := t.TempDir(), t.TempDir()
+			const oldID = "dddd0000-0000-4000-8000-000000000004"
+			const newID = "eeee0000-0000-4000-8000-000000000005"
+			const prompt = "use the selected profile"
+			began := time.Now()
+			writeThread(t, slowRoot, oldID, n.home, "another request")
+			writeThread(t, fastRoot, newID, n.home, prompt)
+			slowHome := canonicalCodexHome(filepath.Join(slowRoot, ".codex"), n.home)
+			fastHome := canonicalCodexHome(filepath.Join(fastRoot, ".codex"), n.home)
+			n.configureCodex(proto.CodexConfig{Homes: []string{slowHome, fastHome}})
+			cache := rolloutCacheFor(slowHome)
+			cache.mu.Lock()
+			ctx, cancel := context.WithCancel(t.Context())
+			result := make(chan string, 1)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				if waiting {
+					w := codexWait{pane: "pane", cwd: n.home, began: began}
+					for _, thread := range n.newCodexThreads(&w, codexHeld{}) {
+						if thread.first == prompt {
+							result <- thread.id
+							return
+						}
+					}
+					result <- ""
+					return
+				}
+				id, _ := n.waitCodexThread(ctx, "pane", n.home, prompt, began)
+				result <- id
+			}()
+			defer func() { cancel(); cache.mu.Unlock(); <-done }()
+			want := codexSourceID(fastHome, newID, n.codexInventory().LegacyHome)
+			select {
+			case id := <-result:
+				if id != want {
+					t.Fatalf("first message matched %q, want %q", id, want)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("an unrelated home held up the first message")
+			}
+		})
 	}
 }

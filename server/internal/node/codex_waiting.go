@@ -394,8 +394,9 @@ func (n *Node) newCodexThreads(w *codexWait, held codexHeld) []newThread {
 	}
 	var out []newThread
 	seen := map[string]bool{}
+	scanBy := time.Now().Add(codexHomeListWait)
 	for _, home := range homes {
-		for _, r := range rollouts(home) {
+		for _, r := range n.firstMessageRollouts(home, scanBy) {
 			if r.sub || (r.cwd != w.cwd && r.cwd != resolved) || r.mtime.Before(w.began.Add(-time.Second)) {
 				continue
 			}
