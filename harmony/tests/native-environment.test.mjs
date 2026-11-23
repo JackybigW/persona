@@ -94,7 +94,11 @@ test('phone form sheets follow the attached portrait window and retain native si
     on: (key, fn) => handlers.set(key, fn), off: key => handlers.delete(key)
   };
   const source = readFileSync(new URL('../entry/src/main/ets/pages/Index.ets', import.meta.url), 'utf8');
-  const declaration = source.slice(source.indexOf('  private compactFormHeight()'), source.indexOf('  @Builder phoneSettings()'));
+  const first = source.indexOf('  private compactFormHeight()');
+  const last = source.indexOf('  private compactNavigationInset()', first);
+  const end = source.indexOf('\n  }', last);
+  assert.ok(first >= 0 && last > first && end > last);
+  const declaration = source.slice(first, end + 4);
   const Form = new Function('SheetSize', 'Tokens', 'return '+stripTypeScriptTypes('class Form {'+declaration+'}'))({ LARGE:'native' }, { compactStatusInset:62 });
   const form = Object.assign(new Form(), { environment:env, model:{profile:{id:'paired'}}, getUIContext:() => ({ px2vp:px => px/3 }) });
   env.bindWindow(owner); assert.equal(form.compactFormHeight(), 812); assert.equal(form.compactNavigationInset(), 23);
