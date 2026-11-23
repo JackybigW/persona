@@ -1103,9 +1103,6 @@ export struct KnowledgeWorkspacePage {
   private recordingMetric(regular:number,largest:number):number {
     return PhoneStyle.formSize(regular,largest,nativeEnvironment.fontScale);
   }
-  @Computed get recordingFactsHeight():number {
-    return PhoneStyle.formSize(52.3,59.3,this.environment.fontScale);
-  }
   @Builder recordingHeading(key:string) {
     Row() {
       Text(tr(key)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(FontWeight.Medium)
@@ -1198,8 +1195,10 @@ export struct KnowledgeWorkspacePage {
             Row({space:12}) {
               SymbolGlyph(Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned') ? Symbols.edit : Symbols.plus).fontSize('17vp').fontColor([Colors.link])
               Text(tr(Wire.text(Wire.object(this.workspace.detail,'meta'),'pinned') ? 'recording_facts_edit' : 'phone_kb_add_fact')).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).fontColor(Colors.link)
-            }.width('100%')
-          }.width('100%').height(this.recordingFactsHeight).padding({left:20,right:20}).backgroundColor(Color.Transparent).onClick(() => this.openFacts()).id('knowledge.facts.open')
+            }.width('100%').padding({top:16.15,bottom:16.15})
+          }.width('100%').constraintSize({minHeight:this.recordingMetric(52.3,59.3)})
+            .padding({left:20,right:20,top:0,bottom:0}).backgroundColor(Color.Transparent)
+            .onClick(() => this.openFacts()).id('knowledge.facts.open')
         }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface).borderRadius(29)
           .bindSheet(this.facts.open,this.recordingFactsEditor(),{height:this.facts.baseline ? SheetSize.MEDIUM : SheetSize.LARGE,
             detents:this.facts.baseline ? [SheetSize.MEDIUM,SheetSize.LARGE] : [SheetSize.LARGE,SheetSize.MEDIUM],

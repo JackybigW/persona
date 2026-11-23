@@ -220,10 +220,11 @@ export struct MarkdownText {
         .backgroundColor(this.codeFill)
         .border({ width: Tokens.hairline, color: this.emphasize, radius: Tokens.fine })
     } else if (block.kind === 'list') {
-      Column({ space: this.dockPlan ? 3 : Tokens.gap }) {
+      Column({ space: this.dockPlan ? this.readingPoints(Tokens.body)*0.2 : Tokens.gap }) {
         ForEach(block.items, (item: MarkdownBlock) => this.listItem(item),
           (item: MarkdownBlock, index: number) => 'list.' + String(index))
       }.width('100%').alignItems(HorizontalAlign.Start)
+        .padding({top:this.dockPlan && !first ? Math.max(0,this.readingPoints(Tokens.body)*0.2-6) : 0})
     } else if (block.kind === 'table') {
       Scroll() {
         Column({ space: Tokens.fine }) {
@@ -236,13 +237,13 @@ export struct MarkdownText {
   }
 
   @Builder listItem(item: MarkdownBlock) {
-    Row({ space: Tokens.inset }) {
-      Text(item.marker).fontSize(Tokens.body).fontColor(this.secondary)
+    Row({ space: this.dockPlan ? 10 : Tokens.inset }) {
+      Text(item.marker).fontSize(this.dockPlan ? this.readingFont(Tokens.body) : Tokens.body).fontColor(this.secondary)
       Column({ space: Tokens.gap }) {
         ForEach(item.children, (child: MarkdownBlock) => this.blockView(child),
           (child: MarkdownBlock, index: number) => 'item.' + String(index))
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-    }.width('100%').alignItems(VerticalAlign.Top).padding({left:this.dockPlan ? 9 : 0})
+    }.width('100%').alignItems(VerticalAlign.Top).padding({left:this.dockPlan ? this.readingPoints(Tokens.body)*0.65 : 0})
   }
 
   @Builder tableRow(row: MarkdownTableRow, table: MarkdownBlock) {

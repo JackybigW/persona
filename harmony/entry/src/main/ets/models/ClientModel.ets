@@ -1872,10 +1872,10 @@ export class ClientModel {
     const previous=this.sourceContext,target=this.target();this.sourceContext='';this.draftRevision=util.generateRandomUUID();
     this.persistDraft().then(()=>new ChatDraftStore(this.local).discardForwardMedia(target,previous,'')).catch(()=>this.error='failed');
   }
-  async createAgent(prompt: string, machine: ResourceRow, directory: string, launcher: string, todoId: string = '', admit?: () => boolean, workspaceId: string = '', host: string = '', model: string = '', effort: string = ''): Promise<ResourceRow> {
+  async createAgent(prompt: string, machine: ResourceRow, directory: string, launcher: string, todoId: string = '', admit?: () => boolean, workspaceId: string = '', host: string = '', model: string = '', effort: string = '', tabName: string = ''): Promise<ResourceRow> {
     if (machine.manager !== this.profile.manager) throw new Error('request_updated');
     const generation = this.generation, scope = this.scope(), repo = this.repo();
-    const row = await repo.createAgent(prompt, machine, directory, launcher, util.generateRandomUUID(), todoId, (): boolean => this.owns(generation, scope) && (!admit || admit()), workspaceId, host, model, effort);
+    const row = await repo.createAgent(prompt, machine, directory, launcher, util.generateRandomUUID(), todoId, (): boolean => this.owns(generation, scope) && (!admit || admit()), workspaceId, host, model, effort, tabName);
     if (!this.owns(generation, scope)) throw new Error('request_updated');
     try { await this.refresh(); } catch (_) { if (this.owns(generation, scope)) this.error = 'failed'; }
     if (!this.owns(generation, scope)) throw new Error('request_updated'); row.group = this.profile.id; return row;

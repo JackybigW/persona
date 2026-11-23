@@ -250,7 +250,8 @@ test('generic demo thread replies validate their parent and replay only the matc
 test('agent roster mutations and todo linking use only admitted local state', async () => {
   const repo = new DemoRepository();
   const roster = repo.roster(), machine = roster.machines[0], todo = roster.todos[0];
-  const created = await repo.createAgent('Prepare a sample report', machine, '/demo/ReleaseDesk', 'codex', 'demo-create-agent', todo.id);
+  const created = await repo.createAgent('Prepare a sample report', machine, '/demo/ReleaseDesk', 'codex', 'demo-create-agent', todo.id, undefined, '', '', '', '', '  Sample report  ');
+  assert.equal(created.data().slot_name, 'Sample report');
   assert.equal(created.manager, 'demo');
   assert.equal(created.machine, machine.id);
   const linked = await repo.call('/api/v1/todos/' + todo.id + '/agents/' + machine.id + '/' + created.id + '?manager=demo', 'PUT');

@@ -68,7 +68,7 @@ test('native phone search sizes the entered text and placeholder together and pr
   assert.match(switcher,/Text\(tr\(create \? 'phone_new_assistant' : 'phone_manage_assistants'\) \+ \(create \? '' : '…'\)\)\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)/);
   assert.match(switcher,/PhoneStyle\.sidebarMetric\(44,this\.environment\.fontScale\)/);
 });
-const {AgentLaunchChoices,providerStartModes,launchModelName,recentLaunchDirectories,LaunchChoice,RecentAgentSetup,rememberAgentSetup,loadAgentSetups}=await import('../entry/src/main/ets/models/AgentLaunchChoices.ets');
+const {AgentLaunchChoices,typedAgentDirectory,providerStartModes,launchModelName,recentLaunchDirectories,LaunchChoice,RecentAgentSetup,rememberAgentSetup,loadAgentSetups}=await import('../entry/src/main/ets/models/AgentLaunchChoices.ets');
 const {ProjectWorktree}=await import('../entry/src/main/ets/models/ProjectCatalog.ets');
 const {ResourceRow,Wire}=await import('../entry/src/main/ets/models/Wire.ets');
 
@@ -148,7 +148,7 @@ function makeOwner(call) {
     scope(){return this.profile.id+':'+this.profile.manager},connectionGeneration(){return this.generation},
     owns(g,s){return g===this.generation&&s===this.scope()},repo(){return{call}}};
 }
-function gate(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}}
+function gate(){let resolve,reject;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return {promise,resolve,reject}}
 test('folder choices retain only resolved directories from the current machine and connection',async()=>{
   const pending=new Map();const owner=makeOwner(p=>{const g=gate();pending.set(p,g);return g.promise});
   const choices=new AgentLaunchChoices();const a=choices.folder(owner,'work/mac','/one'),b=choices.folder(owner,'work/mac','/two');
@@ -158,6 +158,44 @@ test('folder choices retain only resolved directories from the current machine a
   assert.equal(choices.path,'/two');assert.equal(choices.directories[0].detail,'Git');assert.equal(choices.recentDirectories[0].id,'/recent');
   const c=choices.folder(owner,'new','/unknown');owner.generation++;
   [...pending.values()].at(-1).resolve({path:'/old-scope'});await c;assert.equal(choices.path,'');
+});
+test('typed folders resolve under the confirmed machine directory, and a failed read leaves siblings available',async()=>{
+  assert.equal(typedAgentDirectory(' src ','/Users/me/code/weather/'),'/Users/me/code/weather/src');
+  assert.equal(typedAgentDirectory('one/two','/'),'/one/two');
+  assert.equal(typedAgentDirectory('src',''),'~/src');
+  for (const input of ['/srv/repo','~','~/code','C:\\work','\\\\server\\share','']) assert.equal(typedAgentDirectory(input,'/other'),input);
+  assert.equal(typedAgentDirectory('  ','/work'),'');
+  assert.equal(typedAgentDirectory('src','C:\\work'),'C:\\work\\src');
+  const choices=new AgentLaunchChoices(),pending=[];
+  const owner=makeOwner(url=>{const entry=gate();pending.push({path:new URL(url,'http://fixture').searchParams.get('path'),...entry});return entry.promise});
+  const get=path=>choices.folder(owner,'mac',path), response=path=>({path,parent:'/Users/me/code',entries:[{name:'src',path:path+'/src'}]});
+  let call=get('/Users/me/code/weather');pending.at(-1).resolve(response('/Users/me/code/weather'));await call;
+  const denied=Object.assign(new Error('internal'),{status:502});
+  call=get(typedAgentDirectory('nope',choices.path)); assert.equal(choices.path,'/Users/me/code/weather');
+  pending.at(-1).reject(denied);await call;assert.equal(choices.error,'phone_directory_read_failed');assert.equal(choices.directories[0].id,'/Users/me/code/weather/src');
+  const older=get('/slow');const stale=pending.at(-1);
+  const newer=get('/fast');pending.at(-1).resolve(response('/fast'));await newer;stale.reject(denied);await older;
+  assert.deepEqual([choices.path,choices.error],['/fast','']);
+  call=get('/limited');pending.at(-1).reject(Object.assign(new Error('forbidden'),{status:403}));await call;
+  assert.deepEqual([choices.path,choices.directories.length],['',0]);
+});
+test('the initial missing folder falls back once on its own machine and can never replace a newer machine or Hub',async()=>{
+  const choices=new AgentLaunchChoices(),pending=[];
+  const call=url=>{const entry=gate();pending.push({url,...entry});return entry.promise};
+  const owner=makeOwner(call), other=makeOwner(call);
+  const first=choices.folder(owner,'mac','/gone');
+  pending.at(-1).reject(Object.assign(new Error('internal'),{status:502})); await Promise.resolve();
+  assert.match(pending.at(-1).url,/mac\/dirs\?path=$/); const fallback=pending.at(-1);
+  const switched=choices.folder(other,'studio','~');pending.at(-1).resolve({path:'/home/studio',entries:[]});await switched;
+  fallback.resolve({path:'/home/mac',entries:[{name:'private',path:'/home/mac/private'}]});await first;
+  assert.equal(choices.path,'/home/studio');assert.equal(choices.directories.length,0);
+  const offline=choices.folder(owner,'mac','/offline');const calls=pending.length;pending.at(-1).reject(Object.assign(new Error('offline'),{status:0}));await offline;
+  assert.equal(pending.length,calls);assert.equal(choices.path,'');
+  const saved=choices.folder(owner,'mac','/gone');pending.at(-1).reject(Object.assign(new Error('not found'),{status:404}));await Promise.resolve();
+  pending.at(-1).resolve({path:'/home/mac',entries:[{name:'work',path:'/home/mac/work'}]});await saved;
+  assert.equal(choices.path,'/home/mac');assert.equal(choices.error,'phone_directory_read_failed');
+  const late=choices.folder(owner,'mac','child');owner.generation++;pending.at(-1).resolve({path:'/old',entries:[]});await late;
+  assert.equal(choices.path,'');assert.equal(choices.directories.length,0);
 });
 test('model aliases keep the host title while raw GPT model IDs match the iPhone display label', () => {
   assert.equal(launchModelName('gpt-5.5-codex','GPT-5.5-Codex'),'5.5 Codex');
@@ -238,21 +276,62 @@ const nativeFormDependencies = { Wire, LaunchChoice, RecentAgentSetup, rememberA
 const NativeAgentForm = new Function(...Object.keys(nativeFormDependencies), 'return ' + stripTypeScriptTypes(
   'class NativeAgentForm {\n' + [...required].map(name => formMethods.get(name)).join('\n') + '\n}'))(...Object.values(nativeFormDependencies));
 
+test('Other Model keeps an unlisted ID on cancel and confirms one valid model to the current form after dismissal', async () => {
+  const {modelIDProblem}=await import('../entry/src/main/ets/models/ModelID.ets');
+  const word=key=>key==='flow_model_id_character' ? 'unsupported {character}' : key;
+  for (const [id,expected] of [['','flow_model_id_empty'],['.bad','flow_model_id_start'],['a b','flow_model_id_space'],
+    ['a\nb','flow_model_id_control'],['vendor/模型','unsupported 模'],['a'.repeat(257),'flow_model_id_length'],
+    ['~gateway/latest',''],['vendor/code:beta@1[1m]',''],['a'.repeat(256),'']]) assert.equal(modelIDProblem(id,word),expected,id);
+  const choices=new AgentLaunchChoices();
+  await choices.loadModels(makeOwner(async()=>({agent:'codex',models:[{id:'native',name:'Native',aliases:['short']}]})),'mac','codex');
+  assert.equal(choices.listsModel('short'),true); assert.equal(choices.listsModel('SHORT'),false);
+  assert.deepEqual(choices.models[0].aliases,['short']); assert.equal(choices.hasCatalogModel(),true);
+  const source=readFileSync(new URL('../entry/src/main/ets/components/AgentStartPicker.ets',import.meta.url),'utf8');
+  const methods=['canTypeModel','openTypedModel','confirmTypedModel','finishTypedModel'].map(name=>{
+    const start=source.indexOf('  private '+name+'('), line=source.indexOf('\n',start);
+    assert.ok(start>=0,name);
+    return source.slice(start,source.slice(start,line).trimEnd().endsWith('}') ? line : source.indexOf('\n  }',line)+4);
+  });
+  const Picker=new Function('modelIDProblem','tr','return '+stripTypeScriptTypes('class Picker {\n'+methods.join('\n')+'\n}'))(modelIDProblem,word);
+  const used=[];
+  const picker=Object.assign(new Picker(),{choices,kind:'model',manual:true,selected:'vendor/prior',choose:id=>used.push(id)});
+  picker.openTypedModel(); assert.equal(picker.typedModel,'vendor/prior');
+  picker.typedModel='a b';picker.confirmTypedModel(); assert.equal(picker.typingModel,true);assert.deepEqual(used,[]);
+  picker.typingModel=false;picker.finishTypedModel();assert.deepEqual(used,[]);
+  picker.openTypedModel();picker.typedModel='  vendor/new  ';picker.confirmTypedModel();assert.equal(picker.typingModel,false);assert.deepEqual(used,[]);
+  picker.finishTypedModel();picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+  picker.selected='short';picker.openTypedModel();assert.equal(picker.typedModel,'');picker.typedModel='second';picker.confirmTypedModel();
+  choices.locked='launcher supplies its own model';picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+});
+
 
 test('the focused New Agent draft follows the settled keyboard, content and text-size layout, and never a closed form', () => {
-  const callbacks=[],edges=[];
-  const Form=new Function('setTimeout','Edge','return '+stripTypeScriptTypes(
-    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(
-      fn=>callbacks.push(fn),{Bottom:'bottom'});
-  const form=Object.assign(new Form(),{agentMessageFocused:true,showSheet:true,sheetKind:'newagent',agentPanel:'',
-      agentFormRevision:1,agentFormScroll:{scrollEdge:edge=>edges.push(edge)}});
-  form.agentDraftAreaChanged({width:360,height:370},{width:360,height:440});
-  assert.deepEqual(edges,[]);callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentDraftAreaChanged({width:360,height:440},{width:360,height:440});assert.equal(callbacks.length,0);
-  form.revealFocusedAgentDraft();form.agentFormRevision++;callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentPanel='folder';form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
-  form.agentPanel='';form.agentMessageFocused=false;form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
+  const callbacks = [], moves = [];
+  const Form = new Function('setTimeout', 'return '+stripTypeScriptTypes(
+    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(fn=>callbacks.push(fn));
+  const frames = { 'agent.fields':[150,410], 'agent.create':[460,60], 'agent.task':[410,92], 'agent.tab_name':[535,52] };
+  const context = {px2vp:px=>px/3, getComponentUtils:()=>({getRectangleById(id){
+    const [y,height]=frames[id];
+    return {windowOffset:{y:y*3},size:{height:height*3}};
+  }})};
+  const form = Object.assign(new Form(), {focusedAgentField:'agent.task',showSheet:true,sheetKind:'newagent',agentPanel:'',
+    agentFormRevision:1,getUIContext:()=>context,agentFormScroll:{scrollBy:(x,y)=>moves.push([x,y])}});
+  form.agentDraftAreaChanged({width:402,height:624},{width:402,height:410});
+  assert.deepEqual(moves,[]); callbacks.shift()(); assert.deepEqual(moves,[[0,50]]);
+  form.agentDraftAreaChanged({width:402,height:410},{width:402,height:410}); assert.equal(callbacks.length,0);
+  form.focusedAgentField='agent.tab_name'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.deepEqual(moves.at(-1),[0,135]);
+  frames['agent.tab_name']=[110,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.deepEqual(moves.at(-1),[0,-48]);
+  frames['agent.tab_name']=[200,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.equal(moves.length,3);
+  frames['agent.task']=[90,460]; form.focusedAgentField='agent.task'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.equal(moves.length,3,'the focused multiline editor fills the viewport and can scroll its own caret');
+  form.revealFocusedAgentDraft(); form.agentFormRevision++; callbacks.shift()(); assert.equal(moves.length,3);
+  form.agentPanel='folder'; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
+  form.agentPanel=''; form.focusedAgentField=''; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
   assert.match(formSource,/\.minLines\(3\)\.maxLines\(10,\{overflowMode:MaxLinesMode\.SCROLL\}\)/);
+  const messageField=formSource.slice(formSource.indexOf('TextArea({text:this.newTask'),formSource.indexOf(".id('agent.task')"));
+  assert.match(messageField,/\.constraintSize\(\{minHeight:this\.agentSize\(94\.33,115\.67\)\}\)/);
+  assert.doesNotMatch(messageField,/\.height\(|maxHeight:/,'long drafts still expand and scroll on their own');
   assert.match(formSource,/\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\}\)/);
 });
 
@@ -346,13 +425,15 @@ test('the start sheet and the session request agree on thinking effort for each 
     assert.equal(form.agentPanel,choices.length?'effort':'',launcher.name);
     if (choices.length) assert.deepEqual(form.pickerOptions().map(x=>x.id),['',...choices],launcher.name);
     form.closeAgentPanel(); form.directory='/work/login';
-    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort)=>
-      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort);
+    form.agentTabName = launcher.name === 'codex' ? '  版本复核  ' : '  ';
+    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort,tabName)=>
+      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort,tabName);
     owner.saveView=async()=>{}; form.openPickedChat=()=>{}; form.projectPlace=()=>false;
     await form.createAgent();
     assert.equal(form.startFailure??'',''); assert.equal(form.showSheet,false);
     const wire=starts.at(-1);
     assert.deepEqual([wire.machine_id,wire.cwd,wire.launcher,wire.model,wire.prompt],['mac','/work/login',launcher.name,model,'test']);
+    assert.equal(wire.tab_name,launcher.name==='codex' ? '版本复核' : undefined);
     assert.equal(Object.hasOwn(wire,'effort'),!!expected,launcher.name);
     assert.equal(wire.effort??'',expected,launcher.name);
   }

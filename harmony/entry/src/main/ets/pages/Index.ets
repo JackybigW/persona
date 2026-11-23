@@ -202,6 +202,7 @@ struct Index {
   @Local confirmingScan: boolean = false;
   @Local resourceKind: string = 'todo';
   @Local newTask: string = '';
+  @Local agentTabName: string = '';
   @Local creatingAgent: boolean = false;
   @Local agentModel: ClientModel = client;
   @Local agentTodo: ResourceRow | undefined = undefined;
@@ -238,7 +239,7 @@ struct Index {
   @Local recentSetups: RecentAgentSetup[] = [];
   @Local recentAgentDirectories: LaunchChoice[] = [];
   private agentFormScroll: Scroller = new Scroller();
-  private agentMessageFocused: boolean = false;
+  private focusedAgentField: string = '';
   @Local agentErrorHeight: number = 0;
   @Local startFailure: string = '';
   @Local startWorktree: WorktreeActions = new WorktreeActions();
@@ -1673,7 +1674,9 @@ struct Index {
         }
       }.padding({left:12,right:12,top:4,bottom:4}).constraintSize({minHeight:this.drawerMetric(44)}).width('100%')
     }.borderRadius(10).backgroundColor(this.drawerPlaceSelected(kind) ? this.wide() ? Colors.control : Colors.phoneDrawerSelection : Color.Transparent)
-      .selectable(true).selected(this.drawerPlaceSelected(kind)).onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
+      .selectable(this.wide()).selected(this.wide() && this.drawerPlaceSelected(kind))
+      .accessibilitySelected(this.drawerPlaceSelected(kind))
+      .onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
   }
   @Builder spacesContent() {
     Column() {
@@ -2045,6 +2048,11 @@ struct Index {
   private compactNavigationInset(): number {
     if (!this.model.profile.id || !this.fullHeightPhone() || this.environment.safeTopPx <= 0) return 0;
     return Math.max(0, Tokens.compactStatusInset - this.getUIContext().px2vp(this.environment.safeTopPx));
+  }
+  private knowledgeInsetHeight(): number {
+    if (this.phoneTop !== 'resources' || this.phoneParam !== 'knowledge' || this.drawerFraction > 0 ||
+      this.chatSearchShown || this.phoneSettingsShown || this.showSheet) return 0;
+    return this.compactNavigationInset();
   }
   @Builder phoneSettings() {
     Column() {
@@ -2434,14 +2442,27 @@ struct Index {
     const group = this.model.profiles.length > 1 ? this.model.groupName(row) : '';
     return group || Wire.text(row.data(),'hostname') || tr('online');
   }
-  private revealFocusedAgentDraft():void {
-    if (!this.agentMessageFocused || !this.showSheet || this.sheetKind!=='newagent' || this.agentPanel) return;
-    const revision=this.agentFormRevision;
-    // The input method and Dynamic Type both relayout the form before its new scroll range is available.
+  private revealFocusedAgentDraft(): void {
+    const field = this.focusedAgentField, revision = this.agentFormRevision;
+    if (!field || !this.showSheet || this.sheetKind !== 'newagent' || this.agentPanel) return;
+    // Dynamic Type and the input method relayout both the form and its pinned Start button.
     setTimeout(() => {
-      if (revision===this.agentFormRevision && this.agentMessageFocused && this.showSheet && this.sheetKind==='newagent' && !this.agentPanel)
-        this.agentFormScroll.scrollEdge(Edge.Bottom);
-    },0);
+      if (this.focusedAgentField !== field || this.agentFormRevision !== revision || !this.showSheet ||
+        this.sheetKind !== 'newagent' || this.agentPanel) return;
+      try {
+        const context = this.getUIContext(), components = context.getComponentUtils();
+        const editor = components.getRectangleById(field), form = components.getRectangleById('agent.fields');
+        const action = components.getRectangleById('agent.create');
+        if (editor.size.height <= 0 || form.size.height <= 0 || action.size.height <= 0) return;
+        const top = context.px2vp(form.windowOffset.y) + 8;
+        const bottom = context.px2vp(action.windowOffset.y) - 8;
+        if (bottom <= top) return;
+        const first = context.px2vp(editor.windowOffset.y), last = first + context.px2vp(editor.size.height);
+        if (first <= top && last >= bottom) return;
+        if (last > bottom) this.agentFormScroll.scrollBy(0, Math.min(last - bottom, Math.max(0, first - top)));
+        else if (first < top) this.agentFormScroll.scrollBy(0, first - top);
+      } catch (_) { /* The sheet can disappear before the input method completes its layout. */ }
+    }, 0);
   }
   private agentDraftAreaChanged(before:Area,after:Area):void {
     if (before.width!==after.width || before.height!==after.height) this.revealFocusedAgentDraft();
@@ -2614,15 +2635,29 @@ struct Index {
         TextArea({text:this.newTask,placeholder:tr(this.promptOptional() ? 'flow_draft_optional' : 'task')})
           .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
           .minLines(3).maxLines(10,{overflowMode:MaxLinesMode.SCROLL}).width('100%')
+          .constraintSize({minHeight:this.agentSize(94.33,115.67)})
           .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
           .padding({left:16,right:16,top:11,bottom:11}).fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-          .onFocus(() => { this.agentMessageFocused = true; this.revealFocusedAgentDraft(); })
-          .onBlur(() => { this.agentMessageFocused = false; })
+          .onFocus(() => { this.focusedAgentField = 'agent.task'; this.revealFocusedAgentDraft(); })
+          .onBlur(() => { if (this.focusedAgentField === 'agent.task') this.focusedAgentField = ''; })
           .onChange((v:string) => { this.newTask = v; this.saveAgentDraft(); }).id('agent.task')
+        this.agentSectionTitle('flow_start_tab_name',true)
+        TextInput({text:this.agentTabName,placeholder:tr('flow_start_tab_name_placeholder')})
+          .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
+          .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale))
+          .placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
+          .fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+          .height(this.agentSize(52.33,59.33)).width('100%').padding({left:20,right:20})
+          .enterKeyType(EnterKeyType.Done).accessibilityText(tr('flow_start_tab_name'))
+          .onFocus(() => { this.focusedAgentField = 'agent.tab_name'; this.revealFocusedAgentDraft(); })
+          .onBlur(() => { if (this.focusedAgentField === 'agent.tab_name') this.focusedAgentField = ''; })
+          .onChange((value:string) => { this.agentTabName = value; }).id('agent.tab_name')
+        Text(tr('flow_start_tab_name_help')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+          .fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:6}).id('agent.tab_name.help')
         if ((this.agentWorktree || this.pickedAgentTree) && !this.selectedAgentTree()) Text(tr('project_gone')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).padding(8)
       }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:this.agentScrollClearance()})
         .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
-    }.width('100%').height('100%').align(Alignment.TopStart)
+    }.width('100%').height('100%').align(Alignment.TopStart).id('agent.fields')
       .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
   }
   private async loadAgentLaunchers(): Promise<void> {
@@ -2665,7 +2700,7 @@ struct Index {
   private async prepareAgent(todo?: ResourceRow, tree?: ProjectWorktree, keepForward: boolean = false): Promise<void> {
     if (!keepForward) this.chatForward.clearNew();
     const revision = ++this.agentFormRevision, generation = this.model.connectionGeneration(), scope = this.model.scope();
-    this.agentMessageFocused = false;
+    this.focusedAgentField = ''; this.agentTabName = '';
     this.startTreeSource = undefined; this.startWorktree.close(); this.startFailure = ''; this.agentPanel = '';
     this.launchChoices.clear(); this.recentSetups = []; this.recentAgentDirectories = []; this.agentModelId = ''; this.agentEffort = '';
     this.machineIntent++; this.switchingAgentMachine = false; this.agentMachineKey = ''; this.agentPreset = ''; this.projectCatalog.startError = false; this.readerShown = false; this.creatingAgent = false; this.newTask = ''; this.directory = ''; this.launcher = ''; this.agentTodo = todo; this.agentWorktree = undefined; this.pickedAgentTree = '';
@@ -2804,7 +2839,7 @@ struct Index {
     if (this.agentWorktree) return machines.find((row:ResourceRow) => row.id === this.agentWorktree?.machine);
     return machines.find((row:ResourceRow) => this.agentMachineOnline(row));
   }
-  private agentFingerprint(): string { return JSON.stringify([this.agentModel.scope(), this.agentTodo?.id || '', this.chosenAgentMachine()?.id || '', this.newTask, this.directory, this.launcher, this.agentModelId, this.agentEffort, this.agentWorktree?.key || this.pickedAgentTree, this.selectedAgentTree()?.key || '', this.selectedAgentTree()?.cwd || '']); }
+  private agentFingerprint(): string { return JSON.stringify([this.agentModel.scope(), this.agentTodo?.id || '', this.chosenAgentMachine()?.id || '', this.newTask, this.agentTabName, this.directory, this.launcher, this.agentModelId, this.agentEffort, this.agentWorktree?.key || this.pickedAgentTree, this.selectedAgentTree()?.key || '', this.selectedAgentTree()?.cwd || '']); }
   private async createAgent(): Promise<void> {
     const machine = this.chosenAgentMachine(), tree = this.selectedAgentTree(); if (!machine || !this.canStartAgent()) return;
     const owner = this.agentModel, generation = owner.connectionGeneration(), scope = owner.scope(), rootGeneration = this.model.connectionGeneration(), rootScope = this.model.scope(), revision = this.agentFormRevision, fingerprint = this.agentFingerprint(), draftKey = this.agentDraftKey();
@@ -2813,7 +2848,7 @@ struct Index {
     try {
       const effort = this.startAgentEffort();
       const note=this.newTask,prompt=this.chatForward.newPrompt(owner,note);
-      const row = await owner.createAgent(prompt, machine, this.directory, this.launcher, this.agentTodo?.id || '', valid, tree?.boundStart ? tree.sourceId : '', tree?.boundStart ? tree.source : '', this.agentModelId, effort);
+      const row = await owner.createAgent(prompt, machine, this.directory, this.launcher, this.agentTodo?.id || '', valid, tree?.boundStart ? tree.sourceId : '', tree?.boundStart ? tree.source : '', this.agentModelId, effort, this.agentTabName);
       if (!valid()) return;
       await this.chatForward.afterNew(owner,row,note);
       if (!valid()) return;
@@ -3114,6 +3149,7 @@ struct Index {
           onWillDismiss:(dismiss:DismissSheetAction) => { this.chatSearchShown=false; dismiss.dismiss(); }
         })
     }.width('100%').height('100%').padding({top:this.compactNavigationInset()}).clip(true)
+      .backgroundColor(this.knowledgeInsetHeight() > 0 ? Colors.grouped : Color.Transparent)
       .blur(this.messageLift.current ? this.getUIContext().vp2px(3) : 0)
       .accessibilityLevel(this.messageLift.current ? 'no-hide-descendants' : 'auto')
       .onAreaChange((_old:Area,now:Area) => { this.phoneWidth = Number(now.width); this.phoneHeight = Number(now.height); })

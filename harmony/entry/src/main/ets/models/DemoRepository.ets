@@ -557,6 +557,8 @@ export class DemoRepository extends HubRepository {
       [id, id, DEMO_MACHINE, DEMO_MANAGER, title, 'working', 'working', cwd, cwd, cwd, 'demo', 'live', false, false,
         capabilities, '2026-11-11T09:30:00Z', '2026-11-11T09:30:00Z']);
     if (launcher) session['launcher'] = launcher;
+    const tab = Wire.text(body, 'tab_name').trim();
+    if (tab) session['slot_name'] = nonEmpty(tab);
     this.sessionsData.unshift(session);
     if (todo) {
       const agents = Wire.rows(todo, 'agents').filter((item: DemoRecord) => Wire.text(item, 'session_id') !== id);

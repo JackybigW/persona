@@ -1,7 +1,16 @@
 import type { ClientModel } from './ClientModel';
+import type { HttpFailure } from '../platform/HubTransport';
 import { Wire } from './Wire';
 
 const START_EFFORTS: string[] = ['low','medium','high','xhigh','max'];
+
+export function typedAgentDirectory(input:string,current:string):string {
+  const path = input.trim();
+  if (!path || path.startsWith('/') || path === '~' || path.startsWith('~/') || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\')) return path;
+  if (!current) return '~/' + path;
+  if (current.includes('\\') && !current.includes('/')) return current.replace(/\\+$/,'') + '\\' + path;
+  return current.replace(/\/+$/,'') + '/' + path;
+}
 
 function startsNativeOmp(launcher: Record<string, Object>): boolean {
   const runtime = Wire.text(launcher,'agent_type') || Wire.text(launcher,'agent');
@@ -17,6 +26,7 @@ export function providerStartModes(launcher: Record<string, Object>): boolean {
 }
 
 export class LaunchChoice {
+  aliases: string[] = [];
   id: string;
   title: string;
   detail: string;
@@ -72,6 +82,9 @@ export class AgentLaunchChoices {
   @Trace parent: string = '';
   @Trace directories: LaunchChoice[] = [];
   @Trace recentDirectories: LaunchChoice[] = [];
+  @Trace attemptedFolder: string = '';
+  private folderOwner: ClientModel | undefined = undefined;
+  private folderContext: string = '';
   @Trace models: LaunchChoice[] = [];
   @Trace locked: string = '';
   @Trace acceptsTypedModel: boolean = false;
@@ -81,16 +94,38 @@ export class AgentLaunchChoices {
   private revision: number = 0;
 
   clear(): void {
+    this.folderOwner = undefined; this.folderContext = ''; this.attemptedFolder = '';
     this.revision++; this.loading = false; this.error = ''; this.path = ''; this.parent = '';
     this.directories = []; this.recentDirectories = []; this.models = []; this.locked = ''; this.effortNames = []; this.effortListKnown = false; this.modelData = []; this.acceptsTypedModel = false;
   }
   cancelRead(): void { this.revision++; this.loading = false; }
+  private resetFolder():void { this.path = ''; this.parent = ''; this.directories = []; this.recentDirectories = []; }
+  private folderAccessDenied(error:HttpFailure):boolean {
+    return error.status === 401 || error.status === 403 || ['permission_denied','unauthorized','forbidden'].includes(error.code || error.message);
+  }
   async folder(owner:ClientModel,machine:string,path:string): Promise<void> {
     const rev = ++this.revision, epoch = owner.connectionGeneration(), scope = owner.scope();
+    const context = JSON.stringify([scope,epoch,machine]);
     const valid = (): boolean => this.revision === rev && owner.owns(epoch,scope);
-    this.loading = true; this.error = ''; this.path = ''; this.parent = ''; this.directories = []; this.recentDirectories = [];
+    if (owner !== this.folderOwner || context !== this.folderContext) this.resetFolder();
+    const requested = typedAgentDirectory(path,this.path);
+    this.folderOwner = owner; this.folderContext = context; this.attemptedFolder = requested;
+    this.loading = true; this.error = '';
+    const read = (target:string):Promise<Record<string,Object>> =>
+      owner.repo().call('/api/v1/machines/' + encodeURIComponent(machine) + '/dirs?path=' + encodeURIComponent(target.trim()));
     try {
-      const value = await owner.repo().call('/api/v1/machines/' + encodeURIComponent(machine) + '/dirs?path=' + encodeURIComponent(path.trim()));
+      let value:Record<string,Object>;
+      try {
+        value = await read(requested);
+      } catch (error) {
+        if (!valid()) return;
+        const status = (error as HttpFailure).status;
+        this.error = 'phone_directory_read_failed';
+        if (this.folderAccessDenied(error as HttpFailure)) { this.resetFolder(); return; }
+        // If the initial saved folder is gone, ask the same machine for its home listing.
+        if (this.path || !requested || ![400,404,422,500,502].includes(status)) return;
+        value = await read('');
+      }
       if (!valid()) return;
       const resolved = Wire.text(value,'path');
       if (!resolved) throw new Error('phone_directory_read_failed');
@@ -98,8 +133,17 @@ export class AgentLaunchChoices {
       this.directories = Wire.rows(value,'entries').filter((v:Record<string,Object>) => !!Wire.text(v,'path'))
         .map((v:Record<string,Object>) => new LaunchChoice(Wire.text(v,'path'),Wire.text(v,'name') || Wire.text(v,'path'),Wire.bool(v,'is_git') ? 'Git' : ''));
       this.recentDirectories = recentLaunchDirectories(value);
-    } catch (_) { if (valid()) this.error = 'phone_directory_read_failed'; }
-    finally { if (valid()) this.loading = false; }
+    } catch (error) {
+      if (valid()) {
+        this.error = 'phone_directory_read_failed';
+        if (this.folderAccessDenied(error as HttpFailure)) this.resetFolder();
+      }
+    } finally {
+      if (this.revision === rev) {
+        if (!owner.owns(epoch,scope)) this.resetFolder();
+        this.loading = false;
+      }
+    }
   }
   async loadModels(owner:ClientModel,machine:string,launcher:string): Promise<void> {
     this.clear();
@@ -121,7 +165,9 @@ export class AgentLaunchChoices {
           const id = Wire.text(v,'id'), title = launchModelName(id,Wire.text(v,'name')), resolved = Wire.text(v,'resolved');
           const detail = [launcher, title !== id ? id : '', resolved && resolved !== id && resolved !== title ? '→ '+resolved : '']
             .filter((part:string) => !!part).join(' · ');
-          return new LaunchChoice(id,title,detail,false,Wire.text(v,'description'));
+          const choice = new LaunchChoice(id,title,detail,false,Wire.text(v,'description'));
+          choice.aliases = Wire.strings(v,'aliases');
+          return choice;
         });
       this.updateEfforts('');
     } catch (_) { if (valid()) this.error = 'flow_models_offline'; }
@@ -130,6 +176,12 @@ export class AgentLaunchChoices {
   selectedModelId(id:string): string {
     const selected = this.modelData.find((m:Record<string,Object>) => Wire.text(m,'id') === id);
     return selected && (Wire.bool(selected,'is_default') || Wire.bool(selected,'default')) ? '' : id;
+  }
+  listsModel(id:string):boolean {
+    return this.modelData.some((m:Record<string,Object>) => Wire.text(m,'id') === id || Wire.strings(m,'aliases').includes(id));
+  }
+  hasCatalogModel():boolean {
+    return this.modelData.some((m:Record<string,Object>) => !Wire.bool(m,'is_default') && !Wire.bool(m,'default') && !Wire.bool(m,'custom'));
   }
   modelPresentation(picked: string, configured: string, launcher: Record<string,Object>, explicitlyChosen: boolean,
     word: (key:string) => string): LaunchChoice {

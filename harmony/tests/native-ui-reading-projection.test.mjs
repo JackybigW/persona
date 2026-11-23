@@ -257,7 +257,43 @@ test('a recording profile retains its standard body and uses the measured mixed-
  assert.equal(p.inlineSpacing(17,0.45,false),48*0.45,'headings, inline code and other block layouts retain their existing reading metrics');
  p.profileReading=false;assert.equal(p.profileDisplayProse,false);assert.equal(p.proseFont(false),undefined);
  assert.match(model,/export struct KnowledgeWorkspacePage\s*\{[^}]*@Local environment:NativeEnvironment=nativeEnvironment/);
- assert.match(model,/@Computed get recordingFactsHeight\(\):number\s*\{\s*return PhoneStyle\.formSize\(52\.3,59\.3,this\.environment\.fontScale\)/);
  assert.match(model,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true,profileReading:true,\s*agentFontScale:this\.environment\.fontScale/);
- assert.match(model,/\.height\(this\.recordingFactsHeight\)[^\n]+id\('knowledge\.facts\.open'\)/);
+ const action=model.slice(model.indexOf("if (this.workspace.supportsExpectedPinned) Button"),model.indexOf(".bindSheet(this.facts.open"));
+ assert.match(action,/\.padding\(\{top:16\.15,bottom:16\.15\}\)/);
+ assert.match(action,/constraintSize\(\{minHeight:this\.recordingMetric\(52\.3,59\.3\)\}\)/);
+ assert.match(action,/\.onClick\(\(\) => this\.openFacts\(\)\)\.id\('knowledge\.facts\.open'\)/);
+});
+
+test('the docked plan folds native reading lines and keeps its full-text action in the body scroll', async () => {
+  const form = readFileSync(new URL('../entry/src/main/ets/components/InteractionDecisionForm.ets', import.meta.url), 'utf8');
+  const { composerReadingSize } = await import('../entry/src/main/ets/core/ComposerSize.ts');
+  const { agentReplyBodySize } = await import('../entry/src/main/ets/core/Markdown.ts');
+  const environment = { fontScale: 1 };
+  const helpers = ['dockPlanLineHeight', 'dockPlanShownHeight', 'dockSkipTarget'].map(name => method(name, form)).join('\n');
+  const Harness = new Function('nativeEnvironment', 'composerReadingSize', 'agentReplyBodySize',
+    'return ' + stripTypeScriptTypes('class Dock {' + helpers + '}'))(environment, composerReadingSize, agentReplyBodySize);
+  const dock = new Harness();
+  dock.taskPlanSource = () => 'The complete plan';
+  dock.dockPlanPreview = dock.taskPlanSource();
+  dock.model = { style: 'glass' };
+  dock.agentFontSize = points => points * Math.min(environment.fontScale, (points + 6) / points);
+  dock.headerControlSide = () => 28 * Math.min(environment.fontScale, 67 / 51);
+  dock.dockBodyLimit = () => 165;
+  dock.planNaturalHeight = 163;
+  assert.equal(dock.dockPlanShownHeight(), 163, 'a short plan stays completely visible at standard type');
+  assert.equal(dock.dockSkipTarget() - 16, 28);
+  environment.fontScale = 3.2;
+  dock.dockBodyLimit = () => 151;
+  dock.planNaturalHeight = 1180;
+  const line = dock.dockPlanLineHeight(8);
+  assert.ok(line > 73 && line < 75);
+  assert.equal(dock.dockPlanShownHeight(), 2 * line, 'the short viewport still offers two full native reading lines');
+  assert.ok(dock.dockPlanShownHeight() + 4 + dock.agentFontSize(13)*1.2 > dock.dockBodyLimit());
+  assert.ok(dock.dockSkipTarget() - 16 > 41 && dock.dockSkipTarget() - 16 < 42);
+  dock.dockBodyLimit = () => 550;
+  assert.ok(dock.dockPlanShownHeight() > 6 * line, 'dragging the actual card taller reveals more of the same plan');
+  dock.planNaturalHeight = 93;
+  assert.equal(dock.dockPlanShownHeight(), 93);
+  assert.match(form, /if \(this\.admission\(\)\) this\.fullPlan=true; \}\)\.id\('interaction\.task\.plan\.expand'\)/);
+  assert.ok(form.indexOf('this.dockPlanWords()', form.indexOf('@Builder dockPanel')) < form.indexOf(".id('interaction.body')", form.indexOf('@Builder dockPanel')));
 });
