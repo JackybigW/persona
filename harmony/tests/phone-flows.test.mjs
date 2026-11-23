@@ -329,6 +329,9 @@ test('the focused New Agent draft follows the settled keyboard, content and text
   form.agentPanel='folder'; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
   form.agentPanel=''; form.focusedAgentField=''; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
   assert.match(formSource,/\.minLines\(3\)\.maxLines\(10,\{overflowMode:MaxLinesMode\.SCROLL\}\)/);
+  const messageField=formSource.slice(formSource.indexOf('TextArea({text:this.newTask'),formSource.indexOf(".id('agent.task')"));
+  assert.match(messageField,/\.constraintSize\(\{minHeight:this\.agentSize\(94\.33,115\.67\)\}\)/);
+  assert.doesNotMatch(messageField,/\.height\(|maxHeight:/,'long drafts still expand and scroll on their own');
   assert.match(formSource,/\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\}\)/);
 });
 
