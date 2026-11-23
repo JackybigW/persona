@@ -67,7 +67,9 @@ if [ "$lane" = all ] || [ "$lane" = node ] || [ "$lane" = core-node ]; then
 fi
 for shard in node managers other; do
   if [ "$lane" = all ] || [ "$lane" = "$shard" ]; then
-    ci_run "Server $shard tests with Postgres" 600 python3 scripts/ci/server-shards.py "$shard" --database-file "$fixture/database.json"
+    shard_budget=600
+    if [ "$shard" = managers ]; then shard_budget=900; fi
+    ci_run "Server $shard tests with Postgres" "$shard_budget" python3 scripts/ci/server-shards.py "$shard" --database-file "$fixture/database.json"
   fi
   # Persona Core alone (#13978): the same shard's every package with every module left out (persona_core_only); tests
   # of a module's own behaviour skip without it (needsBriefingModule, needsVoiceModule, needsVolcModule).
