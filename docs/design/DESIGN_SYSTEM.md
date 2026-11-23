@@ -1906,7 +1906,7 @@ navigator on current main and is outside this fix's scope; it must not use its t
 When a web selection needs older messages, keep its loading status at the rail while the current transcript stays in
 place. Only the latest selection can move the transcript. If it fails, keep the marks available so it can be selected again.
 In Persona chats each mark also carries its question's state (#13021): not started (fainter), in progress (accent,
-pulsing unless motion is reduced), unread (strong, with a red dot) or read (the plain mark); a follow-up's mark is
+pulsing, slowly under reduced motion like other busy indicators), unread (strong, with a red dot) or read (the plain mark); a follow-up's mark is
 shorter. The state is part of the mark's accessible label, and a tap jumps on touch screens. The geometry lives with the
 rail's other metrics (`web/src/ui/nav-rail-metrics.ts`); details in `docs/web/web.md` ("User-input rail (#1739, #2060)").
 

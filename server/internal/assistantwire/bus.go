@@ -272,8 +272,6 @@ var Routes = []string{
 	"POST /api/v1/sessions/{mid}/{sid}/archive",
 	"POST /api/v1/sessions/{mid}/{sid}/unarchive",
 	"POST /api/v1/sessions/{mid}/{sid}/autoname",
-	"GET /api/v1/sessions/{mid}/{sid}/question-reads",  // the read marks of a chat's answers (#13021)
-	"POST /api/v1/sessions/{mid}/{sid}/question-reads", // assistant/question_reads.go
 	"POST /api/v1/assistant/conversations/{id}/archive",
 	"PUT /api/v1/assistant/conversations/{id}/tags",
 	"DELETE /api/v1/assistant/conversations/{id}",

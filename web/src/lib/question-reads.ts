@@ -100,7 +100,8 @@ export function useQuestionReads(mid: string, sid: string, on: boolean): { reads
   useEffect(() => {
     if (on) void loadQuestionReads(mid, sid);
   }, [mid, sid, on]);
-  const reads = useSyncExternalStore(subscribe, () => (on ? bookOf(scope).view : OFF));
+  const snapshot = () => (on ? bookOf(scope).view : OFF);
+  const reads = useSyncExternalStore(subscribe, snapshot, snapshot);
   const markRead = useCallback((keys: readonly string[]) => markQuestionsRead(mid, sid, keys), [mid, sid]);
   return { reads, markRead };
 }
@@ -125,7 +126,8 @@ export const summaryOf = (scope: string | undefined): QuestionSummary => (scope 
 
 /** The counts of a chat's questions in progress and unread, as its rail shows them (all zero while it is not open). */
 export function useQuestionSummary(scope: string | undefined): QuestionSummary {
-  return useSyncExternalStore(subscribe, () => summaryOf(scope));
+  const snapshot = () => summaryOf(scope);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
 /** A chat's marks as the hook gives them. */

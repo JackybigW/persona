@@ -11,7 +11,7 @@ import type { QuestionMark, QuestionState } from "../../lib/question-states";
 /** A question's state as its tick draws it (#13021): read keeps the plain rail's colors. */
 const STATE_TICK: Record<QuestionState, string> = {
   pending: "bg-ink-3",
-  running: "bg-accent motion-safe:animate-pulse",
+  running: "bg-accent animate-pulse busy-motion", // a busy indicator: slower, not frozen, under reduced motion (lib/busy-motion.ts)
   unread: "bg-ink",
   read: "",
 };
