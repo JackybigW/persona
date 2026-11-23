@@ -451,7 +451,19 @@ func (s *Service) finishSessionReviewAnswer(ctx context.Context, e sessionReview
 		v.State, v.ResolvedAt = state, &now
 		return nil
 	}); err != nil {
-		return err
+		if !errors.Is(err, errSessionReviewConflict) {
+			return err
+		}
+		// A second manager may have finalized the same durable answer while this
+		// request still held the pending revision. Acknowledge only that result.
+		winner, _, readErr := s.sessionReviewForAnswer(ctx, e.ID)
+		if readErr != nil {
+			return readErr
+		}
+		if winner.MachineID != e.MachineID || winner.SessionID != e.SessionID || winner.State != state ||
+			(state == sessionReviewSent && winner.Delivery != sessionReviewDeliverySent) {
+			return err
+		}
 	}
 	s.publishSoon()
 	return nil
