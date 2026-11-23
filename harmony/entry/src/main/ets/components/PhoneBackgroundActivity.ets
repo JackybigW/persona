@@ -11,6 +11,7 @@ import { tr, trError } from '../design/Strings';
 import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
 import { conversationFeedPath } from '../models/AssistantFeed';
+import { BoundRow, reconcileBoundRows } from '../models/RowBinding';
 import { ClientModel } from '../models/ClientModel';
 import { TodoWorkspaceAgent, TodoWorkspaceItem, todoWorkspaceStatus } from '../models/TodoWorkspace';
 import { TranscriptModel } from '../models/TranscriptModel';
@@ -32,7 +33,7 @@ export struct PhoneBackgroundActivity {
 
   @Local taskRows: ResourceRow[] = [];
   @Local viewport: number = 0;
-  @Local rounds: BackgroundRound[] = [];
+  @Local rounds: BoundRow<BackgroundRound>[] = [];
   @Local feed: Record<string, Object>[] = [];
   @Local opened: string[] = [];
   @Local more: boolean = false;
@@ -69,7 +70,9 @@ export struct PhoneBackgroundActivity {
         if (!this.current(ticket)) return;
         const actual = this.model.mainActivityRow();
         const running = actual?.state === 'working' || actual?.state === 'running' || Wire.bool(actual?.data() || {}, 'working');
-        this.rounds = Array.from(splitBackgroundRounds(items, running).rounds);
+        const next = Array.from(splitBackgroundRounds(items, running).rounds);
+        this.rounds = reconcileBoundRows(this.rounds, next, (round: BackgroundRound) => round.id,
+          this.model, this.model, this.scope, this.scope);
         this.more = more;
       }, (error: Error): void => { if (this.current(ticket)) this.error = error.message; });
       await Promise.all([this.transcript?.open(), this.readFeed(ticket, ''), this.readTasks(ticket)]);
@@ -114,8 +117,8 @@ export struct PhoneBackgroundActivity {
     const opening = !this.opened.includes(key);
     this.opened = opening ? this.opened.concat([key]) : this.opened.filter((id: string) => id !== key);
     if (opening && key.startsWith('work:')) {
-      const round = this.rounds.find((value: BackgroundRound) => 'work:' + value.id === key);
-      if (round) this.readFoldedWork(round, key, this.ticket);
+      const round = this.rounds.find((binding: BoundRow<BackgroundRound>) => 'work:' + binding.value.id === key);
+      if (round) this.readFoldedWork(round.value, key, this.ticket);
     }
   }
 
@@ -314,17 +317,17 @@ export struct PhoneBackgroundActivity {
     else if (Wire.text(item, 'kind') === 'answered') { this.answered(item) }
   }
 
-  @Builder activity(round: BackgroundRound) {
+  @Builder activity(binding: BoundRow<BackgroundRound>) {
     Column({ space: 16 }) {
-      this.disclosure(tr('activity_record'), round.id, 'supervision-record')
-      if (this.opened.includes(round.id)) {
+      this.disclosure(tr('activity_record'), binding.value.id, 'supervision-record')
+      if (this.opened.includes(binding.value.id)) {
         Column({ space: 6 }) {
           Text(tr('activity_input')).fontSize(13).fontColor(Colors.secondary)
-          Text(round.items[0].text || '').width('100%').fontSize(16).fontColor(Colors.ink)
+          Text(binding.value.items[0].text || '').width('100%').fontSize(16).fontColor(Colors.ink)
         }.width('100%').padding(12).alignItems(HorizontalAlign.Start).backgroundColor($r('app.color.activity_answer_chip')).borderRadius(14).id('supervision-input')
-        this.disclosure(tr('work_summary'), 'work:' + round.id, 'work-head')
-        if (this.opened.includes('work:' + round.id)) {
-          ForEach(round.items.slice(1), (item: TranscriptItem) => {
+        this.disclosure(tr('work_summary'), 'work:' + binding.value.id, 'work-head')
+        if (this.opened.includes('work:' + binding.value.id)) {
+          ForEach(binding.value.items.slice(1), (item: TranscriptItem) => {
             if (item.kind === 'fold') {
               Button(tr('activity_expand')).onClick(() => this.changeFold(item)).id('activity.fold.' + item.id)
             } else if (this.transcriptLabel(item)) {
@@ -333,7 +336,7 @@ export struct PhoneBackgroundActivity {
           }, (item: TranscriptItem) => item.id)
         }
       }
-      ForEach(this.roundFeed(round), (item: Record<string, Object>) => { this.feedRow(item) }, (item: Record<string, Object>) => Wire.text(item, 'id'))
+      ForEach(this.roundFeed(binding.value), (item: Record<string, Object>) => { this.feedRow(item) }, (item: Record<string, Object>) => Wire.text(item, 'id'))
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
@@ -390,7 +393,8 @@ export struct PhoneBackgroundActivity {
         Scroll() {
           Column({ space: 16 }) {
             if (this.more || this.cursor) { Button(tr('load_more')).enabled(!this.busy).onClick(() => this.older()).id('activity.older') }
-            ForEach(this.rounds, (round: BackgroundRound) => { this.activity(round) }, (round: BackgroundRound) => round.id)
+            ForEach(this.rounds, (binding: BoundRow<BackgroundRound>) => { this.activity(binding) },
+              (binding: BoundRow<BackgroundRound>) => binding.key)
           }.width('100%').constraintSize({ minHeight: this.viewport }).justifyContent(FlexAlign.End)
             .padding({ left: 16, right: 16, top: 12, bottom: 82 })
         }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
