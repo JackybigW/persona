@@ -218,3 +218,16 @@ test('the board shows the supervising conversation’s actual ask, work and mach
   assert.equal(find('scope'),undefined);assert.equal(rows.find(r=>r.kind==='agent').note,'Mac · side · Codex · shipping');
   assert.equal(tasks[0].notes,'unrelated private notes');
 });
+
+test('expanding the current ordinary plan obtains its authorization once and never dispatches it',()=>{
+  const source=readFileSync(new URL('../entry/src/main/ets/components/AssistantCards.ets',import.meta.url),'utf8');
+  const method=source.slice(source.indexOf('  private activateTray('),source.indexOf('  private trayLabel('));
+  const View=new Function(stripTypeScriptTypes('class View { '+method+' }')+';return View')();
+  const view=new View(), seen=[], entry={kind:'plan',key:()=> 'plan:one',data:{ref:'one'}};
+  let loading=false,fresh=false;view.active=true;view.trayOpen=true;view.trayOwner='hub|regular';view.trayScope=()=> 'hub|regular';view.trayRows=[entry];view.expandedEntry='';
+  view.planId=item=>item.ref;view.feed={planIsFresh:()=>fresh,planLoading:()=>loading,refreshPlan:id=>{seen.push(id);loading=true;}};
+  view.activateTray(entry);assert.deepEqual(seen,['one']);assert.equal(view.expandedEntry,entry.key());
+  view.activateTray(entry);assert.equal(view.expandedEntry,'');view.activateTray(entry);assert.deepEqual(seen,['one']);
+  view.activateTray(entry);loading=false;fresh=true;view.activateTray(entry);assert.deepEqual(seen,['one']);
+  view.activateTray(entry);view.trayOwner='another';fresh=false;view.activateTray(entry);assert.equal(view.expandedEntry,'');assert.deepEqual(seen,['one']);
+});

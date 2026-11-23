@@ -240,7 +240,14 @@ export struct AssistantCards {
     if (!this.active || !this.trayOpen || this.trayScope()!==this.trayOwner) return;
     const actual=this.trayRows.find((r:TaskTrayRow) => r.key()===entry.key());
     if (!actual) return;
-    if (actual.kind==='message' || actual.kind==='plan') { this.expandedEntry=this.expandedEntry===actual.key() ? '' : actual.key(); return; }
+    if (actual.kind==='message' || actual.kind==='plan') {
+      this.expandedEntry=this.expandedEntry===actual.key() ? '' : actual.key();
+      if (this.expandedEntry && actual.kind==='plan') {
+        const id=this.planId(actual.data);
+        if (!this.feed.planIsFresh(id) && !this.feed.planLoading(id)) this.feed.refreshPlan(id);
+      }
+      return;
+    }
     this.trayOpen=false;
     if (actual.kind === 'question') {
       const at = this.decisionIds.indexOf(actual.id);
