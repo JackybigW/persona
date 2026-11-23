@@ -45,10 +45,12 @@ export struct PhoneConversationSearch {
         TextInput({text:this.query,placeholder:tr(this.agents ? 'search_sessions' : 'flow_search_chats'),controller:this.field})
           .height(this.fieldHeight()).padding({left:2,right:1}).layoutWeight(1).fontColor(Colors.ink)
           .fontSize(Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)})
-          .backgroundColor(Color.Transparent).cancelButton({style:CancelButtonStyle.INPUT})
+          .backgroundColor(Color.Transparent).cancelButton({style:CancelButtonStyle.INPUT,icon:{
+            size:this.sidebarSize(24,32),color:Colors.tertiary,src:$r('app.media.phone_search_clear')
+          }})
           .onChange((v:string) => this.query = v).enterKeyType(EnterKeyType.Search).defaultFocus(true).id('phone_search.field')
       }.layoutWeight(1).alignItems(VerticalAlign.Center).padding({left:this.assistantDrawer ? 12 : 10,right:this.assistantDrawer ? 12 : 5})
-        .backgroundColor(Colors.control).borderRadius(this.assistantDrawer ? this.fieldHeight()/2 : 12)
+        .backgroundColor(this.assistantDrawer ? Colors.tertiaryFill : Colors.control).borderRadius(this.assistantDrawer ? this.fieldHeight()/2 : 12)
       Button(tr('cancel'),{buttonStyle:ButtonStyleMode.TEXTUAL}).height(this.fieldHeight()).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.link).padding({left:3,right:2})
         .onClick(() => this.onCancel()).id('phone_search.cancel')
     }.width('100%').padding({left:this.assistantDrawer ? 24 : 12,right:this.assistantDrawer ? 24 : 12,
