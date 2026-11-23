@@ -356,7 +356,8 @@ export function Sidebar({ route, onSearch, onNewAgent, onNavigate, workspaceActi
   // Folded, the Persona chats heading and Recent's still say how many of the chats they hide are Unread (#13425), with
   // the folded tally the Agents list's groups use (StateTally); open, each row marks its own. The rows are the store's,
   // which the seen outbox already holds seen (lib/store.ts holdSeen), so a chat just opened is not counted
-  const unreadPinned = directions.filter(unreadShown).length;
+  // A pinned direction counts through its conversation; an external one (#12557) has no chat row, so no Unread mark.
+  const unreadPinned = directions.filter((d) => d.conversation !== undefined && unreadShown(d.conversation)).length;
   const unreadRecent = recent.filter(unreadShown).length;
   const { nav, reg, hover, highlight } = useGlide(activeKey);
   useStickyTop(nav);
