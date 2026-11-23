@@ -51,6 +51,13 @@ function rawInteraction(request: Decision): Record<string, Object> {
   return Object.keys(nested).length > 0 ? nested : root;
 }
 
+/** Main's attention tray contains questions and owner proposals that actually await the person. */
+export function directUserRequest(request: Decision): boolean {
+  const data = rawInteraction(request);
+  if (request.kind === 'question') return !Wire.bool(data, 'delegating');
+  return request.kind === 'elicitation' || request.kind === 'permission' && Wire.bool(data, 'owner_proposal');
+}
+
 function rawRecord(request: Decision): Record<string, Object> { return Wire.parse(request.raw); }
 
 /** Permission prompts hold a tool call open. Other pending cards follow in reverse creation order. */

@@ -45,7 +45,7 @@ function session(id,state='idle',details={}) {
   const row=ResourceRow.from({machine_id:'machine',session_id:id,manager:'owner',agent:'claude',launcher:'claude',pane_id:'pane',status:'idle',state,model:'claude-opus-5-5',effort:'high',...details},'session');
   row.group='group';return row;
 }
-test('main conversation combines manual and handed-out tasks, plans, draft replies, and independent agents; each request has one home',()=>{
+test('main conversation combines manual and handed-out tasks, plans, draft replies, and independent agents; each direct request has one home',()=>{
   const now=Date.parse('2026-06-01T10:00:00Z'), time=(hours)=>new Date(now+hours*3600e3).toISOString();
   const linked={machine_id:'machine',session_id:'waiting'};
   const todos=[
@@ -60,13 +60,36 @@ test('main conversation combines manual and handed-out tasks, plans, draft repli
   const alien=session('same','needs_you');alien.group='different';sessions.push(alien);
   const feed=[{id:'feed-plan',kind:'plan',ref:'plan'},{id:'reply',kind:'message',ref:'inbox',body:{sender:'Human',draft:'Reply'}},
     {id:'sent',kind:'message',ref:'inbox',body:{sent_at:time(-1)}}], plans={plan:{id:'plan',state:'open',conversation:'main',tasks:[{title:'Plan'}]}};
-  const rows=assistantTrayRows(todos,sessions,feed,plans,[new TrayRequest('machine','waiting','ask','Question',now)],'owner','group','main','main',now);
-  assert.deepEqual(rows.filter(r=>r.bucket==='needs').map(r=>r.id),['manual','feed-plan','reply','held']);
+  const rows=assistantTrayRows(todos,sessions,feed,plans,[new TrayRequest('machine','waiting','ask','Question',now,true)],'owner','group','main','main',now);
+  assert.deepEqual(rows.filter(r=>r.bucket==='needs').map(r=>r.id),['manual','reply','held']);
   assert.deepEqual(rows.filter(r=>r.bucket==='done').map(r=>r.id),['recent']);
   assert.deepEqual(rows.filter(r=>r.bucket==='progress').map(r=>r.kind),['todo','agent']);
   assert.equal(rows.find(r=>r.id==='recent').resource.group,'group');
   assert.equal(rows.find(r=>r.id==='manual').status,'needs_you');assert.equal(rows.find(r=>r.id==='card').status,'working');
   assert.deepEqual(assistantTrayRows(todos,sessions,[],{},[],'owner','group','other','main',now).map(r=>r.id),['held','recent']);
+});
+test('Main excludes delegated questions, ordinary permissions, plans, failed starts and supervisor reviews while keeping real user decisions', async()=>{
+  const {directUserRequest}=await import('../entry/src/main/ets/models/InteractionDecision.ets');
+  const decision=(kind,raw={})=>directUserRequest({kind,raw:JSON.stringify({interaction:raw})});
+  assert.equal(decision('question'),true);
+  assert.equal(decision('question',{delegating:true}),false);
+  assert.equal(decision('elicitation'),true);
+  assert.equal(decision('permission'),false);
+  assert.equal(decision('permission',{owner_proposal:true}),true);
+  assert.equal(decision('plan',{owner_proposal:true}),false);
+  const now=Date.parse('2026-06-01T10:00:00Z'), earlier='2026-06-01T07:00:00Z';
+  const base={origin:'ordinary',created_at:earlier};
+  const todos=[{...base,id:'failure',start_error:'did not start'}, {...base,id:'supervisor',supervision:{state:'pending_review',pending_since:earlier}},
+    {...base,id:'owner',ask:{verdict:'blocked',asked_at:earlier,outcome:'decide'}},
+    {...base,id:'handoff',ask:{verdict:'blocked',asked_at:earlier,outcome:'cannot',why_owner:'Only the owner can select it'}}];
+  const sessions=[session('agent','needs_you'),session('named','needs_you')];
+  const reqs=[new TrayRequest('machine','agent','perm','Permission',now,false),new TrayRequest('machine','named','ask','Question',now,true)];
+  const plans={p:{id:'p',conversation:'ordinary',state:'open',tasks:[{title:'Open plan'}]}},feed=[{id:'plan',kind:'plan',ref:'p'}];
+  const main=assistantTrayRows(todos,sessions,feed,plans,reqs,'owner','group','main','main',now);
+  assert.deepEqual(new Set(main.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['owner','handoff',JSON.stringify(['machine','named'])]));
+  assert.ok(!main.some(r=>['failure','supervisor','plan',JSON.stringify(['machine','agent'])].includes(r.id)));
+  const ordinary=assistantTrayRows(todos,sessions,feed,plans,reqs,'owner','group','ordinary','main',now);
+  assert.deepEqual(new Set(ordinary.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['failure','supervisor','owner','handoff','plan']));
 });
 function owner() {
   const row=session('chat'), calls=[], trace={scope:'hub-A',generation:1,target:'chat',compose:true,blocked:[],pending:'',afterJournal:undefined};

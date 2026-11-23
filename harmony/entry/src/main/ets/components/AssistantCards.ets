@@ -1,3 +1,4 @@
+import { directUserRequest } from '../models/InteractionDecision';
 import { IconActions } from '../design/IconActions';
 import { Symbols } from '../design/Symbols';
 import { AgentDecisionQueue, AgentDecisionCard } from '../models/AgentDecisionQueue';
@@ -178,11 +179,11 @@ export struct AssistantCards {
     const manager=this.feed.owner, session=this.feed.conversationId;
     const main=!this.model.mainMachineId || this.model.mainMachineId===this.model.selected.machine ? this.model.mainId : '';
     const requests=this.requests.cards.filter((c:AgentDecisionCard) => c.owner===this.model && c.manager===manager)
-      .map((c:AgentDecisionCard) => new TrayRequest(c.machine,c.session,c.request.id,c.preview,c.since));
+      .map((c:AgentDecisionCard) => new TrayRequest(c.machine,c.session,c.request.id,c.preview,c.since,directUserRequest(c.request)));
     const feed=this.feed.items.filter((i:Record<string,Object>) => Wire.text(i,'kind')!=='message' || this.feed.messageState(i)==='open');
     const rows=assistantTrayRows(this.feed.directoryTodos,this.model.sessions,feed,this.feed.plans,requests,manager,this.model.profile.id,session,main,Date.now());
     for (const req of requests) {
-      if (req.machine!==this.model.selected.machine || req.session!==session) continue;
+      if (req.machine!==this.model.selected.machine || req.session!==session || session===main && !req.direct) continue;
       rows.unshift(new TaskTrayRow('question',req.id,'needs','needs_you',req.title,'',{}));
     }
     return rows;

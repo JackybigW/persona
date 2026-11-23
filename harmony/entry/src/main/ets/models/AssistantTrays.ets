@@ -12,8 +12,9 @@ export class TrayRequest {
   id:string;
   title:string;
   at:number;
-  constructor(machine:string,session:string,id:string,title:string,at:number) {
-    this.machine=machine; this.session=session; this.id=id; this.title=title; this.at=at;
+  direct:boolean;
+  constructor(machine:string,session:string,id:string,title:string,at:number,direct:boolean) {
+    this.machine=machine; this.session=session; this.id=id; this.title=title; this.at=at; this.direct=direct;
   }
 }
 
@@ -122,6 +123,7 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     }
   }
   const asking=new Map<string,number>(); for (const req of requests) {
+    if (isMain && !req.direct) continue;
     const key=pair(req.machine,req.session); asking.set(key,Math.min(asking.get(key) ?? req.at,req.at));
   }
   for (const todo of included) {
@@ -135,7 +137,11 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     const last=lastMoved(todo,lookup), closed=closingTime(todo,last), sup=todo.supervision;
     const review=Wire.text(sup,'state'), reviewAt=date(Wire.text(sup,'pending_since'));
     const reviewing=!todo.isDone() && review==='pending_review' && reviewAt>0 && now-reviewAt<hour;
-    const ask=!!Wire.text(todo.ask,'verdict') && !!Wire.text(todo.ask,'asked_at') && !(todo.isDone() && Wire.text(todo.ask,'outcome')==='decide');
+    const ask=!todo.isDone() && !!Wire.text(todo.ask,'verdict') && !!Wire.text(todo.ask,'asked_at');
+    const outcome=Wire.text(todo.ask,'outcome');
+    const directDecision=!todo.isDone() && (['user_check','needs_user'].includes(review) ||
+      ask && (!!Wire.text(todo.ask,'question') || (Array.isArray(todo.ask['options']) && (todo.ask['options'] as Object[]).length>0) ||
+        !outcome || outcome==='decide' || !!Wire.text(todo.ask,'why_owner')));
     const decide=ask || !todo.isDone() && (['user_check','needs_user'].includes(review) || review==='pending_review' && !reviewing);
     const held=!todo.isDone() && Wire.text(todo.delivery,'unblock')==='user' && ['pr','merged','off'].includes(Wire.text(todo.delivery,'state'));
     const failed=status==='failed';
@@ -143,9 +149,16 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     const stale=todo.hubView?.section==='shelved' || (!todo.hubView && todo.kind!=='concern' && (todo.origin || todo.agents.length) &&
       !(todo.dueBy>=now) && ['not_started','followup','waiting'].includes(status) && !todo.prUrl && !review && now-last>=48*hour);
     let bucket='progress', order=4;
-    if (nowAsks.length) { bucket='needs'; order=0; }
-    else if (failed) { if (replaced || now-last>=48*hour) continue; bucket='needs'; order=2; }
-    else if (held || decide || ['needs_you','interrupted'].includes(status)) { bucket='needs'; order=2; }
+    if (nowAsks.length && (!isMain || !failed)) { bucket='needs'; order=0; }
+    else if (failed || held || decide || ['needs_you','interrupted'].includes(status)) {
+      // These entries belong to Needs You in a regular conversation. Its main supervisor only shows direct decisions.
+      if (isMain && (failed || !held && !directDecision)) {
+        for (const agent of active) folded.add(pair(agent.machineId,agent.sessionId));
+        continue;
+      }
+      if (failed && (replaced || now-last>=48*hour)) continue;
+      bucket='needs'; order=2;
+    }
     else if (closed && !reviewing) { if (!todo.origin || now-closed>=24*hour) continue; bucket='done'; }
     else if (stale && !reviewing) { bucket='shelved'; }
     for (const a of active) folded.add(pair(a.machineId,a.sessionId));
@@ -165,7 +178,9 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
       if (Wire.bool(d,'archived') || Wire.bool(d,'muted') || Wire.bool(d,'deleted')) continue;
       const parent=Wire.text(d,'parent_session_id') || Wire.text(Wire.object(d,'parent'),'session_id');
       if (parent && lookup.has(pair(s.machine,parent)) && s.state!=='needs_you' && ['needs_you','working'].includes(lookup.get(pair(s.machine,parent))?.state || '')) continue;
-      const waits=s.state==='needs_you', row=new TaskTrayRow('agent',key,waits ? 'needs':'progress',s.state,s.title,'',d,s);
+      const waits=s.state==='needs_you';
+      if (waits && !asking.has(key)) continue;
+      const row=new TaskTrayRow('agent',key,waits ? 'needs':'progress',s.state,s.title,'',d,s);
       row.order=waits ? 0 : 5; row.at=waits ? asking.get(key) || 0 : date(Wire.text(d,'state_since')); rows.push(row);
     }
   }
@@ -173,6 +188,7 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     const kind=Wire.text(item,'kind'), ref=Wire.text(item,'ref'), id=Wire.text(item,'id'), body=Wire.object(item,'body');
     if (!id || !ref) continue;
     if (kind==='plan') {
+      if (isMain) continue;
       const plan=Wire.record(plans[ref]);
       if (Wire.text(plan,'conversation')!==conversation || Wire.text(plan,'state')!=='open' || rows.some((r:TaskTrayRow) => r.kind==='plan' && Wire.text(r.data,'ref')===ref)) continue;
       const first=Wire.rows(plan,'tasks')[0] || {};
