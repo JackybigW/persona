@@ -172,9 +172,15 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 		return "", fmt.Errorf("user_check applies to accepted only")
 	}
 	closesTask := verdict == reviewCancelled || verdict == reviewAccepted && !a.UserCheck
+	var untouched SessionRef
 	if closesTask {
-		if err := s.taskCloseActivityError(ctx, t, time.Now()); err != nil {
-			return "", s.deferTaskReview(ctx, t.ID, err)
+		if activityErr := s.taskCloseActivityError(ctx, t, time.Now()); activityErr != nil {
+			if verdict == reviewCancelled && !background {
+				untouched = s.untouchedDispatch(ctx, t)
+			}
+			if untouched.SessionID == "" || s.taskCloseActivitySnapshotErrorExcept(t, time.Now(), untouched) != nil {
+				return "", s.deferTaskReview(ctx, t.ID, activityErr)
+			}
 		}
 	}
 	restartUserCheck := t.Supervision.state(t) == reviewUserCheck && !closesTask && verdict != reviewAccepted
@@ -258,7 +264,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 		if verdict == reviewCancelled {
 			reason = "取消：" + cmp.Or(clip(oneLine(note), 80), "不做了")
 		}
-		closing = &taskReviewClose{reason: reason, accepted: verdict == reviewAccepted}
+		closing = &taskReviewClose{reason: reason, accepted: verdict == reviewAccepted, untouched: untouched}
 	}
 	var reviewedAt time.Time
 	if ledger {
@@ -728,7 +734,7 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 		_ = s.loadTaskActivity(ctx)
 	}
 	s.todos.writing.Lock()
-	ok, after, err := s.reviewDoneTodoLocked(ctx, id, reason, accepted, ledger, ownerPass)
+	ok, after, err := s.reviewDoneTodoLocked(ctx, id, reason, accepted, ledger, ownerPass, SessionRef{})
 	s.todos.writing.Unlock()
 	if after != nil {
 		after()
@@ -737,13 +743,13 @@ func (s *Service) reviewDoneTodoWithSupervision(ctx context.Context, id, reason 
 }
 
 // reviewDoneTodoLocked commits the closure while todos.writing is held and returns its post-commit effects.
-func (s *Service) reviewDoneTodoLocked(ctx context.Context, id, reason string, accepted bool, ledger *Supervision, ownerPass bool) (bool, func(), error) {
+func (s *Service) reviewDoneTodoLocked(ctx context.Context, id, reason string, accepted bool, ledger *Supervision, ownerPass bool, untouched SessionRef) (bool, func(), error) {
 	guard := func() error {
 		if ownerPass {
 			return nil // the owner explicitly completed this verification round
 		}
 		if t, ok := s.todoNow(id); ok {
-			return s.taskCloseActivitySnapshotError(t, time.Now())
+			return s.taskCloseActivitySnapshotErrorExcept(t, time.Now(), untouched)
 		}
 		return nil
 	}
@@ -785,7 +791,7 @@ func (s *Service) reviewDoneTodoLocked(ctx context.Context, id, reason string, a
 	var activityErr error
 	_, doneKeys, ok := s.setTodoRow(id, row, func(t *Todo) bool {
 		if !persisted && !ownerPass {
-			if activityErr = s.taskCloseActivitySnapshotError(*t, time.Now()); activityErr != nil {
+			if activityErr = s.taskCloseActivitySnapshotErrorExcept(*t, time.Now(), untouched); activityErr != nil {
 				return false
 			}
 		}

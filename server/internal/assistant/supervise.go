@@ -503,10 +503,11 @@ func (s *Service) updateSupervision(ctx context.Context, id string, change func(
 }
 
 type taskReviewClose struct {
-	reason   string
-	accepted bool
-	closed   bool
-	after    func()
+	reason    string
+	accepted  bool
+	untouched SessionRef
+	closed    bool
+	after     func()
 }
 
 // updateSupervisionWithClose validates on a private ledger, then commits it with a terminal review's closure before
@@ -602,7 +603,7 @@ func (s *Service) updateSupervisionGuardedLockedAt(ctx context.Context, id strin
 	}
 	if closing != nil && !t.isConcern() {
 		var err error
-		closing.closed, closing.after, err = s.reviewDoneTodoLocked(ctx, id, closing.reason, closing.accepted, v, false)
+		closing.closed, closing.after, err = s.reviewDoneTodoLocked(ctx, id, closing.reason, closing.accepted, v, false, closing.untouched)
 		if err != nil {
 			return Supervision{}, false, err
 		}
