@@ -50,6 +50,7 @@ interface DevicePreferenceChange { appearance?: number; style?: string; alerts?:
 interface HeldActionReceipt { scope: string; pairing: number; target: string; expected: HeldAgentMessage; deleted: boolean; }
 
 export interface ClientViewLease {
+  readonly storageKey?:string;
   readonly epoch: number;
   valid: () => boolean;
   read: () => Promise<string>;
@@ -1814,10 +1815,18 @@ export class ClientModel {
   captureView(key: string): ClientViewLease {
     return this.captureViewPath(this.viewKey(key));
   }
+  async savedRenameTargets(group:string, manager:string, machine:string, source:string, requestId:string):Promise<string[]> {
+    const scope=this.scope(), generation=this.connectionGeneration();
+    const root=this.viewKey('worktree-request:');
+    const prefix=JSON.stringify([scope,group,manager,machine,source]).slice(0,-1)+',';
+    const keys=await this.local.keys(root+prefix,requestId);
+    if (!this.owns(generation,scope)) throw new Error('request_updated');
+    return keys.filter((key:string)=>key.startsWith(root+prefix) && key.endsWith(',"rename"]')).map((key:string)=>key.slice(root.length));
+  }
   private captureViewPath(path: string): ClientViewLease {
     const local = this.local, epoch = local.revision(path);
     const valid = (): boolean => local.accepts(path, epoch);
-    return { epoch: epoch, valid: valid,
+    return { storageKey:path, epoch: epoch, valid: valid,
       read: async (): Promise<string> => {
         if (!valid()) throw new Error('request_updated');
         const result = await local.get(path);

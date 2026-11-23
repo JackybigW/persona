@@ -5197,6 +5197,18 @@
       "value": "現在の名前を保持してリクエストを解除"
     },
     {
+      "name": "tree_rename_previous_directory",
+      "value": "以前のワークツリーのディレクトリ"
+    },
+    {
+      "name": "tree_rename_removed_explanation",
+      "value": "以前のワークツリーは削除されました。このデバイスで以前の名前変更を確認済みにできます。"
+    },
+    {
+      "name": "tree_rename_removed_continue",
+      "value": "以前のワークツリーは削除済みです。名前変更を続ける"
+    },
+    {
       "name": "tree_rename_keep_explanation",
       "value": "現在の名前を保持すると、この端末のリクエストを解除します。その後、新しい名前を入力できます。"
     },

@@ -1,5 +1,6 @@
 import { util } from '@kit.ArkTS';
 import { LocalStore } from '../platform/LocalStore';
+import type { UniqueLocalKey } from '../platform/LocalStore';
 import { isHubStateKey } from '../core/StorageOwnership';
 import { HttpFailure } from '../platform/HubTransport';
 import { Wire } from './Wire';
@@ -140,6 +141,38 @@ export class MutationStore {
       try { await this.persist(record); } catch (_) {}
       throw new HttpFailure(0, 'receipt_storage_failed', true);
     }
+  }
+  /** Record the local review without erasing its request, its saved form, or any terminal history. */
+  async acknowledgeRemovedRename(record:MutationRecord, viewScope:string, oldFormKey:string, snapshot:string, currentFormKey:string,
+    admit:()=>boolean):Promise<boolean> {
+    return this.transaction(async ():Promise<boolean>=>{
+      const prefix='view:'+viewScope+':worktree-request:';
+      const allowed=():boolean=>this.record(record.id)===record && record.state==='unknown' && record.method==='POST' &&
+        record.path.endsWith('/worktree/rename') && record.confirmedPending===false && record.requiresReceipt===false &&
+        this.blocked().filter((other:MutationRecord)=>other.method===record.method && other.path===record.path).length===1 && admit();
+      const form=Wire.parse(snapshot);
+      if(!allowed() || oldFormKey===currentFormKey || !currentFormKey.startsWith(prefix) ||
+        oldFormKey!==prefix+Wire.text(form,'target') || Wire.text(form,'id')!==record.id ||
+        Wire.text(form,'action')!=='rename' || Wire.text(form,'path')!==record.path) return false;
+      const key=this.key+':'+record.id,index=await this.local.get(this.key),raw=await this.local.get(key);
+      const ids=Wire.strings(Wire.parse(index),'ids'), data=Wire.parse(raw), saved=this.decode(data);
+      if(!allowed() || ids.filter((id:string)=>id===record.id).length!==1 || JSON.stringify(ids)!==JSON.stringify(this.records.map((r:MutationRecord)=>r.id)) ||
+        saved.id!==record.id || saved.path!==record.path || saved.method!==record.method || saved.createdAt!==record.createdAt ||
+        saved.payload!==record.payload || saved.state!=='unknown' || saved.confirmedPending || saved.requiresReceipt) return false;
+      const target=JSON.parse(Wire.text(form,'target')) as Object;
+      if(!Array.isArray(target) || target.length!==8 || target[0]!==viewScope || target[7]!=='rename')return false;
+      const routePrefix=prefix+JSON.stringify((target as string[]).slice(0,5)).slice(0,-1)+',';
+      const unique:UniqueLocalKey={prefix:routePrefix,suffix:',"rename"]',valueContains:record.id,key:oldFormKey};
+      data['state']='checked';
+      const ordered=this.records.filter((r:MutationRecord)=>r!==record).concat([record]);
+      const values=new Map<string,string>();
+      values.set(key,JSON.stringify(data));
+      values.set(this.key,JSON.stringify(Wire.payload(['ids'],[ordered.map((r:MutationRecord)=>r.id)])));
+      const expected=new Map<string,string>();expected.set(key,raw);expected.set(this.key,index);
+      expected.set(oldFormKey,snapshot);expected.set(currentFormKey,'');
+      await this.local.updateRecords(key,this.local.revision(key),values,[],allowed,expected,unique);
+      record.state='checked';this.records=ordered;return true;
+    });
   }
   async acknowledge(id: string, admit?: () => boolean): Promise<void> {
     const record = this.record(id);

@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import {registerHooks, stripTypeScriptTypes} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 
 globalThis.__personaMutationTestUUID = randomUUID;
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier==='@kit.ArkData' || specifier==='@kit.AbilityKit') return {url:'persona-test:'+specifier,shortCircuit:true};
     if (specifier.endsWith('/core/StorageOwnership')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
     if (specifier.endsWith('/core/ScheduleTemplates')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
     if (specifier === './ClientModel' && context.parentURL?.endsWith('/ManagementModel.ets')) return {url:'persona-test:client',shortCircuit:true};
@@ -19,6 +21,8 @@ registerHooks({
   load(url,context,next) {
     if (url === 'persona-test:client') return {format:'module',source:'export class ClientModel {}',shortCircuit:true};
     if (url === 'persona-test:arkts') return {format:'module',source:'export const util={generateRandomUUID:globalThis.__personaMutationTestUUID};',shortCircuit:true};
+    if (url==='persona-test:@kit.ArkData') return {format:'module',source:'export const relationalStore={SecurityLevel:{S3:3},ConflictResolution:{ON_CONFLICT_REPLACE:1},getRdbStore:async()=>globalThis.worktreeTestRdb};',shortCircuit:true};
+    if (url==='persona-test:@kit.AbilityKit') return {format:'module',source:'export const common={};',shortCircuit:true};
     if (url === 'persona-test:local') return {format:'module',source:'export class LocalStore {}',shortCircuit:true};
     if (url === 'persona-test:transport') return {format:'module',source:'export class EndpointConfig {} export class HubTransport {async request(...args){return globalThis.__personaRequest(...args)} async requestBytes(...args){return globalThis.__personaRequestBytes(...args)}} export class HttpFailure extends Error {constructor(status,code,resultUnknown=false,resultPending=false){super(code);this.status=status;this.code=code;this.resultUnknown=resultUnknown;this.resultPending=resultPending;}}',shortCircuit:true};
     if (url.endsWith('/core/ScheduleTemplates.ts')) return {format:'module',source:stripTypeScriptTypes(readFileSync(new URL(url),'utf8')),shortCircuit:true};
@@ -644,4 +648,52 @@ test('new Agent uses the selected host worktree and keeps a directory-only start
   await repo.createAgent('Synthetic task', machine, '/repo/feature', 'codex', 'c', '', () => true, 'wt-01', 'paseo', 'test-model', 'high');
   assert.deepEqual(bodies[2], {machine_id:'mac', cwd:'/repo/feature', launcher:'codex', prompt:'Synthetic task',
     workspace_id:'wt-01', host:'paseo', model:'test-model', effort:'high'});
+});
+
+test('a removed-rename check atomically compares both original SQLite views and retains the request and full journal history',async t=>{
+  const {LocalStore}=await import('../entry/src/main/ets/platform/LocalStore.ets');
+  const db=new DatabaseSync(':memory:');t.after(()=>{db.close();delete globalThis.worktreeTestRdb;});
+  let afterWrite=()=>{};
+  globalThis.worktreeTestRdb={
+    async querySql(sql,args=[]){
+      const rows=db.prepare(sql).all(...args);let i=-1;
+      return {goToNextRow(){return ++i<rows.length;},goToFirstRow(){i=0;return rows.length>0;},
+        getString(col){return Object.values(rows[i])[col];},close(){}};
+    },
+    async executeSql(sql,args=[]){db.prepare(sql).run(...args);if(sql.startsWith('INSERT OR REPLACE'))afterWrite();},
+    async insert(_table,row){db.prepare('INSERT OR REPLACE INTO client_state(key,value) VALUES (?,?)').run(row.key,row.value);},
+    async beginTransaction(){db.exec('BEGIN IMMEDIATE');},async commit(){db.exec('COMMIT');},async rollBack(){db.exec('ROLLBACK');}
+  };
+  const local=new LocalStore('test-removed-rename.db');await local.open({});
+  const scope='hub|manager',prefix='view:'+scope+':worktree-request:',index='mutations:'+scope;
+  const id=randomUUID(),path='/api/v1/machines/lab/worktree/rename';
+  const target=(group,machine,ws)=>JSON.stringify([scope,group,'manager',machine,'herdr',ws,'/lab/'+ws,'rename']);
+  const old=target('hub','lab','retired'),oldKey=prefix+old,newKey=prefix+target('hub','lab','current');
+  const stored={id,path,method:'POST',state:'unknown',createdAt:'2024-01-01T00:00:00Z',payload:'',requiresReceipt:false,confirmedPending:false};
+  const snapshot=JSON.stringify({id,action:'rename',target:old,path,payload:JSON.stringify({workspace_id:'retired',kind:'herdr',name:'Earlier'})});
+  const ids=[id],otherRaw=new Map();
+  for(let i=0;i<100;i++){
+    const terminal='past-'+i;ids.push(terminal);const raw=JSON.stringify({...stored,id:terminal,state:'done',requiresReceipt:true});
+    otherRaw.set(terminal,raw);await local.put(index+':'+terminal,raw);
+  }
+  await local.put(index,JSON.stringify({ids}));await local.put(index+':'+id,JSON.stringify(stored));await local.put(oldKey,snapshot);
+  const foreign='view:other|manager:worktree-request:'+target('other','lab','retired');await local.put(foreign,snapshot);
+  const otherMachine=prefix+target('hub','elsewhere','retired');await local.put(otherMachine,snapshot);
+  const currentOwnerPrefix=prefix+JSON.stringify([scope,'hub','manager','lab','herdr']).slice(0,-1)+',';
+  assert.deepEqual(await local.keys(currentOwnerPrefix,id),[oldKey]);
+  const journal=new MutationStore(local,scope);await journal.load();const r=journal.record(id);
+  const confirm=(guard=()=>true)=>journal.acknowledgeRemovedRename(r,scope,oldKey,snapshot,newKey,guard);
+  await local.put(oldKey,snapshot+' ');await assert.rejects(confirm(),/request_updated/);await local.put(oldKey,snapshot);
+  const duplicate=prefix+target('hub','lab','same-uuid-on-another-form');
+  await local.put(duplicate,snapshot);await assert.rejects(confirm(),/request_updated/);await local.remove(duplicate);
+  await local.put(newKey,'another sheet');await assert.rejects(confirm(),/request_updated/);await local.remove(newKey);
+  let current=true;afterWrite=()=>{current=false;};await assert.rejects(confirm(()=>current),/scope_retired/);afterWrite=()=>{};
+  assert.equal(r.state,'unknown');assert.deepEqual(JSON.parse(await local.get(index)).ids,ids);assert.deepEqual(JSON.parse(await local.get(index+':'+id)),stored);
+  assert.equal(await confirm(),true);assert.deepEqual(JSON.parse(await local.get(index+':'+id)),{...stored,state:'checked'});
+  assert.deepEqual(JSON.parse(await local.get(index)).ids,[...ids.slice(1),id]);assert.equal(await local.get(oldKey),snapshot);
+  assert.equal(await local.get(foreign),snapshot);assert.equal(await local.get(otherMachine),snapshot);
+  for (const [key,raw] of otherRaw)assert.equal(await local.get(index+':'+key),raw);
+  assert.equal(await confirm(),false);assert.equal(journal.blocked().length,0);
+  const restored=new MutationStore(local,scope);await restored.load();assert.equal(restored.record(id).state,'checked');
+  assert.equal(await local.get(oldKey),snapshot);
 });

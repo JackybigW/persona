@@ -34,6 +34,10 @@ function fixture() {
     operation:'missing', receiptBody:undefined, replayError:undefined };
   const repo = {
     mutations: { blocked: () => blocked.filter(r=>r.state==='pending'||r.state==='unknown'), record: id => blocked.find(r=>r.id===id),
+      async acknowledgeRemovedRename(record,viewScope,oldKey,raw,currentKey,admit) {
+        if (!admit() || views.get(oldKey)!==raw || views.get(currentKey))return false;
+        record.state='checked';finished.push([record.id,'checked']);return true;
+      },
       acknowledge: async (id,admit) => {
         const record=blocked.find(r=>r.id===id);
         if (record?.state==='unknown' && !record.requiresReceipt && !record.confirmedPending && (!admit || admit())) await repo.mutations.finish(record,'checked');
@@ -53,7 +57,7 @@ function fixture() {
       if (!method || method==='GET') {
         reads.push(path);
         if(path==='/api/v1/health')return behavior.publicHealth?{ok:true,hub_id:'hub-id'}:{ok:true,version:behavior.version,features:behavior.features,hub_id:'hub-id'};
-        if(path==='/api/v1/workspaces')return {workspaces:behavior.workspaces,errors:behavior.errors||[]};
+        if(path==='/api/v1/workspaces')return {workspaces:behavior.workspaces,errors:behavior.errors||[],...behavior.catalogue};
         if(path.startsWith('/api/v1/ops/')) {
           if(behavior.operation==='missing')throw new HttpFailure(404,'no such operation');
           return {id:behavior.receiptId||path.split('/').at(-1),kind:behavior.kind||'worktree_create',state:behavior.operation,
@@ -71,9 +75,13 @@ function fixture() {
   };
   const owner = { connected: true, epoch: 3, name: 'home', profile:{hubId:'hub-id'},features:['client_ops'],connectionGeneration() { return this.epoch; },
     verifiedServerVersion(feature){return this.features.includes(feature)?behavior.helloVersion||'':'';},
+    async savedRenameTargets(group,manager,machine,source,id) {
+      const root=this.name+':worktree-request:', prefix=JSON.stringify([this.name,group,manager,machine,source]).slice(0,-1)+',';
+      return [...views].filter(([k,raw])=>k.startsWith(root+prefix) && k.endsWith(',"rename"]') && raw.includes(id)).map(([k])=>k.slice(root.length));
+    },
     captureView(key) {
       const scoped = this.name + ':' + key;
-      return {valid: () => true, read: async () => views.get(scoped) || '', write: async value => { views.set(scoped,value); },
+      return {storageKey:scoped,valid: () => true, read: async () => views.get(scoped) || '', write: async value => { views.set(scoped,value); },
         clearIfUnchanged: async expected => { if (views.get(scoped) === expected) views.delete(scoped); }};
     },
     scope() { return this.name; }, owns(epoch, scope) { return this.name === scope && this.epoch === epoch; }, repo: () => repo };
@@ -723,4 +731,71 @@ test('a fresh, pending, retained or unverified manual checkout cannot be replaye
     assert.equal(f.replayed.length, 0, reason); assert.equal(f.form.canRetrySame, false, reason);
     assert.equal(f.finished.length, 0, reason);
   }
+});
+
+async function removedRenameFixture() {
+  const f=await lostRename();
+  const current=Object.assign(new ProjectWorktree(),f.tree,{sourceId:'different-checkout',cwd:'/qa/new',title:'New checkout'});
+  const live={...f.row,source_id:current.sourceId,cwd:current.cwd,title:current.title,manager_id:current.manager};
+  f.behavior.workspaces=[live];f.form.close();
+  return {...f,current,live,reopen:()=>f.form.open(f.root,current,'rename')};
+}
+
+test('an explicitly reviewed removed worktree releases only its old rename and keeps the complete original request',async()=>{
+  const f=await removedRenameFixture(),other={...f.record,id:'00000000-0000-4000-8000-000000000080',path:'/api/v1/machines/Elsewhere/worktree/rename'};
+  f.blocked.push(other);await f.reopen();
+  assert.equal(f.form.removedRenameDirectory,'/qa/child');assert.equal(f.form.canSubmit,false);
+  assert.equal(f.record.state,'unknown');assert.equal(f.views.get(f.key),f.snapshot);assert.equal(f.writes.length,1);
+  const readCount=f.reads.length;await f.form.reconcile(true);
+  assert.equal(f.reads.slice(readCount).filter(p=>p==='/api/v1/workspaces').length,1);
+  assert.equal(f.record.state,'checked');assert.equal(other.state,'unknown');assert.equal(f.views.get(f.key),f.snapshot);
+  assert.deepEqual(f.finished,[[f.record.id,'checked']]);assert.equal(f.form.name,'New checkout');
+  assert.equal(f.form.unknown,false);assert.equal(f.form.canSubmit,false);await f.form.submit();assert.equal(f.writes.length,1);
+  f.behavior.unknown=false;f.form.name='A separate name';await f.form.submit();assert.equal(f.writes.length,2);
+  assert.equal(f.writes[1].body.workspace_id,f.current.sourceId);assert.equal(f.writes[1].body.name,'A separate name');
+  assert.notEqual(f.writes[1].id,f.record.id);assert.equal(f.replayed.length,0);assert.equal(f.views.get(f.key),f.snapshot);
+});
+
+test('a removed-rename review requires one scoped original, a complete catalogue, and a distinct live checkout',async()=>{
+ const conditions=[
+  f=>f.behavior.workspaces.push({...f.row,cwd:'/qa/moved'}),
+  f=>f.behavior.workspaces.push({...f.row,source_id:'path-reused'}),
+  f=>f.behavior.workspaces.push({...f.live,source_id:'second-at-current-path'}),
+  f=>f.behavior.workspaces.push({...f.live,cwd:'/qa/duplicate-current'}),
+  f=>{f.live.manager_id='different-manager'},f=>{f.live.online=false},f=>{f.live.available=false},f=>{f.live.title=''},
+  f=>{f.behavior.workspaces=[{}]},f=>{f.behavior.catalogue={partial:true}},f=>{f.behavior.catalogue={truncated:true}},
+  f=>{f.behavior.catalogue={complete:false}},f=>{f.behavior.catalogue={total:2}},f=>{f.behavior.catalogue={next_cursor:{}}},
+  f=>{f.behavior.errors=[{machine_id:'other',error:'unspecified partial scan'}]},
+  f=>{const old=f.owner.repo().call;f.owner.repo().call=async function(path,...rest){return path==='/api/v1/workspaces'?
+    {workspaces:[f.live],has_more:true}:old.call(this,path,...rest)}},
+  f=>{f.record.confirmedPending=true},f=>{f.record.requiresReceipt=true},f=>{f.record.state='pending'},
+  f=>{f.record.createdAt=new Date().toISOString()},f=>{f.views.set(f.key,JSON.stringify({...JSON.parse(f.snapshot),at:Date.now()}))},
+  f=>{f.record.payload='{"workspace_id":"other"}'},f=>{f.views.set(f.key,JSON.stringify({...JSON.parse(f.snapshot),path:'/api/v1/machines/Other/worktree/rename'}))},
+  f=>{f.views.set(f.key,JSON.stringify({...JSON.parse(f.snapshot),id:'00000000-0000-4000-8000-0000000000ff'}))},
+  f=>{f.blocked.push({...f.record,id:'00000000-0000-4000-8000-000000000082'})},
+  f=>{f.current.manager='another'},f=>{f.current.group='other'},f=>{f.current.source='orca'},f=>{f.current.machine='Other';f.record.path='/api/v1/machines/Other/worktree/rename'},
+  f=>{f.views.set(f.key+'-unrelated',f.snapshot);f.views.delete(f.key)},
+  f=>{f.views.set(f.key.replace('/qa/child','/qa/elsewhere'),f.snapshot)},
+  f=>{f.current.sourceId=f.row.source_id},f=>{f.current.cwd=f.row.cwd},f=>{f.current.startAllowed=false}
+ ];
+ for(const change of conditions){
+  const f=await removedRenameFixture();change(f);const state=f.record.state,prior=f.views.get(f.key);
+  await f.reopen();await f.form.reconcile(false);await f.form.reconcile(true);
+  assert.equal(f.form.removedRenameDirectory,'',String(change));assert.equal(f.form.canSubmit,false,String(change));
+  assert.equal(f.record.state,state,String(change));assert.equal(f.views.get(f.key),prior);assert.equal(f.writes.length,1);assert.equal(f.replayed.length,0);
+ }
+});
+
+test('confirmation rereads both workspaces, the owner and both saved forms and cannot release a replacement record',async()=>{
+ for(const change of [f=>{f.behavior.workspaces.push(f.row)}, f=>{f.live.title='Changed again'},
+    f=>{f.views.set(f.key,JSON.stringify({...JSON.parse(f.snapshot),originalName:'Replacement'}))},
+    f=>{f.views.set(f.form.view.storageKey,'new target state')},
+    f=>{f.blocked[0]={...f.record}},f=>{f.record.requiresReceipt=true}, f=>{f.owner.epoch++},
+    f=>{f.current.cwd='/qa/replaced'},f=>{f.current.online=false},
+    f=>{f.blocked.push({...f.record,id:'00000000-0000-4000-8000-000000000084'})}]){
+  const f=await removedRenameFixture();await f.reopen();assert.ok(f.form.removedRenameDirectory);
+  change(f);await f.form.reconcile(true);
+  assert.equal(f.record.state,'unknown',String(change));assert.equal(f.blocked[0].state,'unknown');
+  assert.equal(f.writes.length,1);assert.equal(f.form.canSubmit,false);assert.equal(f.replayed.length,0);
+ }
 });

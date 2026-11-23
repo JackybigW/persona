@@ -1551,3 +1551,14 @@ test('forward recipients recheck the current same-Hub inventory, owner, read-onl
  computer.raw=JSON.stringify({online:false});assert.equal(model.canForwardTo(target,true),false);
  model.sessions=[];assert.equal(model.canForwardTo(target),false);
 });
+
+test('an exact old rename lookup queries only the current owner, machine and source, and rejects a changed connection',async()=>{
+  const {model}=fixture(), args=[],id='30000000-0000-4000-8000-000000000001',scope=model.scope(),group=model.profile.id;
+  const target=JSON.stringify([scope,group,model.profile.manager,'Test %_ host','herdr','old','/fixture/checkout','rename']);
+  const key=model.captureView('worktree-request:'+target).storageKey;
+  model.local.keys=async(...input)=>{args.push(input);return [key,key.replace(',"rename"]',',"clean"]'),'view:somewhere-else:'+target];};
+  assert.deepEqual(await model.savedRenameTargets(group,model.profile.manager,'Test %_ host','herdr',id),[target]);
+  assert.deepEqual(args,[[ 'view:'+scope+':worktree-request:'+JSON.stringify([scope,group,model.profile.manager,'Test %_ host','herdr']).slice(0,-1)+',',id ]]);
+  model.local.keys=async()=>{model.generation++;return [key];};
+  await assert.rejects(model.savedRenameTargets(group,model.profile.manager,'Test %_ host','herdr',id),/request_updated/);
+});

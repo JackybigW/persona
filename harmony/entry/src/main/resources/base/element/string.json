@@ -5197,6 +5197,18 @@
       "value": "Keep current name and clear this request"
     },
     {
+      "name": "tree_rename_previous_directory",
+      "value": "Previous worktree directory"
+    },
+    {
+      "name": "tree_rename_removed_explanation",
+      "value": "The previous worktree has been removed. Its rename request can be marked checked on this device."
+    },
+    {
+      "name": "tree_rename_removed_continue",
+      "value": "Previous worktree removed — continue renaming"
+    },
+    {
       "name": "tree_rename_keep_explanation",
       "value": "Keeping the current name clears this request on this device. You can then enter a new name."
     },

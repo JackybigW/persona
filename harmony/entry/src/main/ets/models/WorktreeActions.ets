@@ -54,6 +54,14 @@ function operationAcknowledged(action: string, sourceId: string, request: Record
     (checkoutComparable(path) === checkoutComparable(Wire.text(request,'path')) && branch === Wire.text(request,'branch')));
 }
 
+interface RemovedRenameReview {
+  record:MutationRecord;
+  key:string;
+  snapshot:string;
+  directory:string;
+  currentName:string;
+}
+
 @ObservedV2
 export class WorktreeActions {
   @Trace action: string = '';
@@ -81,6 +89,9 @@ export class WorktreeActions {
   @Trace releaseReady: boolean = false;
   @Trace renameCurrent: string = '';
   @Trace renameOriginal: string = '';
+  @Trace removedRenameDirectory:string = '';
+  private priorRenameId:string = '';
+  private removedRenameReview:RemovedRenameReview | undefined;
   private renameSnapshot: string = '';
   private cleanupSnapshot: string = '';
   private renameReviewedRecord: MutationRecord | undefined;
@@ -112,6 +123,7 @@ export class WorktreeActions {
     this.view = undefined; this.requestId = ''; this.requestPath = ''; this.requestBody = ''; this.requestTime = 0;
     this.retrySupported = false; this.originalReceiptRoute = false; this.legacy = false; this.legacyId = ''; this.releaseReady = false;
     this.releaseTarget = ''; this.target = '';
+    this.priorRenameId='';this.removedRenameReview=undefined;this.removedRenameDirectory='';
     this.cleanupSnapshot = ''; this.cleanupRepreviewAvailable = false;
     this.renameCurrent = ''; this.renameOriginal = ''; this.renameSnapshot = ''; this.renameReviewedRecord = undefined; this.reviewedRenameBase = '';
   }
@@ -234,6 +246,11 @@ export class WorktreeActions {
       const unresolved = owner.repo().mutations?.blocked().find((item: MutationRecord) => item.path === route && item.method === 'POST');
       if (unresolved) {
         this.unknown = true; this.error = 'pending_action';
+        if (action==='rename' && !snapshot && this.retirableRename(unresolved)) {
+          this.priorRenameId=unresolved.id;
+          await this.reviewRemovedRename(revision,false);
+          return;
+        }
         if (action !== 'create' || !OP_UUID.test(unresolved.id)) return;
         this.legacy = true; this.legacyId = unresolved.id; this.error = 'tree_verify_original_checkout';
       }
@@ -359,6 +376,7 @@ export class WorktreeActions {
   get requestCheckAvailable(): boolean {
     if (!this.unknown || !this.current(this.revision)) return false;
     if (this.action === 'create') return !!(this.requestId || this.legacyId) && this.owner!.features.includes('client_ops');
+    if(this.action==='rename' && this.priorRenameId)return true;
     return !!this.requestBody && (this.action === 'rename' || this.action === 'clean' && !!this.token);
   }
   get canCheck(): boolean { return !this.busy && this.requestCheckAvailable; }
@@ -421,7 +439,7 @@ export class WorktreeActions {
       Wire.text(row,'source_id') === tree.sourceId && checkoutComparable(Wire.text(row,'cwd')) === checkoutComparable(tree.cwd) &&
       Wire.bool(row,'online') && (!Wire.has(row,'available') || Wire.bool(row,'available'));
   }
-  private async workspaces(rev: number, requireComplete: boolean = false): Promise<Record<string,Object>[]> {
+  private async workspaces(rev: number, requireComplete: boolean = false, proveAbsence:boolean=false): Promise<Record<string,Object>[]> {
     const owner = this.owner!;
     const result = await this.read(rev, () => owner.repo().call('/api/v1/workspaces'));
     if (!this.current(rev)) throw new Error('request_updated');
@@ -429,7 +447,13 @@ export class WorktreeActions {
       !!Wire.text(result,'next_cursor') || Wire.has(result,'errors') && !Array.isArray(result['errors']))) throw new Error('result_unknown');
     if (!Array.isArray(result['workspaces']) || Wire.rows(result,'errors').some((err: Record<string,Object>) =>
       !Wire.text(err,'machine_id') || Wire.text(err,'machine_id') === this.tree!.machine)) throw new Error('result_unknown');
-    return Wire.rows(result,'workspaces');
+    const rows=Wire.rows(result,'workspaces');
+    if(proveAbsence && (Wire.rows(result,'errors').length>0 || Wire.has(result,'next_cursor') && typeof result['next_cursor']!=='string' ||
+      Wire.bool(result,'truncated',Wire.has(result,'truncated')) || Wire.has(result,'complete') && result['complete']!==true ||
+      Wire.has(result,'total') && Wire.number(result,'total',-1)!==rows.length ||
+      rows.some((row:Record<string,Object>)=>!Wire.text(row,'machine_id') || !Wire.text(row,'source') || !Wire.text(row,'source_id'))))
+      throw new Error('result_unknown');
+    return rows;
   }
   private async liveRenameName(rev: number): Promise<string> {
     const tree = this.tree!, rows = await this.workspaces(rev,true);
@@ -442,6 +466,71 @@ export class WorktreeActions {
     const name = Wire.text(matches[0],'title');
     if (!name.trim()) throw new Error('result_unknown');
     return name;
+  }
+  private retirableRename(record:MutationRecord):boolean {
+    const created=Date.parse(record.createdAt), tree=this.tree;
+    if (!tree || !tree.permits('rename') || !OP_UUID.test(record.id) || record.path!==this.endpoint('rename') ||
+      record.method!=='POST' || record.state!=='unknown' || record.confirmedPending!==false || record.requiresReceipt!==false ||
+      !Number.isFinite(created) || created<=0 || Date.now()-created<NODE_RENAME_TIMEOUT) return false;
+    const journal=this.owner?.repo().mutations;
+    return !!journal && journal.record(record.id)===record && journal.blocked().filter((r:MutationRecord)=>
+      r.method==='POST' && r.path===record.path).length===1;
+  }
+  private async inspectRemovedRename(rev:number):Promise<RemovedRenameReview | undefined> {
+    const owner=this.owner!,tree=this.tree!,record=owner.repo().mutations?.record(this.priorRenameId);
+    if(!record || !this.retirableRename(record) || !tree.group || !tree.machine || !tree.source || !tree.sourceId ||
+      !tree.cwd.trim() || !this.view!.storageKey || await this.view!.read()!=='') return undefined;
+    this.requireCurrent(rev);
+    const targets=await owner.savedRenameTargets(tree.group,tree.manager,tree.machine,tree.source,record.id);
+    this.requireCurrent(rev);
+    if(targets.length!==1 || targets[0]===this.target)return undefined;
+    const target=targets[0], decoded=JSON.parse(target) as Object;
+    if(!Array.isArray(decoded) || decoded.length!==8 || decoded.some((part:Object)=>typeof part!=='string'))return undefined;
+    const fields=decoded as string[],oldId=fields[5],oldPath=fields[6];
+    const fullPath=(value:string):boolean=>value===value.trim() && /^(?:\/[^/]|[a-z]:[\\/]|[\\/]{2}[^\\/])/i.test(value);
+    if(target!==JSON.stringify([this.ownerScope,tree.group,tree.manager,tree.machine,tree.source,oldId,oldPath,'rename']) ||
+      !oldId.trim() || oldId===tree.sourceId || !fullPath(oldPath) || !fullPath(tree.cwd) || checkoutComparable(oldPath)===checkoutComparable(tree.cwd))return undefined;
+    const view=owner.captureView('worktree-request:'+target), snapshot=await view.read(), saved=Wire.parse(snapshot);
+    const body=Wire.text(saved,'payload'), payload=Wire.parse(body), at=Wire.number(saved,'at'), name=Wire.text(payload,'name');
+    if(!view.storageKey || Wire.text(saved,'id')!==record.id || Wire.text(saved,'target')!==target || Wire.text(saved,'action')!=='rename' ||
+      Wire.text(saved,'path')!==record.path || Wire.text(payload,'kind')!==tree.source || Wire.text(payload,'workspace_id')!==oldId ||
+      !name.trim() || name.trim()!==name || name.length>120 || record.payload && record.payload!==body || Object.keys(payload).length!==3 ||
+      Wire.has(saved,'receipts') && saved['receipts']!==false ||
+      !at || at<=0 || Date.now()-at<NODE_RENAME_TIMEOUT)return undefined;
+    this.requireCurrent(rev);
+    const rows=await this.workspaces(rev,true,true);
+    this.requireCurrent(rev);
+    const sourceRows=rows.filter((row:Record<string,Object>)=>Wire.text(row,'machine_id')===tree.machine);
+    if(sourceRows.some((row:Record<string,Object>)=>Wire.text(row,'source')===tree.source &&
+      (!Wire.text(row,'cwd').trim() || Wire.text(row,'source_id')===oldId) ||
+      checkoutComparable(Wire.text(row,'cwd'))===checkoutComparable(oldPath)))return undefined;
+    const active=sourceRows.filter((row:Record<string,Object>)=>Wire.text(row,'source')===tree.source && Wire.text(row,'source_id')===tree.sourceId);
+    if(active.length!==1 || !this.sameSource(active[0]) || Wire.has(active[0],'manager_id') && Wire.text(active[0],'manager_id')!==tree.manager ||
+      sourceRows.some((row:Record<string,Object>)=>row!==active[0] && checkoutComparable(Wire.text(row,'cwd'))===checkoutComparable(tree.cwd)))return undefined;
+    const liveName=Wire.text(active[0],'title');
+    if(!liveName.trim() || await view.read()!==snapshot || await this.view!.read()!=='' || !this.current(rev) || !this.retirableRename(record))return undefined;
+    return {record:record,key:view.storageKey,snapshot:snapshot,directory:oldPath,currentName:liveName};
+  }
+  private async reviewRemovedRename(rev:number,confirm:boolean):Promise<void> {
+    const previous=this.removedRenameReview;
+    this.removedRenameReview=undefined;this.removedRenameDirectory='';this.error='pending_action';
+    const review=await this.inspectRemovedRename(rev);
+    this.requireCurrent(rev);
+    if(!review)return;
+    if(!confirm) {
+      this.removedRenameReview=review;this.removedRenameDirectory=review.directory;this.error='tree_rename_removed_explanation';return;
+    }
+    if(!previous || previous.record!==review.record || previous.snapshot!==review.snapshot ||
+      previous.key!==review.key || previous.currentName!==review.currentName){this.error='tree_rename_check_again';return;}
+    const owner=this.owner!,journal=owner.repo().mutations!,formKey=this.view!.storageKey!;
+    const accepted=await journal.acknowledgeRemovedRename(review.record,this.ownerScope,review.key,review.snapshot,formKey,
+      ()=>this.current(rev) && this.retirableRename(review.record));
+    this.requireCurrent(rev);
+    if(!accepted)return;
+    owner.unresolvedWrites=journal.blocked();
+    if(journal.blocked().some((other:MutationRecord)=>other.method==='POST' && other.path===review.record.path))return;
+    this.priorRenameId='';this.title=review.currentName;this.name=review.currentName;this.locationTitle=review.currentName;
+    this.reviewedRenameBase=review.currentName;this.unknown=false;this.ready=true;this.error='';
   }
   private canKeepRename(record: MutationRecord | undefined): boolean {
     if (!record || record.id !== this.requestId || record.method !== 'POST' || record.path !== this.endpoint('rename') ||
@@ -616,6 +705,7 @@ export class WorktreeActions {
     submittingRoutes.add(lane); this.busy = true;
     try {
       if (this.action === 'create') return await this.recoverCreate(rev,replay);
+      if (this.action==='rename' && this.priorRenameId) { await this.reviewRemovedRename(rev,replay);return undefined; }
       if (this.action === 'rename') return await this.recoverRename(rev,replay);
       const body = this.body(); body['preview_token'] = this.token; body['reconcile'] = true;
       const surrender = replay && this.cleanupRepreviewAvailable;

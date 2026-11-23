@@ -122,7 +122,11 @@ export struct WorktreeSheet {
               }.width('100%').borderRadius(PhoneStyle.cardRadius).backgroundColor(Colors.surface).clip(true)
             } else if (this.form.action === 'rename') {
               Column() {
-                if (this.form.unknown && this.form.renameCurrent) {
+                if (this.form.unknown && this.form.removedRenameDirectory) {
+                  this.codeValue(tr('tree_rename_previous_directory'),this.form.removedRenameDirectory)
+                  this.rule()
+                  this.codeValue(tr('directory'),this.form.path)
+                } else if (this.form.unknown && this.form.renameCurrent) {
                   Column() {
                     this.valueRow(tr('machines'),this.form.machine)
                     this.rule()
@@ -163,7 +167,7 @@ export struct WorktreeSheet {
             }
           }
           if (this.form.error) {
-            Text(tr(this.form.error)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(this.form.renameCurrent || this.form.error === 'tree_cleanup_present' || this.form.error === 'tree_cleanup_removing' ? Colors.secondary : Colors.danger).padding(12).id('tree.form.error')
+            Text(tr(this.form.error)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(this.form.renameCurrent || this.form.removedRenameDirectory || this.form.error === 'tree_cleanup_present' || this.form.error === 'tree_cleanup_removing' ? Colors.secondary : Colors.danger).padding(12).id('tree.form.error')
             if (!this.form.ready && !this.form.unknown) Button(tr('retry'), { buttonStyle: ButtonStyleMode.TEXTUAL }).onClick(() => this.onRetry()).id('tree.form.retry')
             if (this.form.unknown && (this.form.requestCheckAvailable || this.form.busy)) {
               Button(tr(this.form.action === 'clean' ? 'tree_check_result' : 'tree_check_worktree_result'), { buttonStyle: ButtonStyleMode.TEXTUAL })
@@ -177,6 +181,14 @@ export struct WorktreeSheet {
                 }.width('100%').constraintSize({minHeight:48}).padding({left:12,right:12,top:8,bottom:8})
                   .accessibilityText(tr('tree_revoke_unused_preview')).enabled(this.form.canCheck)
                   .onClick(() => this.onReconcile(true)).id('tree.form.cleanup.repreview')
+              }
+              if (this.form.action==='rename' && this.form.removedRenameDirectory) {
+                Button({type:ButtonType.Normal,buttonStyle:ButtonStyleMode.TEXTUAL}) {
+                  Text(tr('tree_rename_removed_continue')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16))
+                    .fontColor(Colors.link).textAlign(TextAlign.Center).wordBreak(WordBreak.BREAK_WORD)
+                }.width('100%').constraintSize({minHeight:48}).padding({left:12,right:12,top:8,bottom:8})
+                  .accessibilityText(tr('tree_rename_removed_continue')).enabled(this.form.canCheck)
+                  .onClick(()=>this.onReconcile(true)).id('tree.form.rename.continue_removed')
               }
               if (this.form.action === 'rename' && this.form.renameCurrent) {
                 Button({type:ButtonType.Normal,buttonStyle:ButtonStyleMode.TEXTUAL}) {
