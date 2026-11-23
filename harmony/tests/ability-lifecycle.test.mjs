@@ -15,9 +15,10 @@ registerHooks({
  },
  load(url,context,next){
   if(url.startsWith('ability-test:'))return {format:'module',shortCircuit:true,source:`const s=globalThis.__personaAbilityTest;
+   export const phoneTextSize={attach(){},refresh(scale){s.fontScale=scale;},detach(){}};
    export const phonePasswordLogin={receive(uri){if(!s.expectPasswordReturn || uri!==s.expectPasswordReturn)return false;s.receivedPasswordReturn=uri;return true;}};
    export const AbilityConstant={},ConfigurationConstant={ColorMode:{COLOR_MODE_LIGHT:1,COLOR_MODE_DARK:2,COLOR_MODE_NOT_SET:0}},Want={};
-   export class UIAbility {context={resourceManager:{},getApplicationContext:()=>({setColorMode(){}})}}
+   export class UIAbility {context={config:{fontSizeScale:1},resourceManager:{},getApplicationContext:()=>({setColorMode(){}})}}
    export const window={};export const Strings={bind(){},refresh(){}};
    export const nativeMeetingServices={async initialize(){s.meetingRefreshes=(s.meetingRefreshes||0)+1},setRecordingEvent(){},
      receive(parameters){if(parameters.personaMeetingType==='persona.meeting.reminder' && parameters.occurrence)s.meetingOpens=(s.meetingOpens||0)+1}};
@@ -73,3 +74,5 @@ test('a matching system-browser return reaches the running password flow before 
   delete state.receivedPasswordReturn;
  }
 });
+
+test('a native text-size configuration is forwarded to the local display preference',()=>{reset();const ability=new EntryAbility();ability.onConfigurationUpdate({fontSizeScale:1.45});assert.equal(state.fontScale,1.45);});

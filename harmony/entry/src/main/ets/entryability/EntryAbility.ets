@@ -1,3 +1,4 @@
+import { phoneTextSize } from '../platform/PhoneTextSizePreference';
 import { nativeMeetingServices } from '../platform/NativeMeetingServices';
 import { phonePasswordLogin } from '../platform/PhonePasswordLogin';
 import { isPairingLink } from '../core/WireCompatibility';
@@ -19,6 +20,7 @@ export default class EntryAbility extends UIAbility {
   private visible: boolean = true;
   private pendingNotification: Record<string, Object> | undefined;
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    phoneTextSize.attach(this.context);
     nativeEnvironment.update(this.context.config);
     Strings.bind(this.context.resourceManager);
     deviceLook.initialize(this.context).catch(() => { deviceLook.error = 'device_look_storage_failed'; });
@@ -44,6 +46,7 @@ export default class EntryAbility extends UIAbility {
     if (want.action === NOTIFICATION_ACTION) { this.pendingNotification = Wire.record(want.parameters); this.dispatchNotification(); }
   }
   onConfigurationUpdate(_configuration: Configuration): void {
+    phoneTextSize.refresh(_configuration.fontSizeScale || 0);
     nativeEnvironment.update(_configuration);
     if (client.language === 'default') { Strings.refresh(); client.announceLanguage(); }
   }
@@ -59,6 +62,7 @@ export default class EntryAbility extends UIAbility {
   onWindowStageDestroy(): void { nativeEnvironment.unbindWindow(); }
   onBackground(): void { nativeEnvironment.foreground = false; NativeDictation.cancelActive(); this.visible = false; this.lifecycle++; deviceLook.bind(undefined).catch(() => {}); Promise.all([KnowledgeRecording.backgroundAll().then(() => nativeMeetingServices.setRecordingEvent('')), deviceFeatures.background(), client.background()]).catch(() => {}); }
   onForeground(): void {
+    phoneTextSize.refresh(this.context.config.fontSizeScale || 0);
     nativeEnvironment.foreground = true;
     nativeMeetingServices.initialize(this.context).catch(() => {});
     nativeEnvironment.update(this.context.config);
@@ -71,5 +75,5 @@ export default class EntryAbility extends UIAbility {
     }).catch(() => { if (this.visible && epoch === this.lifecycle) client.error = 'failed'; });
     deviceFeatures.foreground().catch(() => {});
   }
-  onDestroy(): void { nativeEnvironment.foreground = false; NativeDictation.cancelActive(); nativeEnvironment.unbindWindow(); this.visible = false; this.lifecycle++; this.pendingNotification = undefined; deviceLook.bind(undefined).catch(() => {}); KnowledgeRecording.backgroundAll().catch(() => {}); deviceFeatures.background().catch(() => {}); client.shutdown().catch(() => {}); }
+  onDestroy(): void { phoneTextSize.detach(); nativeEnvironment.foreground = false; NativeDictation.cancelActive(); nativeEnvironment.unbindWindow(); this.visible = false; this.lifecycle++; this.pendingNotification = undefined; deviceLook.bind(undefined).catch(() => {}); KnowledgeRecording.backgroundAll().catch(() => {}); deviceFeatures.background().catch(() => {}); client.shutdown().catch(() => {}); }
 }

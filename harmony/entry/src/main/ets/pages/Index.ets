@@ -25,6 +25,7 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { MachineDirectory } from '../components/MachineDirectory';
 import { PhoneIconButton, PhoneStyle } from '../design/PhoneStyle';
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
+import { phoneAppearancePage, phoneSettingsLink, pushPhoneSetting } from '../core/PhoneSettingsNavigation';
 import { SettingsDirectory, PhoneSettingsOptions } from '../components/SettingsDirectory';
 import { WorktreeChange, WorktreeActions } from '../models/WorktreeActions';
 import { ProjectCatalog, ProjectWorktree, PersonaProject } from '../models/ProjectCatalog';
@@ -239,7 +240,8 @@ struct Index {
   @Local assistantMenuNow: number = Date.now();
   private assistantStatusTimer: number = -1;
   @Local phoneSettingsShown: boolean = false;
-  @Local phoneSettingsPage: string = '';
+  @Local phoneSettingsTrail: string[] = [];
+  @Computed get phoneSettingsPage(): string { return this.phoneSettingsTrail[this.phoneSettingsTrail.length - 1] || ''; }
   @Local phoneSettingsQuery: string = '';
   private phoneSettingsDepth: number = -1;
   private phoneSettingsOwner: string = '';
@@ -916,7 +918,7 @@ struct Index {
   @Monitor('model.profile', 'model.connected', 'model.features') applicationOwnerChanged(): void {
     this.applications.bind(this.model); this.applications.connectionChanged();
   }
-  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.chatForward.end(); this.chatForward.clearNew(); this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
+  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.chatForward.end(); this.chatForward.clearNew(); this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsQuery = ''; this.phoneSettingsTrail = []; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
   @Monitor('model.conversations', 'model.mainId', 'model.mainMachineId', 'model.sidebarConfig', 'model.connected', 'spacesShown', 'breakpoint', 'collapsed', 'sidebarTaskHistory.revision') conversationsChanged(): void { this.syncConversationRows(); }
   @Monitor('model.appearance') appearanceChanged(): void {
     this.getUIContext().getHostContext()?.getApplicationContext().setColorMode(this.model.appearance === 1 ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT : this.model.appearance === 2 ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -1065,10 +1067,11 @@ struct Index {
       .finally(() => { const remaining = (this.creatingConversations.get(ownerKey) || 1) - 1; if (remaining) this.creatingConversations.set(ownerKey, remaining); else this.creatingConversations.delete(ownerKey); });
   }
   private openResources(kind: string): void { this.resourceKind = kind; this.model.listResources(kind); this.stack.pushPath({ name: 'resources', param: kind }); this.savePath(); }
-  private openSettings(page: string, contextual: boolean = false): void { if (page === 'appearance' || page === 'phone_agent_layout') this.ensureAgentWorkspace(); this.settingsPage = page; this.stack.pushPath({ name: 'settings', param: NavigationContext.settings(page, contextual ? this.detailModel.selected : undefined) }); this.savePath(); }
+  private openSettings(page: string, contextual: boolean = false): void { if (page === 'appearance' || page === 'phone_agent_layout' || page === 'phone_look_layout') this.ensureAgentWorkspace(); this.settingsPage = page; this.stack.pushPath({ name: 'settings', param: NavigationContext.settings(page, contextual ? this.detailModel.selected : undefined) }); this.savePath(); }
   private settingsFamily(page: string): string { return ['extension_detail', 'extension_catalog'].includes(page) ? 'extensions' : page === 'connector_detail' ? 'connectors' : page === 'channel_detail' ? 'channels' : page; }
   private isAdminPage(page: string): boolean { return ['assistant', 'memory', 'managers', 'phone_new_assistant', 'launchers', 'engine', 'hub_update', 'node_update'].includes(page); }
   private settingsLabel(page: string): string {
+    if (page === 'appearance') return 'phone_settings_display';
     if (page === 'phone_meeting_options') return 'meetings';
     return page === 'phone_new_assistant' ? 'phone_new_assistant' : page === 'phone_agent_options' ? 'agent' : page === 'phone_language_options' ? 'settings_language_options_title' : page === 'ssh' ? 'ssh_settings' : page === 'assistant' ? 'admin_identity' : page === 'memory' ? 'admin_memory' : page === 'managers' ? 'admin_managers' : page === 'launchers' ? 'admin_launchers' : page === 'engine' ? 'admin_machine_engine' : page === 'hub_update' ? 'admin_hub_update' : page === 'node_update' ? 'admin_node_update' : page; }
   private adminMenus(name: string, param: Object): NavigationMenuItem[] { return [{ value: tr('refresh'), symbolIcon: new SymbolGlyphModifier($r('sys.symbol.arrow_clockwise')), action: () => { if (this.activeChild === this.childKey(name, param)) this.adminRefreshRevision++; } }]; }
@@ -1306,7 +1309,7 @@ struct Index {
     this.phoneSettingsDepth = -1;
     if (kind === 'settings' && !this.wide() && this.spacesShown) {
       this.phoneSettingsQuery = '';
-      this.phoneSettingsPage = '';
+      this.phoneSettingsTrail = [];
       this.phoneSettingsShown = true; return;
     }
     this.spacesShown = false;
@@ -1661,7 +1664,7 @@ struct Index {
           PhoneIconButton({symbol:Symbols.gear,label:tr('settings'),identity:'spaces.settings',controlDiameter:this.drawerMetric(46),action:() => { if (this.drawerAcceptsTap()) this.openSpace('settings'); }})
             .bindSheet($$this.phoneSettingsShown, this.phoneSettings(), {height: this.compactFormHeight(),showClose:false,dragBar:false,backgroundColor:Colors.sheetBackground,
               onWillDismiss:(dismiss:DismissSheetAction) => {
-                if (dismiss.reason === DismissReason.PRESS_BACK && this.phoneSettingsPage) this.phoneSettingsPage = '';
+                if (dismiss.reason === DismissReason.PRESS_BACK && this.phoneSettingsPage) this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1);
                 else dismiss.dismiss();
               }})
         }.width('100%').padding({left:24,right:24,top:12,bottom:6})
@@ -1884,8 +1887,9 @@ struct Index {
       onHandoff: (row: ResourceRow) => this.openLinkedResource(row) })
   }
   private openFromPhoneSettings(page: string): void {
-    if (['phone_agent_options','phone_language_options','phone_meeting_options','phone_knowledge_selection'].includes(page)) {
-      this.phoneSettingsPage = page;
+    if (phoneSettingsLink(page)) {
+      if (page === 'appearance' || page === 'phone_agent_layout' || page === 'phone_look_layout') this.ensureAgentWorkspace();
+      this.phoneSettingsTrail = pushPhoneSetting(this.phoneSettingsTrail, page);
       return;
     }
     this.phoneSettingsDepth = this.stack.size();
@@ -1913,14 +1917,17 @@ struct Index {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
         if (this.phoneSettingsPage) PhoneIconButton({symbol:Symbols.collapse,label:tr('back'),identity:'settings.back',
-          action:() => { this.phoneSettingsPage = ''; }})
+          action:() => { this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1); }})
         else PhoneIconButton({symbol:IconActions.symbol('close'),label:tr('close'),identity:'settings.close',
           action:() => { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }})
-        Text(this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
+        Text(this.phoneSettingsPage === 'appearance' ? '' : this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
           .layoutWeight(1).textAlign(TextAlign.Center).fontSize(18).maxFontScale(Tokens.interfaceScaleFor(18)).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
         Blank().width(PhoneStyle.bar)
       }.width('100%').padding({left:14,right:14,top:16,bottom:10})
-      if (this.phoneSettingsPage === 'phone_knowledge_selection') {
+      if (phoneAppearancePage(this.phoneSettingsPage)) {
+        SettingsPage({model:this.model,page:'appearance',phoneAppearanceRoute:this.phoneSettingsPage,active:this.phoneSettingsShown,
+          agentWorkspace:this.agentWorkspace,onOpen:(key:string) => this.openFromPhoneSettings(key)}).layoutWeight(1)
+      } else if (this.phoneSettingsPage === 'phone_knowledge_selection') {
         PhoneKnowledgeSelection({model:this.model}).layoutWeight(1)
       } else if (this.phoneSettingsPage === 'phone_meeting_options') {
         PhoneMeetingSettings({model:this.model}).layoutWeight(1)
@@ -2817,7 +2824,7 @@ struct Index {
         SshSettingsPage({ tunnel: this.settingsModel(param).ssh, active: this.activeChild === this.childKey(name, param),
           onSaved: (): void => { const owner = this.settingsModel(param); if (this.activeChild === this.childKey(name, param)) owner.selectProfile(owner.profile, true); } })
       } else if (name === 'settings') {
-        if (!NavigationContext.from(name, param as string).scoped || this.targetReady(name, param)) SettingsPage({ model: ['appearance', 'phone_agent_layout'].includes(this.settingsKind(param)) ? this.model : this.settingsModel(param), agentLayoutOnly:this.settingsKind(param) === 'phone_agent_layout', agentWorkspace: this.agentWorkspace, onChat: (row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openLinkedResource(row); }, active: this.activeChild === this.childKey(name, param), page: this.settingsKind(param) === 'phone_agent_layout' ? 'appearance' : this.settingsKind(param), onDetail: (page: string, row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openSettingsDetail(page, row); }, onExtension: (extensionId: string, uiId: string, title: string) => { if (this.activeChild === this.childKey(name, param)) this.openExtension(this.settingsModel(param), extensionId, uiId, title); }, onBack: () => { if (this.activeChild === this.childKey(name, param)) { this.stack.pop(); this.savePath(); } }, onComputer: (row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openComputer(row); }, onOpen: (page: string) => this.openSettings(page, NavigationContext.from(name, param as string).scoped) })
+        if (!NavigationContext.from(name, param as string).scoped || this.targetReady(name, param)) SettingsPage({ model: phoneAppearancePage(this.settingsKind(param)) || this.settingsKind(param) === 'phone_agent_layout' ? this.model : this.settingsModel(param), phoneAppearanceRoute:this.settingsKind(param).startsWith('phone_look_') ? this.settingsKind(param) : '', agentLayoutOnly:this.settingsKind(param) === 'phone_agent_layout', agentWorkspace: this.agentWorkspace, onChat: (row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openLinkedResource(row); }, active: this.activeChild === this.childKey(name, param), page: this.settingsKind(param) === 'phone_agent_layout' || phoneAppearancePage(this.settingsKind(param)) ? 'appearance' : this.settingsKind(param), onDetail: (page: string, row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openSettingsDetail(page, row); }, onExtension: (extensionId: string, uiId: string, title: string) => { if (this.activeChild === this.childKey(name, param)) this.openExtension(this.settingsModel(param), extensionId, uiId, title); }, onBack: () => { if (this.activeChild === this.childKey(name, param)) { this.stack.pop(); this.savePath(); } }, onComputer: (row: ResourceRow) => { if (this.activeChild === this.childKey(name, param)) this.openComputer(row); }, onOpen: (page: string) => this.openSettings(page, NavigationContext.from(name, param as string).scoped) })
         else this.targetLoading(name, param)
       }
     }.title({ builder: () => this.destinationTitle(name, param), height: this.headerHeight() }, { systemMaterial: this.titleMaterial })
@@ -2845,7 +2852,7 @@ struct Index {
     if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true;
     if (this.chatSearchShown) { this.chatSearchShown = false; return true; }
     if (this.phoneSettingsShown) {
-      if (this.phoneSettingsPage) this.phoneSettingsPage = '';
+      if (this.phoneSettingsPage) this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1);
       else { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }
       return true;
     }

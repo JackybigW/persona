@@ -16,6 +16,7 @@ import type { ScheduleTemplate } from '../core/ScheduleTemplates';
 import { DeviceLook, deviceLook } from '../models/DeviceLook';
 import { AgentWorkspace } from '../models/AgentWorkspace';
 import { Colors } from '../design/Colors';
+import { PhoneAppearanceSettings } from './PhoneAppearanceSettings';
 import { DeviceLookPicker } from './DeviceLookPicker';
 import { LicenseNotices } from './LicenseNotices';
 import { common } from '@kit.AbilityKit';
@@ -28,6 +29,7 @@ export struct SettingsPage {
   @Param agentWorkspace: AgentWorkspace = new AgentWorkspace();
   @Local machineOwner: ClientModel | undefined;
   @Param agentLayoutOnly: boolean = false;
+  @Param phoneAppearanceRoute: string = '';
   @Param initialMachine: ResourceRow | undefined = undefined;
   @Local machineDirectoryKey: string = '';
   private loadedMachineRoute: string = '';
@@ -1202,6 +1204,20 @@ export struct SettingsPage {
     const owner = this.model, scope = owner.scope(), generation = owner.connectionGeneration();
     return (): void => { if (this.appearanceCurrent(owner, revision, scope, generation)) this.loadLook(); };
   }
+  @Builder phoneLookPage() {
+    if (this.phoneAppearanceRoute === 'phone_look_avatar') {
+      List() {
+        DeviceLookPicker({model:this.look,showAccent:false,active:this.appearanceCurrent(this.model,this.appearanceRevision,this.model.scope(),this.model.connectionGeneration()),
+          onAvatarSelected:this.appearanceAvatarAction(this.appearanceRevision,false),onRefresh:this.appearanceRefreshAction(this.appearanceRevision)})
+      }.width('100%').height('100%').backgroundColor(Colors.sheetBackground)
+    } else {
+      ForEach([this.appearanceRevision], (revision: number) => {
+        PhoneAppearanceSettings({model:this.model,look:this.look,route:this.phoneAppearanceRoute,
+          active:this.appearanceCurrent(this.model,revision,this.model.scope(),this.model.connectionGeneration()),
+          onOpen:(key:string) => this.onOpen(key)})
+      }, (revision:number) => String(revision))
+    }
+  }
   @Builder appearanceGeneral() {
     ForEach([this.appearanceRevision], (revision: number) => {
       DeviceLookPicker({ model: this.look, active: this.appearanceCurrent(this.model, revision, this.model.scope(), this.model.connectionGeneration()),
@@ -1340,6 +1356,7 @@ export struct SettingsPage {
       else if (this.page === 'extensions' || this.page === 'connectors') this.extensionConnectorPage(this.page)
       else if (this.page === 'channels') this.channelsPage()
       else if (this.page === 'ledger') this.ledgerPage()
+      else if (this.page === 'appearance' && this.phoneAppearanceRoute) this.phoneLookPage()
       else if (this.page === 'appearance') this.appearancePage()
       else if (this.page === 'notifications') this.notificationsPage()
       else if (this.page === 'privacy') this.privacyPage()

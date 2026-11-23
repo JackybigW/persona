@@ -15,9 +15,10 @@ import { machineOnline } from '../models/MachineDashboard';
 
 const AGENT_OPTIONS:string[] = ['phone_agent_folders','phone_claude_config','phone_codex_config','phone_agy_config','triage'];
 const SEARCH_ROUTES:string[] = ['phone_agent_followup','phone_agent_layout','launchers','engine','schedules'];
+const LOOK_SEARCH_OPTIONS:string[] = ['phone_look_color','phone_look_style','phone_look_scheme'];
 const ASSISTANT_OPTIONS:string[] = ['models','assistant','channels','connectors','phone_knowledge_selection','phone_meeting_options','phone_agent_options','machines'];
 const DEVICE_OPTIONS:string[] = ['appearance','phone_language_options','notifications','translation','phone','privacy'];
-const HUB_OPTIONS:string[] = ['managers','extensions','memory','ssh','hub_update','node_update','ledger','diagnostics'];
+const HUB_OPTIONS:string[] = ['managers','phone_look_avatar','extensions','memory','ssh','hub_update','node_update','ledger','diagnostics'];
 const LANGUAGES:string[] = ['default','zh-CN','en-US','ja-JP'];
 
 function languageName(tag:string):string {
@@ -103,6 +104,7 @@ function settingLabel(id:string, label:(page:string)=>string):string {
 }
 
 const ALIASES:Record<string,string> = {
+  'phone_look_avatar':'phone_look_avatar_alias','phone_look_color':'phone_look_color_alias','phone_look_style':'phone_look_style_alias','phone_look_scheme':'phone_look_scheme_alias',
   'models':'settings_alias_models', 'appearance':'settings_alias_appearance', 'phone_language_options':'settings_alias_language',
   'machines':'settings_alias_machines', 'phone_agent_options':'settings_alias_agents'
 };
@@ -122,9 +124,10 @@ export struct SettingsDirectory {
   @Event onOpen: (page: string) => void = () => {};
   @Event onQueryChange: (query: string) => void = () => {};
   private field: TextInputController = new TextInputController();
+  private mounted: boolean = false;
 
-  aboutToAppear(): void { this.query=this.initialQuery; this.meeting.open(this.model); }
-  aboutToDisappear():void { this.meeting.close(); }
+  aboutToAppear(): void { this.mounted=true; this.query=this.initialQuery; this.meeting.open(this.model); }
+  aboutToDisappear():void { this.mounted=false; this.meeting.close(); }
   @Monitor('model.profile','model.features','model.connected') meetingOwnerChanged():void { this.meeting.open(this.model); }
 
   @Computed get managers():ResourceRow[] {
@@ -151,13 +154,23 @@ export struct SettingsDirectory {
     const query = this.query.trim().toLowerCase();
     if (!query) return [];
     const words = query.split(/\s+/);
-    const direct = ASSISTANT_OPTIONS.concat(SEARCH_ROUTES,DEVICE_OPTIONS,HUB_OPTIONS);
+    const direct = ASSISTANT_OPTIONS.concat(SEARCH_ROUTES,DEVICE_OPTIONS,HUB_OPTIONS,LOOK_SEARCH_OPTIONS);
     const agentDestinations = AGENT_OPTIONS.filter((id:string) => id!=='phone_agent_folders');
     return direct.concat(agentDestinations).filter((id:string) => {
       const aliases = ALIASES[id] ? tr(ALIASES[id]) : '';
       const terms = [settingLabel(id,this.label), this.subtitle(id), aliases].join(' ').toLocaleLowerCase();
       return words.every((word:string) => terms.includes(word));
     });
+  }
+  private restoreSearchFocus(): void {
+    const query=this.initialQuery, scope=this.model.scope();
+    if (!this.elevated || !query.trim()) return;
+    const ui=this.getUIContext();
+    setTimeout(() => {
+      if (!this.mounted || scope!==this.model.scope() || query!==this.query) return;
+      ui.getFocusController().requestFocus('settings.search');
+      this.field.caretPosition(this.query.length);
+    },0);
   }
   private openEntry(id:string):void {
     this.field.stopEditing();
@@ -211,6 +224,8 @@ export struct SettingsDirectory {
             .height(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).padding(0)
             .layoutWeight(1).backgroundColor(Color.Transparent).cancelButton({style:CancelButtonStyle.INPUT})
             .enterKeyType(EnterKeyType.Search).onSubmit(() => this.field.stopEditing())
+            .enableKeyboardOnFocus(true).onAppear(() => this.restoreSearchFocus())
+            .defaultFocus(this.elevated && this.initialQuery.trim().length>0)
             .onChange((v:string) => { this.query = v; this.onQueryChange(v); }).id('settings.search')
         }.padding({left:12,right:8}).layoutWeight(1).borderRadius(32).backgroundColor(this.elevated ? Colors.sheetControl : Colors.control)
           if (this.showDismissSearch && this.query.trim()) Button({type:ButtonType.Circle}) {
