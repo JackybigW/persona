@@ -71,11 +71,10 @@ func (u *updater) begin(ctx context.Context, now bool) error {
 	u.running = true
 	u.opGen++
 	if r.Development != nil {
-		u.state = "building"
+		u.setLocked("building", "", "")
 	} else {
-		u.state = "downloading"
+		u.setLocked("downloading", "", "")
 	}
-	u.progress, u.errText = "", ""
 	u.now = now
 	u.mu.Unlock()
 	go u.installCandidate(ctx, false, r)
@@ -130,7 +129,7 @@ func (u *updater) installCandidate(ctx context.Context, auto bool, candidate *up
 		if r.Development != nil && r.Development.BackupID != "" {
 			u.release = nil // A failed restore is not the latest main candidate.
 		}
-		u.state, u.progress, u.errText = "failed", "", why
+		u.setLocked("failed", "", why)
 		u.mu.Unlock()
 		u.h.broadcast(map[string]any{"type": "hub_update", "update": u.view()})
 		u.h.logf("update to %s: %v", r.Manifest.Version, err)
