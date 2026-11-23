@@ -34,6 +34,10 @@ Pass `ultracode: true` for large multi-file/multi-angle tasks (Claude Code 2.1.2
     "prompt": {
       "type": "string"
     },
+    "skip_project_memory": {
+      "type": "boolean",
+      "description": "default false; true skips project/direction memory; prompt unchanged"
+    },
     "attachments": {
       "type": "array",
       "maxItems": 8,
@@ -52,11 +56,7 @@ Pass `ultracode: true` for large multi-file/multi-angle tasks (Claude Code 2.1.2
     },
     "ultracode": {
       "type": "boolean",
-      "description": "Claude Code multi-agent workflows for substantial steps; default false"
-    },
-    "skip_project_memory": {
-      "type": "boolean",
-      "description": "default false; true omits automatic project/direction memory (summary, outcomes, decisions, pitfalls, lessons) for this start only"
+      "description": "multi-agent workflows; default false"
     },
     "worktree": {
       "type": "object",

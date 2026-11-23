@@ -13,6 +13,10 @@ import (
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
+// skip_project_memory (#13538) is a per-start opt-out of the automatic project and direction handoff. The
+// assignment, its criteria and the framework rules are untouched; omitted and false keep today's first prompt.
+// All names and notes here are placeholders.
+
 // skipProjectMemoryMarkers are the distinct strings seeded across every automatic project/direction memory section
 // (direction notes, project summary, recent outcomes, effective decisions, pitfalls, learned lessons, and extension
 // project context) so tests verify each section is present by default and omitted under skip_project_memory=true.
@@ -394,5 +398,58 @@ func TestSkipProjectMemoryCardApprovalAndLegacyProject(t *testing.T) {
 	}
 	if !strings.HasPrefix(skippedStartPrompt, assignment) || strings.Contains(skippedStartPrompt, "天气 App 的 iOS 和安卓版") || strings.Contains(skippedStartPrompt, "旧日志结论") {
 		t.Fatalf("legacy agent_start skip_project_memory=true leaked legacy project context:\n%s", skippedStartPrompt)
+	}
+}
+
+// The saved plan's JSON round trip retains the opt-out, including what queued starts, retries and reloads read.
+// The ordinary assignment, its criteria and read-only constraint still reach the Agent after that round trip.
+func TestSkipProjectMemoryPlanRoundTrip(t *testing.T) {
+	for _, mode := range []string{"omitted", "false", "true"} {
+		t.Run(mode, func(t *testing.T) {
+			s, f := skipProjectMemoryEnv(t)
+			task := map[string]any{
+				"title": "Inspect the layout", "prompt": "Read the current implementation only.", "machine": "box",
+				"cwd": "/code/weather", "readonly": true, "why": "the repository is on box", "supervisor": "conv_lead",
+				"done_when": []string{"Report the layout findings"}, "expect_minutes": 30,
+			}
+			if mode != "omitted" {
+				task["skip_project_memory"] = mode == "true"
+			}
+			raw, _ := json.Marshal(task)
+			var proposed PlanTask
+			if err := json.Unmarshal(raw, &proposed); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := json.Marshal(proposed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(string(saved), `"skip_project_memory":true`); got != (mode == "true") {
+				t.Errorf("saved plan skip_project_memory=true present = %v, want %v: %s", got, mode == "true", saved)
+			}
+			var reloaded PlanTask
+			if err := json.Unmarshal(saved, &reloaded); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := s.startTaskAgent(context.Background(), &reloaded, false); err != nil {
+				t.Fatal(err)
+			}
+			f.mu.Lock()
+			if len(f.starts) != 1 {
+				f.mu.Unlock()
+				t.Fatalf("starts = %+v", f.starts)
+			}
+			prompt, _ := f.starts[0]["prompt"].(string)
+			f.mu.Unlock()
+			for _, marker := range skipProjectMemoryMarkers {
+				if got := strings.Contains(prompt, marker); got != (mode != "true") {
+					t.Errorf("memory marker %q present = %v, want %v:\n%s", marker, got, mode != "true", prompt)
+				}
+			}
+			if !strings.HasPrefix(prompt, "Read the current implementation only.") ||
+				!strings.Contains(prompt, "Report the layout findings") {
+				t.Errorf("the assignment or its criteria changed:\n%s", prompt)
+			}
+		})
 	}
 }

@@ -405,7 +405,8 @@ func (s *Service) startTaskAgent(ctx context.Context, t *PlanTask, retry bool) (
 	}
 	// The project background, and the decisions of the todo and its continuation ancestors (a task started again may
 	// have some), follow the assignment; they remain user context, never framework policy. Direction notes are prompt
-	// context, separate from the main supervision ledger (#10623, #5732).
+	// context, separate from the main supervision ledger (#10623, #5732). SkipProjectMemory leaves out the project and
+	// direction context, including extra workspace repositories; the to-do's own decisions still follow.
 	direction := s.taskDirectionOf(ctx, t)
 	var background string
 	if !t.SkipProjectMemory {
