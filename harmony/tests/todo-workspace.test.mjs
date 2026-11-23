@@ -1154,3 +1154,37 @@ test('the ordinary failed task binds the visible Hub and manager and retires its
  await workspace.openRow(workspace.items.find(row=>row.id==='other'));assert.equal(current(),false);
  assert.equal(state.calls.filter(c=>c.method==='POST').length,0);
 });
+
+test('a related disclosure in the phone lead toggles its own group and leaves the surrounding row available', () => {
+  const page = readFileSync(new URL('../entry/src/main/ets/components/TodoWorkspacePage.ets', import.meta.url), 'utf8');
+  const block = (start,end) => page.slice(page.indexOf(start), page.indexOf(end,page.indexOf(start)));
+  const layout = block('@Builder phoneRowWords(', '@Builder todoRow(');
+  assert.match(layout, /if \(binding\.value\.members\.length>1\) Button/);
+  assert.match(layout, /height\(this\.phoneMeasure\(44,57\.7\)\)/);
+  assert.match(layout, /onClick\(\(\) => this\.toggleGroup\(binding\.value\.key\)\)/);
+  const methods = block('private toggleGroup(', 'private completionShown(') + block('private openLeadAt(', '@Builder phoneStatusWords(');
+  const Harness = new Function('return ' + stripTypeScriptTypes('class TodoList {'+methods+'}'))();
+  const list = new Harness();
+  const id = 'original', target = {id, manager:'work'};
+  const opened = [];
+  list.phoneList = true;
+  list.hubMode = () => false;
+  list.expandedGroups = ['untouched'];
+  list.workspace = {todoResource:item => item, supportsSeen:() => false};
+  list.onOpenResource = item => opened.push(item);
+  const group = 'owner/studio/plan';
+  const binding = {value:{lead:target, members:[target, {id:'member'}], phone:{canFileSeen:false}}};
+  for (const [left, top, width, height] of [[92,349.3,65,44],[105.7,453.7,91.7,57.7]]) {
+    list.windowFrame = key => key === 'todos.related.'+id ? {left,top,width,height} : undefined;
+    list.toggleGroup(group);
+    list.openLeadAt(binding,{windowX:left + width / 2,windowY:top+height/2});
+    assert.deepEqual(list.expandedGroups,['untouched',group]);
+    assert.deepEqual(opened,[]);
+    list.toggleGroup(group);
+    assert.deepEqual(list.expandedGroups,['untouched']);
+    list.openLeadAt(binding,{windowX:left+width,windowY:top+height/2});
+    assert.equal(opened.pop(),target);
+    list.openTodoAt(target, false, {windowX:left,windowY:top});
+    assert.equal(opened.pop(),target,'a standalone or expanded member still opens its own task');
+  }
+});
