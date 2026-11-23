@@ -6,6 +6,7 @@ import { DraftForwardImage } from './ChatDraftStore';
 import { ChatAttachments } from './ChatAttachments';
 import { loadMessageImage } from './MessageImage';
 import { segment } from './HubRepository';
+import { sessionSpaceSlotLabel } from './SessionSpace';
 import { tr } from '../design/Strings';
 import { parseMessageContent } from '../core/MessageContent';
 import { forwardLimit, forwardMaximum, forwardTimestamp, forwardedBody, makeForward } from '../core/ChatForwardWire';
@@ -226,7 +227,7 @@ export class PhoneChatForward {
     const author=role==='user'?tr('chat_forward_me'):relay||(assistant?'Persona':label(row));
     const machine=assistant?'':source.forwardDirectory().machines.find(r=>r.id===row.machine)?.title||'';
     const rawTime=Wire.text(data,'ts'),time=m.at || (rawTime?Date.parse(rawTime):Wire.number(data,'ts'));
-    const project=assistant?'':[Wire.text(d,'space_name'),Wire.text(d,'slot_label')].filter(v=>!!v).join(' › ');
+    const project=assistant?'':[Wire.text(d,'space_name'),sessionSpaceSlotLabel(d)].filter(v=>!!v).join(' › ');
     const injected=Wire.object(data,'injected');
     if(relay && Wire.text(injected,'kind')==='followup')raw=Wire.text(injected,'detail',Wire.text(injected,'line',raw));
     const text=forwardedBody(raw,machine,uncut?Number.MAX_SAFE_INTEGER:forwardLimit(count),tr('chat_forward_cut'),(n:string,c:string):string=>c?fmt('chat_forward_computer_file',c,n):fmt('chat_forward_file',n),parseMessageContent);

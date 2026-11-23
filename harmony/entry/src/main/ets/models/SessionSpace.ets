@@ -1,6 +1,12 @@
 import type { PersonaProject, ProjectWorktree, ProjectAgent } from './ProjectCatalog';
 import { ResourceRow, Wire } from './Wire';
 
+/** The Hub's tab name, with numbered panes rendered the same way as Session.slotLabel on Apple. */
+export function sessionSpaceSlotLabel(data:Record<string,Object>):string {
+  const name=Wire.text(data,'slot_name'),index=data['slot_index'];
+  return typeof index==='number' && (!name || name===String(index)) ? '#'+String(index) : name;
+}
+
 export class SessionSpaceTab {
   readonly id:string;
   readonly row:ResourceRow;
@@ -25,8 +31,7 @@ export class SessionSpaceTab {
     this.agent = rawAgent === 'claude' ? 'Claude' : rawAgent === 'codex' ? 'Codex' : rawAgent;
     this.updated = Date.parse(Wire.text(data,'updated_at')) || 0;
     this.state = row.state || Wire.text(data,'status');
-    const name = Wire.text(data,'slot_name');
-    this.label = Wire.has(data,'slot_index') && (!name || name === String(this.slotIndex)) ? '#'+this.slotIndex : name || row.title || this.id;
+    this.label = sessionSpaceSlotLabel(data) || row.title || this.id;
   }
 }
 

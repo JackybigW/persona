@@ -29,7 +29,7 @@ const {forwardOrigin,forwardedBody}=await import('../entry/src/main/ets/core/Cha
 const {parseMessageContent}=await import('../entry/src/main/ets/core/MessageContent.ts');
 
 function row(id,machine,kind,title=id,fields={}){
- const r=ResourceRow.from({session_id:id,machine_id:machine,title,space_name:'weather',slot_label:'tests',agent:'claude',...fields},kind);
+ const r=ResourceRow.from({session_id:id,machine_id:machine,title,space_name:'weather',slot_name:'tests',agent:'claude',...fields},kind);
  r.group='hub-A';r.manager='manager';return r;
 }
 function fixture(){
@@ -109,4 +109,12 @@ test('only typed file blocks become named references, nested source markers disa
  assert.equal(body('<persona-context kind="quote" title="Ann">words</persona-context>Body'),'> Ann\n> words\n\nBody');
  assert.equal(body('👩‍💻'.repeat(33)),'👩‍💻'.repeat(32)+'\n\nCUT');
  assert.equal(forwardOrigin({url:'https://somewhere/session/a/b?at=c'}),undefined);
+});
+
+test('named and numbered Hub tabs survive in source attribution and an absent tab stays absent',()=>{
+ const {model,messages}=fixture(),state=new PhoneChatForward();
+ for(const [props,expected] of [[{slot_name:'review',slot_index:2},'weather › review'],[{slot_name:'2',slot_index:2},'weather › #2'],[{slot_index:3},'weather › #3'],[{},'weather']]){
+  model.selected.raw=JSON.stringify({space_name:'weather',...props});state.startForward(model,messages[2]);
+  assert.equal(state.previews(model)[0].project,expected);
+ }
 });

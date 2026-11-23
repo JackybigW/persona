@@ -1,6 +1,7 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { Colors } from '../design/Colors';
+import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { tr, trError } from '../design/Strings';
 import { ClientModel } from '../models/ClientModel';
 import { PhoneChatForward, ForwardSection, forwardRoute } from '../models/PhoneChatForward';
@@ -72,6 +73,13 @@ export struct PhoneChatForwardPicker {
   @Event onTarget:(row:ResourceRow)=>void=()=>{};
   @Event onNewAgent:()=>void=()=>{};
   @Local editingSearch:boolean=false;
+  @Local compactSheet:boolean=false;
+  private measureSheet(area:Area):void {
+    const window=this.getUIContext().px2vp(nativeEnvironment.windowHeightPx);
+    // The IME clips a full-height sheet's lower edge. Its top still distinguishes the two detents.
+    const top=Number(area.globalPosition.y);
+    if(window>0 && Number.isFinite(top))this.compactSheet=top>window*.28;
+  }
   private searchField:SearchController=new SearchController();
   @Computed get refs():Record<string,Object>[] {return this.state.previews(this.source);}
   @Computed get groups():ForwardSection[] {return this.state.sections(this.source);}
@@ -158,7 +166,8 @@ export struct PhoneChatForwardPicker {
           if(this.state.error){Text(trError(this.state.error)).fontColor(Colors.danger).id('forward.error')}
         }.width('100%').padding({top:this.editingSearch?35:18,bottom:24}).enabled(!this.state.busy)
       }.layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.TopStart)
-    }.width('100%').height('100%').padding({left:16,right:16,top:this.editingSearch?16:8}).backgroundColor(Colors.sheetBackground).id('forward.sheet')
+    }.width('100%').height('100%').padding({left:this.compactSheet&&!this.editingSearch?24:16,right:this.compactSheet&&!this.editingSearch?24:16,top:this.editingSearch?16:8})
+      .backgroundColor(Colors.sheetBackground).onAreaChange((_old:Area,area:Area)=>this.measureSheet(area)).id('forward.sheet')
   }
 }
 
