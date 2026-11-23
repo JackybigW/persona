@@ -298,6 +298,28 @@ test('the docked plan folds native reading lines and keeps its full-text action 
   assert.ok(form.indexOf('this.dockPlanWords()', form.indexOf('@Builder dockPanel')) < form.indexOf(".id('interaction.body')", form.indexOf('@Builder dockPanel')));
 });
 
+test('the dock fits long translated headings before a separate source button and scales its glyphs without scaling hit targets', () => {
+  const component = name => readFileSync(new URL('../entry/src/main/ets/components/'+name, import.meta.url), 'utf8');
+  const form = component('InteractionDecisionForm.ets');
+  const dock = component('AssistantCards.ets');
+  const heading = form.slice(form.indexOf('@Builder taskHeader()'), form.indexOf('private approveTaskPlan'));
+  assert.match(heading, /Text\(this\.cardHeading\(\)\)[\s\S]*?\.maxLines\(1\)\s*\.layoutWeight\(this\.docked && !this\.cardFolded \? 1 : 0\)\.textOverflow\(\{overflow:TextOverflow\.Ellipsis\}\)/);
+  assert.match(heading, /padding\(\{right:this\.docked \? 4 : 0\}\)\.clip\(this\.docked\)/);
+  assert.match(heading, /\.accessibilityText\(this\.cardHeading\(\)\)/);
+  assert.match(heading, /responseRegion\([\s\S]*?if \(this\.admission\(\)\) this\.onViewTask\(\)/);
+  const sizes = new Function('Tokens', 'return '+stripTypeScriptTypes('class Header {'+method('dockGlyphScale',form)+'}'))({
+    interfaceScaleFor: points => (points+6)/points
+  });
+  const header = new sizes();
+  for (const [scale, captions, labels] of [[1,1,1],[3.2,19/13,18/12]]) {
+    header.headerEnvironment = {fontScale:scale};
+    assert.equal(header.dockGlyphScale(13), captions);
+    assert.equal(header.dockGlyphScale(12), labels);
+  }
+  assert.match(dock, /responseRegion\(\{x:0,y:-8,width:this\.metric\(44\),height:this\.metric\(44\)\}\)/);
+  assert.match(dock, /\.enabled\(this\.canMoveDecision\(next\)\)[\s\S]*?this\.moveDecision\(next \? 1 : -1\)/);
+});
+
 test('the main plan uses the actual footer edge while its approval stays pinned and its full-text control can scroll', () => {
   const read = file=>readFileSync(new URL('../entry/src/main/ets/components/'+file,import.meta.url),'utf8');
   const conversation=read('Conversation.ets'), cards=read('AssistantCards.ets');

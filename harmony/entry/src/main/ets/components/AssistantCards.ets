@@ -1,5 +1,6 @@
 import { directUserRequest, interactionIsDelegated, interactionPermissionSubject } from '../models/InteractionDecision';
 import { IconActions } from '../design/IconActions';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { Symbols } from '../design/Symbols';
 import { AgentDecisionQueue, AgentDecisionCard } from '../models/AgentDecisionQueue';
 import { InteractionDecisionForm } from './InteractionDecisionForm';
@@ -739,14 +740,22 @@ export struct AssistantCards {
   @Computed get dockCardLimit():number {
     return Math.max(44,this.dockHeightLimit()-(this.decisionIds.length>1 ? this.pagerHeight+4 : 0));
   }
+  private canMoveDecision(next:boolean):boolean {
+    return next ? this.decisionPager!.position(this.decisionIds)<this.decisionIds.length-1 : this.decisionPager!.position(this.decisionIds)>0;
+  }
   @Builder decisionArrow(next:boolean) {
     Button({type:ButtonType.Normal}) {
       Stack() {
-        SymbolGlyph(next ? Symbols.expand : Symbols.collapse).fontSize(Tokens.interfaceFontVp(13,this.environment.fontScale)).fontColor([Colors.ink])
-      }.width(this.metric(28)).height(this.metric(28)).backgroundColor(Colors.control).borderRadius(this.metric(28)/2)
+        PhoneOutlineIcon({name:'decisionChevron',color:Colors.systemControls && Colors.styleID==='glass' && !this.canMoveDecision(next) ?
+          $r('app.color.decision_pager_disabled') : Colors.ink})
+          .rotate({angle:next ? -90 : 90}).scale({x:Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(13)),
+            y:Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(13))})
+      }.width(this.metric(28)).height(this.metric(28))
+        .backgroundColor(Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.decision_header_chip') : Colors.control)
+        .borderRadius(this.metric(28)/2)
     }.width(this.metric(44)).height(this.metric(44)-16).padding(0).backgroundColor(Color.Transparent)
       .responseRegion({x:0,y:-8,width:this.metric(44),height:this.metric(44)}).accessibilityText(tr(next ? 'decision_next' : 'decision_previous'))
-      .enabled(next ? this.decisionPager!.position(this.decisionIds) < this.decisionIds.length - 1 : this.decisionPager!.position(this.decisionIds) > 0)
+      .enabled(this.canMoveDecision(next))
       .onClick(() => this.moveDecision(next ? 1 : -1)).id(next ? 'chat.decisions.next' : 'chat.decisions.previous')
   }
   @Builder decisionNavigation() {

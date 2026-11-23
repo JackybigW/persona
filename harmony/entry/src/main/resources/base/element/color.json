@@ -245,6 +245,22 @@
       "value": "#C4C4CA"
     },
     {
+      "name": "decision_header_title",
+      "value": "#0064C8"
+    },
+    {
+      "name": "decision_header_secondary",
+      "value": "#8A2B2B2E"
+    },
+    {
+      "name": "decision_header_chip",
+      "value": "#11000000"
+    },
+    {
+      "name": "decision_pager_disabled",
+      "value": "#A3A3A5"
+    },
+    {
       "name": "settings_search_shadow",
       "value": "#0C000000"
     }
