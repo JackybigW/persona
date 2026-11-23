@@ -137,9 +137,10 @@ func TestTaskReceiptReview(t *testing.T) {
 // receiptHooks run around the fake's session.items reads (counted from when they are set) and on receipt broadcasts.
 // They live on the fake, not on a hub swapped in, because the service's goroutines read s.hub at any time.
 type receiptHooks struct {
-	before  func(read int)
-	after   func(read int)
-	receipt func(FeedItem)
+	before    func(read int)
+	after     func(read int)
+	afterCall func(DeviceCall)
+	receipt   func(FeedItem)
 }
 
 func (f *fakeHub) hookReads(h receiptHooks) {

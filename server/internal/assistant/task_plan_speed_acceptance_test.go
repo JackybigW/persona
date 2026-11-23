@@ -65,7 +65,8 @@ func TestTaskPlanSpeedAtPlanAndStart11141(t *testing.T) {
 					t.Fatalf("start: %d %s", w.Code, w.Body)
 				}
 				waitFor(t, "the task dispatch", func() bool {
-					return len(profileNodeStarts(f)) != 0 || onlyTodo(s).StartError != ""
+					todo := onlyTodo(s)
+					return len(todo.Agents) != 0 || todo.StartError != ""
 				})
 				if todo := onlyTodo(s); todo.StartError != "" || len(todo.Agents) != 1 {
 					t.Fatalf("task failed: %+v", todo)
