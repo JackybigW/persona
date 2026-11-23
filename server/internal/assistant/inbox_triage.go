@@ -400,6 +400,12 @@ func (s *Service) draftReply(ctx context.Context, id, instruction string) (strin
 // draftReplyVersion binds Workbench redraft generation to the suggestion version rendered on that card. The version
 // and the pre-generation item snapshot are checked under the same lock; finishOnDemandDraft catches later changes.
 func (s *Service) draftReplyVersion(ctx context.Context, id, instruction string, expectedVersion int) (string, error) {
+	return s.draftReplyVersionMode(ctx, id, instruction, expectedVersion, expectedVersion > 0, nil)
+}
+
+// draftReplyVersionMode also lets the Workbench distinguish an old unversioned redraft from an ordinary new draft.
+// When policy publication created a mirror, publishedVersion receives its exact version for the rendered card.
+func (s *Service) draftReplyVersionMode(ctx context.Context, id, instruction string, expectedVersion int, strictVersion bool, publishedVersion *int) (string, error) {
 	hello := s.hello(ctx)
 	language := answerLanguage(hello.Locale)
 	initialCfg, err := s.inboxConfigFresh(ctx)
@@ -428,6 +434,12 @@ func (s *Service) draftReplyVersion(ctx context.Context, id, instruction string,
 		authorization.instruction = strings.TrimSpace(instruction)
 		authorization.conversation = it.Context
 		if authorization.applied {
+			if strictVersion && expectedVersion <= 0 {
+				// An old Workbench redraft cannot prove which suggestion it rewrites. Ordinary new drafts remain unversioned,
+				// but a policy-scoped replacement must start from the exact current card rather than supersede a newer one.
+				b.mu.Unlock()
+				return "", errSuggestionStale
+			}
 			if err := replyPolicySuggestionGate(it, SuggestReply, initialCfg.ReplyPolicy); err != nil {
 				b.mu.Unlock()
 				return "", err
@@ -466,7 +478,7 @@ func (s *Service) draftReplyVersion(ctx context.Context, id, instruction string,
 				}
 				authorization.textAuthorized = true
 			}
-			return s.finishOnDemandDraft(cctx, id, text, authorization)
+			return s.finishOnDemandDraft(cctx, id, text, authorization, publishedVersion)
 		}
 		if d.Rewrite {
 			s.logf("inbox: draft for %s withheld: the rewrite still repeats a sentence an extension marked never to quote", id)
@@ -480,7 +492,7 @@ func (s *Service) draftReplyVersion(ctx context.Context, id, instruction string,
 // finishOnDemandDraft keeps the legacy transient result only while the item remains outside reply-policy scope. Inside
 // scope, the exact same text becomes a normal reply suggestion and old-App mirror; direct /reply and workbench sends then
 // traverse edit veto, snapshot authorization and send-once instead of mistaking model output for owner-authored text.
-func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, authorization onDemandDraftAuthorization) (string, error) {
+func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, authorization onDemandDraftAuthorization, publishedVersion *int) (string, error) {
 	cfg, err := s.inboxConfigFresh(ctx)
 	if err != nil {
 		return "", errReplyPolicyDenied
@@ -561,17 +573,27 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 	b.settle(w)
 	b.mu.Unlock()
 	failed := s.saveWrites(ctx, []*inboxWrite{w}, "its on-demand reply suggestion")
+	if hook := s.inbox.onDemandDraftSaveHook; hook != nil {
+		hook()
+	}
 	b.mu.Lock()
 	undone := w.undone
+	tombstone := false
 	if failed[id] && !undone && b.items[id] == it && currentSuggestion(it) == g {
 		// A concurrent mutation can make the generic rollback unsafe even though this exact mirror was never saved.
 		// Keep its AI provenance as a fail-closed tombstone instead of letting a later old-client /reply treat the
 		// unpublished model text as an owner-authored direct reply.
 		g.ReplyPublicationFailed = true
 		b.touched(it.ID)
+		tombstone = true
 	}
 	current := b.items[id] == it && mirroredLegacyReply(it) == g && bytes.Equal(itemState(it), w.applied)
 	b.mu.Unlock()
+	if tombstone {
+		// The first failed save can be followed by a successful metadata write that still carries the false marker. Persist
+		// the tombstone as its own change, without saveWrites' automatic rollback of the mirror it is meant to quarantine.
+		s.saveInbox(ctx, []*InboxItem{it})
+	}
 	if failed[id] || undone {
 		return "", errInboxNotPersisted
 	}
@@ -579,6 +601,9 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		// A newer device state can prevent rollback of a failed write, or can replace the mirror just after a successful
 		// one. In either case this request must not return obsolete text as though its own mirror were still sendable.
 		return "", errSuggestionStale
+	}
+	if publishedVersion != nil {
+		*publishedVersion = g.Version
 	}
 	return text, nil
 }
@@ -733,6 +758,12 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 		if uncertain != nil {
 			out = it.listed()
 		}
+	}
+	if g != nil {
+		// The suggestion belongs to the live item. Keep the failure tombstone and version checks on the same locked snapshot
+		// instead of reading a marker that a concurrent publication can change after b.mu is released.
+		snapshot := *g
+		g = &snapshot
 	}
 	b.mu.Unlock()
 	if uncertain != nil {

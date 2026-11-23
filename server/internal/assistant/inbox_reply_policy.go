@@ -274,7 +274,7 @@ func mirroredLegacyReply(it *InboxItem) *InboxSuggestion {
 // replyInstructionForSuggestion returns the latest owner rewrite instruction not consumed by a later owner decision.
 // Reported progress and other unrelated chain entries do not consume it. A published replacement carries the chain ID,
 // but that ID authorizes only the identical generated text; every changed replacement needs its own classification.
-func replyInstructionForSuggestion(it *InboxItem, proposedText string) (*InboxChainEntry, bool) {
+func replyInstructionForSuggestion(it *InboxItem, proposedText string, cfg *assistantwire.InboxReplyPolicyConfig) (*InboxChainEntry, bool) {
 	if it == nil {
 		return nil, false
 	}
@@ -294,7 +294,8 @@ func replyInstructionForSuggestion(it *InboxItem, proposedText string) (*InboxCh
 		return nil, false
 	}
 	g := currentSuggestion(it)
-	needsClassification := instruction.ID == "" || g == nil || g.ReplyInstruction != instruction.ID || g.Text != proposedText
+	needsClassification := instruction.ID == "" || g == nil || g.ReplyInstruction != instruction.ID || g.Text != proposedText ||
+		replyPolicyActionGate(it, g, cfg) != nil
 	return instruction, needsClassification
 }
 

@@ -226,7 +226,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	}
 	instructionID := ""
 	if in.Kind == SuggestReply && !in.Handback && replyPolicyItemApplies(replyPolicy, it) {
-		if instruction, needsClassification := replyInstructionForSuggestion(it, in.Text); instruction != nil {
+		if instruction, needsClassification := replyInstructionForSuggestion(it, in.Text, replyPolicy); instruction != nil {
 			instructionID = instruction.ID
 			if needsClassification {
 				// An unconsumed owner instruction is part of the generated replacement's authority. Intervening reported

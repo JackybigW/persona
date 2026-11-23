@@ -637,15 +637,27 @@ func (s *Service) workbenchInboxAction(ctx context.Context, a *feishubot.CardAct
 			defer cancel()
 			var text string
 			var err error
+			publishedVersion := 0
 			if op == "redraft" {
-				text, err = s.draftReplyVersion(cctx, id, instruction, expectedVersion)
+				text, err = s.draftReplyVersionMode(cctx, id, instruction, expectedVersion, true, &publishedVersion)
 			} else {
-				text, err = s.draftReply(cctx, id, instruction)
+				text, err = s.draftReplyVersionMode(cctx, id, instruction, 0, false, &publishedVersion)
+			}
+			if hook := s.inbox.workbenchDraftHook; hook != nil {
+				hook()
 			}
 			cardItem := it
-			if live, ok := s.workbenchItem(id); ok {
-				// draftReply publishes the authoritative mirror asynchronously. Render its actual version, not the item
-				// copy captured before generation, or the new card would be born stale.
+			live, liveOK := s.workbenchItem(id)
+			if publishedVersion > 0 && err == nil {
+				// Policy publication returns the version created by this generation. Render only that exact text/version
+				// pair: a replacement installed before this reload must never lend its newer version to the older text.
+				g := currentSuggestion(&live)
+				if !liveOK || g == nil || g.Kind != SuggestReply || g.Version != publishedVersion || g.Text != text {
+					err = errSuggestionStale
+				} else {
+					cardItem = live
+				}
+			} else if liveOK {
 				cardItem = live
 			}
 			card := s.draftCard(cctx, cardItem, text, err, list)
