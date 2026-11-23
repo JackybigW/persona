@@ -68,6 +68,12 @@ func (s *Service) interactionOutcome(ctx context.Context, id string) string {
 // away, and nothing is said about it. One it still reports a while after its answer went, with no answer waiting for
 // it, retries delivery from its durable outcome rather than asking the user again.
 func (s *Service) askOnPhone(list []proto.Interaction) {
+	s.reconcilePhoneAsks(list, nil)
+}
+
+// canWithdraw limits a partial inventory to the cards its source actually read.
+// A complete published snapshot accounts for every card and leaves it nil.
+func (s *Service) reconcilePhoneAsks(list []proto.Interaction, canWithdraw func(string) bool) {
 	f := &s.fleet
 	f.askMu.Lock()
 	defer f.askMu.Unlock()
@@ -123,7 +129,7 @@ func (s *Service) askOnPhone(list []proto.Interaction) {
 		}(ix)
 	}
 	for id, q := range f.asked {
-		if !now[id] {
+		if !now[id] && (canWithdraw == nil || canWithdraw(id)) {
 			q.cancel()
 			delete(f.asked, id)
 		}

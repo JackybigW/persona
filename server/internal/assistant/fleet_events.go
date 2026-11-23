@@ -283,8 +283,12 @@ func (s *Service) FleetUp(ctx context.Context) {
 	s.fleet.sent, s.fleet.archived = nil, nil
 	s.fleet.sentMu.Unlock()
 	s.tellPendingInteractions()
-	reviewInteractions, _ := s.sessionReviewInteractions(ctx)
-	s.askOnPhone(reviewInteractions)
+	// Reconnect reads only session reviews. Other phone cards still belong to their
+	// active callers, including an ask_user started while the connection came up.
+	s.pubMu.Lock()
+	reviewInteractions, complete := s.sessionReviewInteractions(ctx)
+	s.reconcilePhoneAsks(reviewInteractions, func(id string) bool { return complete && s.sessionReviewPossible(id) })
+	s.pubMu.Unlock()
 	for _, m := range s.fleetMachines() {
 		s.publishSessions(m.ID)
 	}

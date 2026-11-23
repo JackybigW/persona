@@ -2,12 +2,74 @@ package assistant
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/proto"
 )
+
+func TestFleetReconnectPreservesAnUnansweredAskUser(t *testing.T) {
+	ft, _ := newHookedFleet(t)
+	ft.s.fleet.started.Do(func() {}) // the reconnect itself is the only fleet callback this test drives
+	ctx, cancel := context.WithCancel(t.Context())
+	var answer string
+	var toolErr error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		answer, toolErr = ft.s.toolAskUser(ctx, "mac", "conversation", []byte(`{"questions":[{"question":"Which?","options":[{"label":"A"},{"label":"B"}]}]}`))
+	}()
+	defer func() { cancel(); <-done }()
+	ix := ft.waitPending(1)[0]
+	ft.s.fleet.askMu.Lock()
+	original := ft.s.fleet.asked[ix.ID]
+	ft.s.fleet.askMu.Unlock()
+	if original == nil {
+		t.Fatal("the original ask_user was not waiting")
+	}
+	ft.s.FleetUp(ctx)
+	ft.s.fleet.askMu.Lock()
+	current := ft.s.fleet.asked[ix.ID]
+	ft.s.fleet.askMu.Unlock()
+	if current != original {
+		t.Fatal("reconnect withdrew the live ask_user while restoring review cards")
+	}
+	if err := ft.s.resolve(ix.ID, proto.Resolution{Answers: map[string]string{"Which?": "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+		if toolErr != nil || !strings.Contains(answer, "Which? → A") {
+			t.Fatalf("the original caller got %q, %v", answer, toolErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the answer never reached the original caller")
+	}
+	ft.s.FleetUp(ctx)
+	ft.waitPending(0)
+}
+
+func TestReconnectAndFullSnapshotWithdrawOnlyTheCardsTheyCover(t *testing.T) {
+	ft, _ := newHookedFleet(t)
+	ft.s.fleet.started.Do(func() {})
+	review, ordinary := false, false
+	ft.s.fleet.askMu.Lock()
+	ft.s.fleet.asked = map[string]*askedOne{
+		sessionReviewPrefix + "removed": {cancel: func() { review = true }},
+		"work-question":                 {cancel: func() { ordinary = true }},
+	}
+	ft.s.fleet.askMu.Unlock()
+	ft.s.FleetUp(t.Context()) // the store knows of no pending session review
+	if !review || ordinary {
+		t.Fatalf("review-only refresh cancelled review=%t ordinary=%t", review, ordinary)
+	}
+	ft.s.askOnPhone(nil) // the full snapshot also withdrew the work question
+	if !ordinary {
+		t.Fatal("a full snapshot left the withdrawn question running")
+	}
+}
 
 func TestReconnectInventoryOrdersConcurrentCardChanges(t *testing.T) {
 	for _, withdrawing := range []bool{false, true} {
