@@ -155,6 +155,22 @@
     {
       "name": "task_start_press",
       "value": "按 {value}"
+    },
+    {
+      "name": "tray_plan_start",
+      "value": "开始"
+    },
+    {
+      "name": "tray_plan_start_many",
+      "value": "开始 {count} 个任务"
+    },
+    {
+      "name": "tray_plan_edit",
+      "value": "改一下"
+    },
+    {
+      "name": "tray_plan_dismiss",
+      "value": "不开"
     }
   ]
 }

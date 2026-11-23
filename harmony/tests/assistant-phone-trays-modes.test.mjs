@@ -41,6 +41,48 @@ registerHooks({
 const { assistantBoardRows, assistantTrayRows, TrayRequest }=await import('../entry/src/main/ets/models/AssistantTrays.ets');
 const { ResourceRow }=await import('../entry/src/main/ets/models/Wire.ets');
 const { composerModelName, validComposerModelID, SessionComposerModes }=await import('../entry/src/main/ets/models/SessionComposerModes.ets');
+
+test('an expanded pending plan scrolls once and pins only its own current authorized actions', async () => {
+  const cards=readFileSync(new URL('../entry/src/main/ets/components/AssistantCards.ets',import.meta.url),'utf8');
+  const names=['pinnedTrayPlan','alignOpenedTrayPlan','activateTray','trayPlanAction','trayHeight'];
+  const members=names.map(name=>{
+    const match=cards.match(new RegExp('^  (?:private |@Computed get )'+name+'\\([^]*?^  }','m'));
+    assert.ok(match,name);
+    return match[0].replace('@Computed get ','get ');
+  }).join('\n');
+  const {Wire}=await import('../entry/src/main/ets/models/Wire.ets');
+  const Harness=new Function('Wire','return '+stripTypeScriptTypes('class Tray {'+members+'}'))(Wire);
+  const tray=new Harness(),reads=[],writes=[],scrolls=[];
+  const plan={id:'p',kind:'plan',bucket:'needs',data:{id:'p',state:'open',conversation:'main',tasks:[{title:'First'}]},key:()=>'plan:p'};
+  let scope='hub-a/owner/main',open=true,authorized=true,fresh=false;
+  Object.assign(tray,{active:true,trayOpen:true,trayBucket:'needs',trayOwner:scope,trayScope:()=>scope,trayRows:[plan],expandedEntry:'',
+    trayScroller:{scrollTo:position=>scrolls.push(position)},planId:item=>item.id,planActionsHeight:60,dockRoom:350,composerHeight:74,actionBarHeight:44,
+    trayContentHeight:700,feed:{planState:()=>open?'open':'started',planIsFresh:()=>fresh,planLoading:()=>false,refreshPlan:id=>{reads.push(id);fresh=true;},
+      planCanEdit:()=>authorized,planCanStart:()=>authorized,planCanDismiss:()=>authorized,rememberPlan:()=>false,
+      editPlan:id=>writes.push(['edit',id]),startPlan:(...args)=>writes.push(['start',...args]),dismissPlan:(...args)=>writes.push(['dismiss',...args])}});
+  assert.equal(tray.pinnedTrayPlan,undefined);
+  tray.activateTray(plan);
+  assert.equal(tray.pinnedTrayPlan,plan); assert.deepEqual(reads,['p']); assert.deepEqual(writes,[]);
+  tray.alignOpenedTrayPlan(plan,{position:{y:133},height:430});
+  tray.alignOpenedTrayPlan(plan,{position:{y:83},height:430});
+  assert.deepEqual(scrolls,[{xOffset:0,yOffset:133}],'keyboard or manual scrolling must not recenter an already-open row');
+  assert.equal(tray.trayHeight(),102);tray.trayContentHeight=48;assert.equal(tray.trayHeight(),48);
+  tray.composerHeight=250;assert.equal(tray.trayHeight(),0,'keep the real footer accessible when the input consumes the available space');
+  const original=tray.trayOwner;
+  tray.trayPlanAction(plan,original,'edit');assert.deepEqual(writes,[['edit','p']]);
+  authorized=false;
+  for(const action of ['edit','start','dismiss']) tray.trayPlanAction(plan,original,action);
+  authorized=true;scope='hub-b/owner/main';tray.trayOwner=scope;
+  for(const action of ['edit','start','dismiss']) tray.trayPlanAction(plan,original,action);
+  tray.trayPlanAction({...plan,data:{...plan.data,conversation:'another'}},scope,'start');
+  open=false;assert.equal(tray.pinnedTrayPlan,undefined);tray.trayPlanAction(plan,scope,'dismiss');
+  assert.equal(writes.length,1);
+  open=true;tray.trayPlanAction(plan,scope,'start');tray.trayPlanAction(plan,scope,'dismiss');
+  assert.deepEqual(writes.slice(1),[['start','p',false,undefined,JSON.stringify(plan.data)],['dismiss','p',JSON.stringify(plan.data)]]);
+  tray.activateTray(plan);assert.equal(tray.pinnedTrayPlan,undefined);assert.equal(tray.planScrollKey,'');
+  assert.match(cards,/Scroll\(this\.trayScroller\)[^]*?\.id\('action-tray\.rows'\)\s*if \(this\.pinnedTrayPlan\) this\.pinnedPlanActions/);
+  assert.match(cards,/if \(!actionsPinned\) Row/);
+});
 function session(id,state='idle',details={}) {
   const row=ResourceRow.from({machine_id:'machine',session_id:id,manager:'owner',agent:'claude',launcher:'claude',pane_id:'pane',status:'idle',state,model:'claude-opus-5-5',effort:'high',...details},'session');
   row.group='group';return row;
@@ -445,6 +487,32 @@ test('failed tasks enter the same native task detail from the board and the ordi
  assert.match(registered('activateTray'),/onOpenTodo\(actual.resource\)/);
  const full=readFileSync(new URL('../entry/src/main/ets/components/TaskStartFailureSheet.ets',import.meta.url),'utf8');
  assert.match(full,/TaskStartupQuestionCard\(/);assert.match(full,/this\.onEdit\(/);
+ const close=full.slice(full.indexOf("PhoneOutlineIcon({name:'navigationClose'"),full.indexOf(".id('task.failure.close')"));
+ assert.match(close,/iconScale:12\/17[\s\S]*\.width\(12\)\.height\(12\)\s*\.scale\(\{x:ReadinessStyle\.metric\(12,17\)\/12,y:ReadinessStyle\.metric\(12,17\)\/12\}\)/);
+ assert.match(close,/width\(ReadinessStyle\.metric\(56,66\)\)\.height\(ReadinessStyle\.metric\(46,56\)\)[\s\S]*this\.onClose\(\)/);
  const form=readFileSync(new URL('../entry/src/main/ets/components/PhoneTodoDetailForm.ets',import.meta.url),'utf8');
  assert.match(form,/PhoneTodoStartSection\(\{workspace:this\.workspace/);
+});
+
+test('the two-line recovery headline uses the native first break and preserves the full task name', () => {
+ const source=readFileSync(new URL('../entry/src/main/ets/components/TaskStartFailureSheet.ets',import.meta.url),'utf8');
+ const method=source.slice(source.indexOf('  @Computed get displayedHeading'),source.indexOf('  private remove')).replace('@Computed ','');
+ const measured={lines:2,second:8};
+ class Paragraph {
+   pushStyle(){} addText(){} popStyle(){}
+   build(){return {layoutSync:w=>{measured.width=w;},getLineCount:()=>measured.lines,getLineMetrics:()=>({startIndex:measured.second})};}
+ }
+ const Face={ParagraphBuilder:Paragraph,FontWeight:{W600:600},BreakStrategy:{BALANCED:2},WordBreak:{BREAK_WORD:2},FontCollection:{getGlobalInstance:()=>({})}};
+ const Class=new Function('text','ReadinessStyle','Tokens','return '+stripTypeScriptTypes('class Header {'+method+'}'))(Face,{font:()=> '17vp'},{body:17});
+ const row=new Class();row.headingWidth=202;row.fullHeading='Prepare the demo workspace';row.getUIContext=()=>({vp2px:v=>v*3});
+ assert.equal(row.displayedHeading,row.fullHeading);assert.equal(measured.width,606);
+ row.headingWidth=177;measured.lines=3;assert.equal(row.displayedHeading,'Prepare\nthe demo workspace');
+ row.fullHeading='修复👩‍💻 编译失败后再试';measured.second=row.fullHeading.indexOf('编译');
+ assert.equal(row.displayedHeading,'修复👩‍💻\n编译失败后再试');
+ row.fullHeading='Save\n\nthis title';assert.equal(row.displayedHeading,row.fullHeading,'a real hard break stays intact');
+ assert.match(source,/wordBreak\(this\.displayedHeading===this\.fullHeading \? WordBreak\.BREAK_WORD : WordBreak\.BREAK_ALL\)/);
+ assert.match(source,/accessibilityText\(this\.fullHeading\)/);
+ const question=readFileSync(new URL('../entry/src/main/ets/components/TaskStartupQuestionCard.ets',import.meta.url),'utf8');
+ assert.match(question,/@Param secondaryText:ResourceColor=Colors\.secondary/);
+ assert.match(source,/question:this\.recovery\.question!,secondaryText:this\.sheetSecondary/);
 });

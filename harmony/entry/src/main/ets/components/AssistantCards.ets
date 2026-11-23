@@ -1,5 +1,6 @@
 import { directUserRequest, interactionIsDelegated, interactionPermissionSubject } from '../models/InteractionDecision';
 import { IconActions } from '../design/IconActions';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { Symbols } from '../design/Symbols';
 import { AgentDecisionQueue, AgentDecisionCard } from '../models/AgentDecisionQueue';
 import { InteractionDecisionForm } from './InteractionDecisionForm';
@@ -51,6 +52,8 @@ export struct AssistantCards {
   @Param decisionPager: DecisionPager | undefined = undefined;
   @Param dockRoom: number = 400;
   @Param composerHeight: number = 0;
+  @Param mainHeaderEnd:number = -1;
+  @Local private cardBottom:number = 0;
   @Event onDockVisibility:(shown:boolean)=>void = (_shown:boolean)=>{};
   @Local private actionBarHeight: number = 28;
   @Local private measuredDockHeight: number = 0;
@@ -79,6 +82,9 @@ export struct AssistantCards {
   @Local trayContentHeight: number = 0;
   @Local trayBucket: string = '';
   private trayOwner: string = '';
+  private readonly trayScroller: Scroller = new Scroller();
+  private planScrollKey: string = '';
+  @Local private planActionsHeight: number = 0;
   @Local private requests: AgentDecisionQueue = new AgentDecisionQueue();
   private offRequests: (() => void) | undefined;
   private subscribedOwner: string = '';
@@ -181,6 +187,7 @@ export struct AssistantCards {
   trayOwnerChanged(): void { if (!this.active || this.trayOwner !== this.trayScope()) { this.trayOpen = false; this.boardOpen=false; this.hideFailure(); } this.syncRequests(); }
   private openTray(bucket: string): void {
     if (!this.active) return;
+    this.planScrollKey='';
     if (this.trayOpen && this.trayBucket===bucket) { this.trayOpen=false; return; }
     this.trayContentHeight=0; this.trayBucket=bucket; this.trayOwner=this.trayScope(); this.expandedEntry=''; this.trayOpen=true;
   }
@@ -267,10 +274,35 @@ export struct AssistantCards {
   }
   private trayHeight(): number {
     const cap = this.expandedEntry ? 380 : 280;
-    const available = Math.max(48,this.dockRoom-this.composerHeight-this.actionBarHeight-70);
+    const actions = this.pinnedTrayPlan ? this.planActionsHeight || 56 : 0;
+    const available = Math.max(actions ? 0 : 48,this.dockRoom-this.composerHeight-this.actionBarHeight-70-actions);
     return Math.min(cap,available,this.trayContentHeight || 54);
   }
   @Local private expandedEntry:string='';
+  @Computed get pinnedTrayPlan(): TaskTrayRow | undefined {
+    if (!this.active || !this.trayOpen || this.trayBucket!=='needs' ||
+      this.trayOwner!==this.trayScope() || !this.expandedEntry.startsWith('plan:')) return undefined;
+    return this.trayRows.find((row: TaskTrayRow) => row.kind==='plan' && row.bucket==='needs' &&
+      row.key()===this.expandedEntry && this.feed.planState(row.id)==='open');
+  }
+  private alignOpenedTrayPlan(entry:TaskTrayRow, area:Area): void {
+    if (!this.planScrollKey || this.planScrollKey!==entry.key() || this.pinnedTrayPlan?.id!==entry.id) return;
+    const top=Number(area.position.y);
+    if (!Number.isFinite(top) || Number(area.height)<=0) return;
+    // The row is a child of the scrolling content. Its layout position already includes prior rows and group headings.
+    this.planScrollKey='';
+    this.trayScroller.scrollTo({xOffset:0,yOffset:Math.max(0,top)});
+  }
+  private trayPlanAction(entry:TaskTrayRow, owner:string, action:string): void {
+    const visible=this.pinnedTrayPlan;
+    if (!visible || owner!==this.trayOwner || visible.id!==entry.id ||
+      Wire.text(visible.data,'conversation')!==Wire.text(entry.data,'conversation')) return;
+    if (action==='edit' && this.feed.planCanEdit(entry.id)) this.feed.editPlan(entry.id);
+    if (action==='start' && this.feed.planCanStart(entry.id) && Wire.rows(entry.data,'tasks').length) {
+      this.feed.startPlan(entry.id,this.feed.rememberPlan(entry.id),undefined,JSON.stringify(entry.data));
+    }
+    if (action==='dismiss' && this.feed.planCanDismiss(entry.id)) this.feed.dismissPlan(entry.id,JSON.stringify(entry.data));
+  }
   private rowState(entry:TaskTrayRow):string {
     if (entry.kind==='plan' || entry.kind==='message') return tr('assistant_feed_'+entry.kind);
     if (entry.status==='failed') return tr('failed');
@@ -288,6 +320,7 @@ export struct AssistantCards {
     if (!actual) return;
     if (actual.kind==='message' || actual.kind==='plan') {
       this.expandedEntry=this.expandedEntry===actual.key() ? '' : actual.key();
+      this.planScrollKey=this.expandedEntry && actual.kind==='plan' ? actual.key() : '';
       if (this.expandedEntry && actual.kind==='plan') {
         const id=this.planId(actual.data);
         if (!this.feed.planIsFresh(id) && !this.feed.planLoading(id)) this.feed.refreshPlan(id);
@@ -441,7 +474,7 @@ export struct AssistantCards {
     }
   }
 
-  @Builder planCard(item: Record<string, Object>) {
+  @Builder planCard(item: Record<string, Object>, actionsPinned:boolean = false) {
     Column({ space: Tokens.page }) {
       if (!Object.keys(this.plan(item)).length) {
         Text(tr('assistant_feed_plan_unavailable')).fontSize(Tokens.body).fontColor($r('sys.color.font_secondary'))
@@ -467,7 +500,7 @@ export struct AssistantCards {
           ComposeListItemV2({ contentItemV2: new ContentItemV2({ primaryText: tr('assistant_feed_remember') }),
             operateItemV2: new OperateItemV2({ checkbox: new OperateCheckV2({ isCheck: this.feed.rememberPlan(this.planId(item)),
               accessibilityText: tr('assistant_feed_remember'), onChange: (_checked: boolean) => this.feed.toggleRememberPlan(this.planId(item)) }) }) })
-          Row({ space: Tokens.inset }) {
+          if (!actionsPinned) Row({ space: Tokens.inset }) {
             Button({ type: ButtonType.Circle }) { SymbolGlyph(Symbols.edit).fontSize(Tokens.symbolFont).fontColor([Colors.link]) }
               .attributeModifier(ButtonStyles.chrome).accessibilityText(tr('edit')).enabled(this.feed.planCanEdit(this.planId(item)))
               .onClick(() => this.feed.editPlan(this.planId(item))).id('assistant.plan.edit')
@@ -588,8 +621,9 @@ export struct AssistantCards {
       if (entry.kind==='todo' && entry.status==='failed' && entry.resource) TaskTrayStartActions({model:this.model,feed:this.feed,row:entry.resource!,
         visible:():boolean=>this.trayOpen && this.active && this.trayScope()===this.trayOwner})
       if (this.expandedEntry===entry.key() && entry.kind==='message') this.message(entry.data)
-      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data)
+      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data,this.pinnedTrayPlan?.id===entry.id)
     }.width('100%').alignItems(HorizontalAlign.Start)
+      .onAreaChange((_before:Area,area:Area) => this.alignOpenedTrayPlan(entry,area))
   }
 
   @Builder boardMark(row:TaskTrayRow) {
@@ -655,6 +689,26 @@ export struct AssistantCards {
     }.width('100%').height('100%').backgroundColor(Colors.sheetBackground).id('tasks-board')
   }
 
+  @Builder pinnedPlanActions(entry:TaskTrayRow, owner:string) {
+    Column() {
+      Divider().strokeWidth(Tokens.hairline).color(Colors.divider).padding({left:12,right:12})
+      Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center,space:{main:LengthMetrics.vp(8),cross:LengthMetrics.vp(8)}}) {
+        Button(Wire.rows(entry.data,'tasks').length>1 ? tr('tray_plan_start_many').replace('{count}',String(Wire.rows(entry.data,'tasks').length)) : tr('tray_plan_start'))
+          .attributeModifier(ButtonStyles.primary).flexGrow(1).flexShrink(0).id('assistant.plan.start')
+          .enabled(this.feed.planCanStart(entry.id) && Wire.rows(entry.data,'tasks').length>0)
+          .onClick(() => this.trayPlanAction(entry,owner,'start'))
+        Row({space:8}) {
+          Button(tr('tray_plan_edit')).attributeModifier(ButtonStyles.secondary).id('assistant.plan.edit')
+            .enabled(this.feed.planCanEdit(entry.id)).onClick(() => this.trayPlanAction(entry,owner,'edit'))
+          Button(tr('tray_plan_dismiss')).attributeModifier(ButtonStyles.secondary).id('assistant.plan.dismiss')
+            .enabled(this.feed.planCanDismiss(entry.id)).onClick(() => this.trayPlanAction(entry,owner,'dismiss'))
+        }.flexShrink(0)
+      }.width('100%').padding({left:16,right:16,top:8,bottom:8})
+    }.width('100%').id('action-tray.plan-actions').onAreaChange((_before:Area,area:Area) => {
+      const measured=Number(area.height);
+      if (measured>0 && Math.abs(measured-this.planActionsHeight)>.5) this.planActionsHeight=measured;
+    })
+  }
   @Builder trayList() {
     Column() {
       Row({space:8}) {
@@ -668,7 +722,7 @@ export struct AssistantCards {
         Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(15).fontColor([Colors.secondary]) }
           .width(44).height(44).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('close')).onClick(() => this.trayOpen=false).id('action-tray.close')
       }.width('100%').padding({left:12}).constraintSize({minHeight:44})
-      Scroll() {
+      Scroll(this.trayScroller) {
         Column() {
           ForEach(this.trayRows.filter((row:TaskTrayRow) => row.bucket===this.trayBucket),(row:TaskTrayRow) => {
             if (row.groupHeading) Text(this.trayGroupTitle(row.groupHeading)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
@@ -679,13 +733,22 @@ export struct AssistantCards {
           if (!this.trayRows.some((row:TaskTrayRow) => row.bucket===this.trayBucket)) Text(tr('empty')).fontSize(13).fontColor(Colors.secondary).padding(16)
           if (this.feed.todoError) Text(tr(this.feed.todoError)).fontSize(13).fontColor(Colors.danger)
         }.width('100%').onAreaChange((_old:Area,area:Area) => {this.trayContentHeight=Number(area.height);})
-      }.width('100%').height(this.trayHeight()).align(Alignment.TopStart).scrollBar(BarState.Auto)
+      }.width('100%').height(this.trayHeight()).align(Alignment.TopStart).scrollBar(BarState.Auto).id('action-tray.rows')
+      if (this.pinnedTrayPlan) this.pinnedPlanActions(this.pinnedTrayPlan!,this.trayOwner)
     }.width('100%').alignItems(HorizontalAlign.Start).padding({bottom:4}).margin({bottom:16})
       .backgroundColor(Colors.surface).border({width:0.5,color:Colors.divider,radius:20}).borderRadius(20).id('chat.tasks.tray')
   }
 
   private metric(points:number):number {
     return points*Math.min(67/51,Math.max(1,this.environment.fontScale));
+  }
+  private measuredMainPlanRoom():number {
+    if (this.mainHeaderEnd<0 || this.cardBottom<=this.mainHeaderEnd || this.shownDecisions[0]?.kind!=='plan') return 0;
+    // The bottom of the visible plan already excludes the actual composer,
+    // action bar and their gaps. Reserve the outer pager inset, the list
+    // one-point line and gap, and 72 points of conversation above the pager.
+    const free=Math.max(44,this.cardBottom-this.mainHeaderEnd-Tokens.gap-(Tokens.gap+1));
+    return Math.min(free,Math.max(this.dockRoom/2,free-72));
   }
   private dockHeightLimit():number {
     // The navigation bar sits outside this pane. Leave the other footer controls, list floor,
@@ -698,7 +761,7 @@ export struct AssistantCards {
     const tallest=this.tallestDock(), shortest=Math.min(150,tallest);
     if (this.dragCard===this.shownDecisions[0]?.id && this.dragHeight>=0) return Math.max(shortest,Math.min(tallest,this.dragHeight));
     const share=this.model.questionCardHeightShare;
-    return share<0 ? fallback : shortest+share*(tallest-shortest);
+    return share<0 ? this.measuredMainPlanRoom() || fallback : shortest+share*(tallest-shortest);
   }
   private tallestDock():number {
     const rest=Math.max(0,this.composerHeight)+this.actionBarHeight+20+Tokens.gap*3;
@@ -729,14 +792,22 @@ export struct AssistantCards {
   @Computed get dockCardLimit():number {
     return Math.max(44,this.dockHeightLimit()-(this.decisionIds.length>1 ? this.pagerHeight+4 : 0));
   }
+  private canMoveDecision(next:boolean):boolean {
+    return next ? this.decisionPager!.position(this.decisionIds)<this.decisionIds.length-1 : this.decisionPager!.position(this.decisionIds)>0;
+  }
   @Builder decisionArrow(next:boolean) {
     Button({type:ButtonType.Normal}) {
       Stack() {
-        SymbolGlyph(next ? Symbols.expand : Symbols.collapse).fontSize(Tokens.interfaceFontVp(13,this.environment.fontScale)).fontColor([Colors.ink])
-      }.width(this.metric(28)).height(this.metric(28)).backgroundColor(Colors.control).borderRadius(this.metric(28)/2)
+        PhoneOutlineIcon({name:'decisionChevron',color:Colors.systemControls && Colors.styleID==='glass' && !this.canMoveDecision(next) ?
+          $r('app.color.decision_pager_disabled') : Colors.ink})
+          .rotate({angle:next ? -90 : 90}).scale({x:Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(13)),
+            y:Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(13))})
+      }.width(this.metric(28)).height(this.metric(28))
+        .backgroundColor(Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.decision_header_chip') : Colors.control)
+        .borderRadius(this.metric(28)/2)
     }.width(this.metric(44)).height(this.metric(44)-16).padding(0).backgroundColor(Color.Transparent)
       .responseRegion({x:0,y:-8,width:this.metric(44),height:this.metric(44)}).accessibilityText(tr(next ? 'decision_next' : 'decision_previous'))
-      .enabled(next ? this.decisionPager!.position(this.decisionIds) < this.decisionIds.length - 1 : this.decisionPager!.position(this.decisionIds) > 0)
+      .enabled(this.canMoveDecision(next))
       .onClick(() => this.moveDecision(next ? 1 : -1)).id(next ? 'chat.decisions.next' : 'chat.decisions.previous')
   }
   @Builder decisionNavigation() {
@@ -769,6 +840,8 @@ export struct AssistantCards {
       .onAreaChange((_before:Area,area:Area):void => {
         const h=Number(area.height)+(this.decisionIds.length>1 ? this.pagerHeight+4 : 0);
         if (h>0 && Math.abs(this.measuredDockHeight-h)>0.5) this.measuredDockHeight=h;
+        const bottom=Number(area.globalPosition.y)+Number(area.height);
+        if (request.kind==='plan' && this.shownDecisions[0]?.id===request.id && Number.isFinite(bottom) && Math.abs(bottom-this.cardBottom)>0.5) this.cardBottom=bottom;
       }).parallelGesture(PanGesture({fingers:1,direction:PanDirection.Horizontal,distance:24}).onActionEnd((event:GestureEvent) => {
         if (Math.abs(event.offsetX)>66 && Math.abs(event.offsetX)>2*Math.abs(event.offsetY)) this.moveDecision(event.offsetX<0 ? 1 : -1);
       }))

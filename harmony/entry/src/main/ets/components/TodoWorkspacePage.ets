@@ -626,6 +626,19 @@ export struct TodoWorkspacePage {
         .enabled(!this.workspace.saving).onClick(()=>this.workspace.markSeen(current())).id('todos.seen.'+current().id)
     }.height(this.phoneMeasure(16.3,23.7)).backgroundColor(Colors.accentWell).borderRadius(30).margin({top:-1,bottom:-1})
   }
+  @Builder phoneRelatedLabel(count:number, parts:string[]) {
+    Text() {
+      Span(parts[0])
+      if (parts.length>1) {
+        // The system UI face uses tabular digits. The installed Noto Sans face
+        // supplies proportional advances for the count without changing the words.
+        Span(String(count)).fontFamily('Noto Sans')
+        Span(parts.slice(1).join('{count}'))
+      }
+    }.fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Medium)
+      .fontFeature('pnum 1').letterSpacing(/[\u3400-\u9fff]/.test(parts.join('')) ? this.phoneMeasure(0,-0.2)+'vp' : 0)
+      .fontColor(Colors.secondary).maxLines(1)
+  }
   @Builder phoneRowWords(binding:BoundRow<TodoWorkspaceGroup>) {
     Column({space:4}) {
       Row({space:5}) {
@@ -654,9 +667,7 @@ export struct TodoWorkspacePage {
           SymbolGlyph(this.expandedGroups.includes(binding.value.key) ? Symbols.down : Symbols.expand)
             .fontSize(this.phoneMeasure(12,18)+'vp').width(this.phoneMeasure(9,13)).fontColor([Colors.secondary])
             .accessibilityLevel('no')
-          Text(tr('phone_todo_related_count').replace('{count}',String(binding.value.members.length-1)))
-            .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Medium)
-            .fontColor(Colors.secondary).maxLines(1)
+          this.phoneRelatedLabel(binding.value.members.length-1,tr('phone_todo_related_count').split('{count}'))
         }
       }.height(this.phoneMeasure(44,57.7)).padding(0).backgroundColor(Color.Transparent)
         .accessibilityText(tr('phone_todo_related_count').replace('{count}',String(binding.value.members.length-1)))

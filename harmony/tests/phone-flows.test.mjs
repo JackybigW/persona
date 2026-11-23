@@ -306,28 +306,48 @@ test('Other Model keeps an unlisted ID on cancel and confirms one valid model to
 
 
 test('the focused New Agent draft follows the settled keyboard, content and text-size layout, and never a closed form', () => {
-  const callbacks = [], moves = [];
-  const Form = new Function('setTimeout', 'return '+stripTypeScriptTypes(
-    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(fn=>callbacks.push(fn));
-  const frames = { 'agent.fields':[150,410], 'agent.create':[460,60], 'agent.task':[410,92], 'agent.tab_name':[535,52] };
-  const context = {px2vp:px=>px/3, getComponentUtils:()=>({getRectangleById(id){
-    const [y,height]=frames[id];
+  const callbacks=[], moves=[];
+  const methods=['focusAgentDraft','agentFormWillScroll','revealFocusedAgentDraft','agentDraftAreaChanged'];
+  const sources={DRAG:0,SCROLL_BAR:4,OTHER_USER_INPUT:3,SCROLLER:6};
+  const Form=new Function('setTimeout','ScrollSource','return '+stripTypeScriptTypes(
+    'class Form {\n'+methods.map(name=>formMethods.get(name)).join('\n')+'\n}'))(fn=>callbacks.push(fn),sources);
+  const fields={'agent.task':[260,92],'agent.tab_name':[385,52]};
+  let current=0,rendered=0,actionTop=460;
+  const frames={
+    'agent.fields':()=>[150,410],
+    'agent.fields.content':()=>[150-rendered,1200],
+    'agent.create':()=>[actionTop,60]
+  };
+  const context={px2vp:px=>px/3,getComponentUtils:()=>({getRectangleById(id){
+    const [y,height]=frames[id] ? frames[id]() : [150+fields[id][0]-rendered,fields[id][1]];
     return {windowOffset:{y:y*3},size:{height:height*3}};
   }})};
-  const form = Object.assign(new Form(), {focusedAgentField:'agent.task',showSheet:true,sheetKind:'newagent',agentPanel:'',
-    agentFormRevision:1,getUIContext:()=>context,agentFormScroll:{scrollBy:(x,y)=>moves.push([x,y])}});
+  const form=Object.assign(new Form(),{showSheet:true,sheetKind:'newagent',agentPanel:'',agentFormRevision:1,
+    agentFocusScrollOrigin:-1,agentFocusLayoutRequest:0,getUIContext:()=>context,agentFormScroll:{
+      currentOffset:()=>({xOffset:0,yOffset:current}),
+      scrollTo:({xOffset,yOffset})=>{ assert.equal(xOffset,0);current=yOffset;moves.push(yOffset); }
+    }});
+  const layout=()=>{while(callbacks.length) callbacks.shift()()};
+  form.focusAgentDraft('agent.task');
   form.agentDraftAreaChanged({width:402,height:624},{width:402,height:410});
-  assert.deepEqual(moves,[]); callbacks.shift()(); assert.deepEqual(moves,[[0,50]]);
-  form.agentDraftAreaChanged({width:402,height:410},{width:402,height:410}); assert.equal(callbacks.length,0);
-  form.focusedAgentField='agent.tab_name'; form.revealFocusedAgentDraft(); callbacks.shift()();
-  assert.deepEqual(moves.at(-1),[0,135]);
-  frames['agent.tab_name']=[110,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.deepEqual(moves.at(-1),[0,-48]);
-  frames['agent.tab_name']=[200,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.equal(moves.length,3);
-  frames['agent.task']=[90,460]; form.focusedAgentField='agent.task'; form.revealFocusedAgentDraft(); callbacks.shift()();
-  assert.equal(moves.length,3,'the focused multiline editor fills the viewport and can scroll its own caret');
-  form.revealFocusedAgentDraft(); form.agentFormRevision++; callbacks.shift()(); assert.equal(moves.length,3);
-  form.agentPanel='folder'; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
-  form.agentPanel=''; form.focusedAgentField=''; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
+  assert.deepEqual(moves,[]);layout();assert.deepEqual(moves,[50]);
+  form.revealFocusedAgentDraft();layout();
+  assert.deepEqual(moves,[50],'duplicate callbacks on the same stale native rectangles must not add another scroll');
+  current=rendered=100;
+  form.revealFocusedAgentDraft();layout();
+  assert.deepEqual(moves,[50,50],'correct a second native keyboard adjustment using the original offset');
+  rendered=current;actionTop=435;
+  form.revealFocusedAgentDraft();layout();assert.equal(current,75,'a smaller visible region can reveal more');
+  form.agentDraftAreaChanged({width:402,height:410},{width:402,height:410});assert.equal(callbacks.length,0);
+  rendered=current;actionTop=460;form.focusAgentDraft('agent.tab_name');layout();assert.equal(current,135);
+  form.revealFocusedAgentDraft();form.agentFormWillScroll(sources.DRAG);
+  current=rendered=170;layout();form.revealFocusedAgentDraft();layout();assert.equal(current,170,'keep a manual reading position');
+  fields['agent.task']=[90,460];form.focusAgentDraft('agent.task');layout();
+  assert.equal(current,170,'a multiline editor taller than the viewport can scroll its own caret');
+  const prior=moves.length;
+  form.revealFocusedAgentDraft(); form.agentFormRevision++;layout();assert.equal(moves.length,prior);
+  form.agentPanel='folder';form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
+  form.agentPanel='';form.focusedAgentField='';form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
   assert.match(formSource,/\.minLines\(3\)\.maxLines\(10,\{overflowMode:MaxLinesMode\.SCROLL\}\)/);
   const messageField=formSource.slice(formSource.indexOf('TextArea({text:this.newTask'),formSource.indexOf(".id('agent.task')"));
   assert.match(messageField,/\.constraintSize\(\{minHeight:this\.agentSize\(94\.33,115\.67\)\}\)/);
@@ -784,6 +804,9 @@ test('the phone start action belongs to the bottom of the scroll area, separate 
   const start=formSource.slice(formSource.indexOf('  @Builder agentStartFooter()'),formSource.indexOf('  private async loadAgentLaunchers()'));
   const cancel=start.indexOf("id('agent.cancel')"),stack=start.indexOf('Stack({alignContent:Alignment.Bottom})'),scroll=start.indexOf('Scroll(this.agentFormScroll)');
   assert.ok(cancel>=0 && stack>cancel && scroll>stack);
+  const inset=start.slice(start.indexOf('if (this.environment.keyboardHeightPx > 0)',stack),start.indexOf('this.agentStartFooter()',stack));
+  assert.ok(inset.includes("Rect().width('100%').height(this.agentActionBottom()).fill(Colors.sheetBackground)"));
+  assert.ok(inset.includes(".hitTestBehavior(HitTestMode.Block).accessibilityLevel('no').id('agent.keyboard.inset')"));
   assert.match(start,/\.height\('100%'\)\.justifyContent\(FlexAlign.End\)/);
   assert.match(start,/this\.agentStartFooter\(\)\s*\}\.width\('100%'\)\.layoutWeight\(1\)\.clip\(true\)/);
   assert.match(start,/bottom:this\.agentScrollClearance\(\)/);

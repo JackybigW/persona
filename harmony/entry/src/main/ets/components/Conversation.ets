@@ -909,6 +909,20 @@ export struct Conversation {
   @Local agentComposerHeight: number = 0;
   @Local private assistantComposerHeight: number = 0;
   @Local private assistantDockVisible: boolean = false;
+  private mainDockHeaderEnd():number {
+    const row=this.model.selected, env=this.environment, ui=this.getUIContext();
+    if (!this.model.mainId || row.kind!=='conversation' || row.id!==this.model.mainId ||
+      this.model.mainMachineId && row.machine!==this.model.mainMachineId ||
+      row.group && row.group!==this.model.profile.id || row.manager && row.manager!==this.model.profile.manager ||
+      !env.isFullScreen || env.nativeHoverAvailable || env.keyboardHeightPx>0) return -1;
+    const width=ui.px2vp(env.windowWidthPx), height=ui.px2vp(env.windowHeightPx);
+    if (!(width>0 && width<600 && height>=600 && height>width && this.availableHeight>0 && this.contentTop>0)) return -1;
+    const paneTop=(env.safeBottomPx>0 ? ui.px2vp(env.safeBottomPx) : height)-this.availableHeight;
+    const safeHeaderTop=Math.max(Tokens.compactStatusInset,ui.px2vp(env.safeTopPx)+Tokens.gap);
+    // AssistantTopBar reserves 70 points below the safe area. Ark navigation
+    // already took most of this space before offering the conversation its pane.
+    return this.contentTop+Math.max(0,70-Math.max(0,paneTop-safeHeaderTop));
+  }
   @Local agentCountHeight: number = 0;
   private agentCardsRoom(): number {
     if (this.floatsDraftHeader && this.compactDraftSpace) return this.preferredCardSpace(this.compactDraftSpace);
@@ -2148,7 +2162,7 @@ export struct Conversation {
 
   @Builder taskDock(horizontalInset: number = 0) {
     if (this.model.selected.kind === 'conversation' && this.model.connected) {
-          AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), dockOnly: true, decisionPager:this.decisionPager, dockRoom:this.availableHeight, composerHeight:this.assistantComposerHeight, onDockVisibility:(shown:boolean):void => { this.assistantDockVisible=shown; }, onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
+          AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), dockOnly: true, decisionPager:this.decisionPager, dockRoom:this.availableHeight, composerHeight:this.assistantComposerHeight, mainHeaderEnd:this.mainDockHeaderEnd(), onDockVisibility:(shown:boolean):void => { this.assistantDockVisible=shown; }, onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
             onOpenTodo: (row: ResourceRow) => this.onOpenResource(row), onOpenInbox: (row: ResourceRow) => this.onOpenResource(row), onLink: (address: string) => this.onLink(address) })
             .width('100%').padding({ left: horizontalInset, right: horizontalInset })
     }

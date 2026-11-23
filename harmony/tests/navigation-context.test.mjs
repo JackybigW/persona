@@ -357,19 +357,33 @@ test('the system phone drawer paints its surface and selection without overridin
  assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });
 
-test('Knowledge fills its compact app inset only while that library is foremost', () => {
-  const Shell = new Function('return '+stripTypeScriptTypes('class Shell {'+method('knowledgeInsetHeight')+'}'))();
-  const shell = Object.assign(new Shell(), {phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,
-    chatSearchShown:false,phoneSettingsShown:false,showSheet:false,compactNavigationInset:()=>23});
-  assert.equal(shell.knowledgeInsetHeight(),23);
-  for (const [key, value] of [['phoneTop',''],['phoneTop','conversation'],['phoneTop','session'],['phoneTop','projects'],
-    ['phoneTop','knowledge'],['phoneParam','inbox'],['drawerFraction',0.5],
-    ['chatSearchShown',true],['phoneSettingsShown',true],['showSheet',true]]) {
-    const prior=shell[key];
-    shell[key]=value; assert.equal(shell.knowledgeInsetHeight(),0); shell[key]=prior;
+test('the compact status-area background follows the visible page and drawer', () => {
+  const Shell = new Function('Colors','Color','return '+stripTypeScriptTypes('class Shell {'+method('compactInsetSurface')+'}'))(
+    {grouped:'grouped',phoneDrawerSurface:'drawer'},{Transparent:'clear'});
+  const shell = Object.assign(new Shell(), {model:{profile:{id:'phone'},section:1},fullHeightPhone:()=>true,
+    phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,chatSearchShown:false,startSearchInAgents:false,
+    projectPlace:()=>false,projectSearching:false,settingsKind:value=>value});
+  for (const [page,param,expected] of [
+    ['resources','knowledge','grouped'],['resources','todo','grouped'],['resources','inbox','clear'],
+    ['recordings','','grouped'],['knowledge_meetings','','grouped'],['knowledge','','grouped'],
+    ['project_tree','branch','grouped'],['settings','machines','grouped'],['settings','about','clear'],
+    ['session','conversation','clear'],['','','grouped']]) {
+    shell.phoneTop=page; shell.phoneParam=param;
+    assert.equal(shell.compactInsetSurface(),expected);
   }
-  shell.compactNavigationInset=()=>0;
-  assert.equal(shell.knowledgeInsetHeight(),0);
-  assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.knowledgeInsetHeight\(\) > 0 \? Colors\.grouped : Color\.Transparent\)/);
+  shell.projectPlace=()=>true;
+  assert.equal(shell.compactInsetSurface(),'clear');
+  shell.projectSearching=true;
+  assert.equal(shell.compactInsetSurface(),'grouped');
+  shell.phoneTop='session';shell.chatSearchShown=true;shell.startSearchInAgents=true;
+  assert.equal(shell.compactInsetSurface(),'grouped');
+  shell.drawerFraction=1;
+  assert.equal(shell.compactInsetSurface(),'drawer');
+  shell.model.profile.id='';
+  assert.equal(shell.compactInsetSurface(),'clear');
+  shell.model.profile.id='phone';shell.fullHeightPhone=()=>false;
+  assert.equal(shell.compactInsetSurface(),'clear');
+  assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.compactInsetSurface\(\)\)/);
+  assert.match(source,/\.background\(this\.compactInsetSurface\(\),\s*\{ ignoresLayoutSafeAreaEdges: \[LayoutSafeAreaEdge\.TOP\] \}\)/);
   assert.doesNotMatch(source,/\.overlay\(this\.knowledge|@Builder knowledgeNavigationInset/);
 });

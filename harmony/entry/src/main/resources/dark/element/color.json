@@ -157,6 +157,10 @@
       "value": "#39393D"
     },
     {
+      "name": "phone_settings_separator",
+      "value": "#1BEBEBF5"
+    },
+    {
       "name": "machine_session_avatar_fill",
       "value": "#3D767680"
     },
@@ -191,6 +195,10 @@
     {
       "name": "persona_sheet_background",
       "value": "#1C1C1E"
+    },
+    {
+      "name": "task_failure_secondary",
+      "value": "#62FFFFFF"
     },
     {
       "name": "phone_readiness_surface",
@@ -235,6 +243,22 @@
     {
       "name": "settings_search_outline",
       "value": "#0E0E0F"
+    },
+    {
+      "name": "decision_header_title",
+      "value": "#409CFF"
+    },
+    {
+      "name": "decision_header_secondary",
+      "value": "#78FFFFFF"
+    },
+    {
+      "name": "decision_header_chip",
+      "value": "#1CFFFFFF"
+    },
+    {
+      "name": "decision_pager_disabled",
+      "value": "#737378"
     },
     {
       "name": "settings_search_shadow",

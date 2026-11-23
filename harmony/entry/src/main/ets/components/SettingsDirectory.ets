@@ -384,16 +384,18 @@ export struct PhoneSettingsOptions {
   build() {
     List() {
       if (this.page === 'phone_agent_options') {
-        PhoneDefaultPermissionSection({model:this.model,elevated:this.elevated})
+        PhoneDefaultPermissionSection({model:this.model,elevated:this.elevated,emptyInset:17.5})
         ListItem() {
         Column() {
           ForEach(AGENT_OPTIONS,(id:string,ix:number) => {
-            PhoneSettingsRow({elevated:this.elevated,label:settingLabel(id,this.label),symbol:settingIcon(id),artwork:settingArtwork(id),tint:Colors.iconAccent,
+            PhoneSettingsRow({elevated:this.elevated,insetGrouped:true,label:settingLabel(id,this.label),symbol:settingIcon(id),artwork:settingArtwork(id),tint:Colors.iconAccent,
               identity:'settings.'+id,last:ix === AGENT_OPTIONS.length-1,action:() => this.onOpen(id)})
           },(id:string) => id)
-        }.width('100%').clip(true).backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius)
-        }
-        ListItem() { Text(tr('phone_agent_tools_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%').padding({left:7,right:7,top:7,bottom:10}) }
+        }.width('100%').clip(true).backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.settingsGroupRadius)
+        }.margin({top:17.5})
+        ListItem() { Text(tr('phone_agent_tools_note')).fontSize(Tokens.caption).maxFontScale(Tokens.interfaceScaleFor(Tokens.caption))
+          .lineHeight(PhoneStyle.settingsExampleLineHeight(15.67,22,this.environment.fontScale)).fontColor(PhoneStyle.settingsSecondary)
+          .width('100%').padding({left:20,right:20,top:9,bottom:5}) }
       } else {
         ListItem() {
         Column() {
@@ -402,7 +404,11 @@ export struct PhoneSettingsOptions {
               Text(lang==='default' ? tr('phone_settings_system_language').replace('{language}',languageName(i18n.getSystemLanguage())) : languageName(lang))
                 .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).layoutWeight(1)
               if (this.model.language===lang) {
-                PhoneOutlineIcon({name:'inlinePickerCheck',color:Colors.link,iconScale:this.inlinePickerScale})
+                Stack() {
+                  Stack() { PhoneOutlineIcon({name:'inlinePickerCheck',color:Colors.link}) }
+                    .width(15).height(14.67).scale({x:this.inlinePickerScale,y:this.inlinePickerScale})
+                    .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+                }.width(15*this.inlinePickerScale).height(14.67*this.inlinePickerScale)
                   .margin({right:4.33*this.inlinePickerScale}).flexShrink(0)
               }
             }.width('100%').constraintSize({minHeight:PhoneStyle.groupedRowHeight(this.environment.fontScale)}).padding({left:20,right:20,top:6,bottom:6})
@@ -424,6 +430,7 @@ export struct PhoneSettingsOptions {
         }
         ListItem() { Text(tr('phone_dictation_automatic_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:7,bottom:10}) }
       }
-    }.width('100%').height('100%').padding({left:16,right:16,top:35,bottom:24}).backgroundColor(Colors.listGroup(this.elevated))
+    }.width('100%').height('100%').padding({left:16,right:16,top:this.page==='phone_agent_options' ? 0 : 35,bottom:24})
+      .backgroundColor(Colors.listGroup(this.elevated))
   }
 }

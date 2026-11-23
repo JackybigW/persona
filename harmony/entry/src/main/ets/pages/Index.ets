@@ -240,6 +240,8 @@ struct Index {
   @Local recentAgentDirectories: LaunchChoice[] = [];
   private agentFormScroll: Scroller = new Scroller();
   private focusedAgentField: string = '';
+  private agentFocusScrollOrigin: number = -1;
+  private agentFocusLayoutRequest: number = 0;
   @Local agentErrorHeight: number = 0;
   @Local startFailure: string = '';
   @Local startWorktree: WorktreeActions = new WorktreeActions();
@@ -2049,10 +2051,16 @@ struct Index {
     if (!this.model.profile.id || !this.fullHeightPhone() || this.environment.safeTopPx <= 0) return 0;
     return Math.max(0, Tokens.compactStatusInset - this.getUIContext().px2vp(this.environment.safeTopPx));
   }
-  private knowledgeInsetHeight(): number {
-    if (this.phoneTop !== 'resources' || this.phoneParam !== 'knowledge' || this.drawerFraction > 0 ||
-      this.chatSearchShown || this.phoneSettingsShown || this.showSheet) return 0;
-    return this.compactNavigationInset();
+  private compactInsetSurface(): ResourceColor {
+    if (!this.model.profile.id || !this.fullHeightPhone()) return Color.Transparent;
+    if (this.drawerFraction > 0) return Colors.phoneDrawerSurface;
+    if (this.chatSearchShown && this.startSearchInAgents) return Colors.grouped;
+    const page = this.phoneTop;
+    if (page === 'resources' && (this.phoneParam === 'knowledge' || this.phoneParam === 'todo') ||
+      ['knowledge', 'knowledge_meetings', 'recordings', 'project_tree'].includes(page) ||
+      page === 'settings' && this.settingsKind(this.phoneParam) === 'machines') return Colors.grouped;
+    if (!page && (this.projectPlace() ? this.projectSearching : this.model.section === 1)) return Colors.grouped;
+    return Color.Transparent;
   }
   @Builder phoneSettings() {
     Column() {
@@ -2442,25 +2450,48 @@ struct Index {
     const group = this.model.profiles.length > 1 ? this.model.groupName(row) : '';
     return group || Wire.text(row.data(),'hostname') || tr('online');
   }
+  private focusAgentDraft(field:string):void {
+    this.focusedAgentField = field;
+    try { this.agentFocusScrollOrigin = this.agentFormScroll.currentOffset().yOffset; }
+    catch (_) { this.agentFocusScrollOrigin = -1; }
+    this.revealFocusedAgentDraft();
+  }
+  private agentFormWillScroll(source:ScrollSource):void {
+    if (source === ScrollSource.DRAG || source === ScrollSource.SCROLL_BAR || source === ScrollSource.OTHER_USER_INPUT) {
+      this.agentFocusScrollOrigin = -1;
+      this.agentFocusLayoutRequest++;
+    }
+  }
   private revealFocusedAgentDraft(): void {
     const field = this.focusedAgentField, revision = this.agentFormRevision;
     if (!field || !this.showSheet || this.sheetKind !== 'newagent' || this.agentPanel) return;
-    // Dynamic Type and the input method relayout both the form and its pinned Start button.
+    const request = ++this.agentFocusLayoutRequest;
     setTimeout(() => {
-      if (this.focusedAgentField !== field || this.agentFormRevision !== revision || !this.showSheet ||
+      if (this.agentFocusLayoutRequest !== request || this.focusedAgentField !== field || this.agentFormRevision !== revision || !this.showSheet ||
         this.sheetKind !== 'newagent' || this.agentPanel) return;
       try {
         const context = this.getUIContext(), components = context.getComponentUtils();
         const editor = components.getRectangleById(field), form = components.getRectangleById('agent.fields');
+        const content = components.getRectangleById('agent.fields.content');
         const action = components.getRectangleById('agent.create');
-        if (editor.size.height <= 0 || form.size.height <= 0 || action.size.height <= 0) return;
-        const top = context.px2vp(form.windowOffset.y) + 8;
-        const bottom = context.px2vp(action.windowOffset.y) - 8;
-        if (bottom <= top) return;
-        const first = context.px2vp(editor.windowOffset.y), last = first + context.px2vp(editor.size.height);
-        if (first <= top && last >= bottom) return;
-        if (last > bottom) this.agentFormScroll.scrollBy(0, Math.min(last - bottom, Math.max(0, first - top)));
-        else if (first < top) this.agentFormScroll.scrollBy(0, first - top);
+        if (editor.size.height <= 0 || form.size.height <= 0 || content.size.height <= 0 || action.size.height <= 0) return;
+        const available = context.px2vp(action.windowOffset.y - form.windowOffset.y) - 8;
+        if (available <= 8) return;
+        // The field and its content move together. Their distance remains valid when the
+        // keyboard, focus and area callbacks see the same rendered frame more than once.
+        const fieldTop = context.px2vp(editor.windowOffset.y - content.windowOffset.y);
+        const atTop = fieldTop - 8;
+        const atBottom = fieldTop + context.px2vp(editor.size.height) - available;
+        const current = this.agentFormScroll.currentOffset().yOffset;
+        const origin = this.agentFocusScrollOrigin >= 0 ? this.agentFocusScrollOrigin : current;
+        // A multiline editor taller than this viewport can keep its own caret in view.
+        const firstOffset = Math.min(atTop, atBottom), lastOffset = Math.max(atTop, atBottom);
+        const reveal = Math.min(Math.max(origin, firstOffset), lastOffset);
+        const maxOffset = Math.max(0, context.px2vp(content.size.height - form.size.height));
+        const target = Math.max(0, Math.min(reveal, maxOffset));
+        if (Math.abs(target - current) > context.px2vp(1)) {
+          this.agentFormScroll.scrollTo({xOffset:0,yOffset:target});
+        }
       } catch (_) { /* The sheet can disappear before the input method completes its layout. */ }
     }, 0);
   }
@@ -2546,6 +2577,10 @@ struct Index {
         }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
         Stack({alignContent:Alignment.Bottom}) {
           this.agentStartFields()
+          if (this.environment.keyboardHeightPx > 0) {
+            Rect().width('100%').height(this.agentActionBottom()).fill(Colors.sheetBackground)
+              .hitTestBehavior(HitTestMode.Block).accessibilityLevel('no').id('agent.keyboard.inset')
+          }
           this.agentStartFooter()
         }.width('100%').layoutWeight(1).clip(true)
       }.width('100%').height('100%').backgroundColor(Colors.sheetBackground)
@@ -2638,7 +2673,7 @@ struct Index {
           .constraintSize({minHeight:this.agentSize(94.33,115.67)})
           .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
           .padding({left:16,right:16,top:11,bottom:11}).fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-          .onFocus(() => { this.focusedAgentField = 'agent.task'; this.revealFocusedAgentDraft(); })
+          .onFocus(() => this.focusAgentDraft('agent.task'))
           .onBlur(() => { if (this.focusedAgentField === 'agent.task') this.focusedAgentField = ''; })
           .onChange((v:string) => { this.newTask = v; this.saveAgentDraft(); }).id('agent.task')
         this.agentSectionTitle('flow_start_tab_name',true)
@@ -2649,16 +2684,21 @@ struct Index {
           .fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
           .height(this.agentSize(52.33,59.33)).width('100%').padding({left:20,right:20})
           .enterKeyType(EnterKeyType.Done).accessibilityText(tr('flow_start_tab_name'))
-          .onFocus(() => { this.focusedAgentField = 'agent.tab_name'; this.revealFocusedAgentDraft(); })
+          .onFocus(() => this.focusAgentDraft('agent.tab_name'))
           .onBlur(() => { if (this.focusedAgentField === 'agent.tab_name') this.focusedAgentField = ''; })
           .onChange((value:string) => { this.agentTabName = value; }).id('agent.tab_name')
         Text(tr('flow_start_tab_name_help')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
           .fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:6}).id('agent.tab_name.help')
         if ((this.agentWorktree || this.pickedAgentTree) && !this.selectedAgentTree()) Text(tr('project_gone')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).padding(8)
-      }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:this.agentScrollClearance()})
+      }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:this.agentScrollClearance()}).id('agent.fields.content')
         .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
     }.width('100%').height('100%').align(Alignment.TopStart).id('agent.fields')
       .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
+      .onWillScroll((_x:number,_y:number,_state:ScrollState,source:ScrollSource):void => this.agentFormWillScroll(source))
+      .onScrollStop(() => {
+        if (this.focusedAgentField && this.agentFocusScrollOrigin >= 0 && this.environment.keyboardHeightPx > 0)
+          this.revealFocusedAgentDraft();
+      })
   }
   private async loadAgentLaunchers(): Promise<void> {
     const rev = ++this.launcherRevision, form = this.agentFormRevision, owner = this.agentModel, machine = this.chosenAgentMachine()?.id;
@@ -3149,7 +3189,7 @@ struct Index {
           onWillDismiss:(dismiss:DismissSheetAction) => { this.chatSearchShown=false; dismiss.dismiss(); }
         })
     }.width('100%').height('100%').padding({top:this.compactNavigationInset()}).clip(true)
-      .backgroundColor(this.knowledgeInsetHeight() > 0 ? Colors.grouped : Color.Transparent)
+      .backgroundColor(this.compactInsetSurface())
       .blur(this.messageLift.current ? this.getUIContext().vp2px(3) : 0)
       .accessibilityLevel(this.messageLift.current ? 'no-hide-descendants' : 'auto')
       .onAreaChange((_old:Area,now:Area) => { this.phoneWidth = Number(now.width); this.phoneHeight = Number(now.height); })
@@ -3181,6 +3221,7 @@ struct Index {
       }
     }
     }.width('100%').height('100%').backgroundColor(Colors.canvas)
+      .background(this.compactInsetSurface(), { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.TOP] })
       .bindSheet($$this.readerShown, this.readerContent(), { title: { title: this.readerTitle }, height: Tokens.readerFull, width: Tokens.readerFull, preferType: SheetType.BOTTOM,
         detents: [Tokens.readerFull, Tokens.readerPartial], enableOutsideInteractive: true, showClose: true })
   }
