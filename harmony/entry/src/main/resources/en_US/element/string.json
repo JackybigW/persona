@@ -6725,6 +6725,106 @@
       "value": "Verified"
     },
     {
+      "name": "session_brief_stage_summary",
+      "value": "Step {step} of {total} · {name}"
+    },
+    {
+      "name": "session_brief_stage_accessibility",
+      "value": "Stage: {name} (step {step} of {total})"
+    },
+    {
+      "name": "session_brief_waiting_count",
+      "value": "Waiting for you ({count})"
+    },
+    {
+      "name": "session_brief_waiting_unknown",
+      "value": "Waiting for you (?)"
+    },
+    {
+      "name": "session_brief_waiting_note",
+      "value": "Cards waiting for you weren't read yet (Persona had just started). Look in Agents."
+    },
+    {
+      "name": "session_brief_empty",
+      "value": "Nothing."
+    },
+    {
+      "name": "session_brief_accept_count",
+      "value": "To verify ({count})"
+    },
+    {
+      "name": "session_brief_later_count",
+      "value": "Can wait ({count})"
+    },
+    {
+      "name": "session_brief_progress_count",
+      "value": "In progress ({count})"
+    },
+    {
+      "name": "session_brief_setup",
+      "value": "Recommended setup"
+    },
+    {
+      "name": "session_brief_setup_note",
+      "value": "From Persona's own records of the last 7 days, unless a line names its own period. Nothing was changed: each of these stays as it is until you change it yourself."
+    },
+    {
+      "name": "session_brief_open_named",
+      "value": "Open: {title}"
+    },
+    {
+      "name": "session_brief_more",
+      "value": "and {count} more"
+    },
+    {
+      "name": "session_brief_stage_done",
+      "value": "{value}, step {step} of {total}, done"
+    },
+    {
+      "name": "session_brief_stage_current",
+      "value": "{value}, step {step} of {total}, current step"
+    },
+    {
+      "name": "session_brief_stage_ahead",
+      "value": "{value}, step {step} of {total}, still ahead"
+    },
+    {
+      "name": "session_brief_waited",
+      "value": "Waited {value}"
+    },
+    {
+      "name": "session_brief_nudged",
+      "value": "nudged"
+    },
+    {
+      "name": "session_brief_recommended",
+      "value": "Recommended: {value}"
+    },
+    {
+      "name": "session_brief_skipped",
+      "value": "Skipped · {value}"
+    },
+    {
+      "name": "session_brief_run_failed",
+      "value": "Run failed · {value}"
+    },
+    {
+      "name": "session_brief_start_failed",
+      "value": "Did not start · {value}"
+    },
+    {
+      "name": "session_brief_days",
+      "value": "{count}d"
+    },
+    {
+      "name": "session_brief_hours",
+      "value": "{count}h"
+    },
+    {
+      "name": "session_brief_minutes",
+      "value": "{count}m"
+    },
+    {
       "name": "session_brief_past",
       "value": "Last {hours} hours: {done} done · {failed} not through"
     },

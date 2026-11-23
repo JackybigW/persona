@@ -62,6 +62,7 @@ export struct AssistantCards {
   @Event onOpenResource: (row: ResourceRow) => void = () => {};
   @Event onOpenSession: (row: ResourceRow) => void = (_row: ResourceRow) => {};
   @Event onOpenTodo: (row: ResourceRow) => void = (_row: ResourceRow) => {};
+  @Event onOpenTriage: () => void = () => {};
   @Event onOpenInbox: (row: ResourceRow) => void = (_row: ResourceRow) => {};
   @Event onOpenCard: (itemId: string, kind: string) => void = (_itemId: string, _kind: string) => {};
   @Event onLink: (address: string) => void = (_address: string) => {};
@@ -1036,7 +1037,7 @@ export struct AssistantCards {
     if (Wire.text(item, 'kind') === 'view') AssistantViewCard({ model: this.model, feed: this.feed, item: item, cardKey: this.cardKey(item), active: this.active, onLink: (address: string) => this.onLink(address), onOpenResource: (address: string) => this.openCardResource(address) })
     else if (Wire.text(item, 'kind') === 'plan') { if (this.detailOnly) this.planCard(item); else this.planSummary(item) }
     else if (Wire.text(item, 'kind') === 'receipt') { if (this.detailOnly) this.receipt(item); else this.receiptSummary(item) }
-    else if (Wire.text(item,'kind')==='brief') AssistantBriefCard({model:this.model,item:item,active:this.active,onOpen:(row:ResourceRow) => this.onOpenResource(row)})
+    else if (Wire.text(item,'kind')==='brief') AssistantBriefCard({model:this.model,item:item,active:this.active,onOpenTriage:() => this.onOpenTriage(),onOpen:(row:ResourceRow) => this.onOpenResource(row)})
     else if (Wire.text(item, 'kind') === 'answered') this.answered(item)
     else if (Wire.text(item, 'kind') === 'review') this.review(item)
     else if (Wire.text(item, 'kind') === 'routed') this.routed(item)

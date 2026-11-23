@@ -172,6 +172,7 @@ export struct Conversation {
   @Param actionItems: SheetInfo[] = [];
   @Param actionsVisible: boolean = false;
   @Param actionsRequest: number = 0;
+  @Event onOpenTriage: () => void = () => {};
   @Event onPlace: (name: string) => void = () => {};
   @Event onShowActions: () => void = () => {};
   @Event onHideActions: (request: number) => void = () => {};
@@ -1715,7 +1716,7 @@ export struct Conversation {
             ConversationRecap({ model: this.model, message: entry.item.message!, active: this.active,
               onLink: (address: string) => this.onLink(address) })
           } else if (entry.item.message) this.message(entry)
-          else if (entry.item.card) AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), item: entry.item.card, onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
+          else if (entry.item.card) AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), item: entry.item.card, onOpenTriage: () => this.onOpenTriage(), onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
             onOpenTodo: (row: ResourceRow) => this.onOpenResource(row), onOpenInbox: (row: ResourceRow) => this.onOpenResource(row), onLink: (address: string) => this.onLink(address) })
           else if (entry.item.decision) this.questionCard(entry)
         }.padding({ left: entry.item.message ? 0 : Tokens.page, right: entry.item.message ? 0 : Tokens.page })

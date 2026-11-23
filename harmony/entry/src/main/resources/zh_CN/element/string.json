@@ -6729,6 +6729,106 @@
       "value": "已验证"
     },
     {
+      "name": "session_brief_stage_summary",
+      "value": "第 {step} 步，共 {total} 步 · {name}"
+    },
+    {
+      "name": "session_brief_stage_accessibility",
+      "value": "阶段：{name}（第 {step} 步，共 {total} 步）"
+    },
+    {
+      "name": "session_brief_waiting_count",
+      "value": "等你处理（{count}）"
+    },
+    {
+      "name": "session_brief_waiting_unknown",
+      "value": "等你处理（?）"
+    },
+    {
+      "name": "session_brief_waiting_note",
+      "value": "刚重启，还没读到等你处理的卡片；到 Agent 页看。"
+    },
+    {
+      "name": "session_brief_empty",
+      "value": "没有。"
+    },
+    {
+      "name": "session_brief_accept_count",
+      "value": "待验收（{count}）"
+    },
+    {
+      "name": "session_brief_later_count",
+      "value": "可以晚点答（{count}）"
+    },
+    {
+      "name": "session_brief_progress_count",
+      "value": "进行中（{count}）"
+    },
+    {
+      "name": "session_brief_setup",
+      "value": "建议的设置"
+    },
+    {
+      "name": "session_brief_setup_note",
+      "value": "根据 Persona 自己过去 7 天的记录算出，写明了自己时间范围的那一项除外。什么都没有改动：下面每一项在你自己改动之前都保持原样。"
+    },
+    {
+      "name": "session_brief_open_named",
+      "value": "打开：{title}"
+    },
+    {
+      "name": "session_brief_more",
+      "value": "还有 {count} 项"
+    },
+    {
+      "name": "session_brief_stage_done",
+      "value": "{value}，第 {step} 步，共 {total} 步，已完成"
+    },
+    {
+      "name": "session_brief_stage_current",
+      "value": "{value}，第 {step} 步，共 {total} 步，当前步骤"
+    },
+    {
+      "name": "session_brief_stage_ahead",
+      "value": "{value}，第 {step} 步，共 {total} 步，还没到"
+    },
+    {
+      "name": "session_brief_waited",
+      "value": "已等 {value}"
+    },
+    {
+      "name": "session_brief_nudged",
+      "value": "已催过"
+    },
+    {
+      "name": "session_brief_recommended",
+      "value": "推荐：{value}"
+    },
+    {
+      "name": "session_brief_skipped",
+      "value": "被跳过 · {value}"
+    },
+    {
+      "name": "session_brief_run_failed",
+      "value": "运行失败 · {value}"
+    },
+    {
+      "name": "session_brief_start_failed",
+      "value": "没开起来 · {value}"
+    },
+    {
+      "name": "session_brief_days",
+      "value": "{count}天"
+    },
+    {
+      "name": "session_brief_hours",
+      "value": "{count}小时"
+    },
+    {
+      "name": "session_brief_minutes",
+      "value": "{count}分钟"
+    },
+    {
       "name": "session_brief_past",
       "value": "过去 {hours} 小时：做完 {done} · 没成 {failed}"
     },

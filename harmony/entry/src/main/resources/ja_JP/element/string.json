@@ -6729,6 +6729,106 @@
       "value": "検証済み"
     },
     {
+      "name": "session_brief_stage_summary",
+      "value": "{total}ステップ中{step} · {name}"
+    },
+    {
+      "name": "session_brief_stage_accessibility",
+      "value": "ステージ：{name}（{total}ステップ中{step}）"
+    },
+    {
+      "name": "session_brief_waiting_count",
+      "value": "あなた待ち（{count}）"
+    },
+    {
+      "name": "session_brief_waiting_unknown",
+      "value": "あなた待ち（?）"
+    },
+    {
+      "name": "session_brief_waiting_note",
+      "value": "再起動直後のため、あなた待ちのカードをまだ読み込めていません。エージェントのタブで確認してください。"
+    },
+    {
+      "name": "session_brief_empty",
+      "value": "ありません。"
+    },
+    {
+      "name": "session_brief_accept_count",
+      "value": "確認待ち（{count}）"
+    },
+    {
+      "name": "session_brief_later_count",
+      "value": "後で答えてよいもの（{count}）"
+    },
+    {
+      "name": "session_brief_progress_count",
+      "value": "進行中（{count}）"
+    },
+    {
+      "name": "session_brief_setup",
+      "value": "おすすめの設定"
+    },
+    {
+      "name": "session_brief_setup_note",
+      "value": "Persona 自身の過去 7 日間の記録から計算しました（期間を明記している項目を除く）。何も変更していません。以下はどれも、あなたが自分で変更するまで今のままです。"
+    },
+    {
+      "name": "session_brief_open_named",
+      "value": "開く：{title}"
+    },
+    {
+      "name": "session_brief_more",
+      "value": "ほか {count} 件"
+    },
+    {
+      "name": "session_brief_stage_done",
+      "value": "{value}、{total}ステップ中{step}、完了"
+    },
+    {
+      "name": "session_brief_stage_current",
+      "value": "{value}、{total}ステップ中{step}、現在のステップ"
+    },
+    {
+      "name": "session_brief_stage_ahead",
+      "value": "{value}、{total}ステップ中{step}、これから"
+    },
+    {
+      "name": "session_brief_waited",
+      "value": "{value}待ち"
+    },
+    {
+      "name": "session_brief_nudged",
+      "value": "催促済み"
+    },
+    {
+      "name": "session_brief_recommended",
+      "value": "おすすめ：{value}"
+    },
+    {
+      "name": "session_brief_skipped",
+      "value": "スキップ・{value}"
+    },
+    {
+      "name": "session_brief_run_failed",
+      "value": "実行に失敗・{value}"
+    },
+    {
+      "name": "session_brief_start_failed",
+      "value": "開始できませんでした・{value}"
+    },
+    {
+      "name": "session_brief_days",
+      "value": "{count}日"
+    },
+    {
+      "name": "session_brief_hours",
+      "value": "{count}時間"
+    },
+    {
+      "name": "session_brief_minutes",
+      "value": "{count}分"
+    },
+    {
       "name": "session_brief_past",
       "value": "過去{hours}時間：完了 {done} 件・未達 {failed} 件"
     },

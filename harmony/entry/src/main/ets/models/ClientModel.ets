@@ -399,6 +399,16 @@ export class ClientModel {
     }
     return values;
   }
+  // Old briefing rows name a waiting card without its chat. Resolve it only from this owner's current snapshot.
+  briefWaitingSession(cardID: string): ResourceRow | undefined {
+    if (!cardID || !this.connected || this.attentionOwner !== JSON.stringify([this.generation, this.scope()])) return undefined;
+    const matches = this.attentionCards.filter((card: AgentAttentionCard) => card.id === cardID && !!card.session);
+    if (matches.length !== 1) return undefined;
+    const card = matches[0];
+    return this.sessions.find((row: ResourceRow) => row.manager === this.profile.manager &&
+      (!row.group || row.group === this.profile.id) && row.machine === card.machine && (row.session || row.id) === card.session);
+  }
+
   phoneAgentBadge(muted: (row: ResourceRow, space: string) => boolean): number {
     if (!this.connected) return 0;
     const current = this.attentionOwner === JSON.stringify([this.generation, this.scope()]);
