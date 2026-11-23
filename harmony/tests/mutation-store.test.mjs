@@ -11,6 +11,7 @@ registerHooks({
     if (specifier==='@kit.ArkData' || specifier==='@kit.AbilityKit') return {url:'persona-test:'+specifier,shortCircuit:true};
     if (specifier.endsWith('/core/StorageOwnership')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
     if (specifier.endsWith('/core/ScheduleTemplates')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
+    if (specifier.endsWith('/core/PhoneSettingsPermissions')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
     if (specifier === './ClientModel' && context.parentURL?.endsWith('/ManagementModel.ets')) return {url:'persona-test:client',shortCircuit:true};
     if (specifier === '@kit.ArkTS') return {url:'persona-test:arkts',shortCircuit:true};
     if (specifier.endsWith('/platform/LocalStore')) return {url:'persona-test:local',shortCircuit:true};
@@ -199,6 +200,30 @@ test('an uncertain file upload cannot be submitted again after restart',async()=
 
 const {ManagementModel,ManagementRow}=await import('../entry/src/main/ets/models/ManagementModel.ets');
 const {HttpFailure}=await import('persona-test:transport');
+test('AI twin keeps only its own permission, saves the actual revision, and can explicitly follow Agents again',async()=>{
+ const id='inbox.agent',endpoint='/api/v1/model-config/purposes/'+id,patches=[];
+ let permission='plan',revision=3,modelName='',conflict=false;
+ const detail=()=>({purpose:{id,kind:'launcher',category_id:'agent.new',revision,fields:['provider','model','effort','permission_mode'],
+   override:{permission_mode:permission,model:modelName},effective:{provider:'launcher.claude',permission_mode:'bypassPermissions'}},providers:[{id:'launcher.claude',kind:'launcher',agent:'claude'}]});
+ const model=managementClient(async(path,method='GET',body)=>{
+   if(path==='/api/v1/model-config')return {purposes:[{id}]};
+   if(path.includes('/providers/'))return {models:[]};
+   assert.equal(path,endpoint);
+   if(method==='PATCH'){patches.push(body);if(conflict)throw new HttpFailure(409,'conflict');assert.equal(body.revision,revision++);permission=body.permission_mode;modelName=body.model;}
+   return detail();
+ }),page=new ManagementModel();
+ await page.load('models',model);assert.equal(page.purposePermissionInEffect(),'default');assert.equal(page.purposeChanged(),false);
+ assert.deepEqual(page.permissionChoices(),['default','acceptEdits','auto','bypassPermissions']);
+ page.changePurposeDraft('permission_mode','plan');assert.equal(page.purposeChanged(),false);
+ page.changePurposeDraft('permission_mode','acceptEdits');assert.equal(await page.savePurpose(model),true);
+ page.changePurposeDraft('model','test-choice');assert.equal(await page.savePurpose(model),true);
+ assert.deepEqual(patches.map(p=>p.permission_mode),['acceptEdits','acceptEdits']);
+ page.restoreInboxInheritance();conflict=true;assert.equal(await page.savePurpose(model),false);assert.equal(page.purposeConflict,true);
+ assert.equal(page.purposeDraft.permissionMode,'');assert.equal(await page.savePurpose(model),false);assert.equal(patches.length,3);
+ conflict=false;await page.selectPurpose(model,id);assert.equal(page.purposeDraft.permissionMode,'acceptEdits');
+ page.restoreInboxInheritance();assert.equal(await page.savePurpose(model),true);assert.equal(patches.at(-1).permission_mode,null);
+ assert.equal(page.purposePermissionInEffect(),'default');
+});
 function managementClient(call){return {epoch:42,forgottenEpoch:0,forgottenProfile:'',profile:{id:'hub-profile',manager:'personal'},features:[],scope(){return 'hub:'+this.profile.manager;},connectionGeneration(){return this.epoch},owns(g,s){return g===this.epoch&&s===this.scope()},repo:()=>({call}),target:()=> 'session'};}
 test('settings can be reopened repeatedly regardless of connection generation',async()=>{
  const model=managementClient(async()=>({items:[{id:'one',connector:'mail'}]})),page=new ManagementModel();
@@ -706,4 +731,27 @@ test('the task retry explicitly preserves the ordinary empty request through the
  await repo.call('/other','POST',{},'',()=>true,false,acknowledged);
  assert.deepEqual(writes.map(({body})=>body),['','{"launcher":"codex"}','{}']);
  assert.equal(new Set(writes.map(x=>x.id)).size,3);assert.equal(repo.mutations.blocked().length,0);
+});
+
+test('model catalog pushes only disclosed editable uses and never falls back to a different purpose',async()=>{
+ const core={id:'agent.new',category_id:'agent.new',uses:[{id:'inbox.agent',name:'Inbox AI twin'}],fields:[]};
+ const offered={id:'inbox.agent',category_id:'agent.new',kind:'launcher',fields:['permission_mode']};
+ const readOnly={id:'legacy.child',category_id:'agent.new',fields:[]};
+ let rows=[offered,readOnly,core],requests=[];
+ const model=managementClient(async(path,verb='GET')=>{
+   requests.push([path,verb]);
+   if(path==='/api/v1/model-config')return {purposes:rows};
+   const id=path.split('/').at(-1);
+   return {purpose:{...rows.find(r=>r.id===id),revision:7,override:{},effective:{}}};
+ }),page=new ManagementModel();
+ await page.load('models_catalog',model);
+ assert.deepEqual(page.modelCatalogRows().map(r=>r.id),['agent.new','inbox.agent']);
+ assert.deepEqual(requests,[['/api/v1/model-config','GET']]);
+ await page.load('model_purpose',model,'inbox.agent');assert.equal(page.selectedId,'inbox.agent');
+ assert.equal(requests.at(-1)[0],'/api/v1/model-config/purposes/inbox.agent');
+ requests=[];await page.load('model_purpose',model,'legacy.child');
+ assert.equal(page.error,'no_capability');assert.equal(page.selectedId,'');assert.deepEqual(page.purpose,{});
+ assert.deepEqual(requests,[['/api/v1/model-config','GET']]);
+ rows=[{id:'old-real-use'},{id:'inbox.agent'}];await page.load('models_catalog',model);
+ assert.deepEqual(page.modelCatalogRows().map(r=>r.id),['old-real-use']);
 });

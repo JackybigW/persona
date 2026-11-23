@@ -44,7 +44,7 @@ export struct PhoneInboxSources {
   }
   @Computed get pageContext():Record<string,Object> {
     const manager=this.model.listedManagers().find((row:ResourceRow)=>row.id===this.model.profile.manager);
-    return {assistant:manager?.title || '',graph:this.model.features.includes('inbox_sources_graph')};
+    return Wire.payload(['assistant','graph'],[manager?.title || '',this.model.features.includes('inbox_sources_graph')]);
   }
   private current(frame:InboxSourcesFrame):boolean {
     return this.model.connected && this.owner===this.model.scope() && this.navigation.current()?.serial===frame.serial && this.model.features.includes('inbox_sources');

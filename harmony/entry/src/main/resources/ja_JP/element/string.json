@@ -8071,6 +8071,238 @@
     {
       "name": "phone_decision_full_text",
       "value": "全文を表示"
+    },
+    {
+      "name": "phone_settings_advanced",
+      "value": "詳細設定"
+    },
+    {
+      "name": "phone_advanced_footer",
+      "value": "外観、言語、ストレージ、デバイスなどの設定。"
+    },
+    {
+      "name": "phone_inbox_sources",
+      "value": "受信箱のソース"
+    },
+    {
+      "name": "phone_hubs",
+      "value": "Hub 接続"
+    },
+    {
+      "name": "phone_pairing",
+      "value": "デバイスとペアリング"
+    },
+    {
+      "name": "phone_settings_build",
+      "value": "ビルド"
+    },
+    {
+      "name": "phone_settings_data_size",
+      "value": "Appデータ"
+    },
+    {
+      "name": "phone_default_permissions",
+      "value": "デフォルト権限"
+    },
+    {
+      "name": "phone_new_conversation_permissions",
+      "value": "新しいチャットの権限"
+    },
+    {
+      "name": "phone_default_permission_footer",
+      "value": "個別に権限を選択していない新しいチャットに適用されます。既存のチャットは現在の権限モードを維持します。"
+    },
+    {
+      "name": "phone_permission_unconfirmed",
+      "value": "サーバーが新しいチャットの権限を確認しませんでした。"
+    },
+    {
+      "name": "phone_inbox_permissions",
+      "value": "受信トレイの権限"
+    },
+    {
+      "name": "phone_follow_agents",
+      "value": "Agents に従う"
+    },
+    {
+      "name": "phone_inbox_permission_hint",
+      "value": "AIツイン自体に保存された選択だけが適用されます。デフォルト権限では、ファイルの編集やコマンドの実行前に確認します。新しいチャットと、停止後に再開するチャットにこの選択を使用し、実行中のチャットは現在のモードを維持します。"
+    },
+    {
+      "name": "phone_search_alias_models",
+      "value": "モデル プロバイダー API キー API Key 用途 サブスクリプション 実行方式"
+    },
+    {
+      "name": "phone_search_alias_assistant",
+      "value": "アシスタント プロフィール 名前 メモリ メモ"
+    },
+    {
+      "name": "phone_search_alias_channels",
+      "value": "チャネル ボット メッセージ WeChat Feishu"
+    },
+    {
+      "name": "phone_search_alias_connectors",
+      "value": "コネクタ メール ソース アカウント 自分として送信"
+    },
+    {
+      "name": "phone_search_alias_phone_inbox_sources",
+      "value": "受信箱 ソース 購読 おすすめ メール ミュート"
+    },
+    {
+      "name": "phone_search_alias_extensions",
+      "value": "拡張機能 プラグイン マーケット ツール インストール"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_options",
+      "value": "Agent Claude Code Codex Antigravity agy セッション トリアージ ランタイム"
+    },
+    {
+      "name": "phone_search_alias_appearance",
+      "value": "外観 表示 色 テーマ スタイル 文字サイズ レイアウト ダーク ライト Return キーボード 送信"
+    },
+    {
+      "name": "phone_search_alias_phone_language_options",
+      "value": "言語 音声入力 ディクテーション キーボード"
+    },
+    {
+      "name": "phone_search_alias_notifications",
+      "value": "通知 プッシュ アラート ロック画面 プライバシー"
+    },
+    {
+      "name": "phone_search_alias_translation",
+      "value": "翻訳 言語"
+    },
+    {
+      "name": "phone_search_alias_storage",
+      "value": "ストレージ キャッシュ ディスク 消去"
+    },
+    {
+      "name": "phone_search_alias_about",
+      "value": "情報 バージョン ビルド commit 診断 新しいチャット チェック"
+    },
+    {
+      "name": "phone_search_alias_phone_hubs",
+      "value": "Hub サーバー 接続 アドレス ネットワーク トンネル"
+    },
+    {
+      "name": "phone_search_alias_hub_update",
+      "value": "Hub サーバー バージョン 更新 アップグレード"
+    },
+    {
+      "name": "phone_search_alias_managers",
+      "value": "アシスタント 管理 作成 デフォルト 切り替え"
+    },
+    {
+      "name": "phone_search_alias_phone_look_avatar",
+      "value": "アバター 顔 Persona アイコン 名前 共有"
+    },
+    {
+      "name": "phone_search_alias_phone_pairing",
+      "value": "デバイス ペアリング Watch 同期 切断 QR コード"
+    },
+    {
+      "name": "phone_search_alias_triage",
+      "value": "セッション トリアージ 委任 質問 権限"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_followup",
+      "value": "エージェント フォロー 監督 アイドル 停止 アーカイブ セッション 名前 ワークスペース タスク 開始"
+    },
+    {
+      "name": "phone_search_alias_phone_look_color",
+      "value": "テーマ 色 パレット"
+    },
+    {
+      "name": "phone_search_alias_phone_look_style",
+      "value": "インターフェース スタイル フォント 文字サイズ"
+    },
+    {
+      "name": "phone_search_alias_phone_look_scheme",
+      "value": "ライト ダーク システム 外観"
+    },
+    {
+      "name": "phone_search_alias_phone_knowledge_selection",
+      "value": "ナレッジベース 選択 ソース 優先順位 保持"
+    },
+    {
+      "name": "phone_search_alias_phone_meeting_options",
+      "value": "会議 録音 参加 文字起こし 議事録 用語集 Wi-Fi ハブ"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_layout",
+      "value": "Agents 一覧 レイアウト 行 カード コンパクト"
+    },
+    {
+      "name": "phone_search_alias_phone",
+      "value": "iPhone データ 権限 写真 連絡先 カレンダー リマインダー 位置 ヘルスケア クリップボード"
+    },
+    {
+      "name": "phone_search_alias_machines",
+      "value": "コンピュータ マシン ノード ペアリング"
+    },
+    {
+      "name": "phone_settings_cache_size",
+      "value": "キャッシュ"
+    },
+    {
+      "name": "phone_search_alias_phone_claude_config",
+      "value": "Claude Code"
+    },
+    {
+      "name": "phone_search_alias_phone_codex_config",
+      "value": "Codex"
+    },
+    {
+      "name": "phone_search_alias_phone_agy_config",
+      "value": "Antigravity agy"
+    },
+    {
+      "name": "phone_model_choose_uses",
+      "value": "用途ごとにモデルを選びます。"
+    },
+    {
+      "name": "phone_model_scope",
+      "value": "適用範囲"
+    },
+    {
+      "name": "phone_model_scope_hint",
+      "value": "カテゴリの設定が既定値になります。個別に設定した用途は、その設定を使います。変更は次の実行から適用されます。"
+    },
+    {
+      "name": "phone_model_provider_keys",
+      "value": "プロバイダーとキー"
+    },
+    {
+      "name": "phone_model_unset",
+      "value": "未設定"
+    },
+    {
+      "name": "phone_model_configured",
+      "value": "個別に設定済み"
+    },
+    {
+      "name": "phone_model_follow_main",
+      "value": "メインチャットに従う"
+    },
+    {
+      "name": "phone_model_none",
+      "value": "モデル設定はまだありません"
+    },
+    {
+      "name": "phone_hub_connected",
+      "value": "ハブに接続済み"
+    },
+    {
+      "name": "phone_hub_connected_ssh",
+      "value": "ハブに接続済み・SSHトンネル経由"
+    },
+    {
+      "name": "phone_hub_new_image",
+      "value": "新しいイメージ"
+    },
+    {
+      "name": "phone_hub_update_available",
+      "value": "アップデートあり"
     }
   ]
 }

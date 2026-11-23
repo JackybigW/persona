@@ -8071,6 +8071,238 @@
     {
       "name": "phone_decision_full_text",
       "value": "Show Full Text"
+    },
+    {
+      "name": "phone_settings_advanced",
+      "value": "Advanced"
+    },
+    {
+      "name": "phone_advanced_footer",
+      "value": "Appearance, language, storage, devices and more."
+    },
+    {
+      "name": "phone_inbox_sources",
+      "value": "Inbox Sources"
+    },
+    {
+      "name": "phone_hubs",
+      "value": "Hub Connection"
+    },
+    {
+      "name": "phone_pairing",
+      "value": "Devices & Pairing"
+    },
+    {
+      "name": "phone_settings_build",
+      "value": "Build"
+    },
+    {
+      "name": "phone_settings_data_size",
+      "value": "App Data"
+    },
+    {
+      "name": "phone_default_permissions",
+      "value": "Default Permissions"
+    },
+    {
+      "name": "phone_new_conversation_permissions",
+      "value": "New Conversation Permissions"
+    },
+    {
+      "name": "phone_default_permission_footer",
+      "value": "Applies to new conversations without an explicit choice. Existing conversations keep their current permission mode."
+    },
+    {
+      "name": "phone_permission_unconfirmed",
+      "value": "The hub did not confirm the new-conversation permission."
+    },
+    {
+      "name": "phone_inbox_permissions",
+      "value": "Inbox Permissions"
+    },
+    {
+      "name": "phone_follow_agents",
+      "value": "Follow Agents"
+    },
+    {
+      "name": "phone_inbox_permission_hint",
+      "value": "Only the AI twin's own choice applies. Default permissions asks before edits or commands. New chats and stopped chats use the choice when they resume; a running chat keeps its current mode."
+    },
+    {
+      "name": "phone_search_alias_models",
+      "value": "model providers API key purpose subscription launcher execution"
+    },
+    {
+      "name": "phone_search_alias_assistant",
+      "value": "profile name memory notes triage"
+    },
+    {
+      "name": "phone_search_alias_channels",
+      "value": "channel bot messaging WeChat Feishu"
+    },
+    {
+      "name": "phone_search_alias_connectors",
+      "value": "connector mail email sources accounts sent as you"
+    },
+    {
+      "name": "phone_search_alias_phone_inbox_sources",
+      "value": "inbox sources subscriptions recommended mail muted"
+    },
+    {
+      "name": "phone_search_alias_extensions",
+      "value": "extension plugin market tools install"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_options",
+      "value": "Agent Claude Code Codex Antigravity agy session triage runtime"
+    },
+    {
+      "name": "phone_search_alias_appearance",
+      "value": "appearance display color theme style text size layout dark light glow return enter keyboard send"
+    },
+    {
+      "name": "phone_search_alias_phone_language_options",
+      "value": "language dictation speech voice keyboard"
+    },
+    {
+      "name": "phone_search_alias_notifications",
+      "value": "notifications push alerts lock screen privacy"
+    },
+    {
+      "name": "phone_search_alias_translation",
+      "value": "translation translate language"
+    },
+    {
+      "name": "phone_search_alias_storage",
+      "value": "storage cache disk clear cleanup"
+    },
+    {
+      "name": "phone_search_alias_about",
+      "value": "about version build commit diagnostics new chat check"
+    },
+    {
+      "name": "phone_search_alias_phone_hubs",
+      "value": "Hub server connection address network tunnel"
+    },
+    {
+      "name": "phone_search_alias_hub_update",
+      "value": "Hub server version update upgrade"
+    },
+    {
+      "name": "phone_search_alias_managers",
+      "value": "assistants managers create default switch"
+    },
+    {
+      "name": "phone_search_alias_phone_look_avatar",
+      "value": "avatar face persona shared icon name"
+    },
+    {
+      "name": "phone_search_alias_phone_pairing",
+      "value": "devices pairing Watch sync disconnect unpair QR code"
+    },
+    {
+      "name": "phone_search_alias_triage",
+      "value": "session triage delegation questions permissions"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_followup",
+      "value": "agent follow-up supervise supervisor idle stop archive closed sessions names rename workspace start tasks"
+    },
+    {
+      "name": "phone_search_alias_phone_look_color",
+      "value": "theme color palette accent"
+    },
+    {
+      "name": "phone_search_alias_phone_look_style",
+      "value": "interface style fonts text size"
+    },
+    {
+      "name": "phone_search_alias_phone_look_scheme",
+      "value": "light dark system appearance"
+    },
+    {
+      "name": "phone_search_alias_phone_knowledge_selection",
+      "value": "knowledge base selection sources priorities retention"
+    },
+    {
+      "name": "phone_search_alias_phone_meeting_options",
+      "value": "meetings recording attendance transcription minutes glossary wi-fi hub"
+    },
+    {
+      "name": "phone_search_alias_phone_agent_layout",
+      "value": "Agents list layout rows cards compact"
+    },
+    {
+      "name": "phone_search_alias_phone",
+      "value": "iPhone data permissions photos contacts calendar reminders location health clipboard"
+    },
+    {
+      "name": "phone_search_alias_machines",
+      "value": "computers machines nodes pairing"
+    },
+    {
+      "name": "phone_settings_cache_size",
+      "value": "Cache"
+    },
+    {
+      "name": "phone_search_alias_phone_claude_config",
+      "value": "Claude Code"
+    },
+    {
+      "name": "phone_search_alias_phone_codex_config",
+      "value": "Codex"
+    },
+    {
+      "name": "phone_search_alias_phone_agy_config",
+      "value": "Antigravity agy"
+    },
+    {
+      "name": "phone_model_choose_uses",
+      "value": "Choose models for each use."
+    },
+    {
+      "name": "phone_model_scope",
+      "value": "Applies To"
+    },
+    {
+      "name": "phone_model_scope_hint",
+      "value": "Categories provide defaults. A separately configured use keeps its own settings. Changes take effect from the next run."
+    },
+    {
+      "name": "phone_model_provider_keys",
+      "value": "Providers and Keys"
+    },
+    {
+      "name": "phone_model_unset",
+      "value": "Not set up"
+    },
+    {
+      "name": "phone_model_configured",
+      "value": "Separately configured"
+    },
+    {
+      "name": "phone_model_follow_main",
+      "value": "Follow Main Chat"
+    },
+    {
+      "name": "phone_model_none",
+      "value": "No Model Configuration Yet"
+    },
+    {
+      "name": "phone_hub_connected",
+      "value": "Connected to hub"
+    },
+    {
+      "name": "phone_hub_connected_ssh",
+      "value": "Connected to hub · via SSH tunnel"
+    },
+    {
+      "name": "phone_hub_new_image",
+      "value": "New Image"
+    },
+    {
+      "name": "phone_hub_update_available",
+      "value": "Update Available"
     }
   ]
 }

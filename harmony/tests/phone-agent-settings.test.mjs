@@ -5,6 +5,7 @@ import test from 'node:test';
 
 registerHooks({
   resolve(specifier,context,next) {
+    if (specifier.endsWith('/core/PhoneSettingsPermissions')) return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
     if (context.parentURL?.endsWith('/PhoneAgentSettings.ets') && specifier==='./Wire')
       return {url:new URL('./Wire.ets',context.parentURL).href,shortCircuit:true};
     return next(specifier,context);
@@ -18,6 +19,29 @@ registerHooks({
 const {PhoneAgentSettings,AgentSettingTextDraft,agentPreferencePath,validAgentSetting,agentSettingValue,cleanAgentFolder}=
   await import('../entry/src/main/ets/models/PhoneAgentSettings.ets');
 const {ResourceRow}=await import('../entry/src/main/ets/models/Wire.ets');
+
+test('new conversation permissions require a matching manager receipt and restore a refused choice',async()=>{
+  let saved='default',answer='accept',release;
+  const env=harness(async(path,verb,body,admit)=>{
+    assert.equal(path,'/api/v1/assistant');
+    if(verb==='GET') return {manager:'work',default_permission_mode:saved};
+    assert.equal(verb,'PUT');assert.deepEqual(Object.keys(body),['default_permission_mode']);
+    if(answer==='deferred') await new Promise(resolve=>{release=resolve;});
+    if(!admit()) throw Error('retired');
+    if(answer==='refuse') return {manager:'work',default_permission_mode:saved};
+    if(answer==='wrong-owner') return {manager:'other',default_permission_mode:body.default_permission_mode};
+    saved=body.default_permission_mode;return {manager:'work',default_permission_mode:saved};
+  }),form=new PhoneAgentSettings();
+  await form.open(env.model,'phone_default_permissions');
+  assert.equal(await form.setConversationPermission('acceptEdits'),true);
+  await form.open(env.model,'phone_default_permissions');assert.equal(form.data.default_permission_mode,'acceptEdits');
+  for(const kind of ['refuse','wrong-owner']) {answer=kind;assert.equal(await form.setConversationPermission('auto'),false);assert.equal(form.data.default_permission_mode,'acceptEdits');}
+  answer='deferred';const write=form.setConversationPermission('plan');assert.equal(form.data.default_permission_mode,'plan');
+  assert.equal(await form.setConversationPermission('bypassPermissions'),false);form.close();release();
+  assert.equal(await write,false);assert.deepEqual(form.data,{});assert.equal(saved,'acceptEdits');
+  const legacy=harness(async()=>({manager:'work'}));await form.open(legacy.model,'phone_default_permissions');
+  assert.equal(await form.setConversationPermission('default'),false);assert.equal(legacy.calls.length,1);
+});
 
 function harness(request) {
   const calls=[],state={generation:1,scope:'work'};

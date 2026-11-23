@@ -1,3 +1,4 @@
+import { bindingPermission } from '../core/PhoneSettingsPermissions';
 import { PhoneSectionTitle } from '../design/PhoneStyle';
 import { Symbols } from '../design/Symbols';
 import { IconActions } from '../design/IconActions';
@@ -66,6 +67,7 @@ export struct SettingsPage {
   @Local computerName: string = '';
   @Local computerOs: string = 'mac';
   @Local purposeIndex: number = 0;
+  @Local modelScopeExpanded:boolean=false;
   @Local permissionMode: string = '';
   @Local effortMode: string = '';
   @Local scheduleEditOpen: boolean = false;
@@ -125,14 +127,14 @@ export struct SettingsPage {
     if (!current()) return;
     await this.look.bind(owner);
   }
-  private basePage(): string { return this.page === 'extension_detail' || this.page === 'extension_catalog' ? 'extensions' : this.page === 'connector_detail' ? 'connectors' : this.page === 'channel_detail' ? 'channels' : this.page; }
+  private basePage(): string { return this.page==='models' ? 'models_catalog' : this.page === 'extension_detail' || this.page === 'extension_catalog' ? 'extensions' : this.page === 'connector_detail' ? 'connectors' : this.page === 'channel_detail' ? 'channels' : this.page; }
   private async loadSettingsPage(): Promise<void> {
     if (!this.mounted || !this.active) return;
     if (this.page === 'machines') { await this.loadMachineDirectory(); return; }
     const page = this.page, owner = this.model, generation = owner.connectionGeneration(), scope = owner.scope(), revision = ++this.machineRevision, target = owner.selected;
     const current = (): boolean => this.mounted && this.active && this.page === page && this.model === owner && revision === this.machineRevision && owner.owns(generation, scope);
     this.management.setAdmission(current);
-    await this.management.load(this.basePage(), owner); if (!current()) return;
+    await this.management.load(this.basePage(), owner, page==='model_purpose' ? target.id : ''); if (!current()) return;
     const row = new ManagementRow(target.id, target.title, target.detail, target.data());
     if (page === 'extension_detail') await this.management.openExtension(owner, row);
     else if (page === 'connector_detail') this.management.openConnector(row);
@@ -323,6 +325,14 @@ export struct SettingsPage {
   }
   private purposeChanged(): boolean {
     return this.management.purposeChanged();
+  }
+  private purposePermissionOptions():string[] {
+    const options=this.management.permissionChoices(),value=this.management.purposeDraft.permissionMode;
+    if (!options.length) return [];
+    return [''].concat(options,value && !options.includes(value) ? [value] : []);
+  }
+  private purposePermissionName(value:string):string {
+    return value ? this.modeName('permission_mode',value) : tr(this.management.selectedId==='inbox.agent' ? 'phone_default_permissions' : 'default');
   }
   private modeOptions(): string[] {
     const values = ['default', 'acceptEdits', 'plan', 'auto'];
@@ -548,9 +558,68 @@ export struct SettingsPage {
     if (this.showError()) ListItem() { Text(trError(this.management.error)).fontColor($r('app.color.persona_danger')).padding(Tokens.inset) }
   }
 
+  private purposeSummary(row:Record<string,Object>):string {
+    const effective=Wire.object(row,'effective'),mode=Wire.text(row,'kind')==='launcher' ?
+      (Wire.text(row,'id')==='inbox.agent' ? bindingPermission('inbox.agent',Wire.text(Wire.object(row,'override'),'permission_mode')) || 'default' :
+        Wire.text(effective,'permission_mode')) : '';
+    const effort=Wire.text(effective,'effort');
+    return [Wire.text(effective,'model'),effort ? tr(effort) : '',mode ? this.purposePermissionName(mode) : '']
+      .filter((value:string)=>!!value).join(' · ') || tr(Wire.text(effective,'provider') ? 'automatic' : 'phone_model_unset');
+  }
+  private purposeInheritance(row:Record<string,Object>):string {
+    const parent=Wire.text(row,'parent');
+    if (!Wire.strings(row,'fields').length || (parent!=='agent.new' && Wire.text(row,'id')!=='assistant.supervise')) return '';
+    const binding=Wire.object(row,'override');
+    return tr(Object.keys(binding).some((key:string)=>!!Wire.text(binding,key)) ? 'phone_model_configured' :
+      parent==='agent.new' ? 'phone_follow_agents' : 'phone_model_follow_main');
+  }
+  private openPurpose(row:Record<string,Object>):void {
+    const id=Wire.text(row,'id');
+    if (!id || !this.management.modelCatalogRows().some((entry:Record<string,Object>)=>Wire.text(entry,'id')===id)) return;
+    this.openDetail('model_purpose',new ManagementRow(id,this.purposeLabel(row),Wire.text(row,'description'),row));
+  }
+  @Builder modelCatalogPage() {
+    List({space:8}) {
+      if (this.management.loading) ListItem() { LoadingProgress().height(30).width(30) }
+      if (this.management.error) ListItem() { Column({space:6}) {
+        Text(trError(this.management.error)).fontColor(Colors.danger)
+        Button(tr('retry'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(()=>{this.loadSettingsPage();})
+      } }
+      if (this.management.modelCatalogRows().length) {
+        ListItem() { PhoneSectionTitle({text:tr('phone_model_choose_uses')}) }
+        ForEach(this.management.modelCatalogRows(),(row:Record<string,Object>)=>{
+          ListItem() {
+            Button({type:ButtonType.Normal}) {
+              Column({space:4}) {
+                Text(this.purposeLabel(row)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.ink).maxLines(1)
+                if (Wire.text(row,'description').trim()) Text(Wire.text(row,'description').trim()).fontSize(13).fontColor(Colors.secondary)
+                Text(this.purposeSummary(row)).fontSize(15).maxLines(1).fontColor(Colors.secondary)
+                if (this.purposeInheritance(row)) Text(this.purposeInheritance(row)).fontSize(13).fontColor(Colors.secondary)
+                if (Wire.text(row,'status')) Text(Wire.text(row,'status')).fontSize(13).fontColor(Colors.secondary)
+              }.alignItems(HorizontalAlign.Start).width('100%')
+            }.width('100%').padding({left:16,right:16,top:9,bottom:9}).backgroundColor(Colors.card(false))
+              .onClick(()=>this.openPurpose(row)).id('model-purpose-'+Wire.text(row,'id'))
+          }
+        },(row:Record<string,Object>)=>Wire.text(row,'id'))
+        if (this.management.modelCategories().length) {
+          ListItem() { Button(tr('phone_model_scope'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(()=>{this.modelScopeExpanded=!this.modelScopeExpanded;}).id('model-config-scope') }
+          if (this.modelScopeExpanded) ForEach(this.management.modelCategories(),(row:Record<string,Object>)=>{
+            ListItem() { Column({space:4}) {
+              Text(this.purposeLabel(row)).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
+              Text(Wire.rows(row,'uses').map((use:Record<string,Object>)=>Wire.text(use,'name')).filter((name:string)=>!!name).join('、')).fontSize(15).fontColor(Colors.secondary)
+            }.alignItems(HorizontalAlign.Start).padding(12) }
+          },(row:Record<string,Object>)=>Wire.text(row,'id'))
+          ListItem() { Text(tr('phone_model_scope_hint')).fontSize(13).fontColor(Colors.secondary).padding(8) }
+        }
+      } else if (!this.management.loading && !this.management.error) { ListItem() { Text(tr('phone_model_none')).fontColor(Colors.secondary).padding(16) } }
+      ListItem() { PhoneSectionTitle({text:tr('phone_settings_advanced')}) }
+      ListItem() { Button(tr('phone_model_provider_keys'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(()=>this.onOpen('launchers')).id('settings-model-providers') }
+    }.width('100%').height('100%').padding({left:16,right:16,top:12,bottom:16}).backgroundColor(Colors.grouped)
+  }
+
   @Builder modelsPage() {
     Column() {
-      if (this.management.catalogPurposes.length > 0) {
+      if (this.page!=='model_purpose' && this.management.catalogPurposes.length > 0) {
         Select(this.selectOptions(this.management.catalogPurposes.map((item: Record<string, Object>) => this.purposeLabel(item)))).attributeModifier(SelectStyles.inline)
           .selected(this.purposeIndex).value(this.purposeLabel(this.management.catalogPurposes[this.purposeIndex] || {}))
           .onSelect((index: number) => {
@@ -595,8 +664,29 @@ export struct SettingsPage {
           if (Wire.text(this.management.purpose, 'status')) ListItem() {
             ComposeListItemV2({ contentItemV2: new ContentItemV2({ primaryText: tr('status'), secondaryText: Wire.text(this.management.purpose, 'status') }) })
           }
-          ListItem() { Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('save')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('save', true)]) }.attributeModifier(ButtonStyles.iconPrimary).accessibilityText(tr('save')).bindTips(tr('save')).enabled(this.purposeChanged() && !this.management.saving)
-            .onClick(() => this.management.savePurpose(this.model)) }
+          if (this.management.purposePermissionInEffect()) ListItem() {
+            ComposeListItemV2({contentItemV2:new ContentItemV2({primaryText:tr('permissions'),
+              secondaryText:this.purposePermissionName(this.management.purposePermissionInEffect())})})
+          }.id('settings.model.permission_effective')
+          if (this.purposePermissionOptions().length) ListItem() {
+            Column({space:6}) {
+              Text(tr(this.management.selectedId==='inbox.agent' ? 'phone_inbox_permissions':'permissions')).fontSize(16).fontColor(Colors.ink)
+              Select(this.selectOptions(this.purposePermissionOptions().map((v:string)=>this.purposePermissionName(v)))).attributeModifier(SelectStyles.inline)
+                .value(this.purposePermissionName(this.management.purposeDraft.permissionMode)).enabled(!this.management.saving && !this.management.purposeConflict)
+                .onSelect((index:number)=>{const values=this.purposePermissionOptions();if(index>=0 && index<values.length)this.management.changePurposeDraft('permission_mode',values[index]);})
+                .id('settings.model.permission')
+              if (this.management.selectedId==='inbox.agent') {
+                Text(tr('phone_inbox_permission_hint')).fontSize(13).fontColor(this.management.purposeDraft.permissionMode==='bypassPermissions' ? Colors.danger:Colors.secondary)
+                Button(tr('phone_follow_agents'),{buttonStyle:ButtonStyleMode.TEXTUAL}).enabled(!this.management.saving && !this.management.purposeConflict)
+                  .onClick(()=>{this.management.restoreInboxInheritance();this.management.loadPurposeModels(this.model);}).id('settings.model.follow_agents')
+              }
+            }.width('100%').alignItems(HorizontalAlign.Start).padding(Tokens.inset)
+          }
+          if (this.management.purposeConflict) ListItem() {
+            Button(tr('retry'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(()=>{this.management.selectPurpose(this.model,this.management.selectedId);}).id('settings.model.reload')
+          }
+          ListItem() { Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('save')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('save', true)]) }.attributeModifier(ButtonStyles.iconPrimary).accessibilityText(tr('save')).bindTips(tr('save'))
+            .enabled(this.purposeChanged() && !this.management.saving && !this.management.purposeConflict).onClick(() => this.management.savePurpose(this.model)).id('settings.model.save') }
         }
         if (this.management.error) ListItem() { Text(trError(this.management.error)).fontColor($r('app.color.persona_danger')).padding(Tokens.inset) }
       }.width('100%').layoutWeight(1)
@@ -1343,7 +1433,8 @@ export struct SettingsPage {
   build() {
     Column() {
       if (this.management.loading) LoadingProgress().height(Tokens.touch).width(Tokens.touch)
-      if (this.page === 'models' || this.page === 'translation') this.modelsPage()
+      if (this.page === 'models') this.modelCatalogPage()
+      else if (this.page === 'model_purpose' || this.page === 'translation') this.modelsPage()
       else if (this.page === 'session_permissions') this.sessionModePage('permission_mode')
       else if (this.page === 'session_effort') this.sessionModePage('effort')
       else if (this.page === 'machines') this.machinesPage()

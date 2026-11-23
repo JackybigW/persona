@@ -12,13 +12,11 @@ import { ClientModel } from '../models/ClientModel';
 import { ResourceRow, Wire } from '../models/Wire';
 import { MeetingPreferences, settingsMeetingRoleLabel } from '../models/MeetingPreferences';
 import { machineOnline } from '../models/MachineDashboard';
+import { PhoneDefaultPermissionSection } from './PhoneDefaultPermissionSection';
+import { phoneSettingsRows,phoneSettingsSearchCatalog,phoneHubUpdateMessage } from '../core/PhoneSettingsNavigation';
 
 const AGENT_OPTIONS:string[] = ['phone_agent_folders','phone_claude_config','phone_codex_config','phone_agy_config','triage'];
-const SEARCH_ROUTES:string[] = ['phone_agent_followup','phone_agent_layout','launchers','engine','schedules'];
-const LOOK_SEARCH_OPTIONS:string[] = ['phone_look_color','phone_look_style','phone_look_scheme'];
-const ASSISTANT_OPTIONS:string[] = ['models','assistant','channels','connectors','phone_knowledge_selection','phone_meeting_options','phone_agent_options','machines'];
-const DEVICE_OPTIONS:string[] = ['appearance','phone_language_options','notifications','translation','phone','privacy'];
-const HUB_OPTIONS:string[] = ['managers','phone_look_avatar','extensions','memory','ssh','hub_update','node_update','ledger','diagnostics'];
+const LOCAL_SEARCH_ROUTES:string[] = ['phone_agent_folders','launchers','engine','schedules','privacy','memory','ssh','node_update','ledger','diagnostics'];
 const LANGUAGES:string[] = ['default','zh-CN','en-US','ja-JP'];
 
 function languageName(tag:string):string {
@@ -37,6 +35,12 @@ function settingIcon(id:string):Resource {
     case 'channels': return $r('sys.symbol.ellipsis_bubble');
     case 'connectors': return $r('sys.symbol.link');
     case 'extensions': return Symbols.apps;
+    case 'phone_inbox_sources': return Symbols.inbox;
+    case 'phone_hubs': return $r('sys.symbol.link');
+    case 'phone_pairing': return $r('sys.symbol.qrcode');
+    case 'phone_settings_advanced': return $r('sys.symbol.slider_horizontal_2');
+    case 'storage': return $r('sys.symbol.doc_plaintext');
+    case 'about': return $r('sys.symbol.info_circle');
     case 'phone_knowledge_selection':
     case 'memory': return $r('sys.symbol.book');
     case 'phone_meeting_options': return Symbols.calendar;
@@ -103,15 +107,10 @@ function settingLabel(id:string, label:(page:string)=>string):string {
   return tr(label(id));
 }
 
-const ALIASES:Record<string,string> = {
-  'phone_look_avatar':'phone_look_avatar_alias','phone_look_color':'phone_look_color_alias','phone_look_style':'phone_look_style_alias','phone_look_scheme':'phone_look_scheme_alias',
-  'models':'settings_alias_models', 'appearance':'settings_alias_appearance', 'phone_language_options':'settings_alias_language',
-  'machines':'settings_alias_machines', 'phone_agent_options':'settings_alias_agents'
-};
-
 @ComponentV2
 export struct SettingsDirectory {
   @Param elevated: boolean = false;
+  @Param advanced:boolean = false;
   @Require @Param model: ClientModel;
   @Param ownerName: string = '';
   @Param avatar: string = '';
@@ -125,10 +124,22 @@ export struct SettingsDirectory {
   @Event onQueryChange: (query: string) => void = () => {};
   private field: TextInputController = new TextInputController();
   private mounted: boolean = false;
+  private statusRevision:number=0;
+  @Local hubUpdate:Record<string,Object>={};
 
-  aboutToAppear(): void { this.mounted=true; this.query=this.initialQuery; this.meeting.open(this.model); }
-  aboutToDisappear():void { this.mounted=false; this.meeting.close(); }
-  @Monitor('model.profile','model.features','model.connected') meetingOwnerChanged():void { this.meeting.open(this.model); }
+  aboutToAppear(): void { this.mounted=true; this.query=this.initialQuery; this.meeting.open(this.model); this.readHubStatus(); }
+  aboutToDisappear():void { this.mounted=false; this.statusRevision++; this.meeting.close(); }
+  @Monitor('model.profile','model.features','model.connected') meetingOwnerChanged():void { this.meeting.open(this.model);this.readHubStatus(); }
+  private async readHubStatus():Promise<void> {
+    const owner=this.model,revision=++this.statusRevision;
+    this.hubUpdate={};
+    if (!this.mounted || owner.demo || !owner.connected) return;
+    const epoch=owner.connectionGeneration(),scope=owner.scope();
+    try {
+      const update=await owner.repo().call('/api/v1/hub/update');
+      if (this.mounted && revision===this.statusRevision && this.model===owner && owner.owns(epoch,scope)) this.hubUpdate=update;
+    } catch (_) { /* Older hubs omit this optional status. */ }
+  }
 
   @Computed get managers():ResourceRow[] {
     return this.model.listedManagers().filter((r:ResourceRow) => !r.isInstallingManager());
@@ -138,6 +149,11 @@ export struct SettingsDirectory {
   }
   private account():string { return this.currentManager()?.title || this.ownerName || tr('persona'); }
   private subtitle(id:string):string {
+    if (id==='phone_hubs') return tr(!this.model.connected ? 'offline' : this.model.ssh.phase==='connected' ? 'phone_hub_connected_ssh' : 'phone_hub_connected');
+    if (id==='hub_update' || id==='phone_settings_advanced') {
+      const message=phoneHubUpdateMessage(Wire.text(this.hubUpdate,'state'),Wire.bool(Wire.object(this.hubUpdate,'latest'),'newer'),Wire.text(this.hubUpdate,'channel'));
+      return message ? tr(message) : id==='hub_update' ? Wire.text(this.hubUpdate,'version') : '';
+    }
     if (id==='phone_meeting_options') return this.meeting.ready ? tr(settingsMeetingRoleLabel(this.meeting.role)) : '';
     if (id === 'phone_language_options') return currentLanguage(this.model);
     if (id === 'machines') {
@@ -154,13 +170,15 @@ export struct SettingsDirectory {
     const query = this.query.trim().toLowerCase();
     if (!query) return [];
     const words = query.split(/\s+/);
-    const direct = ASSISTANT_OPTIONS.concat(SEARCH_ROUTES,DEVICE_OPTIONS,HUB_OPTIONS,LOOK_SEARCH_OPTIONS);
-    const agentDestinations = AGENT_OPTIONS.filter((id:string) => id!=='phone_agent_folders');
-    return direct.concat(agentDestinations).filter((id:string) => {
-      const aliases = ALIASES[id] ? tr(ALIASES[id]) : '';
-      const terms = [settingLabel(id,this.label), this.subtitle(id), aliases].join(' ').toLocaleLowerCase();
+    const listed=phoneSettingsSearchCatalog.filter((id:string) => {
+      const aliases=tr('phone_search_alias_'+id);
+      const terms = [settingLabel(id,this.label),aliases].join(' ').toLocaleLowerCase();
       return words.every((word:string) => terms.includes(word));
     });
+    return listed.concat(LOCAL_SEARCH_ROUTES.filter((id:string)=>settingLabel(id,this.label).toLocaleLowerCase()===query));
+  }
+  private rows(group:string):string[] {
+    return phoneSettingsRows(this.advanced,group,this.model.features,!!this.model.profile.id&&!this.model.demo);
   }
   private restoreSearchFocus(): void {
     const query=this.initialQuery, scope=this.model.scope();
@@ -206,7 +224,7 @@ export struct SettingsDirectory {
         Column() {
           ForEach(entries ?? this.results,(id:string,ix:number) => {
             PhoneSettingsRow({elevated:this.elevated,label:settingLabel(id,this.label),detail:this.subtitle(id),symbol:settingIcon(id),artwork:settingArtwork(id),tint:Colors.iconAccent,
-              identity:'settings.'+id,last:ix+1===(entries ?? this.results).length,action:() => this.openEntry(id)})
+              identity:id==='phone_settings_advanced' ? 'settings.advanced' : 'settings.'+id,last:ix+1===(entries ?? this.results).length,action:() => this.openEntry(id)})
           },(id:string,ix:number) => JSON.stringify([id,ix,this.subtitle(id),(entries ?? this.results).length]))
           if (!(entries ?? this.results).length) Text(tr('no_results')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.secondary).width('100%').padding(15).id('settings.no_results')
         }.width('100%').clip(true).backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius)
@@ -215,7 +233,7 @@ export struct SettingsDirectory {
   }
   build() {
     List() {
-      ListItem() {
+      if (!this.advanced) ListItem() {
         Row({space:8}) {
           Row({space:7}) {
           SymbolGlyph($r('sys.symbol.magnifyingglass')).fontSize('16vp').fontColor([Colors.secondary])
@@ -234,19 +252,25 @@ export struct SettingsDirectory {
             .onClick(() => { this.field.stopEditing(); this.onDismissSearch(); }).id('settings.close')
         }.width('100%').margin({bottom:10})
       }
-      if (this.query.trim()) {
+      if (this.query.trim() && !this.advanced) {
         this.section(tr('settings_search_results'))
       } else {
-        ListItem() { this.identity() }
-        this.section('',ASSISTANT_OPTIONS)
-        ListItem() {
+        if (!this.advanced) ListItem() { this.identity() }
+        if (this.rows('assistant').length) this.section(this.advanced ? this.account() : '',this.rows('assistant'))
+        if (!this.advanced) ListItem() {
           Text(tr('phone_settings_owner_note').replace('{name}',this.account())).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
             .fontColor(Colors.secondary).width('100%').padding({left:13,right:12,top:6,bottom:5})
         }
-        this.section(tr('phone_settings_device'),DEVICE_OPTIONS)
-        this.section(tr('phone_settings_hub'),HUB_OPTIONS)
+        if (this.rows('device').length) this.section(tr('phone_settings_device'),this.rows('device'))
+        if (this.rows('hub').length) this.section(tr('phone_settings_hub'),this.rows('hub'))
+        if (!this.advanced) {
+          this.section('',['phone_settings_advanced'])
+          ListItem() { Text(tr('phone_advanced_footer')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+            .fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:5,bottom:12}) }
+        }
       }
-    }.width('100%').height('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:this.showDismissSearch && this.query.trim() ? 16 : 0,bottom:24}).backgroundColor(Colors.listGroup(this.elevated))
+    }.width('100%').height('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:this.advanced ? 12 : this.showDismissSearch && this.query.trim() ? 16 : 0,bottom:24})
+      .backgroundColor(Colors.listGroup(this.elevated)).id(this.advanced ? 'settings.advanced.list' : 'settings.directory')
   }
 }
 
@@ -293,6 +317,7 @@ export struct PhoneSettingsOptions {
   build() {
     List() {
       if (this.page === 'phone_agent_options') {
+        PhoneDefaultPermissionSection({model:this.model,elevated:this.elevated})
         ListItem() {
         Column() {
           ForEach(AGENT_OPTIONS,(id:string,ix:number) => {

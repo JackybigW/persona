@@ -144,6 +144,9 @@ export class DemoRepository extends HubRepository {
   private transcripts: Map<string, DemoRecord[]> = new Map();
   private pinsData: DemoRecord = {};
   private mutesData: DemoRecord = {};
+  private defaultChatPermission:string='default';
+  private inboxModelBinding:DemoRecord={};
+  private inboxModelRevision:number=0;
   private interactionsData: DemoRecord[] = [];
   private operationResults: Map<string, DemoRecord> = new Map();
   private operationOrder: string[] = [];
@@ -160,6 +163,7 @@ export class DemoRepository extends HubRepository {
 
   /** Reset only the synthetic in-memory world; no user or real-Hub storage is touched. */
   reset(): void {
+    this.defaultChatPermission='default';this.inboxModelBinding={};this.inboxModelRevision=0;
     this.counter = 0; this.messageSequence = 0; this.transcripts = new Map(); this.operationResults = new Map(); this.operationOrder = [];
     this.pinsData = demoRecord(['spaces', 'sessions'], [[], []]);
     this.mutesData = demoRecord(['spaces', 'sessions', 'allowed'], [[], [], []]);
@@ -312,6 +316,7 @@ export class DemoRepository extends HubRepository {
     if (admit && !admit()) throw new HttpFailure(0, 'request_updated', false);
 
     const resource = parts[0];
+    if (resource==='model-config') return this.modelConfig(parts,verb,input);
     if (resource === 'assistant') return this.assistant(parts, verb, input, operationId);
     if (resource === 'managers') return this.managers(parts, verb);
     if (resource === 'machines') return this.machinesRoute(parts, verb);
@@ -406,8 +411,13 @@ export class DemoRepository extends HubRepository {
   }
 
   private assistant(parts: string[], method: string, body: DemoRecord, _operationId: string): DemoRecord {
-    if (parts.length === 1 && method === 'GET') return demoRecord(['main', 'machine_id', 'conversations'],
-      [this.mainId, DEMO_MACHINE, cloneRecords(this.conversationsData)]);
+    if (parts.length===1 && method==='PUT') {
+      const mode=Wire.text(body,'default_permission_mode');
+      if (Object.keys(body).length!==1 || !['default','acceptEdits','plan','auto','bypassPermissions'].includes(mode)) throw new HttpFailure(400,'demo_invalid_input');
+      this.defaultChatPermission=mode;
+    }
+    if (parts.length === 1 && (method === 'GET' || method==='PUT')) return demoRecord(['main', 'machine_id','manager','default_permission_mode','conversations'],
+      [this.mainId, DEMO_MACHINE,DEMO_MANAGER,this.defaultChatPermission,cloneRecords(this.conversationsData)]);
     if (parts.length === 2 && parts[1] === 'conversations' && method === 'POST') {
       if (Wire.bool(body, 'main')) {
         const main = this.conversationsData.find((item: DemoRecord) => Wire.bool(item, 'main'));
@@ -416,8 +426,10 @@ export class DemoRepository extends HubRepository {
       }
       this.ensureRoom(this.conversationsData);
       const id = 'demo-conversation-' + (++this.counter);
-      const conversation = demoRecord(['id', 'session_id', 'machine_id', 'manager', 'title', 'main', 'kind'],
-        [id, id, DEMO_MACHINE, DEMO_MANAGER, 'New conversation', false, 'recent']);
+      const mode=Wire.text(body,'permission_mode',this.defaultChatPermission);
+      if (!['default','acceptEdits','plan','auto','bypassPermissions'].includes(mode)) throw new HttpFailure(400,'demo_invalid_input');
+      const conversation = demoRecord(['id', 'session_id', 'machine_id', 'manager', 'title', 'main', 'kind','permission_mode'],
+        [id, id, DEMO_MACHINE, DEMO_MANAGER, 'New conversation', false, 'recent',mode]);
       this.conversationsData.push(conversation); this.transcripts.set(this.transcriptKey(DEMO_MACHINE, id), []);
       return demoRecord(['session'], [cloneRecord(conversation)]);
     }
@@ -426,6 +438,38 @@ export class DemoRepository extends HubRepository {
       return demoRecord(['items'], [[]]);
     }
     throw new HttpFailure(404, 'demo_unsupported');
+  }
+
+  private modelConfig(parts:string[],method:string,body:DemoRecord):DemoRecord {
+    const fields=['provider','model','effort','permission_mode'];
+    const provider=demoRecord(['id','name','kind','agent'],['launcher.demo','Demo Agent','launcher','claude']);
+    const effective=demoRecord(['provider','model','permission_mode'],['launcher.demo','demo-model','default']);
+    if (parts[1]==='providers' && parts[2]==='launcher.demo' && parts[3]==='models' && method==='GET')
+      return demoRecord(['models'],[[demoRecord(['id','name'],['demo-model','Demo Model'])]]);
+    if (parts[1]==='purposes' && parts[2]==='inbox.agent' && method==='PATCH') {
+      if (Wire.number(body,'revision',-1)!==this.inboxModelRevision) throw new HttpFailure(409,'request_updated');
+      for (const key of Object.keys(body)) {
+        if (key!=='revision' && (!fields.includes(key) || body[key]!==null && typeof body[key]!=='string')) throw new HttpFailure(400,'demo_invalid_input');
+        if (key==='permission_mode' && body[key]!==null && !['default','acceptEdits','auto','bypassPermissions'].includes(Wire.text(body,key))) throw new HttpFailure(400,'demo_invalid_input');
+      }
+      const next:DemoRecord={};
+      for (const key of fields) {
+        const value=Wire.has(body,key) ? body[key] : this.inboxModelBinding[key];
+        if (typeof value==='string') next[key]=value;
+      }
+      this.inboxModelBinding=next;this.inboxModelRevision++;
+    } else if (method!=='GET') throw new HttpFailure(404,'demo_unsupported');
+    const noOverrides:DemoRecord={};
+    const uses:DemoRecord[]=[demoRecord(['id','name'],['inbox.agent','Inbox AI twin'])];
+    const parent=demoRecord(['id','category_id','name','kind','override','effective','revision','fields','uses'],
+      ['agent.new','agent.new','Agents','launcher',noOverrides,effective,0,new Array<string>(),uses]);
+    const live=cloneRecord(effective);for (const key of Object.keys(this.inboxModelBinding)) live[key]=this.inboxModelBinding[key];
+    const twin=demoRecord(['id','category_id','parent','name','kind','override','effective','revision','fields'],
+      ['inbox.agent','agent.new','agent.new','Inbox AI twin','launcher',cloneRecord(this.inboxModelBinding),live,this.inboxModelRevision,fields]);
+    if (parts.length===1) return demoRecord(['purposes','providers'],[[parent,twin],[provider]]);
+    if (parts.length===3 && parts[1]==='purposes' && ['agent.new','inbox.agent'].includes(parts[2]))
+      return demoRecord(['purpose','providers'],[parts[2]==='inbox.agent' ? twin : parent,[provider]]);
+    throw new HttpFailure(404,'demo_unsupported');
   }
 
   private managers(parts: string[], method: string): DemoRecord {

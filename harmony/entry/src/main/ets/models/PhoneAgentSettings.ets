@@ -1,5 +1,6 @@
 import type { ClientModel } from './ClientModel';
 import { ResourceRow, Wire } from './Wire';
+import { conversationPermissionModes } from '../core/PhoneSettingsPermissions';
 
 const MACHINE_PAGES: Record<string,string> = {
   'phone_agent_folders':'agent-dirs/hidden', 'phone_claude_config':'claude-settings',
@@ -12,7 +13,7 @@ export const FOLLOW_FIELDS: Record<string,string> = {
 };
 
 export function agentPreferencePath(page:string, machine:string):string {
-  if (page === 'phone_agent_followup') return '/api/v1/assistant';
+  if (page === 'phone_agent_followup' || page === 'phone_default_permissions') return '/api/v1/assistant';
   const suffix = MACHINE_PAGES[page];
   return suffix && machine ? '/api/v1/machines/' + encodeURIComponent(machine) + '/' + suffix : '';
 }
@@ -79,7 +80,13 @@ export class PhoneAgentSettings {
     this.loading = true; this.error = '';
     try {
       const result = await model.repo().call(path);
-      if (this.current(serial)) this.data = result;
+      if (this.current(serial)) {
+        const manager=Wire.text(result,'manager');
+        if (this.page==='phone_default_permissions' && Wire.has(result,'manager') && model.profile.manager && manager!==model.profile.manager) {
+          this.data={};this.error='request_updated';
+        }
+        else this.data = result;
+      }
     } catch (_) { if (this.current(serial)) this.error='failed'; }
     finally { if (this.current(serial)) this.loading=false; }
   }
@@ -93,6 +100,28 @@ export class PhoneAgentSettings {
     const option = Wire.rows(this.data,'settings').find((row:Record<string,Object>) => Wire.text(row,'key') === key);
     if (!option || !validAgentSetting(option,value)) return false;
     return agentSettingValue(option) === value || await this.write(Wire.payload(['key','value'],[key,value]));
+  }
+
+  async setConversationPermission(value:string):Promise<boolean> {
+    const model=this.model, prior=Wire.text(this.data,'default_permission_mode');
+    if (!model?.connected || !this.current(this.serial) || this.page!=='phone_default_permissions' ||
+      !prior || !conversationPermissionModes.includes(value) || this.loading || this.saving || !!this.error || Wire.bool(this.data,'read_only')) return false;
+    if (prior===value) return true;
+    const before=this.data, serial=++this.serial;
+    this.saving=true; this.notice='';
+    const optimistic=Wire.parse(JSON.stringify(before));optimistic['default_permission_mode']=value;this.data=optimistic;
+    try {
+      const confirmed=(row:Record<string,Object>):boolean => Wire.text(row,'default_permission_mode')===value &&
+        (!Wire.has(row,'manager') || !model.profile.manager || Wire.text(row,'manager')===model.profile.manager);
+      const reply=await model.repo().call('/api/v1/assistant','PUT',Wire.payload(['default_permission_mode'],[value]),'',
+        () => this.current(serial),false,confirmed);
+      if (!this.current(serial)) return false;
+      if (!confirmed(reply)) throw new Error('unconfirmed');
+      this.data=reply; return true;
+    } catch (_) {
+      if (this.current(serial)) { this.data=before;this.notice='phone_permission_unconfirmed'; }
+      return false;
+    } finally { if (this.current(serial)) this.saving=false; }
   }
 
   async changeFolder(pattern:string, replacement:Record<string,Object> | undefined, adding:boolean = false):Promise<boolean> {

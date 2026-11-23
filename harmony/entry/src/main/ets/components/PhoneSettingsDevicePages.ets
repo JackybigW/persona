@@ -1,0 +1,89 @@
+import { bundleManager } from '@kit.AbilityKit';
+import { storageStatistics } from '@kit.CoreFileKit';
+import { Colors } from '../design/Colors';
+import { PhoneStyle } from '../design/PhoneStyle';
+import { Tokens } from '../design/Tokens';
+import { tr } from '../design/Strings';
+import { ClientModel } from '../models/ClientModel';
+import { HubProfile } from '../models/Wire';
+import { LicenseNotices } from './LicenseNotices';
+
+@ComponentV2
+export struct PhoneSettingsDevicePages {
+  @Require @Param model:ClientModel;
+  @Require @Param page:string;
+  @Param elevated:boolean=false;
+  @Event onOpen:(page:string)=>void=()=>{};
+  @Event onPair:()=>void=()=>{};
+  @Local version:string='';
+  @Local buildNumber:string='';
+  @Local cacheBytes:number=-1;
+  @Local dataBytes:number=-1;
+  @Local storageError:boolean=false;
+  @Local licenses:boolean=false;
+  private active:boolean=false;
+  aboutToAppear():void { this.active=true;this.load(); }
+  aboutToDisappear():void { this.active=false; }
+  @Monitor('page') changed():void { this.load(); }
+  private async load():Promise<void> {
+    if (this.page==='about') {
+      try {
+        const info=bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+        this.version=info.versionName;this.buildNumber=String(info.versionCode);
+      } catch (_) { this.version='';this.buildNumber=''; }
+    }
+    if (this.page==='storage') {
+      this.storageError=false;
+      try {
+        const stats=await storageStatistics.getCurrentBundleStats();
+        if (this.active && this.page==='storage') { this.cacheBytes=stats.cacheSize;this.dataBytes=stats.dataSize; }
+      } catch (_) { if (this.active && this.page==='storage') this.storageError=true; }
+    }
+  }
+  private bytes(value:number):string {
+    if (value<0) return '…';
+    if (value<1000) return value+' B';
+    return value<1000000 ? (value/1000).toFixed(1)+' KB' : value<1000000000 ? (value/1000000).toFixed(1)+' MB' : (value/1000000000).toFixed(1)+' GB';
+  }
+  @Builder info(label:string,value:string) {
+    Row({space:10}) {
+      Text(label).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.ink).layoutWeight(1)
+      Text(value).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+    }.width('100%').constraintSize({minHeight:48}).padding({left:20,right:20}).accessibilityGroup(true)
+  }
+  @Builder action(label:string,id:string,tap:()=>void) {
+    Button(label,{type:ButtonType.Normal,buttonStyle:ButtonStyleMode.TEXTUAL})
+      .width('100%').constraintSize({minHeight:48}).fontColor(Colors.link).onClick(tap).id(id)
+  }
+  @Builder notices() { LicenseNotices() }
+  build() {
+    List() {
+      ListItem() { Column() {
+        if (this.page==='about') {
+          this.info(tr('version'),this.version || tr('unknown'))
+          this.info(tr('phone_settings_build'),this.buildNumber || tr('unknown'))
+          this.action(tr('diagnostics'),'settings.about.diagnostics',()=>this.onOpen('diagnostics'))
+          this.action(tr('open_source_licenses'),'settings.about.licenses',()=>{this.licenses=true;})
+        } else if (this.page==='storage') {
+          this.info(tr('phone_settings_data_size'),this.bytes(this.dataBytes))
+          this.info(tr('phone_settings_cache_size'),this.bytes(this.cacheBytes))
+          if (this.storageError) this.action(tr('retry'),'settings.storage.retry',()=>{this.load();})
+        } else if (this.page==='phone_hubs') {
+          ForEach(this.model.profiles,(profile:HubProfile)=>{
+            Button({type:ButtonType.Normal}) {
+              this.info(profile.name || profile.hubId,profile.id===this.model.profile.id ? tr(this.model.connected ? 'online':'offline') : '')
+            }.padding(0).width('100%').backgroundColor(Color.Transparent).accessibilitySelected(profile.id===this.model.profile.id)
+              .onClick(()=>{ if (profile.id!==this.model.profile.id) this.model.selectProfile(profile).catch((err:Error)=>this.model.reportError(err)); })
+          },(profile:HubProfile)=>profile.id)
+          this.action(tr('ssh_settings'),'settings.hub.ssh',()=>this.onOpen('ssh'))
+          this.action(tr('diagnostics'),'settings.hub.diagnostics',()=>this.onOpen('diagnostics'))
+          this.action(tr('connect'),'settings.hub.add',()=>this.onPair())
+        } else if (this.page==='phone_pairing') {
+          this.action(tr('connect'),'settings.pairing.connect',()=>this.onPair())
+          this.action(tr('phone_machines'),'settings.pairing.machines',()=>this.onOpen('machines'))
+        }
+      }.width('100%').backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius).clip(true) }
+    }.width('100%').height('100%').padding({left:16,right:16,top:28,bottom:24}).backgroundColor(Colors.listGroup(this.elevated))
+      .bindSheet($$this.licenses,this.notices(),{title:{title:tr('open_source_licenses')},height:SheetSize.LARGE,showClose:true})
+  }
+}

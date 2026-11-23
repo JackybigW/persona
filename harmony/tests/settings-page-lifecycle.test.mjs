@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import { phoneSettingsSearchCatalog } from '../entry/src/main/ets/core/PhoneSettingsNavigation.ts';
 
 const source = readFileSync(new URL('../entry/src/main/ets/components/SettingsPage.ets', import.meta.url), 'utf8');
 const directory = readFileSync(new URL('../entry/src/main/ets/components/SettingsDirectory.ets', import.meta.url), 'utf8');
@@ -14,9 +15,9 @@ test('the phone searches nested settings and restores exactly the query used to 
     .replace('@Computed ', '');
   const strings = new Map(JSON.parse(readFileSync(new URL('../entry/src/main/resources/zh_CN/element/string.json', import.meta.url))).string
     .map(entry => [entry.name, entry.value]));
-  const Search = new Function('tr',stripTypeScriptTypes(catalog + labels + ' class Search {' + appear + lookup + '}')+';return Search')(key => strings.get(key) || key);
+  const Search = new Function('tr','phoneSettingsSearchCatalog',stripTypeScriptTypes(catalog + labels + ' class Search {' + appear + lookup + '}')+';return Search')(key => strings.get(key) || key,phoneSettingsSearchCatalog);
   const page = new Search(), actions = [];
-  Object.assign(page,{ initialQuery:' 深色  主题 ', label:id=>id, subtitle:()=>'', meeting:{open(){}}, field:{ stopEditing:()=>actions.push('dismiss') }, onOpen:id=>actions.push(id) });
+  Object.assign(page,{ initialQuery:' 深色  主题 ', label:id=>id, subtitle:()=>'', meeting:{open(){}}, readHubStatus(){}, field:{ stopEditing:()=>actions.push('dismiss') }, onOpen:id=>actions.push(id) });
   page.aboutToAppear();
   assert.deepEqual(page.results,['appearance']);
   page.openEntry(page.results[0]);

@@ -27,6 +27,11 @@ import { PhoneIconButton, PhoneNavigationIcon, PhoneStyle } from '../design/Phon
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { phoneAppearancePage, phoneSettingsLink, pushPhoneSetting } from '../core/PhoneSettingsNavigation';
 import { SettingsDirectory, PhoneSettingsOptions } from '../components/SettingsDirectory';
+import { PhoneSettingsDevicePages } from '../components/PhoneSettingsDevicePages';
+import { PhoneDefaultPermissionSection } from '../components/PhoneDefaultPermissionSection';
+import { InboxSourcesNavigation } from '../models/InboxSources';
+import { AllChatActions, ChatDirection } from '../models/AllChatActions';
+import { PhoneInboxSources } from '../components/PhoneInboxSources';
 import { WorktreeChange, WorktreeActions } from '../models/WorktreeActions';
 import { ProjectCatalog, ProjectWorktree, PersonaProject } from '../models/ProjectCatalog';
 import { ProjectsPage } from '../components/ProjectsPage';
@@ -199,6 +204,11 @@ struct Index {
   @Local launcher: string = '';
   @Local directory: string = '';
   @Local settingsPage: string = '';
+  @Local inboxSourcesNav:InboxSourcesNavigation=new InboxSourcesNavigation();
+  @Local directionPermissionRoutes:AllChatActions=new AllChatActions();
+  @Local directionPermissionsVisible:boolean=false;
+  private directionPermissionsTarget:string='';
+  private pairingSettingsOwner:string='';
   @Local activeChild: string = '';
   @Local tool: number = 0;
   private titleMaterial: uiMaterial.Material = uiMaterial.isImmersiveMaterialSupported() ? new uiMaterial.ImmersiveMaterial({ style: uiMaterial.ImmersiveStyle.THIN }) : uiMaterial.Material.empty;
@@ -1118,7 +1128,7 @@ struct Index {
     if (page === 'phone_meeting_options') return 'meetings';
     return page === 'phone_new_assistant' ? 'phone_new_assistant' : page === 'phone_agent_options' ? 'agent' : page === 'phone_language_options' ? 'settings_language_options_title' : page === 'ssh' ? 'ssh_settings' : page === 'assistant' ? 'admin_identity' : page === 'memory' ? 'admin_memory' : page === 'managers' ? 'admin_managers' : page === 'launchers' ? 'admin_launchers' : page === 'engine' ? 'admin_machine_engine' : page === 'hub_update' ? 'admin_hub_update' : page === 'node_update' ? 'admin_node_update' : page; }
   private adminMenus(name: string, param: Object): NavigationMenuItem[] { return [{ value: tr('refresh'), symbolIcon: new SymbolGlyphModifier($r('sys.symbol.arrow_clockwise')), action: () => { if (this.activeChild === this.childKey(name, param)) this.adminRefreshRevision++; } }]; }
-  private settingsTitle(param: Object): string { const descriptor = NavigationContext.from('settings', param as string); return descriptor.scoped && ['extension_detail', 'connector_detail', 'channel_detail', 'extension_catalog'].includes(descriptor.page) ? descriptor.row.title : tr(this.settingsLabel(descriptor.page)); }
+  private settingsTitle(param: Object): string { const descriptor = NavigationContext.from('settings', param as string); return descriptor.scoped && ['extension_detail', 'connector_detail', 'channel_detail', 'extension_catalog','model_purpose'].includes(descriptor.page) ? descriptor.row.title : tr(this.settingsLabel(descriptor.page)); }
   private openSettingsDetail(page: string, row: ResourceRow): void { this.stack.pushPath({ name: 'settings', param: NavigationContext.settings(page, row) }); this.savePath(); }
   private openApplications(): void {
     const param = JSON.stringify([this.model.profile.id, this.model.profile.manager]);
@@ -1713,7 +1723,7 @@ struct Index {
           PhoneIconButton({symbol:Symbols.gear,label:tr('settings'),identity:'spaces.settings',controlDiameter:this.drawerMetric(46),action:() => { if (this.drawerAcceptsTap()) this.openSpace('settings'); }})
             .bindSheet($$this.phoneSettingsShown, this.phoneSettings(), {height: this.compactFormHeight(),showClose:false,dragBar:false,backgroundColor:Colors.sheetBackground,
               onWillDismiss:(dismiss:DismissSheetAction) => {
-                if (dismiss.reason === DismissReason.PRESS_BACK && this.phoneSettingsPage) this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1);
+                if (dismiss.reason === DismissReason.PRESS_BACK && this.phoneSettingsPage) this.backPhoneSetting();
                 else dismiss.dismiss();
               }})
         }.width('100%').padding({left:24,right:24,top:12,bottom:6})
@@ -1771,6 +1781,12 @@ struct Index {
       this.detailModel === owner && owner.owns(generation, scope) && owner.selected.key() === key;
     if (!valid()) { this.dismissChatActions(); return; }
     const sheets: ChatActionEntry[] = [];
+    if (owner.connected && owner.selected.kind==='conversation' && owner.repo().isDefaultManager() && this.directionPermissionRoutes.hasFiling() &&
+      this.directionPermissionRoutes.directions.some((direction:ChatDirection)=>direction.id===(owner.selected.session || owner.selected.id))) {
+      sheets.push({title:tr('phone_default_permissions'),identity:'direction-default-permissions',
+        action:()=>{ if (valid()) { this.directionPermissionsTarget=JSON.stringify([owner.scope(),owner.selected.key()]);
+          this.directionPermissionsVisible=true; } }});
+    }
     if (!this.wide() && owner.selected.machine && (name === 'session' || name === 'tools')) {
       if (name === 'tools') sheets.push({title: tr('session_back_to_chat'), identity: 'session.mode.chat',
         action: () => { if (valid()) this.phoneBack(); }});
@@ -1947,6 +1963,34 @@ struct Index {
     this.spacesShown = false;
     this.openSettings(page);
   }
+  private backPhoneSetting():void {
+    if (this.phoneSettingsPage==='phone_inbox_sources' && this.inboxSourcesNav.back()) return;
+    this.phoneSettingsTrail=this.phoneSettingsTrail.slice(0,-1);
+  }
+  @Monitor('detailModel.selected','detailModel.profile','detailModel.connected','detailModel.features','detailModel.sidebarConfig')
+  updateDirectionPermissionRoutes():void {
+    const owner=this.detailModel;
+    if (this.directionPermissionsVisible && (!owner.connected || this.directionPermissionsTarget!==JSON.stringify([owner.scope(),owner.selected.key()]))) this.directionPermissionsVisible=false;
+    if (owner.connected && owner.selected.kind==='conversation' && owner.features.includes('direction_sessions') && owner.repo().isDefaultManager())
+      this.directionPermissionRoutes.bind(owner);
+    else this.directionPermissionRoutes.close();
+  }
+  @Builder directionPermissionsSheet() {
+    List() { PhoneDefaultPermissionSection({model:this.detailModel,elevated:true}) }
+      .width('100%').height('100%').padding({left:16,right:16,top:20,bottom:24}).backgroundColor(Colors.sheetBackground)
+      .id('settings.direction.default_permissions')
+  }
+  private pairFromSettings():void {
+    if (this.phoneSettingsShown) {
+      this.pairingSettingsOwner=this.model.scope();this.phoneSettingsShown=false;this.spacesShown=false;
+    }
+    this.openSheet('connect');
+  }
+  @Monitor('showSheet') restorePairingSettings():void {
+    if (this.showSheet || !this.pairingSettingsOwner) return;
+    const owner=this.pairingSettingsOwner;this.pairingSettingsOwner='';
+    if (owner===this.model.scope() && !this.wide()) { this.spacesShown=true;this.phoneSettingsShown=true; }
+  }
   private compactFormHeight(): number | SheetSize {
     if (!this.fullHeightPhone()) return SheetSize.LARGE;
     const ui = this.getUIContext(), env = this.environment;
@@ -1966,10 +2010,11 @@ struct Index {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
         if (this.phoneSettingsPage) PhoneIconButton({symbol:'navigationBack',label:tr('back'),identity:'settings.back',
-          action:() => { this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1); }})
+          action:() => { this.backPhoneSetting(); }})
         else PhoneIconButton({symbol:'navigationClose',label:tr('close'),identity:'settings.close',
           action:() => { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }})
-        Text(this.phoneSettingsPage === 'appearance' ? '' : this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
+        Text(this.phoneSettingsPage==='phone_inbox_sources' ? this.inboxSourcesNav.title || tr('phone_inbox_sources') :
+          this.phoneSettingsPage === 'appearance' ? '' : this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
           .layoutWeight(1).textAlign(TextAlign.Center).fontSize(18).maxFontScale(Tokens.interfaceScaleFor(18)).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
         Blank().width(PhoneStyle.bar)
       }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
@@ -1980,6 +2025,17 @@ struct Index {
         PhoneKnowledgeSelection({model:this.model}).layoutWeight(1)
       } else if (this.phoneSettingsPage === 'phone_meeting_options') {
         PhoneMeetingSettings({model:this.model}).layoutWeight(1)
+      } else if (this.phoneSettingsPage==='phone_settings_advanced') {
+        SettingsDirectory({advanced:true,elevated:true,model:this.model,label:(key:string):string=>this.settingsLabel(key),
+          onOpen:(key:string)=>this.openFromPhoneSettings(key)}).layoutWeight(1)
+      } else if (this.phoneSettingsPage==='phone_inbox_sources') {
+        PhoneInboxSources({model:this.model,navigation:this.inboxSourcesNav,onAsk:(text:string)=>this.askFromInboxSources(text),
+          onWeb:(address:string)=>this.openReader(address)}).layoutWeight(1)
+      } else if (this.phoneSettingsPage==='phone_default_permissions') {
+        List() { PhoneDefaultPermissionSection({model:this.model,elevated:true}) }.width('100%').layoutWeight(1).padding(16)
+      } else if (['phone_hubs','phone_pairing','about','storage'].includes(this.phoneSettingsPage)) {
+        PhoneSettingsDevicePages({model:this.model,elevated:true,page:this.phoneSettingsPage,
+          onOpen:(key:string)=>this.openFromPhoneSettings(key),onPair:()=>this.pairFromSettings()}).layoutWeight(1)
       } else if (this.phoneSettingsPage) {
         PhoneSettingsOptions({elevated:true,model:this.model,page:this.phoneSettingsPage,label:(key:string):string => this.settingsLabel(key),
           onOpen:(key:string) => this.openFromPhoneSettings(key)}).layoutWeight(1)
@@ -2869,6 +2925,15 @@ struct Index {
         PhoneKnowledgeSelection({model:this.settingsModel(param)})
       } else if (name === 'settings' && this.settingsKind(param) === 'phone_meeting_options') {
         PhoneMeetingSettings({model:this.settingsModel(param)})
+      } else if (name==='settings' && this.settingsKind(param)==='phone_settings_advanced') {
+        SettingsDirectory({advanced:true,model:this.settingsModel(param),label:(key:string):string=>this.settingsLabel(key),onOpen:(key:string)=>this.openSettings(key)})
+      } else if (name==='settings' && this.settingsKind(param)==='phone_inbox_sources') {
+        PhoneInboxSources({model:this.settingsModel(param),navigation:this.inboxSourcesNav,onAsk:(text:string)=>this.askFromInboxSources(text),
+          onWeb:(address:string)=>this.openReader(address)})
+      } else if (name==='settings' && this.settingsKind(param)==='phone_default_permissions') {
+        List() { PhoneDefaultPermissionSection({model:this.settingsModel(param)}) }.width('100%').height('100%').padding(16)
+      } else if (name==='settings' && ['phone_hubs','phone_pairing','about','storage'].includes(this.settingsKind(param))) {
+        PhoneSettingsDevicePages({model:this.settingsModel(param),page:this.settingsKind(param),onOpen:(key:string)=>this.openSettings(key),onPair:()=>this.pairFromSettings()})
       } else if (name === 'settings' && ['phone_agent_options','phone_language_options'].includes(this.settingsKind(param))) {
         PhoneSettingsOptions({model:this.model,page:this.settingsKind(param),label:(k:string):string => this.settingsLabel(k),onOpen:(k:string) => this.openSettings(k)})
       } else if (name === 'settings' && ['phone_agent_folders', 'phone_claude_config', 'phone_codex_config', 'phone_agy_config', 'phone_agent_followup'].includes(this.settingsKind(param))) {
@@ -2890,7 +2955,7 @@ struct Index {
       .menus(this.navigationMenus(name, param))
       .onShown(() => this.routeShown(name, param))
       .onHidden(() => { if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; if (this.activeChild === this.childKey(name, param)) { this.activeChild = ''; this.dismissChatActions(); } if ((name === 'session' || name === 'conversation') && this.routeRow(param).key() === this.detailModel.selected.key()) this.detailModel.hideConversation(false); if (name === 'assistant') this.detailModel.watchDecisions(false); if (name === 'tools') this.detailModel.releaseTerminal(); })
-      .onBackPressed((): boolean => { if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true; if (!this.spacesShown && this.returnToPhoneSettings()) return true; if (this.spacesShown) { this.spacesShown = false; return true; } if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; this.phoneBack(); return true; })
+      .onBackPressed((): boolean => { if (this.directionPermissionsVisible) {this.directionPermissionsVisible=false;return true;} if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true; if (!this.spacesShown && this.returnToPhoneSettings()) return true; if (this.spacesShown) { this.spacesShown = false; return true; } if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; this.phoneBack(); return true; })
   }
   private closeForwardNavigation(): boolean {
     if (this.chatForward.isChoosing(this.detailModel)) { this.chatForward.cancelPicker(); return true; }
@@ -2906,10 +2971,11 @@ struct Index {
       onNewAgent:():void => { if (this.chatForward.newFor(this.model)) void this.prepareAgent(undefined,undefined,true); }})
   }
   onBackPress(): boolean {
+    if (this.directionPermissionsVisible) { this.directionPermissionsVisible=false;return true; }
     if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true;
     if (this.chatSearchShown) { this.chatSearchShown = false; return true; }
     if (this.phoneSettingsShown) {
-      if (this.phoneSettingsPage) this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1);
+      if (this.phoneSettingsPage) this.backPhoneSetting();
       else { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }
       return true;
     }
@@ -2999,6 +3065,9 @@ struct Index {
         onAppear: () => { this.spacesLayoutReady = true; this.measureSpaces(); }, onDisappear: () => { this.spacesLayoutReady = false; if (this.wide()) this.spacesShown = false; } })
     }
     }
+    Column().width(0).height(0).bindSheet($$this.directionPermissionsVisible,this.directionPermissionsSheet(),{
+      title:{title:tr('phone_default_permissions')},height:SheetSize.LARGE,showClose:true,
+      onDisappear:()=>{this.directionPermissionsVisible=false;this.directionPermissionsTarget='';}})
     Column().width(0).height(0).bindSheet($$this.activityVisible, this.backgroundActivitySheet(), {
       height: '97.4%', preferType: SheetType.BOTTOM, dragBar: false, showClose: false,
       onDisappear: () => { this.activityVisible = false; this.activityRow = undefined; } })

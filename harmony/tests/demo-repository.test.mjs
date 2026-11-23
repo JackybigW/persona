@@ -290,3 +290,27 @@ test('unsupported actions and rejected admission do not mutate or touch transpor
   await assert.rejects(repo.call('/api/v1/extensions?manager=demo'), { code: 'demo_unsupported' });
   assert.equal(globalThis.__demoTransportCalls, 0);
 });
+
+test('demo manager permissions, new conversations and the independent AI twin stay local and separate',async()=>{
+ const repo=new DemoRepository(),conf='/api/v1/assistant?manager=demo',twin='/api/v1/model-config/purposes/inbox.agent?manager=demo';
+ const initial=(await repo.call(conf)).conversations;
+ assert.equal((await repo.call(conf)).default_permission_mode,'default');
+ await repo.call(conf,'PUT',{default_permission_mode:'acceptEdits'});
+ const created=await repo.call('/api/v1/assistant/conversations?manager=demo','POST',{});
+ assert.equal(created.session.permission_mode,'acceptEdits');
+ const specific=await repo.call('/api/v1/assistant/conversations?manager=demo','POST',{permission_mode:'plan'});
+ assert.equal(specific.session.permission_mode,'plan');
+ assert.deepEqual((await repo.call(conf)).conversations.slice(0,initial.length),initial);
+ const purposes=(await repo.call('/api/v1/model-config?manager=demo')).purposes;
+ assert.ok(Array.isArray(purposes.find(p=>p.id==='agent.new').uses));
+ const before=(await repo.call(twin)).purpose;assert.equal(before.effective.permission_mode,'default');
+ const changed=(await repo.call(twin,'PATCH',{revision:before.revision,permission_mode:'auto',model:'other'})).purpose;
+ assert.equal(changed.override.permission_mode,'auto');
+ await assert.rejects(repo.call(twin,'PATCH',{revision:before.revision,permission_mode:'default'}),{status:409});
+ const clean=(await repo.call(twin,'PATCH',{revision:changed.revision,permission_mode:null})).purpose;
+ assert.deepEqual(clean.override,{model:'other'});assert.equal(clean.effective.permission_mode,'default');
+ await assert.rejects(repo.call(twin.replace('manager=demo','manager=other')),{status:404});
+ assert.equal((await repo.call(conf)).default_permission_mode,'acceptEdits');
+ repo.seed();assert.equal((await repo.call(conf)).default_permission_mode,'default');assert.deepEqual((await repo.call(twin)).purpose.override,{});
+ assert.equal(globalThis.__demoTransportCalls,0);
+});
