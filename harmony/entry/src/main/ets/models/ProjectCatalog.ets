@@ -27,6 +27,7 @@ export class ProjectAgent {
   updated: number;
   activity: number;
   runtime: string;
+  markRuntime: string;
   model: string;
   preview: string;
   tab: string;
@@ -65,6 +66,8 @@ export class ProjectAgent {
     this.activity = this.state === 'working' ? parsedTime(Wire.text(data,'state_since')) || this.updated : this.updated;
     const runtime = Wire.text(data,'agent_label') || Wire.text(data,'agent') || Wire.text(data,'agent_type') || Wire.text(data,'launcher');
     this.runtime = runtime === 'claude' ? 'Claude' : runtime === 'codex' ? 'Codex' : runtime;
+    const sourceKind = Wire.text(data,'source_kind');
+    this.markRuntime = sourceKind === 'codex_app_server' || sourceKind === 'codex_history' ? 'codex' : runtime.toLowerCase() || 'claude';
     this.model = Wire.text(data,'model');
     this.preview = (Wire.text(data,'last_text') || row.detail).trim();
     this.tab = Wire.text(data,'slot_name') || Wire.text(data,'space_name');

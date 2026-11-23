@@ -30,8 +30,8 @@ export struct AgentDirectoryRowContent {
   @Builder agentMark(agent:ProjectAgent) {
     Stack({ alignContent: Alignment.BottomEnd }) {
       Stack() {
-        if (agent.runtime.toLowerCase().includes('claude')) Image($r('app.media.project_agent_claude')).width(17*this.controlScale).height(17*this.controlScale).objectFit(ImageFit.Contain)
-        else if (agent.runtime.toLowerCase().includes('codex') || agent.runtime.toLowerCase().includes('openai'))
+        if (agent.markRuntime.includes('claude')) Image($r('app.media.project_agent_claude')).width(17*this.controlScale).height(17*this.controlScale).objectFit(ImageFit.Contain)
+        else if (agent.markRuntime.includes('codex') || agent.markRuntime.includes('openai'))
           Image($r('app.media.project_agent_openai')).width(17*this.controlScale).height(17*this.controlScale).fillColor(Colors.ink).objectFit(ImageFit.Contain)
         else if (agent.runtime) Text(agent.runtime.slice(0,1).toUpperCase()).fontSize('16vp').fontWeight(FontWeight.Medium).fontColor(Colors.ink)
         else SymbolGlyph(Symbols.agent).fontSize('17vp').fontColor([Colors.secondary])
@@ -113,9 +113,9 @@ export struct AgentDirectoryRowContent {
     })
   }
   @Builder tinyBrand() {
-    if(this.agent.runtime.toLowerCase().includes('codex') || this.agent.runtime.toLowerCase().includes('openai'))
+    if(this.agent.markRuntime.includes('codex') || this.agent.markRuntime.includes('openai'))
       Image($r('app.media.project_agent_openai')).width(14*this.controlScale).height(14*this.controlScale).objectFit(ImageFit.Contain)
-    else if(this.agent.runtime.toLowerCase().includes('claude'))
+    else if(this.agent.markRuntime.includes('claude'))
       Image($r('app.media.project_agent_claude')).width(14*this.controlScale).height(14*this.controlScale).objectFit(ImageFit.Contain)
     else SymbolGlyph(Symbols.agent).fontSize(String(14*this.controlScale)+'vp').fontColor([Colors.secondary])
   }

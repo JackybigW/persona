@@ -16,11 +16,24 @@ registerHooks({
     return { format: 'module', source: stripTypeScriptTypes(source), shortCircuit: true };
   }
 });
-const { ProjectCatalog, ProjectBrowserState, projectDirectory } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
+const { ProjectAgent, ProjectCatalog, ProjectBrowserState, projectDirectory } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
 const { projectOutline, projectHosts, projectSearchAgents, worktreeSpaceCards } = await import('../entry/src/main/ets/models/ProjectOutline.ets');
 const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
 const { SessionSpace, sessionSpace, worktreeForSessionSpace } = await import('../entry/src/main/ets/models/SessionSpace.ets');
 const { AgentSessionInfo,agentHeaderWords,sessionInfoPath } = await import('../entry/src/main/ets/models/AgentSessionInfo.ets');
+
+test('legacy sessions keep their native brand mark without inventing a runtime or overriding an explicit provider', () => {
+  for (const [fields, mark, runtime] of [
+    [{}, 'claude', ''], [{agent:''}, 'claude', ''], [{source_kind:'codex_history'}, 'codex', ''],
+    [{source_kind:'codex_app_server', agent:'claude'}, 'codex', 'Claude'],
+    [{agent_type:'codex'}, 'codex', 'Codex'], [{agent:'paseo', agent_label:'Acme'}, 'acme', 'Acme']
+  ]) {
+    const record={session_id:'layout-1', machine_id:'layout', ...fields};
+    const row=new ProjectAgent(ResourceRow.from(record,'session'),record);
+    assert.equal(row.markRuntime,mark);
+    assert.equal(row.runtime,runtime);
+  }
+});
 
 test('the Agent title prioritizes active state and worktree and the info sheet retains the separate slot and machine',()=>{
   const tr=key=>({phone_todo_section_needs:'需要你',agent_group_idle:'已看'}[key] || key);
