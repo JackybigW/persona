@@ -134,8 +134,11 @@ func TestOwnersDecisionEndsAParkingThatWaitsForThem(t *testing.T) {
 func TestDecisionThatEndedAParkingIsToldAfterARestart(t *testing.T) {
 	s, _, todo := newSupervisedServiceOn(t, todoTestDB(t))
 	ctx := context.Background()
+	// This restart happens before a message goes out. Parked-due and park-decided bypass the spacing
+	// after the last digest, so hold actual delivery while the test checks the untold ledger.
+	s.supervise.digestMu.Lock()
+	defer s.supervise.digestMu.Unlock()
 	parkFor(t, s, todo.ID, "Ada has to say which region goes first", "someone_else", "2h")
-	holdDigest(s)
 	s.superviseWatch(ctx, time.Now().Add(3*time.Hour))
 	if got := pendingKinds(s, todo.ID); !slices.Equal(got, []string{sigParkedDue}) {
 		t.Fatalf("signals at its time: %v", got)
@@ -154,7 +157,6 @@ func TestDecisionThatEndedAParkingIsToldAfterARestart(t *testing.T) {
 		t.Fatalf("marked told before a message carried it: %+v", r)
 	}
 	forgetUntold(s)
-	holdDigest(s)
 	s.superviseWatch(ctx, time.Now())
 	if got := pendingKinds(s, todo.ID); !slices.Equal(got, []string{sigParkDecided}) {
 		t.Fatalf("signals after the restart: %v", got)
