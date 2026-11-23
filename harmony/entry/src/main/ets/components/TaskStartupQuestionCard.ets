@@ -88,7 +88,7 @@ export struct TaskStartupQuestionCard {
       if (this.question.screen) {
         Row() {
           Button({type:ButtonType.Normal}) {
-            Row({space:Tokens.fine}) {
+            Row({space:ReadinessStyle.metric(8.3,10)}) {
               SymbolGlyph(this.details?Symbols.up:Symbols.down).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor([Colors.secondary])
               Text(tr('details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
                 .lineHeight(ReadinessStyle.line(14.3,21.7)).fontColor(Colors.secondary).maxLines(1)
@@ -115,7 +115,7 @@ export struct TaskStartupQuestionCard {
             .border({width:1,radius:2,color:Colors.secondary}).accessibilityLevel('no')
           Column({space:Tokens.fine}) {
             Text(tr('task_start_title').replace('{value}',this.question.line)).fontSize(ReadinessStyle.font(ReadinessStyle.label))
-              .lineHeight(ReadinessStyle.line(14.3,22.3)).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
+              .lineHeight(ReadinessStyle.line(14.3,22.3)).lineBreakStrategy(LineBreakStrategy.BALANCED).fontWeight(600).fontColor(Colors.ink)
             Text(this.hint()).fontSize(ReadinessStyle.font(ReadinessStyle.body)).lineHeight(ReadinessStyle.line(19,25.7)).fontColor(Colors.secondary)
             if (this.recovery.error) Text(tr(this.recovery.error)).fontSize(ReadinessStyle.font(ReadinessStyle.body)).fontColor(Colors.danger)
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
@@ -124,7 +124,7 @@ export struct TaskStartupQuestionCard {
       }.width('100%').alignItems(HorizontalAlign.Start).padding(Tokens.inset)
         .backgroundColor(Colors.readinessSurface).borderRadius(Tokens.inset)
         .border({width:Tokens.divider,color:Colors.readinessEdge})
-        .shadow({radius:5,color:'#12000000',offsetY:2}).id('shell-question')
+        .shadow(ReadinessStyle.shadow(this.getUIContext())).id('shell-question')
     }
   }
 }
