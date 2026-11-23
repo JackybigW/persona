@@ -4,6 +4,7 @@ import type { TranscriptItem } from '../core/Domain';
 import { i18n } from '@kit.LocalizationKit';
 import { relativeActivityDate } from '../core/PhoneDate';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { PhoneStyle } from '../design/PhoneStyle';
 import { TodoWorkspacePage } from './TodoWorkspacePage';
 import { Colors } from '../design/Colors';
@@ -240,7 +241,7 @@ export struct PhoneBackgroundActivity {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
         Stack({ alignContent: Alignment.Center }) {
-          SymbolGlyph($r('sys.symbol.arrow_turn_down_right')).fontSize(18).fontWeight(FontWeight.Bold).fontColor([Colors.ink])
+          PhoneOutlineIcon({name:'dispatchToAgent',color:Colors.ink})
         }.width(32).height(32).backgroundColor($r('app.color.activity_icon_well')).borderRadius(16).accessibilityLevel('no')
         Column({ space: 4 }) {
           Row({ space: 6 }) {
