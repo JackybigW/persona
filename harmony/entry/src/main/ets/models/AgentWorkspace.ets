@@ -66,8 +66,8 @@ function segment(value: string): string { return encodeURIComponent(value); }
 function rowSession(row: ResourceRow): string { return row.session || Wire.text(row.data(), 'session_id') || row.id; }
 function rowMachine(row: ResourceRow): string { return row.machine || Wire.text(row.data(), 'machine_id'); }
 function rowKey(row: ResourceRow): string { return JSON.stringify(row.group ? [row.group, row.kind, row.manager, rowMachine(row), rowSession(row)] : [row.kind, row.manager, rowMachine(row), rowSession(row)]); }
-function rowSpaceKey(row: ResourceRow): string {
-  const name = Wire.text(row.data(), 'space_name');
+function rowSpaceKey(row: ResourceRow, space?: string): string {
+  const name = space ?? Wire.text(row.data(), 'space_name');
   return name ? rowMachine(row) + '/' + name : '';
 }
 function coreRowId(row: ResourceRow): string {
@@ -436,10 +436,13 @@ export class AgentWorkspace {
   isPinned(row: ResourceRow): boolean { return this.preferencesFor(row).pinsSessions.includes(this.sessionKey(row)); }
   isSpacePinned(row: ResourceRow): boolean { const key = rowSpaceKey(row); return !!key && this.preferencesFor(row).pinsSpaces.includes(key); }
   isSpaceMuted(row: ResourceRow): boolean { const key = rowSpaceKey(row); return !!key && this.preferencesFor(row).mutesSpaces.includes(key); }
-  isMuted(row: ResourceRow): boolean {
-    const key = this.sessionKey(row), space = rowSpaceKey(row);
+  isMuted(row: ResourceRow, space?: string): boolean {
+    const key = this.sessionKey(row);
     const preferences = this.preferencesFor(row);
-    return preferences.mutesSessions.includes(key) || (!preferences.mutesAllowed.includes(key) && !!space && preferences.mutesSpaces.includes(space));
+    if (preferences.mutesSessions.includes(key)) return true;
+    if (!preferences.mutesSpaces.length || preferences.mutesAllowed.includes(key)) return false;
+    const target = rowSpaceKey(row, space);
+    return !!target && preferences.mutesSpaces.includes(target);
   }
 
   canRename(row: ResourceRow): boolean {

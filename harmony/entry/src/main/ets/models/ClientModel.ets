@@ -180,8 +180,8 @@ export class ClientModel {
   @Trace detail: string = '';
   @Trace hasMoreMessages: boolean = false;
   private deviceEvent: ((payload: string) => void) | undefined;
-  private eventListeners: Set<(payload: string) => void> = new Set();
-  observeEvents(listener: (payload: string) => void): () => void { this.eventListeners.add(listener); return (): void => { this.eventListeners.delete(listener); }; }
+  private eventListeners: Set<(payload: string, type: string) => void> = new Set();
+  observeEvents(listener: (payload: string, type: string) => void): () => void { this.eventListeners.add(listener); return (): void => { this.eventListeners.delete(listener); }; }
   setDeviceEvents(handler: ((payload: string) => void) | undefined): void { this.deviceEvent = handler; }
   private workspace: SessionWorkspace | undefined;
   setWorkspace(workspace: SessionWorkspace | undefined): void { if (this.workspace && this.workspace !== workspace) this.workspace.hide(); this.workspace = workspace; }
@@ -399,7 +399,7 @@ export class ClientModel {
     }
     return values;
   }
-  phoneAgentBadge(muted: (row: ResourceRow) => boolean): number {
+  phoneAgentBadge(muted: (row: ResourceRow, space: string) => boolean): number {
     if (!this.connected) return 0;
     const current = this.attentionOwner === JSON.stringify([this.generation, this.scope()]);
     return waitingAgentBadge(this.sessions, this.todos, current ? this.attentionCards : [],
@@ -822,8 +822,9 @@ export class ClientModel {
           this.helloVersion = Wire.text(data, 'server_version'); this.helloFeatures = Wire.strings(data, 'features');
         }
       }
-      this.workspace?.onEvent(data); this.deviceEvent?.(payload);
-      for (const listener of this.eventListeners) { try { listener(payload); } catch (_) {} }
+      this.workspace?.onEvent(data);
+      if (type === 'tool_call') this.deviceEvent?.(payload);
+      for (const listener of this.eventListeners) { try { listener(payload, type); } catch (_) {} }
       if (type === 'hello') {
         this.features = Wire.strings(data, 'features'); this.connected = true; this.error = '';
         this.repository?.transport.hello(nativeNotifications.features(!this.detached && this.alerts));

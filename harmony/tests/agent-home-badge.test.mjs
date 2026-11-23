@@ -36,3 +36,28 @@ test('the home badge isolates Hub and assistant scopes and falls back to session
   assert.equal(waitingAgentBadge([local,foreign],[],[],'a','one',()=>false,true),0);
   assert.equal(waitingAgentBadge([local,foreign],[],cards,'a','one',()=>false,true),1);
 });
+
+test('the badge reuses decoded session fields and reads a changed or restored wire row once',()=>{
+  const make=id=>ResourceRow.from({session_id:id,machine_id:'studio',state:'idle',space_name:'review',children:{needs_you:1}},'session');
+  const sessions=Array.from({length:80},(_,index)=>make(String(index)));
+  const restored=new ResourceRow('restored','Restored','session');
+  restored.machine='studio';
+  restored.raw=JSON.stringify({pending_interactions:1,space_name:'quiet'});
+  sessions.push(restored);
+  let reads=0;
+  for(const row of sessions){
+    const original=row.data.bind(row);
+    row.data=()=>{reads++;return original();};
+  }
+  const count=()=>waitingAgentBadge(sessions,[],[],'group','owner',(_row,space)=>space==='quiet',false);
+  assert.equal(count(),80);
+  assert.equal(count(),80);
+  assert.equal(reads,1);
+  const change=sessions[0].data();
+  change.folded_under='1';
+  sessions[0].raw=JSON.stringify(change);
+  restored.raw=JSON.stringify({pending_interactions:1,space_name:'public'});
+  assert.equal(count(),80);
+  assert.equal(count(),80);
+  assert.equal(reads,4);
+});

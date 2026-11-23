@@ -807,7 +807,7 @@ struct Index {
   @Computed get waitingAgentCount():number {
     const bound=this.agentWorkspace.isBoundTo(this.model);
     return this.model.directoryOwners().reduce((total:number,owner:ClientModel) =>
-      total+owner.phoneAgentBadge((row:ResourceRow) => bound && this.agentWorkspace.isMuted(row)),0);
+      total+owner.phoneAgentBadge((row:ResourceRow, space:string) => bound && this.agentWorkspace.isMuted(row,space)),0);
   }
   @Monitor('model.ready', 'model.mainId', 'model.mainMachineId', 'model.connected') mainAvailabilityChanged(): void {
     this.ensureMainDestination();

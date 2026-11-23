@@ -51,7 +51,7 @@ function sessionKey(machine: string, session: string): string {
 
 /** Match the shared Needs You corpus for a single connected Hub and assistant, independent of active list filters. */
 export function waitingAgentBadge(rows: ResourceRow[], todos: ResourceRow[], cards: AgentAttentionCard[],
-  group: string, manager: string, muted: (row: ResourceRow) => boolean, authoritative: boolean): number {
+  group: string, manager: string, muted: (row: ResourceRow, space: string) => boolean, authoritative: boolean): number {
   const quietTodos = new Set<string>();
   const quietAgents = new Set<string>();
   for (const todo of todos) {
@@ -64,26 +64,23 @@ export function waitingAgentBadge(rows: ResourceRow[], todos: ResourceRow[], car
     }
   }
 
-  const sessions = new Map<string, ResourceRow>();
+  const parents = new Map<string, string>();
   const waiting = new Set<string>();
   const excluded = new Set<string>();
   for (const row of rows) {
     if (row.kind !== 'session' || row.group && row.group !== group || row.manager && row.manager !== manager) continue;
-    const key = sessionKey(row.machine, row.session || row.id);
-    const data = row.data();
-    sessions.set(key, row);
-    if (Wire.bool(data, 'assistant') || Wire.bool(data, 'hidden_by_directory') || Wire.bool(data, 'muted') ||
-      Wire.bool(data, 'quiet') || quietTodos.has(Wire.text(Wire.object(data, 'todo'), 'id')) || quietAgents.has(key) || muted(row)) {
+    const session = row.session || row.id, key = sessionKey(row.machine, session);
+    const fields = row.badgeFields();
+    parents.set(key, fields.parent && fields.parent !== session ? sessionKey(row.machine, fields.parent) : '');
+    const needsUser = ['needs_you', 'blocked', 'waiting_for_user'].includes(row.state) ||
+      fields.childrenWaiting || !authoritative && fields.pending;
+    if (needsUser) waiting.add(key);
+    if (fields.hidden || quietTodos.has(fields.quietTodo) || quietAgents.has(key) || muted(row, fields.space)) {
       excluded.add(key);
     }
-    const needsUser = ['needs_you', 'blocked', 'waiting_for_user'].includes(row.state) ||
-      Wire.number(Wire.object(data, 'children'), 'needs_you') > 0;
-    if (needsUser || !authoritative && Wire.number(data, 'pending_interactions') > 0) waiting.add(key);
   }
-  for (const row of sessions.values()) {
-    const session = row.session || row.id;
-    const parent = Wire.text(row.data(), 'folded_under');
-    if (parent && parent !== session && sessions.has(sessionKey(row.machine, parent))) waiting.delete(sessionKey(row.machine, session));
+  for (const [key, parent] of parents) {
+    if (parent && parents.has(parent)) waiting.delete(key);
   }
 
   const active = new Set<string>();

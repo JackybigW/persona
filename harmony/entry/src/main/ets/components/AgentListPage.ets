@@ -164,8 +164,7 @@ export struct AgentListPage {
 
   aboutToAppear(): void {
     this.workspace.setCompactDisplay(this.displayedAgentStyle==='list');
-    this.stopDecisionEvents=this.model.observeEvents((payload:string) => {
-      const type=Wire.text(Wire.parse(payload),'type');
+    this.stopDecisionEvents=this.model.observeEvents((_payload:string, type:string) => {
       if (['interaction','interactions','interaction_resolved'].includes(type)) this.reloadDecisions();
       if (['todo','assistant_feed'].includes(type) && ['todo','direction'].includes(this.workspace.groupingMode)) this.refreshGroupingSupport();
     });

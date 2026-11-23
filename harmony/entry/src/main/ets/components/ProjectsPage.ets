@@ -63,8 +63,8 @@ export struct ProjectsPage {
   @Monitor('model.profile') ownerChanged(): void { clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear(); this.editor.close(); this.editorShown = false; this.restoredRoute = ''; this.quick = ''; this.searchMode = false; this.onSearchMode(false); }
   aboutToAppear(): void {
     if (this.page === 'project_tree') {
-      this.stopSpaceEvents = this.model.observeEvents((payload:string) => {
-        if (['interaction','interactions','interaction_resolved'].includes(Wire.text(Wire.parse(payload),'type'))) this.refreshSpaceDecisions();
+      this.stopSpaceEvents = this.model.observeEvents((_payload:string, type:string) => {
+        if (['interaction','interactions','interaction_resolved'].includes(type)) this.refreshSpaceDecisions();
       });
       this.refreshSpaceDecisions();
     }

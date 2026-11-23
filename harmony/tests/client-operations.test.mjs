@@ -179,6 +179,21 @@ test('the global Agent badge keeps the newest owned snapshot across out-of-order
   assert.equal(model.phoneAgentBadge(muted), 0);
 });
 
+test('directory traffic reaches observers without redispatch to phone tools', () => {
+  const {model}=fixture();
+  const observed=[],commands=[];
+  const off=model.observeEvents((raw,type)=>observed.push([type,raw]));
+  model.setDeviceEvents(raw=>commands.push(raw));
+  const directory=JSON.stringify({type:'catalog_preview',sessions:[{session_id:'sample'}]});
+  const tool=JSON.stringify({type:'tool_call',call_id:'one',name:'phone_device_info',args:{}});
+  model.event(directory);
+  model.event(tool);
+  off();
+  model.event(directory);
+  assert.deepEqual(observed,[['catalog_preview',directory],['tool_call',tool]]);
+  assert.deepEqual(commands,[tool]);
+});
+
 test('the phone drawer reads current non-quiet open to-dos before opening the list and coalesces refreshes', async () => {
   const {model} = fixture();
   const reads = [], repo = {todos() { const result = deferred(); reads.push(result); return result.promise; }};
