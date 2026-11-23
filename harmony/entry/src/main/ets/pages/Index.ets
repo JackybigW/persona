@@ -92,6 +92,7 @@ import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
 import { ButtonStyles } from '../design/Controls';
 import { AgentWorkspace } from '../models/AgentWorkspace';
+import { AgentTaskGrouping } from '../models/AgentTaskGrouping';
 import { nativeEnvironment, NativeEnvironment } from '../platform/NativeEnvironment';
 import { nativeSheetInset } from '../platform/NativeInsets';
 import { mainConversationData } from '../core/DefaultConversation';
@@ -2086,6 +2087,7 @@ struct Index {
   }
   @Builder projectPage(name: string, param: string) {
     ProjectsPage({ model: this.model, catalog: this.projectCatalog, searchWorkspace: this.agentWorkspace, page: name, target: param as string,
+          groupedSearchRows:(workspace:AgentWorkspace,tasks:AgentTaskGrouping):void => this.projectAgentMatches(workspace,tasks),
           compact: !this.wide(), adjacentItem: this.adjacentProjectItem, onBack: () => this.phoneBack(), onSearchMode: (active: boolean) => { this.projectSearching = active; },
           isMuted: (row: ResourceRow): boolean => this.agentWorkspace.isMuted(row),
           topContentInset: name === 'projects' && this.floatingProjectHeader ? Math.max(this.peerActionSize(), this.peerSegmentHeight()+8) + 4 : 0,
@@ -2096,6 +2098,11 @@ struct Index {
           onStart: (tree: ProjectWorktree) => this.prepareAgent(undefined, tree),
           onChanged: (tree: ProjectWorktree, change: WorktreeChange) => { this.worktreeChanged(tree, change).catch((err: Error) => this.model.reportError(err)); },
           onRefresh: () => this.projectCatalog.refresh(this.model) })
+  }
+  @Builder projectAgentMatches(workspace:AgentWorkspace,tasks:AgentTaskGrouping) {
+    AgentListPage({model:this.model,workspace:workspace,taskGrouping:tasks,projectCatalog:this.projectCatalog,externalSearchControls:true,
+      compactRoot:true,retainWorkspace:true,active:this.projectPlace(),selectedRow:this.detailModel.selected,
+      onOpen:(row:ResourceRow) => this.openLinkedResource(row),onOpenTodo:(row:ResourceRow) => this.openLinkedResource(row)})
   }
   @Builder primaryContent() {
     if (this.projectPlace()) {

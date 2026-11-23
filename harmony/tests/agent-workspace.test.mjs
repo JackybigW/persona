@@ -805,3 +805,46 @@ test('a Projects query uses the same real Hub and machine source inventory witho
   assert.equal(lark.filter_counts.terminal,2);assert.equal(lark.filter_counts.feishu,1);
   assert.deepEqual([workspace.search,workspace.quickFilter,workspace.machineFilter],['other tab','unread','unrelated']);
 });
+
+test('project grouping changes the native result groups and keeps its machine, query and quick filter separate from Agents', async () => {
+  const pageSource = readFileSync(new URL('../entry/src/main/ets/components/ProjectsPage.ets', import.meta.url), 'utf8');
+  const methods = ['selectSearchGrouping', 'syncSearchGroups'].map(name =>
+    pageSource.match(new RegExp('^  private '+name+'\\([\\s\\S]+?^  \\}', 'm'))[0]);
+  const { Wire } = await import('../entry/src/main/ets/models/Wire.ets');
+  const Page = new Function('Wire','return '+stripTypeScriptTypes('class Page {'+methods.join('\n')+'}'))(Wire);
+  const make = (group, id, title, machine, state='working') => {
+    const row=agent(id,{title,machine_id:machine,state,status:state,agent:'claude',space_name:'weather team'});row.group=group;return row;
+  };
+  const chosen=make('one','shared','Weather notes','m1'), otherMachine=make('one','far','Weather notes','m2');
+  const otherQuery=make('one','off','Summary','m1'), otherState=make('one','idle','Weather notes','m1','idle');
+  otherQuery.raw=JSON.stringify({...otherQuery.data(),space_name:'documentation'});
+  const foreign=make('two','shared','Weather notes','m1'), sources=[chosen,otherMachine,otherQuery,otherState,foreign];
+  const own=clientFixture({sessions:[chosen],machines:[machine('m1'),machine('m2')]}), peer=clientFixture({sessions:[foreign]});
+  own.client.profile.id='one';peer.client.profile.id='two';own.client.directoryOwners=()=>[own.client,peer.client];
+  own.client.directoryOwnerFor=row=>row.group==='two'?peer.client:own.client;
+  const standalone=new AgentWorkspace(undefined,'repo');await standalone.open(own.client);
+  standalone.setSearch('other tab');standalone.setQuickFilter('unread');await standalone.setMachineFilter('m2');
+  const projected=new AgentWorkspace(undefined,'repo',false);await projected.open(own.client);
+  const machineKey=JSON.stringify(['one','work','m1']);
+  const page=Object.assign(new Page(),{model:own.client,groupedSearchRows:()=>{},searchMode:true,quick:'working',
+    searchWorkspace:standalone,searchGroups:projected,searchTasks:{supportsTodos:false,supportsDirections:false},
+    directorySearchRows:sources,catalog:{browser:{query:'weather',machine:machineKey,searchGrouping:'repo'}}});
+  for(const mode of ['state','machine','repo','recent','state']){
+    page.selectSearchGrouping(mode);
+    assert.equal(projected.groupingMode,mode);assert.equal(standalone.groupingMode,mode);
+    assert.deepEqual([page.catalog.browser.query,page.quick,page.catalog.browser.machine],['weather','working',machineKey]);
+    assert.deepEqual([projected.search,projected.quickFilter,projected.machineFilter],['weather','working',machineKey]);
+    assert.deepEqual([standalone.search,standalone.quickFilter,standalone.machineFilter],['other tab','unread','m2']);
+    assert.deepEqual(projected.unpinnedRows.map(row=>row.key()),[chosen.key()]);
+    if(mode==='state')assert.deepEqual(projected.visibleRows().map(row=>row.key()),[chosen.key()]);
+    if(mode==='machine')assert.ok(projected.groups.some(group=>group.id.startsWith('machine/')));
+  }
+  page.selectSearchGrouping('direction');
+  assert.equal(projected.groupingMode,'state');
+  const previous=projected.visibleRows()[0];projected.selectRow(previous);
+  page.syncSearchGroups();assert.equal(projected.isSelected(previous),true);
+  await new Promise(resolve=>setTimeout(resolve,220));
+  const saved=JSON.parse(own.state.views.get(own.state.scope+':agent-workspace'));
+  assert.deepEqual([saved.search,saved.quick,saved.machine,saved.grouping],['other tab','unread','m2','state']);
+  projected.hide();page.syncSearchGroups();assert.equal(projected.isBoundTo(own.client),false);assert.deepEqual(projected.visibleRows(),[]);
+});

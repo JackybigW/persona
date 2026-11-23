@@ -902,3 +902,24 @@ test('active project search follows the same fixed navigation field and separate
   assert.match(source,/quickHeight\(\):number \{ return PhoneStyle\.formSize\(44,57\.7,/);
   assert.match(search,/\.align\(Alignment\.Start\)\.scrollable\(ScrollDirection\.Horizontal\)/);
 });
+
+test('the compact project quick bar opens the real grouping menu and restores a filtered project search after returning', () => {
+  const source=readFileSync(new URL('../entry/src/main/ets/components/ProjectsPage.ets',import.meta.url),'utf8');
+  const bar=source.slice(source.indexOf('@Builder searchAndFilter()'),source.indexOf('@Builder projectMenu('));
+  assert.match(bar,/Divider\(\)\.vertical\(true\)[^\n]*\n\s*this\.searchGrouping\(\)/);
+  const menu=source.slice(source.indexOf('@Builder searchGroupingMenu()'),source.indexOf('private quickHeight()'));
+  assert.match(menu,/this\.searchGroups\.groupingOptions\(\)/);
+  assert.match(menu,/this\.selectSearchGrouping\(key\).*projects\.grouping\./);
+  assert.match(menu,/this\.machineMenu\(\).*projects\.machine/);
+  assert.match(menu,/\.bindMenu\(this\.searchGroupingMenu\)\.id\('projects\.grouping'\)/);
+  const lifecycle=source.match(/^  aboutToAppear\(\): void \{[\s\S]+?^  \}/m)[0];
+  const Page=new Function('return '+stripTypeScriptTypes('class Page {'+lifecycle+'}'))();
+  const catalog=new ProjectCatalog(),calls=[];
+  Object.assign(catalog.browser,{searchActive:true,query:'',searchQuick:'unread',searchGrouping:'machine',machine:'owner-scoped'});
+  const page=Object.assign(new Page(),{page:'projects',compact:true,catalog,onSearchMode:active=>calls.push(active),
+    watchSearchOwners(){calls.push('observe')},prepareSearchGroups(){calls.push('restore')}});
+  page.aboutToAppear();
+  assert.deepEqual(calls,[true,'observe','restore']);assert.equal(page.quick,'unread');
+  assert.deepEqual([catalog.browser.query,catalog.browser.searchGrouping,catalog.browser.machine],['','machine','owner-scoped']);
+  catalog.browser.clear();assert.deepEqual([catalog.browser.searchActive,catalog.browser.searchQuick,catalog.browser.searchGrouping,catalog.browser.machine],[false,'','','']);
+});

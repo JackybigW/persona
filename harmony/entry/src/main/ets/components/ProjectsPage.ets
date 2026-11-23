@@ -1,3 +1,5 @@
+import { PhoneGroupingGlyph } from './PhoneGroupingGlyph';
+import { AgentTaskGrouping } from '../models/AgentTaskGrouping';
 import { LengthMetrics } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { Colors } from '../design/Colors';
@@ -7,7 +9,7 @@ import { PhoneNavigationIcon, PhoneSectionTitle, PhoneStyle } from '../design/Ph
 import { tr } from '../design/Strings';
 import { AgentDecisionQueue, AgentDecisionSnapshot } from '../models/AgentDecisionQueue';
 import { ClientModel } from '../models/ClientModel';
-import { AgentWorkspace, coreRowId } from '../models/AgentWorkspace';
+import { AgentWorkspace, agentGroupingLabels, coreRowId } from '../models/AgentWorkspace';
 import { ProjectSearchResult, projectQuickFilters, projectQuickLabels, projectSearchResult } from '../models/ProjectSearch';
 import { machineAgents } from '../models/MachineDashboard';
 import { ProjectCatalog, PersonaProject, ProjectAgent, ProjectWorktree, ProjectBrowserState } from '../models/ProjectCatalog';
@@ -26,6 +28,11 @@ export struct ProjectsPage {
   @Param agentRepositories: PersonaProject[] | undefined = undefined;
   @Param agentFilterActive: boolean = false;
   @Param searchWorkspace: AgentWorkspace | undefined = undefined;
+  @BuilderParam groupedSearchRows?:(workspace:AgentWorkspace,tasks:AgentTaskGrouping)=>void;
+  @Local private searchGroups:AgentWorkspace = new AgentWorkspace(undefined,'repo',false);
+  @Local private searchTasks:AgentTaskGrouping = new AgentTaskGrouping();
+  private groupLoad:number = 0;
+  private groupOpening:Promise<void> | undefined;
   private get outlineBrowser(): ProjectBrowserState {
     return this.agentRepositories ? this.catalog.agentBrowser : this.catalog.browser;
   }
@@ -67,6 +74,7 @@ export struct ProjectsPage {
     this.searchOwners = owners.slice();
     this.stopSearchEvents = owners.map((owner:ClientModel) => owner.observeEvents((_raw:string,type:string) => {
       if (['hello','interaction','interactions','interaction_resolved'].includes(type)) this.refreshSpaceDecisions();
+      if (['todo','assistant_feed'].includes(type) && ['todo','direction'].includes(this.searchGroups.groupingMode)) this.prepareSearchGroups();
     }));
     this.refreshSpaceDecisions();
   }
@@ -86,7 +94,7 @@ export struct ProjectsPage {
     return count ? tr('project_pending_count').replace('{count}',String(count)) : '';
   }
   @Monitor('catalog.loading') finishedRefresh(): void { if (!this.catalog.loading) { this.refreshing = false; this.refreshSpaceDecisions(); } }
-  @Monitor('model.profile') ownerChanged(): void { this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear(); this.editor.close(); this.editorShown = false; this.restoredRoute = ''; this.quick = ''; this.searchMode = false; this.onSearchMode(false); }
+  @Monitor('model.profile') ownerChanged(): void { this.releaseSearchGroups(); this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear(); this.editor.close(); this.editorShown = false; this.restoredRoute = ''; this.quick = ''; this.searchMode = false; this.onSearchMode(false); }
   aboutToAppear(): void {
     if (this.page === 'project_tree') {
       this.stopSpaceEvents = this.model.observeEvents((_payload:string, type:string) => {
@@ -94,12 +102,12 @@ export struct ProjectsPage {
       });
       this.refreshSpaceDecisions();
     }
-    if (this.page === 'projects' && this.compact && this.catalog.browser.query) {
-      this.searchMode = true; this.onSearchMode(true); this.watchSearchOwners();
+    if (this.page === 'projects' && this.compact && (this.catalog.browser.searchActive || this.catalog.browser.query)) {
+      this.searchMode = true; this.quick=this.catalog.browser.searchQuick; this.onSearchMode(true); this.watchSearchOwners(); this.prepareSearchGroups();
     }
   }
   aboutToDisappear(): void {
-    this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.stopSpaceEvents?.(); this.spaceDecisions.clear();
+    this.releaseSearchGroups(); this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.stopSpaceEvents?.(); this.spaceDecisions.clear();
     this.editor.close(); if (this.searchMode) this.onSearchMode(false);
   }
   @Event onProject: (key: string) => void = () => {};
@@ -209,11 +217,13 @@ export struct ProjectsPage {
   private search(text:string):void {
     if (this.catalog.browser.query !== text) this.catalog.browser.resetSearchFolds();
     this.catalog.browser.query = text; this.catalog.browser.remember(this.route(),'');
-    if (this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
+    this.syncSearchGroups();
+    if (!this.showGroupedResults && this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
   }
   private selectMachine(key:string):void {
     this.catalog.browser.machine = key; this.catalog.browser.remember(this.route(),'');
-    if (this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
+    this.syncSearchGroups();
+    if (!this.showGroupedResults && this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
   }
   private toggle(line:ProjectLine):void {
     const current = this.lines.find((entry:ProjectLine) => entry.key === line.key);
@@ -393,30 +403,34 @@ export struct ProjectsPage {
   }
   @Builder machineMenu() {
     Menu() {
-      MenuItem({content:tr('project_all_machines')}).selected(!this.catalog.browser.machine).selectIcon(true).onClick(() => this.selectMachine(''))
+      MenuItem({content:tr('project_all_machines')}).selected(!this.catalog.browser.machine).selectIcon(true).onClick(() => this.selectMachine('')).id('projects.machine.all')
       ForEach(this.hosts,(host:ProjectHost) => {
-        MenuItem({content:host.name}).selected(this.catalog.browser.machine === host.key).selectIcon(true).onClick(() => this.selectMachine(host.key))
+        MenuItem({content:host.name}).selected(this.catalog.browser.machine === host.key).selectIcon(true).onClick(() => this.selectMachine(host.key)).id('projects.machine.'+host.key)
       },(host:ProjectHost) => host.key)
     }
   }
   private setSearchMode(active:boolean): void {
     if (!this.compact || this.searchMode === active) return;
-    this.searchMode = active; this.onSearchMode(active);
-    if (active) this.watchSearchOwners();
+    this.searchMode = active; this.catalog.browser.searchActive=active; this.onSearchMode(active);
+    if (active) { this.watchSearchOwners(); this.prepareSearchGroups(); }
     else {
       this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear();
-      this.searchField.stopEditing(); this.quick = ''; this.search('');
+      this.releaseSearchGroups(); this.searchField.stopEditing(); this.quick = ''; this.catalog.browser.searchQuick=''; this.search('');
     }
   }
-  @Computed get queryResult(): ProjectSearchResult {
-    if (this.page !== 'projects' || !this.searchMode || !this.searchWorkspace) return new ProjectSearchResult();
+  @Computed get directorySearchRows():ResourceRow[] {
+    if (!this.searchMode || this.page !== 'projects' || this.agentRepositories) return [];
     const source = new Map<string,ResourceRow>();
-    // The live directory can include sessions with no workspace. Keep offline directory rows for the same owners.
+    // Keep cached workspace rows from known owners and let the live directory override the same session.
     for (const project of this.catalog.projects) for (const tree of project.trees) for (const agent of tree.agents) {
       if (this.model.directoryOwnerFor(agent.row)) source.set(agent.row.key(),agent.row);
     }
     for (const row of this.model.directorySessions) if (row.kind === 'session') source.set(row.key(),row);
-    const rows = Array.from(source.values());
+    return Array.from(source.values());
+  }
+  @Computed get queryResult(): ProjectSearchResult {
+    if (this.page !== 'projects' || !this.searchMode || !this.searchWorkspace) return new ProjectSearchResult();
+    const rows=this.directorySearchRows;
     const visible = rows.filter((row:ResourceRow) => {
       const data = row.data();
       return !Wire.bool(data,'archived') && !Wire.bool(data,'hidden_by_directory') && !Wire.bool(data,'assistant');
@@ -425,12 +439,65 @@ export struct ProjectsPage {
     const projection = this.searchWorkspace.repositoryQuery(this.model,visible,this.catalog.browser.query,quick,machine);
     return projectSearchResult(this.model,rows,projection,this.searchCards,machine,quick,coreRowId);
   }
+  @Computed get showGroupedResults():boolean {
+    return !!this.groupedSearchRows && this.compact && this.page==='projects' && this.searchMode && this.searchGroups.groupingMode!=='repo';
+  }
+  @Monitor('directorySearchRows') projectSearchRowsChanged():void { this.syncSearchGroups(); }
+  private releaseSearchGroups():void {
+    this.groupLoad++; this.groupOpening=undefined; this.searchTasks.clear(); this.searchGroups.hide();
+  }
+  private prepareSearchGroups():void {
+    if (!this.groupedSearchRows || !this.searchMode || this.page!=='projects') return;
+    const model=this.model, scope=model.scope(), generation=model.connectionGeneration(), revision=++this.groupLoad;
+    if (!this.groupOpening && !this.searchGroups.isBoundTo(model)) {
+      const opening=this.searchGroups.open(model); this.groupOpening=opening;
+      opening.finally(()=>{if (this.groupOpening===opening) this.groupOpening=undefined;}).catch(()=>{});
+    }
+    Promise.all([this.groupOpening || Promise.resolve(),this.searchTasks.refresh(model)]).then(() => {
+      if (this.groupLoad!==revision || !this.searchMode || this.model!==model || !model.owns(generation,scope)) return;
+      this.searchGroups.updateGroupingSupport(this.searchTasks.supportsTodos,this.searchTasks.supportsDirections);
+      const shared=this.searchWorkspace;
+      if (!this.catalog.browser.searchGrouping) this.catalog.browser.searchGrouping=shared && shared.isBoundTo(model) ? shared.groupingMode : 'repo';
+      this.syncSearchGroups();
+    }).catch(() => {});
+  }
+  private syncSearchGroups():void {
+    if (!this.groupedSearchRows || !this.searchMode || !this.searchGroups.isBoundTo(this.model)) return;
+    const rows=this.directorySearchRows.filter((row:ResourceRow) => !Wire.bool(row.data(),'hidden_by_directory'));
+    this.searchGroups.setProjectSearch(this.model,rows,this.catalog.browser.query,this.quick || 'all',
+      this.catalog.browser.machine,this.catalog.browser.searchGrouping || 'repo');
+  }
+  private selectSearchGrouping(key:string):void {
+    if (!this.searchGroups.groupingOptions().includes(key)) return;
+    this.catalog.browser.searchGrouping=key;
+    if (this.searchWorkspace?.isBoundTo(this.model)) {
+      this.searchWorkspace.updateGroupingSupport(this.searchTasks.supportsTodos,this.searchTasks.supportsDirections);
+      this.searchWorkspace.setGroupingMode(key);
+    }
+    this.syncSearchGroups();
+  }
+  @Builder searchGroupingMenu() {
+    Menu() {
+      ForEach(this.searchGroups.groupingOptions(),(key:string) => {
+        MenuItem({content:tr(agentGroupingLabels[key])}).selected(this.searchGroups.groupingMode===key).selectIcon(true)
+          .onClick(()=>this.selectSearchGrouping(key)).id('projects.grouping.'+key)
+      },(key:string) => key)
+      if (this.hosts.length>1 || this.catalog.browser.machine)
+        MenuItem({content:tr('agent_filter_machine'),builder:()=>{this.machineMenu();}}).id('projects.machine')
+    }
+  }
+  @Builder searchGrouping() {
+    Button({type:ButtonType.Circle}) { PhoneGroupingGlyph({controlHeight:this.quickHeight()}) }
+      .width(this.quickHeight()).height(this.quickHeight()).padding(0).backgroundColor(Color.Transparent)
+      .accessibilityText(tr('agent_grouping_current').replace('{group}',tr(agentGroupingLabels[this.searchGroups.groupingMode])))
+      .bindMenu(this.searchGroupingMenu).id('projects.grouping')
+  }
   private quickHeight():number { return PhoneStyle.formSize(44,57.7,nativeEnvironment.fontScale); }
   private selectQuick(key:string):void {
     if ((this.quick || 'all') === key) return;
-    this.quick = key === 'all' ? '' : key;
+    this.quick = key === 'all' ? '' : key; this.catalog.browser.searchQuick=this.quick; this.syncSearchGroups();
     this.catalog.browser.resetSearchFolds(); this.catalog.browser.remember(this.route(),'');
-    if (this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
+    if (!this.showGroupedResults && this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
   }
   @Builder machineFilter() {
     Button({type:ButtonType.Circle}) {
@@ -506,7 +573,7 @@ export struct ProjectsPage {
           }.padding({left:4,right:4})
         }.layoutWeight(1).height(this.quickHeight()).align(Alignment.Start).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).id('projects.quick')
         Divider().vertical(true).strokeWidth(0.5).height(22*this.quickHeight()/44).color(Colors.divider)
-        this.machineFilter()
+        this.searchGrouping()
       }.width('100%').height(this.quickHeight()).backgroundColor(Colors.grouped).borderRadius(44).clip(true)
         .outlineWidth(0.5).outlineColor(Colors.divider).outlineRadius(44)
     }.width('100%').padding({bottom:8})
@@ -707,22 +774,28 @@ export struct ProjectsPage {
   }
   @Builder repositoryList() {
     Column() {
-      if (this.page === 'projects' && (!this.compact || this.searchMode)) this.searchAndFilter()
-      List({scroller:this.scroller}) {
-        if (this.compact && this.page === 'projects' && !this.searchMode) ListItem() { this.searchEntry() }
-        if (this.page === 'project' && this.project()) ListItem() {
-          PhoneSectionTitle({ text: this.project()!.machine, trailing: this.count(this.project()!.trees.length, 'project_worktrees') })
-        }.id('projects.repository_summary')
-        this.outlineItems()
-        if (!this.lines.length && !this.catalog.loading) ListItem() {
-          this.message(tr(this.catalog.browser.query || this.catalog.browser.machine ? 'no_results' :
-            this.catalog.partial ? 'project_catalog_unavailable' : 'project_empty'))
-        }
-      }.layoutWeight(1).width('100%').scrollBar(BarState.Auto).maintainVisibleContentPosition(true)
-        .onAreaChange(() => this.restorePosition())
-        .contentStartOffset(this.compact && this.page === 'projects' && !this.searchMode ? this.topContentInset : 0)
-        .onScrollIndex((start:number) => this.rememberPosition(start)).id(this.page === 'projects' ? 'projects.list' : 'projects.worktrees')
-    }.width('100%').height('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page})
+      if (this.page === 'projects' && (!this.compact || this.searchMode)) {
+        Column() { this.searchAndFilter() }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page})
+      }
+      if (this.showGroupedResults && this.groupedSearchRows) {
+        Column() { this.groupedSearchRows(this.searchGroups,this.searchTasks) }.layoutWeight(1).width('100%')
+      } else Column() {
+        List({scroller:this.scroller}) {
+          if (this.compact && this.page === 'projects' && !this.searchMode) ListItem() { this.searchEntry() }
+          if (this.page === 'project' && this.project()) ListItem() {
+            PhoneSectionTitle({ text: this.project()!.machine, trailing: this.count(this.project()!.trees.length, 'project_worktrees') })
+          }.id('projects.repository_summary')
+          this.outlineItems()
+          if (!this.lines.length && !this.catalog.loading) ListItem() {
+            this.message(tr(this.catalog.browser.query || this.catalog.browser.machine ? 'no_results' :
+              this.catalog.partial ? 'project_catalog_unavailable' : 'project_empty'))
+          }
+        }.layoutWeight(1).width('100%').scrollBar(BarState.Auto).maintainVisibleContentPosition(true)
+          .onAreaChange(() => this.restorePosition())
+          .contentStartOffset(this.compact && this.page === 'projects' && !this.searchMode ? this.topContentInset : 0)
+          .onScrollIndex((start:number) => this.rememberPosition(start)).id(this.page === 'projects' ? 'projects.list' : 'projects.worktrees')
+      }.layoutWeight(1).width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page})
+    }.width('100%').height('100%')
   }
   private pathLabel(tree: ProjectWorktree): string {
     const machine = this.model.directoryMachines.find((row: ResourceRow) => row.group === tree.group && row.manager === tree.manager && row.id === tree.machine);

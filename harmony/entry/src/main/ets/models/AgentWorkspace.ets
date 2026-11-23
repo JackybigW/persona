@@ -7,6 +7,10 @@ import { CoreAgentListAdapter } from '../core/AgentListAdapter';
 import { phoneAgentGroups } from './AgentActivityGroups';
 
 const AGENT_GROUPINGS: string[] = ['repo','space','todo','state','machine','app','recent','direction'];
+export const agentGroupingLabels: Record<string,string> = {
+  'repo':'agent_group_repo', 'space':'agent_group_space', 'todo':'agent_group_todo', 'state':'agent_group_state',
+  'machine':'agent_group_machine', 'app':'agent_group_app', 'recent':'agent_group_recent', 'direction':'agent_group_direction'
+};
 
 interface AgentRepository {
   call(path: string, method?: string, body?: Record<string, Object>, operationId?: string, admit?: () => boolean): Promise<Record<string, Object>>;
@@ -147,7 +151,11 @@ export class AgentWorkspace {
   private preferredGrouping: string;
   @Trace private supportsTodos: boolean = false;
   @Trace private supportsDirections: boolean = false;
-  constructor(adapter?: AgentListAdapter, defaultGrouping: string = 'state') {
+  private readonly standaloneView: boolean;
+  private projectRows: ResourceRow[] | undefined;
+  constructor(adapter?: AgentListAdapter, defaultGrouping: string = 'state', standaloneView: boolean = true) {
+    this.standaloneView = standaloneView; this.hubModeLoaded = !standaloneView;
+    this.groupingMode = defaultGrouping;
     this.adapter = adapter || new CoreAgentListAdapter();
     this.defaultGrouping = defaultGrouping;
     this.preferredGrouping = defaultGrouping;
@@ -201,7 +209,7 @@ export class AgentWorkspace {
     this.client = client; this.scope = client.scope(); this.owner = client.profile.manager;
     this.viewScope = JSON.stringify([this.scope, this.owner]);
     this.openingView = true; this.loading = true; this.busy = false; this.error = '';
-    this.externalSelection = undefined; this.groups = []; this.sourceRows = []; this.latestSourceRows = []; this.historyRows = []; this.historyLoaded = false; this.frozenGroups = undefined;
+    this.externalSelection = undefined; this.groups = []; this.sourceRows = []; this.latestSourceRows = []; this.projectRows = undefined; this.historyRows = []; this.historyLoaded = false; this.frozenGroups = undefined;
     this.supervisorQueue = undefined; this.hidSupervisorRows = false;
     this.quickFilter = 'all'; this.filterCounts = {}; this.unpinnedRows = [];
     this.preferredGrouping = this.defaultGrouping; this.groupingMode = this.defaultGrouping;
@@ -210,7 +218,7 @@ export class AgentWorkspace {
     this.readingDetail = false; this.freezeSuppressed = false;
     this.preferences = new Map<string, AgentPreferences>(); this.pinsSpaces = []; this.pinsSessions = []; this.mutesSpaces = []; this.mutesSessions = []; this.mutesAllowed = [];
     try {
-      const values = await Promise.all([client.loadView('agent-workspace'), this.hubModeLoaded ? Promise.resolve('') : client.loadView('agent-hub-mode')]);
+      const values = await Promise.all([this.standaloneView ? client.loadView('agent-workspace') : Promise.resolve(''), this.hubModeLoaded ? Promise.resolve('') : client.loadView('agent-hub-mode')]);
       if (!this.loadCurrent(client, revision)) return;
       const saved = Wire.parse(values[0]);
       if (!this.hubModeLoaded) { this.currentHubOnly = values[1] === 'current'; this.hubModeLoaded = true; }
@@ -248,6 +256,7 @@ export class AgentWorkspace {
 
   hide(): void {
     this.supervisorQueue = undefined; this.hidSupervisorRows = false;
+    this.projectRows = undefined;
     this.filterCounts = {}; this.unpinnedRows = [];
     this.revision++; this.openingView = false; this.client = undefined; this.groups = []; this.sourceRows = []; this.latestSourceRows = []; this.historyRows = []; this.historyLoaded = false;
     this.frozenGroups = undefined; this.readingDetail = false;
@@ -778,7 +787,7 @@ export class AgentWorkspace {
 
   private rowsForClient(client: ClientModel | undefined): ResourceRow[] {
     if (!client) return [];
-    return (client.directoryReady ? client.directorySessions : client.sessions).filter((row: ResourceRow) => row.kind === 'session' && this.includesHub(row.group) &&
+    return (this.projectRows || (client.directoryReady ? client.directorySessions : client.sessions)).filter((row: ResourceRow) => row.kind === 'session' && this.includesHub(row.group) &&
       !Wire.bool(row.data(), 'archived') && !Wire.bool(row.data(), 'assistant'));
   }
 
@@ -889,6 +898,18 @@ export class AgentWorkspace {
     this.applySupervisorHolds(matches);
   }
 
+  // Project search renders the same Agent groups, with its own query, machine and quick filter.
+  // The standalone Agents view persists its own filters independently.
+  setProjectSearch(root:ClientModel, rows:ResourceRow[], query:string, quick:string, machine:string, grouping:string): void {
+    if (this.standaloneView || !this.isBoundTo(root)) return;
+    this.projectRows=rows; this.search=query; this.quickFilter=quick;
+    this.machineFilter=this.machineForShownHub(machine);
+    this.preferredGrouping=AGENT_GROUPINGS.includes(grouping) ? grouping : this.defaultGrouping;
+    this.groupingMode=this.resolvedGrouping();
+    this.latestSourceRows=this.rowsForClient(root);
+    this.rebuild();
+  }
+
   // Projects shares the Agents search and pane-source projection, with its own machine, query and reading position.
   repositoryQuery(root:ClientModel, sessions:ResourceRow[], query:string, quick:string, machine:string):CoreAgentListProjection {
     const bound = this.isBoundTo(root);
@@ -959,6 +980,7 @@ export class AgentWorkspace {
   }
 
   private saveViewLater(): void {
+    if (!this.standaloneView) return;
     if (this.persistTimer !== -1) clearTimeout(this.persistTimer);
     const client = this.client, revision = this.revision, viewScope = this.viewScope;
     this.persistTimer = setTimeout(() => {

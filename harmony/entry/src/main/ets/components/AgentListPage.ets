@@ -1,9 +1,10 @@
 import { LengthMetrics } from '@kit.ArkUI';
+import { PhoneGroupingGlyph } from './PhoneGroupingGlyph';
 import { IconActions } from '../design/IconActions';
 import { util } from '@kit.ArkTS';
 import { ClientModel } from '../models/ClientModel';
 import { AgentDecisionCard, AgentDecisionQueue } from '../models/AgentDecisionQueue';
-import { AgentWorkspace, AgentWorkspaceGroup } from '../models/AgentWorkspace';
+import { AgentWorkspace, AgentWorkspaceGroup, agentGroupingLabels } from '../models/AgentWorkspace';
 import { ProjectAgent, ProjectCatalog, ProjectWorktree } from '../models/ProjectCatalog';
 import { AgentDirectoryRowContent } from './AgentDirectoryRowContent';
 import { AgentNeedsYouMark } from './AgentNeedsYouMark';
@@ -28,8 +29,6 @@ import { DeviceLook, deviceLook } from '../models/DeviceLook';
 
 const QUICK_FILTERS: string[] = ['all', 'needsYou', 'unread', 'working', 'backgroundWaiting', 'feishu', 'terminal'];
 const QUICK_LABELS: Record<string,string> = { 'all':'all', 'needsYou':'needs_you', 'unread':'agent_group_unread', 'working':'working', 'backgroundWaiting':'agent_group_background', 'feishu':'agent_source_lark_group', 'terminal':'terminal' };
-const GROUP_LABELS: Record<string, string> = {'repo':'agent_group_repo','space':'agent_group_space','todo':'agent_group_todo','state':'agent_group_state',
-  'machine':'agent_group_machine','app':'agent_group_app','recent':'agent_group_recent','direction':'agent_group_direction'};
 const STATE_LABELS: Record<string, string> = {'pinned': 'agent_group_pinned', 'state/needs': 'needs_you',
   'state/unread': 'agent_group_unread', 'state/awaiting': 'agent_group_awaiting', 'state/working': 'working',
   'state/background': 'agent_group_background', 'state/just_finished': 'agent_group_just_finished',
@@ -111,7 +110,8 @@ export struct AgentListPage {
   @Event onVisible: (row: ResourceRow, ratio: number) => void = () => {};
   @Param workspace: AgentWorkspace = new AgentWorkspace();
   @Param projectCatalog: ProjectCatalog = new ProjectCatalog();
-  @Local taskGrouping: AgentTaskGrouping = new AgentTaskGrouping();
+  @Param taskGrouping: AgentTaskGrouping = new AgentTaskGrouping();
+  @Param externalSearchControls:boolean = false;
   @Local taskRowsByKey: Map<string,BoundAgentRow> = new Map();
   @Local look: DeviceLook = deviceLook;
   @Computed get displayedAgentStyle():string {
@@ -174,7 +174,7 @@ export struct AgentListPage {
       if (['todo','assistant_feed'].includes(type) && ['todo','direction'].includes(this.workspace.groupingMode)) this.refreshGroupingSupport();
     });
     this.reloadDecisions(); this.syncRowBindings(); if (this.active) this.activateWorkspace(); }
-  aboutToDisappear(): void { this.taskGrouping.clear(); this.stopDecisionEvents?.(); this.retireDecisions(); this.resetSearchReveal(); this.editorOpen = false; this.filterSheetOpen = false; this.editingAdmission = undefined; this.workspace.revokeRowActions(); if (!this.retainWorkspace) this.workspace.hide(); }
+  aboutToDisappear(): void { if (!this.externalSearchControls) this.taskGrouping.clear(); this.stopDecisionEvents?.(); this.retireDecisions(); this.resetSearchReveal(); this.editorOpen = false; this.filterSheetOpen = false; this.editingAdmission = undefined; this.workspace.revokeRowActions(); if (!this.retainWorkspace) this.workspace.hide(); }
 
   @Monitor('active') visibleChanged(): void { if (this.active) this.reloadDecisions(); else this.retireDecisions(); if (!this.active) { this.resetSearchReveal(); this.editorOpen = false; this.filterSheetOpen = false; this.editingRow = undefined; this.editingAdmission = undefined; this.workspace.revokeRowActions(); if (!this.retainWorkspace) this.workspace.hide(); } else this.activateWorkspace(); }
   @Monitor('model.forgottenEpoch') forgottenChanged(): void { this.retireDecisions(); this.reloadDecisions(); this.workspace.forgetHub(this.model.forgottenProfile); if (this.editingRow?.group === this.model.forgottenProfile) { this.editorOpen = false; this.editingRow = undefined; this.editingAdmission = undefined; } }
@@ -206,6 +206,7 @@ export struct AgentListPage {
     }).catch(() => {});
   }
   private activateWorkspace(): void {
+    if (this.externalSearchControls) { this.syncRowBindings(); return; }
     this.refreshGroupingSupport();
     if (this.workspace.isBoundTo(this.model)) {
       this.workspace.update(this.model, this.readingDetail);
@@ -590,8 +591,8 @@ export struct AgentListPage {
       }
       Row({ space: Tokens.page }) {
         Text(tr('grouping')).fontSize(Tokens.body).maxFontScale(Tokens.interfaceScaleFor(Tokens.body)).fontColor(Colors.ink).layoutWeight(1)
-        Select(this.availableGroupings.map((key:string) => ({ value: tr(GROUP_LABELS[key]) } as SelectOption)))
-          .selected(this.groupingIndex()).value(tr(GROUP_LABELS[this.workspace.groupingMode]))
+        Select(this.availableGroupings.map((key:string) => ({ value: tr(agentGroupingLabels[key]) } as SelectOption)))
+          .selected(this.groupingIndex()).value(tr(agentGroupingLabels[this.workspace.groupingMode]))
           .attributeModifier(SelectStyles.inline).constraintSize({ minHeight: Tokens.touch, maxWidth: '68%' })
           .onSelect((index: number) => this.selectGrouping(index)).id('agents.grouping')
       }.width('100%').constraintSize({ minHeight: Tokens.header }).alignItems(VerticalAlign.Center)
@@ -817,7 +818,7 @@ export struct AgentListPage {
   }
   private trackPull(event: TouchEvent): void {
     if (event.type === TouchType.Down) this.revealedDuringPull = false;
-    if (!this.compactRoot || !this.active || this.searchEditing || this.workspace.search) return;
+    if (this.externalSearchControls || !this.compactRoot || !this.active || this.searchEditing || this.workspace.search) return;
     if (event.type === TouchType.Down) {
       let top = false;
       try { top = this.agentScroller.currentOffset().yOffset <= 1; } catch (_) { }
@@ -905,7 +906,7 @@ export struct AgentListPage {
   @Builder groupingMenu() {
     Menu() {
       ForEach(this.availableGroupings,(key:string,index:number) => {
-        MenuItem({content:tr(GROUP_LABELS[key])}).selected(key===this.workspace.groupingMode).selectIcon(true)
+        MenuItem({content:tr(agentGroupingLabels[key])}).selected(key===this.workspace.groupingMode).selectIcon(true)
           .onClick(() => this.selectGrouping(index)).id('agents.grouping.'+key)
       },(key:string)=>key)
       MenuItem({content:tr('phone_agent_display_title'),builder:()=>{this.displayChoices();}}).id('agents.display')
@@ -916,14 +917,10 @@ export struct AgentListPage {
   @Builder filterControl() {
     if (this.compactRoot) {
       Button({type:ButtonType.Circle}) {
-        Column({space:2}) {
-          ForEach([14,10,5],(width:number)=>{
-            Row().width(width*this.quickHeight()/44).height(1.5*this.quickHeight()/44).borderRadius(1).backgroundColor(Colors.ink)
-          },(width:number)=>String(width))
-        }.alignItems(HorizontalAlign.Center).accessibilityLevel('no')
+        PhoneGroupingGlyph({controlHeight:this.quickHeight()})
       }
         .width(this.quickHeight()).height(this.quickHeight()).padding(0).backgroundColor(Color.Transparent)
-        .accessibilityText(tr('agent_grouping_current').replace('{group}',tr(GROUP_LABELS[this.workspace.groupingMode])))
+        .accessibilityText(tr('agent_grouping_current').replace('{group}',tr(agentGroupingLabels[this.workspace.groupingMode])))
         .accessibilityCustomActions([{name:tr('search_sessions'),onAction:()=>this.activateSearch()}])
         .bindMenu(this.groupingMenu).id('agents.grouping.quick')
     } else {
@@ -1003,14 +1000,7 @@ export struct AgentListPage {
     }.padding(Tokens.page).width('100%')
   }
 
-  build() {
-    Column() {
-      this.filters()
-      if (this.model.directoryUnavailable > 0) Text(tr('directory_partly_unavailable')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor($r('sys.color.font_secondary')).padding(Tokens.inset).width('100%')
-      if (this.decisions.error) Text(tr(this.decisions.error)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor(Colors.danger).padding(Tokens.inset).width('100%')
-      if (this.workspace.error && !this.editorOpen) Text(tr(this.workspace.error)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta))
-        .fontColor($r('app.color.persona_danger')).padding(Tokens.inset).width('100%')
-      Refresh({ refreshing: $$this.refreshing }) {
+  @Builder resultList() {
       List({scroller:this.agentScroller}) {
         if (this.workspace.loading && !this.workspace.hasRows()) ListItem() { LoadingProgress().height(Tokens.touch).width(Tokens.touch).padding(Tokens.page) }
         ForEach(this.groupBindings, (binding: BoundAgentGroup) => {
@@ -1049,6 +1039,19 @@ export struct AgentListPage {
         }.id('agents.empty')
       }.width('100%').height('100%').onAreaChange((_:Area,area:Area)=>{this.listWidth=Number(area.width);}).padding({ left: this.rail || this.floatingStatusCards ? 0 : 12, right: this.rail || this.floatingStatusCards ? 0 : 12, bottom: Tokens.listTail }).backgroundColor(Colors.grouped)
         .onTouch((event: TouchEvent) => this.trackPull(event)).id('agents.list.'+this.workspace.groupingMode)
+  }
+
+  build() {
+    Column() {
+      if (!this.externalSearchControls) this.filters()
+      if (this.model.directoryUnavailable > 0) Text(tr('directory_partly_unavailable')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor($r('sys.color.font_secondary')).padding(Tokens.inset).width('100%')
+      if (this.decisions.error) Text(tr(this.decisions.error)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor(Colors.danger).padding(Tokens.inset).width('100%')
+      if (this.workspace.error && !this.editorOpen) Text(tr(this.workspace.error)).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta))
+        .fontColor($r('app.color.persona_danger')).padding(Tokens.inset).width('100%')
+      if (this.externalSearchControls) {
+        this.resultList()
+      } else Refresh({ refreshing: $$this.refreshing }) {
+        this.resultList()
       }.width('100%').layoutWeight(1).onRefreshing(() => this.refreshAgents())
       .bindSheet($$this.filterSheetOpen, this.filterSheet(), {
         title: { title: tr('agent_filters_title') }, height: SheetSize.FIT_CONTENT, showClose: true,

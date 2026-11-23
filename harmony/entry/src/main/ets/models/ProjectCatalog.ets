@@ -368,6 +368,9 @@ export function trimAgentProjects(projects: PersonaProject[], includeEmpty: bool
 @ObservedV2
 export class ProjectBrowserState {
   @Trace query: string = '';
+  @Trace searchQuick: string = '';
+  @Trace searchActive: boolean = false;
+  @Trace searchGrouping: string = '';
   @Trace private searchClosed: string[] = [];
   private searchScope: string = '';
   @Trace machine: string = '';
@@ -379,7 +382,7 @@ export class ProjectBrowserState {
   edits: number = 0;
 
   clear(): void {
-    this.query = ''; this.machine = ''; this.preferences = []; this.unlimited = []; this.selectedTree = ''; this.selectedSession = ''; this.anchors.clear(); this.searchClosed = []; this.searchScope = ''; this.edits++;
+    this.query = ''; this.searchQuick = ''; this.searchActive = false; this.searchGrouping = ''; this.machine = ''; this.preferences = []; this.unlimited = []; this.selectedTree = ''; this.selectedSession = ''; this.anchors.clear(); this.searchClosed = []; this.searchScope = ''; this.edits++;
   }
   searchOpen(id:string): boolean { return !this.searchClosed.includes(id); }
   toggleSearch(id:string): void {
