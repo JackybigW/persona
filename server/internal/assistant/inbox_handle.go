@@ -68,10 +68,12 @@ func (b *inboxBook) tell(it *InboxItem, n inboxNote, wake bool, now time.Time) {
 	b.wakeInboxConversation(it, now)
 }
 
-// wakeInboxConversation applies tell's wake bookkeeping without adding another note. Under b.mu.
+// wakeInboxConversation applies tell's wake bookkeeping without adding another note. A wake also consumes an
+// off-transition interruption: this turn, rather than another escalation for the same Last, owns the recovery. Under b.mu.
 func (b *inboxBook) wakeInboxConversation(it *InboxItem, now time.Time) {
 	a := it.Agent
 	a.Wake = true
+	a.InterruptedByDisable = false
 	if h := it.Handling; h != nil && h.State != HandlingLooking {
 		a.Back = h.State
 	}
@@ -232,6 +234,7 @@ func (b *inboxBook) setHandling(it *InboxItem, state, errText string, now time.T
 	if a == nil {
 		return
 	}
+	a.InterruptedByDisable = false // a newer handling state supersedes the off-transition interruption
 	if state != HandlingAgent {
 		a.WakeSlot = false
 	}
@@ -261,6 +264,7 @@ func (b *inboxBook) failHandling(it *InboxItem, reason string, now time.Time) {
 	it.Suggestion = nil
 	if it.Agent != nil {
 		it.Agent.Wake = false
+		it.Agent.InterruptedByDisable = false // a later genuine failure supersedes an off-transition interruption
 	}
 	b.dropInboxWakes(it)
 	b.setHandling(it, HandlingFailed, reason, now)
@@ -304,7 +308,8 @@ func (b *inboxBook) escalate(since, now time.Time) []*inboxWrite {
 	var changed []*inboxWrite
 	for _, it := range b.items {
 		a := it.Agent
-		if it.VisibilityExcluded || !it.open() || it.Context == "" || a != nil && (a.Of == it.Last || a.savingRetry) {
+		if it.VisibilityExcluded || !it.open() || it.Context == "" ||
+			a != nil && (a.Of == it.Last && !a.InterruptedByDisable || a.savingRetry) {
 			continue
 		}
 		handled := it.handled()
@@ -388,14 +393,17 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	mu := v.(*sync.Mutex)
 	mu.Lock()
 	defer mu.Unlock()
-	fullCfg, err := s.inboxConfigFresh(ctx)
-	if err != nil {
+	hello := s.hello(ctx)
+	// Hello is a blocking hub RPC. Authorize only after it returns; the live session and pending batch are then read
+	// under b.mu, so neither a policy activated during preparation nor a replaced session can reuse the old snapshot.
+	fullCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
 		// Pending notes contain the item's full context. An unknown current boundary leaves them queued, never delivered.
 		return
 	}
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	enabled := fullCfg.Agent.Enabled
-	hello := s.hello(ctx)
+	replyPolicy := fullCfg.ReplyPolicy
 	owner, language := inboxPromptOwner(hello), answerLanguage(hello.Locale)
 	b.mu.Lock()
 	if cur := b.items[it.ID]; cur != it {
@@ -408,7 +416,7 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 		return
 	}
 	if !enabled {
-		w := b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), time.Now())
+		w := b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), time.Now(), true)
 		b.mu.Unlock()
 		if w != nil {
 			s.saveWrites(ctx, []*inboxWrite{w}, "the disabled AI twin's work")
@@ -436,6 +444,18 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 		b.mu.Unlock()
 		return
 	}
+	if replyPolicyItemApplies(replyPolicy, it) && (replyPolicyQueueBlocked(it, replyPolicy) || replyPolicyQueuePending(it, replyPolicy)) {
+		// Work-bearing turns require the same current owner-draft authorization as a new queue start. A terminal closed
+		// notice performs no work and remains deliverable so the existing processing session can shut down cleanly.
+		terminalOnly := !it.open()
+		for _, note := range notes {
+			terminalOnly = terminalOnly && note.Name == prompts.NoteClosed
+		}
+		if !terminalOnly {
+			b.mu.Unlock()
+			return
+		}
+	}
 	turn := ""
 	if it.open() {
 		turn = rand.Text()
@@ -461,7 +481,7 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	for i, n := range notes {
 		texts[i] = renderNoteIn(n, owner, language)
 	}
-	err = s.sendToSession(ctx, machine, sid, inboxProcessingPrompt(turn, strings.Join(texts, "\n\n---\n\n")))
+	err := s.sendToSession(ctx, machine, sid, inboxProcessingPrompt(turn, strings.Join(texts, "\n\n---\n\n")))
 	gone := false
 	if err != nil {
 		// Gone only when its machine answers without it (an offline machine is tried again later).

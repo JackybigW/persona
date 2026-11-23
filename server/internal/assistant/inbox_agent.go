@@ -78,6 +78,7 @@ var inboxAgentStartBackoff = []time.Duration{time.Minute, 5 * time.Minute}
 
 // errNoInboxMachine is the definite "no computer can run the inbox agent" refusal before any node call.
 var errNoInboxMachine = errors.New("no machine for the inbox agent")
+var errInboxStartAuthorization = errors.New("inbox agent start authorization changed")
 
 // InboxAgent is the AI twin's work on one item.
 type InboxAgent struct {
@@ -92,6 +93,9 @@ type InboxAgent struct {
 	Changes []DocChange `json:"changes,omitempty"`
 	Error   string      `json:"error,omitempty"`
 	Of      string      `json:"of,omitempty"` // the item's Last the work answers
+	// InterruptedByDisable marks unfinished work released only because the twin was switched off. It survives reload and
+	// gets one escalation when re-enabled; a genuine processing failure leaves it false (#11219).
+	InterruptedByDisable bool `json:"interrupted_by_disable,omitempty"`
 	// TodoID: the user's task the item is about (model 2's task_id, docs/assistant/unified-entry.md): the draft tells its
 	// progress, and the task's conversation gets a card for it.
 	TodoID    string     `json:"todo_id,omitempty"`
@@ -268,7 +272,7 @@ func (s *Service) releaseInboxAgents(ctx context.Context) {
 	var changed []*inboxWrite
 	now := time.Now()
 	for _, it := range b.items {
-		if w := b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now); w != nil {
+		if w := b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now, true); w != nil {
 			changed = append(changed, w)
 		}
 	}
@@ -278,8 +282,9 @@ func (s *Service) releaseInboxAgents(ctx context.Context) {
 
 // releaseInboxAgent drops queued work and releases an unfinished item. Completed suggestions and confirmed
 // actions waiting for a reply stay available. HandlingDone restores the item's tier; HandlingFailed returns it to
-// Needs you. The caller holds b.mu and persists the returned write.
-func (b *inboxBook) releaseInboxAgent(it *InboxItem, state, reason string, now time.Time) *inboxWrite {
+// Needs you. byDisable is true only for the twin's off transition, and is what distinguishes that interruption from a
+// genuine failure for the next enabled pass. The caller holds b.mu and persists the returned write.
+func (b *inboxBook) releaseInboxAgent(it *InboxItem, state, reason string, now time.Time, byDisable bool) *inboxWrite {
 	active, pending := inboxAgentReleaseState(it)
 	if !active && !pending {
 		return nil
@@ -294,6 +299,7 @@ func (b *inboxBook) releaseInboxAgent(it *InboxItem, state, reason string, now t
 		}
 	}
 	if a := it.Agent; a != nil {
+		a.InterruptedByDisable = byDisable && active
 		a.Pending, a.Wake, a.Back, a.RetryAfter = nil, false, "", nil
 		a.DeferredAt, a.WakeSlot = nil, false
 	}
@@ -354,7 +360,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		case it.Agent.State == AgentQueued && it.Agent.SessionID == "" && it.open() && !it.Agent.savingRetry:
 			// Recheck before backoff, capacity or adoption: a saved rule also covers work already queued.
 			if b.policyTwin(it) == TwinNever || replyPolicyQueueBlocked(it, replyPolicy) {
-				if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now); w != nil {
+				if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), now, false); w != nil {
 					released = append(released, w)
 				}
 				continue
@@ -369,14 +375,15 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	}
 	b.sortQueued(queued)
 	type job struct {
-		it             *InboxItem
-		chat           string
-		prompt         func(*prompts.KBContext, bool) string
-		carried        int // the agent's told count when the first message was made: it carries the notes queued up to it
-		turn           string
-		attempts       int
-		startedAt      *time.Time
-		processingTurn string
+		it      *InboxItem
+		chat    string
+		prompt  func(*prompts.KBContext, bool) string
+		carried int // the agent's told count when the first message was made: it carries the notes queued up to it
+		// Reservation fields let a per-start policy veto return this item to queued without consuming an outward start.
+		turn, previousTurn, previousState string
+		contentVersion                    string
+		previousStarted, previousRetry    *time.Time
+		previousAttempts                  int
 	}
 	var jobs []job
 	var adopted []*inboxWrite
@@ -398,29 +405,22 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			// Admit now so that message includes every note and the replay establishes the same restoration state.
 			b.admitInboxSourceWake(it, now)
 		}
-		previousAttempts, previousStartedAt, previousProcessingTurn := it.Agent.Attempts, it.Agent.StartedAt, it.Agent.ProcessingTurn
+		previousState, previousStarted, previousAttempts := it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts
+		previousRetry, previousTurn := it.Agent.RetryAfter, it.Agent.ProcessingTurn
 		it.Agent.State, it.Agent.StartedAt, it.Agent.Attempts, it.Agent.RetryAfter = AgentRunning, &now, it.Agent.Attempts+1, nil
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
-		a.ReplyPolicy = replyPolicyApplies(replyPolicy, it.Source)
+		a.ReplyPolicy = replyPolicyItemApplies(replyPolicy, it)
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn
-		jobs = append(jobs, job{
-			it:   it,
-			chat: b.kbChatOf(it),
-			prompt: func(kbc *prompts.KBContext, allowKBContext bool) string {
-				if allowKBContext {
-					a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
-				}
-				a.KB = kbc
-				return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(a))
-			},
-			carried:        it.Agent.told,
-			turn:           turn,
-			attempts:       previousAttempts,
-			startedAt:      previousStartedAt,
-			processingTurn: previousProcessingTurn,
-		})
+		jobs = append(jobs, job{it: it, chat: b.kbChatOf(it), prompt: func(kbc *prompts.KBContext, allowKBContext bool) string {
+			if allowKBContext {
+				a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
+			}
+			a.KB = kbc
+			return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(a))
+		}, carried: it.Agent.told, turn: turn, previousTurn: previousTurn, previousState: previousState,
+			previousStarted: previousStarted, previousRetry: previousRetry, previousAttempts: previousAttempts})
 	}
 	b.mu.Unlock()
 	// A failed release stays queued for the next pass, but never starts under the rule.
@@ -430,40 +430,98 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 	for _, w := range adopted {
 		s.deliverNotes(ctx, w.it) // nothing goes for an undone one (no conversation)
 	}
-	for _, j := range jobs {
-		// Starts are sequential and each may wait for the full start timeout. Reauthorize this item after any earlier
-		// start and immediately before rendering its prompt, rather than using the queue pass's captured visibility.
-		freshCfg, freshErr := s.inboxConfigFresh(ctx)
-		if freshErr != nil {
-			s.logf("inbox: fresh settings before starting %s: %v", j.it.ID, freshErr)
-			b.mu.Lock()
-			a := j.it.Agent
-			restored := a != nil && j.it.open() && a.State == AgentRunning && a.SessionID == "" && a.ProcessingTurn == j.turn
-			if restored {
-				// No start went out: restore the queued admission instead of spending an attempt or reporting a start failure.
-				a.State, a.Attempts, a.StartedAt, a.ProcessingTurn, a.RetryAfter = AgentQueued, j.attempts, j.startedAt, j.processingTurn, nil
-			}
-			b.mu.Unlock()
-			if restored {
-				s.saveInbox(ctx, []*InboxItem{j.it})
-			}
-			continue
+	restoreReservation := func(j job) {
+		restored := false
+		b.mu.Lock()
+		if a := j.it.Agent; b.items[j.it.ID] == j.it && a != nil && a.State == AgentRunning && a.SessionID == "" && a.ProcessingTurn == j.turn {
+			// Restore only the reservation fields. Notes, content, handling and other device state that arrived meanwhile
+			// are concurrent work and must not be rolled back with a start that never happened.
+			a.State, a.StartedAt, a.Attempts = j.previousState, j.previousStarted, j.previousAttempts
+			a.RetryAfter, a.ProcessingTurn = j.previousRetry, j.previousTurn
+			restored = true
 		}
-		if inboxVisibilityWithMembersExcludedLocked(b, j.it, freshCfg.Visibility) {
-			s.quarantineInboxVisibility(ctx, freshCfg.Visibility)
+		b.mu.Unlock()
+		if restored {
+			if failed := s.saveInbox(ctx, []*InboxItem{j.it}); failed[j.it.ID] {
+				s.logf("inbox: agent for %s: restoring its unstarted queue reservation could not be saved", j.it.ID)
+			}
+		}
+	}
+	for _, j := range jobs {
+		jobCfg, configErr := s.inboxConfigFresh(ctx)
+		if configErr != nil {
+			// Each outward start is its own authorization boundary. With no fresh policy there is no start and no
+			// consumed attempt; the next pass can admit the still-queued item.
+			s.logf("inbox: fresh settings before starting %s: %v", j.it.ID, configErr)
+			restoreReservation(j)
 			continue
 		}
 		// Only the legacy empty profile receives automatic KB context. source_only and every unknown profile fail closed.
-		allowKBContext := freshCfg.Agent.ReadProfile == ""
+		allowKBContext := jobCfg.Agent.ReadProfile == ""
+		ready, pending, visibilityExcluded := false, false, false
+		var releaseWrite *inboxWrite
+		b.mu.Lock()
+		a := j.it.Agent
+		current := b.items[j.it.ID] == j.it && j.it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" && a.ProcessingTurn == j.turn
+		if current {
+			switch {
+			case inboxVisibilityWithMembersExcludedLocked(b, j.it, jobCfg.Visibility):
+				visibilityExcluded = true
+			case b.policyTwin(j.it) == TwinNever || replyPolicyQueueBlocked(j.it, jobCfg.ReplyPolicy):
+				// An earlier start in this same batch may have changed a later item's category or policy. Release its
+				// reservation without Start instead of sending the stale prompt to a new conversation.
+				releaseWrite = b.releaseInboxAgent(j.it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), time.Now().UTC(), false)
+			case replyPolicyQueuePending(j.it, jobCfg.ReplyPolicy):
+				pending = true
+			default:
+				// Rebuild from live state immediately before the outward call, including the carried-note cursor and
+				// policy scope captured in the prompt.
+				promptAgent := b.inboxAgentForIn(j.it, owner, linked[a.TodoID], larkDefault, loc, language)
+				promptAgent.ReplyPolicy = replyPolicyItemApplies(jobCfg.ReplyPolicy, j.it)
+				if allowKBContext {
+					promptAgent.KnowledgeDir = s.kb.dir
+				}
+				turn := j.turn
+				j.chat = b.kbChatOf(j.it)
+				j.carried = a.told
+				j.contentVersion = replyPolicyContentVersion(j.it)
+				j.prompt = func(kbc *prompts.KBContext, allowKBContext bool) string {
+					if allowKBContext {
+						promptAgent.KnowledgeDir = s.kb.dir
+					}
+					promptAgent.KB = kbc
+					return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(promptAgent))
+				}
+				ready = true
+			}
+		}
+		b.mu.Unlock()
+		if releaseWrite != nil {
+			s.saveWrites(ctx, []*inboxWrite{releaseWrite}, "the AI twin policy's rechecked queued work")
+		}
+		if visibilityExcluded {
+			s.quarantineInboxVisibility(ctx, jobCfg.Visibility)
+		}
+		if pending {
+			restoreReservation(j)
+		}
+		if !ready || visibilityExcluded {
+			continue
+		}
 		var kbc *prompts.KBContext
 		if allowKBContext && j.chat != "" {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)
-		machineID, sessionID, err := s.startInboxAgent(cctx, cfg, j.it, j.prompt(kbc, allowKBContext))
+		machineID, sessionID, err := s.startInboxAgentAuthorized(cctx, cfg, j.it, j.prompt(kbc, allowKBContext), j.contentVersion, j.turn)
 		cancel()
+		if errors.Is(err, errInboxStartAuthorization) {
+			// No outward session was created. Return the reservation to queued without consuming its attempt budget.
+			restoreReservation(j)
+			continue
+		}
 		b.mu.Lock()
-		a := j.it.Agent
+		a = j.it.Agent
 		// A note that asks for work while the start was on its way queued the event again (tell, no conversation yet):
 		// the conversation that started is that work, and the note goes into it (#5366).
 		woken := a != nil && a.State == AgentQueued && a.Wake && a.SessionID == "" && err == nil
@@ -523,6 +581,21 @@ func (b *inboxBook) kbChatOf(it *InboxItem) string {
 // inbox agent's model (model settings > inbox.agent). Untitled skips ordinary auto-naming; the item's subject
 // names it below. Its origin keeps it archived in the session snapshot; the Inbox item opens its transcript.
 func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it *InboxItem, prompt string) (machineID, sessionID string, err error) {
+	b := &s.inbox
+	b.mu.Lock()
+	contentVersion := replyPolicyContentVersion(it)
+	turn := ""
+	if it.Agent != nil {
+		turn = it.Agent.ProcessingTurn
+	}
+	b.mu.Unlock()
+	return s.startInboxAgentAuthorized(ctx, cfg, it, prompt, contentVersion, turn)
+}
+
+// startInboxAgentAuthorized receives the exact authorization tuple captured under the same lock as the prompt. Device
+// and KB preparation may block; the final fence must compare the live row with that tuple, never with a newer snapshot
+// captured after the wait.
+func (s *Service) startInboxAgentAuthorized(ctx context.Context, cfg InboxAgentConfig, it *InboxItem, prompt, contentVersion, turn string) (machineID, sessionID string, err error) {
 	machine := s.settings(ctx).MachineID
 	if _, ok := s.device(ctx, cfg.Machine); ok && cfg.Machine != "" {
 		machine = cfg.Machine
@@ -532,6 +605,22 @@ func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it 
 	}
 	if s.isWorkMachine(machine) {
 		return "", "", errWorkAssistant
+	}
+	// Device/KB preparation may block. Reauthorize the live row after it and before Start creates an outward session:
+	// content, processing turn and policy revision must still be exactly those used to build the prompt.
+	freshCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
+		return "", "", errInboxStartAuthorization
+	}
+	b := &s.inbox
+	b.mu.Lock()
+	a := it.Agent
+	authorized := b.items[it.ID] == it && it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" &&
+		a.ProcessingTurn == turn && replyPolicyContentVersion(it) == contentVersion && b.policyTwin(it) != TwinNever &&
+		!replyPolicyQueueBlocked(it, freshCfg.ReplyPolicy) && !replyPolicyQueuePending(it, freshCfg.ReplyPolicy)
+	b.mu.Unlock()
+	if !authorized {
+		return "", "", errInboxStartAuthorization
 	}
 	sess, err := s.Start(ctx, StartParams{Text: prompt, Purpose: purposeAgent, MachineID: machine, Untitled: true, Origin: OriginInbox,
 		OriginRef: it.ID})

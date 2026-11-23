@@ -63,6 +63,10 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 	}
 	var took []*InboxItem
 	var entries []InboxChainEntry
+	if sv.ReplyInstruction == nil {
+		// Upgrade legacy chain-only provenance before resequencing and trimming can discard it.
+		sv.ReplyInstruction = chainReplyInstruction(sv.Chain)
+	}
 	for _, it := range items {
 		if it == sv {
 			continue
@@ -75,15 +79,23 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 				sv.MergedFrom = append(sv.MergedFrom, ref)
 			}
 		}
+		// A later Undo can reopen this old survivor with its member text still in Context. Preserve that text's
+		// provenance before dropping the member refs, including for survivors merged before the durable fields existed.
+		it.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(it))
+		it.ReplyContextTruncated = replyPolicyContextTruncated(it)
 		it.MergedFrom = nil
 		it.MergedInto = sv.ID
 		sv.MergedFrom = append(sv.MergedFrom, InboxMergeRef{ID: it.ID, Source: it.Source, AccountName: it.AccountName, Title: it.Title})
+		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
+		sv.ReplyContextTruncated = replyPolicyContextTruncated(sv) || replyPolicyContextTruncated(it)
 		sv.Count += it.Count
 		if it.StartedAt.Before(sv.StartedAt) {
 			sv.StartedAt = it.StartedAt
 		}
 		if it.Context != "" && it.Context != sv.Context {
-			sv.Context = clipRunesTo(sv.Context+"\n\n"+it.Context, mergeCtxMax)
+			combined := sv.Context + "\n\n" + it.Context
+			sv.Context = clipRunesTo(combined, mergeCtxMax)
+			sv.ReplyContextTruncated = sv.ReplyContextTruncated || sv.Context != combined
 		}
 		entries = append(entries, listedChain(it)...)
 	}
@@ -116,6 +128,7 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 		Text: i18n.T(b.userLang(), "assistant-inbox_chain.merged_from", i18n.Args{"n": len(sv.MergedFrom) + 1})})
 	sv.Read = false
 	sv.TriagedAt, sv.RuleOf = "", "" // the merged row is judged again, with the members' text
+	resetReplyPolicyClassification(sv)
 	return sv, took
 }
 
@@ -167,12 +180,18 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 		sv.Count = max(sv.Count-m.Count, 1)
 		out = append(out, m)
 	}
+	// Rows merged before the durable fields existed still carry their member text. Capture both boundaries before
+	// dropping MergedFrom, or Undo would make that retained text look like an unmerged, fully classified survivor.
+	sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv))
+	sv.ReplyContextTruncated = replyPolicyContextTruncated(sv)
 	sv.MergedFrom = nil
 	if t := sv.PreMergeTier; t != "" {
 		sv.Tier = t[:len(t)-1]
 		sv.PreMergeTier = ""
 	}
 	sv.TriagedAt, sv.RuleOf = "", ""
+	// Undo restores rows, not the survivor's original Context: member text and its source/truncation boundary remain.
+	resetReplyPolicyClassification(sv)
 	restoreMergeTitle(sv)
 	b.chainAdd(sv, InboxChainEntry{Kind: ChainMerged, At: now.UTC(), Text: i18n.T(b.userLang(), "assistant-inbox_chain.unmerged")})
 	return out
@@ -182,7 +201,14 @@ func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 // reopens, and is judged again. A member whose survivor is gone is let go (its row shows again). Under b.mu; it
 // returns changed with the survivors added.
 func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxItem {
-	for _, it := range slices.Clone(changed) {
+	// A round can advance several members of one survivor. Apply them oldest-first, and compare each with the
+	// survivor's timestamp at the start of that survivor's round rather than with a sibling update just applied.
+	members := slices.Clone(changed)
+	slices.SortStableFunc(members, func(x, y *InboxItem) int { return x.UpdatedAt.Compare(y.UpdatedAt) })
+	roundStart := map[*InboxItem]time.Time{}
+	for _, it := range members {
+		advanced := it.receivedInCollection
+		it.receivedInCollection = false
 		if it.MergedInto == "" {
 			continue
 		}
@@ -191,20 +217,35 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 			it.MergedInto = ""
 			continue
 		}
-		if !it.UpdatedAt.After(sv.UpdatedAt) {
+		baseline, seen := roundStart[sv]
+		if !seen {
+			baseline = sv.UpdatedAt
+			roundStart[sv] = baseline
+		}
+		// noteReceived proves that this member advanced in this collection. The timestamp fallback preserves the direct
+		// followMerged callers' behavior for older/manual updates, but must not suppress a genuinely new, older member event.
+		if !advanced && !containsItem(changed, sv) && !it.UpdatedAt.After(baseline) {
 			continue
 		}
 		b.roundWrite(sv)
-		sv.UpdatedAt, sv.Preview, sv.Sender, sv.Read = it.UpdatedAt, it.Preview, it.Sender, false
+		if it.UpdatedAt.After(sv.UpdatedAt) {
+			sv.UpdatedAt, sv.Preview, sv.Sender = it.UpdatedAt, it.Preview, it.Sender
+		}
+		sv.Read = false
 		sv.Count++
 		sv.DoneAt, sv.DoneBy = nil, ""
 		if tierRank(it.Tier) > tierRank(sv.Tier) {
 			sv.Tier, sv.Reason = it.Tier, it.Reason
 		}
+		sv.ReplyContentSources = replyPolicySourceUnion(replyPolicySourceSet(sv), replyPolicySourceSet(it))
+		sv.ReplyContextTruncated = replyPolicyContextTruncated(sv) || replyPolicyContextTruncated(it)
 		if it.Context != "" {
-			sv.Context = clipRunesTo(it.Context+"\n\n"+sv.Context, mergeCtxMax)
+			combined := it.Context + "\n\n" + sv.Context
+			sv.Context = clipRunesTo(combined, mergeCtxMax)
+			sv.ReplyContextTruncated = sv.ReplyContextTruncated || sv.Context != combined
 		}
 		sv.TriagedAt, sv.RuleOf = "", ""
+		resetReplyPolicyClassification(sv)
 		b.chainAdd(sv, InboxChainEntry{Kind: ChainReceived, At: it.UpdatedAt.UTC(), Count: 1, Sender: it.Sender, Via: it.Source,
 			Link: firstLink(it), Text: receivedText(b.userLang(), it, 1, it.Sender)})
 		if !containsItem(changed, sv) {

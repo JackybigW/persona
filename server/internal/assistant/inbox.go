@@ -156,6 +156,18 @@ type InboxItem struct {
 	ReplyClassifiedOf string `json:"reply_classified_of,omitempty"`
 	ReplyPolicyRev    string `json:"reply_policy_rev,omitempty"`
 	ReplyReviewed     bool   `json:"reply_reviewed,omitempty"`
+	// ReplyContentSources follows member text through merge and Undo; ReplyContextTruncated records that the complete
+	// merged conversation no longer fits the classifier. Both are persisted authorization state, never listed.
+	ReplyContentSources   []string `json:"reply_content_sources,omitempty"`
+	ReplyContextTruncated bool     `json:"reply_context_truncated,omitempty"`
+	// ReplyInstruction preserves an outstanding owner rewrite instruction even when merge resequences and trims the
+	// display chain. RejectedReplyDraft is the legacy last-rejected value; RejectedReplyDrafts retains every exact
+	// rejected on-demand text so rejecting a replacement cannot make an older card sendable. None is listed.
+	ReplyInstruction     *InboxChainEntry `json:"reply_instruction,omitempty"`
+	RejectedReplyDraft   string           `json:"rejected_reply_draft,omitempty"`
+	RejectedReplyDrafts  []string         `json:"rejected_reply_drafts,omitempty"`
+	replyClassifySerial  uint64
+	receivedInCollection bool
 	// RuleOf is Last when the item's tier came from the rules because the model failed on it (an error or too slow,
 	// not a held connection or no model): TriagedAt stays behind, and later passes ask the model again, a few at a
 	// time and less often while it keeps failing, until it answers (inbox_triage.go retryRuled, #8298).
@@ -249,6 +261,9 @@ func (it *InboxItem) listed() InboxItem {
 	c.SuggestionAttempts = listedSuggestionAttempts(it.SuggestionAttempts)
 	c.Context, c.Last, c.TriagedAt, c.BodyOf, c.JudgedAt, c.Rules, c.ArrivedOf, c.FolderOf = "", "", "", "", "", "", "", ""
 	c.TriageRev, c.SettledOf, c.RuleOf, c.RepliedOf = 0, "", "", ""
+	c.ReplyContentSources, c.ReplyContextTruncated = nil, false
+	c.ReplyInstruction, c.RejectedReplyDraft = nil, ""
+	c.RejectedReplyDrafts = nil
 	c.ArrivedAt = time.Time{}
 	c.Meta, c.Group = nil, nil
 	c.ChainSeq, c.SuggestSeq = 0, 0
@@ -270,7 +285,9 @@ func (it *InboxItem) listed() InboxItem {
 		g := *g
 		g.Changes, g.Cwd = slices.Clone(g.Changes), ""
 		g.MailTarget = nil // the reply's internal conflict check, not a client's target to choose
-		g.Owner, g.SourceOf = nil, ""
+		g.Owner, g.SourceOf, g.ReplyInstruction = nil, "", ""
+		g.ReplyPublicationFailed = false
+		g.OnDemand, g.ReplyPublicationPending = false, false
 		c.Suggestion = &g
 		if c.Handling == nil && g.Conversation == nil && it.Agent != nil { // an old draft: its conversation is done with this round
 			c.Handling = &InboxHandling{Owner: HandlingOwner, State: HandlingDone, MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
@@ -294,6 +311,7 @@ func (it *InboxItem) listed() InboxItem {
 		}
 		a.Pending, a.Wake, a.SentOf, a.Lost = nil, false, "", nil
 		a.ProcessingTurn = ""
+		a.InterruptedByDisable = false
 		a.DeferredAt, a.WakeSlot = nil, false
 		c.Agent = &a
 	}

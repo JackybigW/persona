@@ -32,6 +32,9 @@ type suggestionReq struct {
 	// Due is a to-do suggestion's due time as the user left it (a day or a moment, "" none); absent keeps the suggestion's.
 	Due      *string `json:"due"`
 	ClientID string  `json:"client_id"`
+	// Changes is the explicit selection made by an old-client /reply confirmation. Nil means the normal suggestion API,
+	// which confirms the card's stored moves; a non-nil empty slice means the owner deselected every move.
+	Changes *[]DocChange `json:"-"`
 }
 
 var (
@@ -93,11 +96,26 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b := &s.inbox
 		b.mu.Lock()
 		it := b.items[id]
-		source, sourceKnown := "", false
+		var sources []string
+		sourceKnown := false
 		policyConfirm := false
 		if it != nil {
-			source, sourceKnown = it.Source, true
 			g := currentSuggestion(it)
+			if g != nil && g.Kind == SuggestReply && !g.Handback && g.Version == in.Version {
+				if a := suggestionAttempt(it, g.Version); a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
+					// The durable physical outcome outranks any later policy/configuration failure. Reporting "none" here
+					// would invite the owner to repeat a send whose first result is still unresolved.
+					out := it.listed()
+					b.mu.Unlock()
+					return out, unknownSuggestionReply()
+				}
+				if g.ReplyPublicationFailed || g.ReplyPublicationPending {
+					out := it.listed()
+					b.mu.Unlock()
+					return out, errInboxNotPersisted
+				}
+			}
+			sources, sourceKnown = replyPolicySourceSet(it), true
 			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent)
 		}
 		b.mu.Unlock()
@@ -126,8 +144,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 			if err != nil {
 				return InboxItem{}, errReplyPolicyDenied
 			}
-			vetoApplies := sourceKnown && replyPolicyApplies(vetoCfg.ReplyPolicy, source)
-			freshApplies := sourceKnown && replyPolicyApplies(freshCfg.ReplyPolicy, source)
+			vetoApplies := sourceKnown && replyPolicySourcesApply(vetoCfg.ReplyPolicy, sources)
+			freshApplies := sourceKnown && replyPolicySourcesApply(freshCfg.ReplyPolicy, sources)
 			if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
 				return InboxItem{}, errReplyPolicyDenied
 			}
@@ -199,12 +217,20 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	edited := g != nil && text != g.Text
 	// The suggestion is taken now, under the lock: a second confirmation of it (another device, a retry) is stale.
 	it.Suggestion = nil
+	if in.Action == suggestConfirm {
+		it.ReplyInstruction = nil
+	}
 	if it.Agent.State == AgentDrafted {
 		it.Agent.State = AgentSkipped
 	}
 	execute := g != nil && in.Action == suggestConfirm && !g.Handback
 	switch {
 	case in.Action == suggestReject:
+		it.ReplyInstruction = nil
+		if g.OnDemand {
+			it.RejectedReplyDraft = g.Text // legacy single-value field; keep it for stored-row compatibility
+			it.RejectedReplyDrafts = append(it.RejectedReplyDrafts, g.Text)
+		}
 		b.chainAdd(it, rejectedEntry(l, g.Text, now))
 		b.flushInboxWakes(it, now)
 		b.tell(it, inboxNote{Name: prompts.NoteRejected, Text: g.Text}, true, now)
@@ -212,6 +238,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	case in.Action == suggestInstruct:
 		words := strings.TrimSpace(*in.Text)
 		b.chainAdd(it, instructedEntry(l, words, now))
+		instruction := it.Chain[len(it.Chain)-1]
+		it.ReplyInstruction = &instruction
 		b.flushInboxWakes(it, now)
 		b.tell(it, inboxNote{Name: prompts.NoteInstructed, Text: words}, true, now)
 		b.setHandling(it, HandlingLooking, "", now)
@@ -228,7 +256,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b.chainAdd(it, confirmedEntry(l, text, edited, now))
 	}
 	if !enabled && !execute {
-		b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now)
+		b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now, false)
 		b.settle(w)
 	}
 	last := it.Last
@@ -345,7 +373,7 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 	}
 	res := ""
 	if err == nil {
-		res, err = s.runTool(ctx, s.settings(ctx).MachineID, self, "agent_start", args)
+		res, err = s.runTool(ownerConfirmed(ctx), s.settings(ctx).MachineID, self, "agent_start", args)
 	}
 	// Preserve the legacy sampling point: a disable that lands while startup is pending is observed after it returns.
 	enabled := s.inboxConfig(ctx).Agent.Enabled
@@ -369,7 +397,7 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 		_ = res
 	}
 	if !enabled {
-		b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now)
+		b.releaseInboxAgent(it, HandlingFailed, i18n.T(b.userLang(), "assistant-inbox_agent.disabled"), now, false)
 	}
 	out := it.listed()
 	b.mu.Unlock()

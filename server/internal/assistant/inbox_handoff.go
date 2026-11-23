@@ -432,16 +432,22 @@ func (s *Service) actOnHandedSuggestion(ctx context.Context, it *InboxItem, g *I
 	edited := text != g.Text
 	to, title := *g.Conversation, clip(oneLine(it.Title), 80)
 	it.Suggestion = nil
+	if in.Action == suggestConfirm {
+		it.ReplyInstruction = nil
+	}
 	execute := in.Action == suggestConfirm && !g.Handback && g.Kind != SuggestConclusion
 	var note *inboxNote
 	closed := false
 	switch {
 	case in.Action == suggestReject:
+		it.ReplyInstruction = nil
 		b.chainAdd(it, rejectedEntry(l, g.Text, now))
 		note = &inboxNote{Name: prompts.NoteRejected, Text: g.Text}
 	case in.Action == suggestInstruct:
 		words := strings.TrimSpace(*in.Text)
 		b.chainAdd(it, instructedEntry(l, words, now))
+		instruction := it.Chain[len(it.Chain)-1]
+		it.ReplyInstruction = &instruction
 		note = &inboxNote{Name: prompts.NoteInstructed, Text: words}
 	case g.Handback:
 		b.chainAdd(it, confirmedEntry(l, text, edited, now))
@@ -537,7 +543,7 @@ func (s *Service) confirmHandedAgent(ctx context.Context, it *InboxItem, g *Inbo
 		b.mu.Unlock()
 	}
 	if err == nil {
-		_, err = s.runTool(context.WithValue(ctx, handoffStartKey{}, hs), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
+		_, err = s.runTool(ownerConfirmed(context.WithValue(ctx, handoffStartKey{}, hs)), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
 	}
 	b.mu.Lock()
 	l, now := b.userLang(), time.Now().UTC()

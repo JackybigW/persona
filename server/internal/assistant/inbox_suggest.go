@@ -1,14 +1,17 @@
 package assistant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/prompts"
 )
 
 // ---- the suggestion tool (inbox_suggest; inbox_draft is its older name for a reply) ----
@@ -208,6 +211,16 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		b.mu.Unlock()
 		return "", nil, nil, false, errCannotReply
 	}
+	if from == nil && (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
+		for _, note := range it.Agent.Pending {
+			if note.Name == prompts.NoteNewMessages {
+				// Collection has newer content that this turn has not seen. Classification may already have advanced while
+				// delivery still waits; publishing now would stamp old text with the new target and authorization.
+				b.mu.Unlock()
+				return "", nil, nil, false, errStaleInboxTurn
+			}
+		}
+	}
 	if from == nil && (in.Kind != "" || in.Follow != nil) && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errSuggestFiled
@@ -215,6 +228,42 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if in.Reported != nil && !it.open() {
 		b.mu.Unlock()
 		return "", nil, nil, false, errReportedFiled
+	}
+	instructionID := ""
+	if (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
+		if instruction, needsClassification := replyInstructionForSuggestion(it, in.Text, replyPolicy); instruction != nil {
+			instructionID = instruction.ID
+			if needsClassification {
+				// An unconsumed owner instruction is part of the generated replacement's authority. Intervening reported
+				// progress does not consume it; classify with the original conversation, then revalidate the whole item.
+				before := itemState(it)
+				itemID, conversation := it.ID, it.Context
+				instructionText, policy := instruction.Detail, replyPolicy
+				b.mu.Unlock()
+				category, classifyErr := s.classifyReplyPolicyInput(ctx, policy, prompts.InboxReplyPolicyInput{
+					Text: in.Text, Original: conversation + "\n\nOwner draft instruction:\n" + instructionText, Edit: true,
+				})
+				freshCfg, freshErr := s.inboxConfigFresh(ctx)
+				b.mu.Lock()
+				if freshErr != nil {
+					b.mu.Unlock()
+					return itemID, nil, nil, false, errReplyPolicyDenied
+				}
+				if b.items[itemID] != it || !bytes.Equal(before, itemState(it)) {
+					b.mu.Unlock()
+					return itemID, nil, nil, false, errStaleInboxTurn
+				}
+				if !reflect.DeepEqual(policy, freshCfg.ReplyPolicy) {
+					b.mu.Unlock()
+					return itemID, nil, nil, false, errReplyPolicyDenied
+				}
+				replyPolicy = freshCfg.ReplyPolicy
+				if classifyErr != nil || replyRoute(category, policy) != ReplyRouteOwnerDraft {
+					b.mu.Unlock()
+					return itemID, nil, nil, false, errReplyPolicyDenied
+				}
+			}
+		}
 	}
 	if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
 		b.mu.Unlock()
@@ -301,6 +350,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			g.Owner = &SessionRef{MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
 		}
 		g.SourceOf = suggestionReplyTarget(it)
+		g.ReplyInstruction = instructionID
 		snapshotReplyPolicy(g, it, replyPolicy)
 		if in.Kind == SuggestReply && !in.Handback {
 			g.MailTarget = mailTarget(*it)
