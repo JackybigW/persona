@@ -554,6 +554,10 @@ export async function brotliCopies(dir: string, files: string[]): Promise<{ file
 // above, so its build fails on its own. The project tree adds nothing to the first screen (it is the knowledge map's
 // chunk): this tree measures ja 484,584 B (en 481,935 B, zh-Hans 482,576 B), 3 B under main. The budget is this tree's
 // ja 484,584 B with 10 B of room on top.
+// #13020: main ec2563b7d7 itself measures ja 484,587 B (en 481,938 B, zh-Hans 482,579 B), 96 B over the 484,491 B
+// above, so its build fails on its own. The watch cards add nothing to the first screen (Overview's wall is idle-tier,
+// IDLE_TIER_BUDGET below): this tree measures ja 484,585 B (en 481,936 B, zh-Hans 482,577 B), 2 B under main. The
+// budget is this tree's ja 484,585 B with 10 B of room on top.
 export const FIRST_SCREEN_BUDGET = 999_999;
 // The hash in a built file's name: the 8 characters of Rollup's [hash] (url-safe base64) between "-" and the
 // extension, as vite.config.ts names every chunk and asset ("assets/[name]-[hash].js", "[name]-[hash][extname]").
@@ -791,8 +795,7 @@ export function firstScreenOverBudget(bytes: [string, number][], budget = FIRST_
 // quiet for N h" under a Working row whose background work has stalled (ui/BackgroundStallHint.tsx). Main 7b023aa70 with
 // #13842 sends 46,091 B at idle, 16 B over; 10 B of room on top.
 // And 29 B for the watch wall (#13020): Overview (idle) gains the lazy import of views/watch/WatchWall.tsx and its
-// Suspense; the wall itself loads as a chunk of its own. This tree measured 46,104 B against 46,075 B. 11 B of room on top. Merged with the stalled-background hint's 46,101 B
-// (#13744) above: 46,101 + 29 = 46,130 B.
+// Suspense; the wall itself loads as a chunk of its own. Merged with main ec2563b7d7 (46,101 B above, #13744): 46,101 + 29 = 46,130 B.
 export const IDLE_TIER_BUDGET = 46_130;
 
 const gzip = promisify(gzipCompress);
