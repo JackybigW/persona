@@ -82,6 +82,6 @@ export struct PhoneDefaultPermissionSection {
         Text(tr(this.form.error)).fontSize(14).fontColor(Colors.danger)
         Button(tr('retry'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(()=>{ this.form.read().catch(()=>undefined); })
       }.width('100%')
-    } } else if (this.emptyInset>0) { ListItem() { Blank().height(this.emptyInset).accessibilityLevel('no') } }
+    } } else if (this.emptyInset>0) { ListItem() { Row().width('100%').height(this.emptyInset).accessibilityLevel('no') } }
   }
 }
