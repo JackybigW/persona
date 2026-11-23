@@ -3053,6 +3053,10 @@
       "value": "テキストを選択"
     },
     {
+      "name": "chat_lift_multiple",
+      "value": "複数選択"
+    },
+    {
       "name": "chat_lift_me",
       "value": "自分"
     },

@@ -1,3 +1,5 @@
+import { PhoneChatForward } from '../models/PhoneChatForward';
+import { PhoneChatForwardPicker, PhoneForwardNewTray } from '../components/PhoneChatForward';
 import { PhoneMessageLiftHost, PhoneMessageLiftHostLayer } from '../components/PhoneMessageLift';
 import { AssistantChatStateMark, AssistantChatTitle } from '../components/AssistantChatMarks';
 import { assistantChatSource, assistantChatState, assistantSidebarChats, sidebarConversationLabel, sidebarConversationTitle, SidebarTaskHistory } from '../models/AssistantRecentChats';
@@ -92,6 +94,8 @@ interface ChatActionEntry extends SheetInfo {
   identity?: string;
 }
 
+const forwardRestingDetent = '56.875%';
+
 @Entry
 @ComponentV2
 struct Index {
@@ -118,6 +122,7 @@ struct Index {
   @Local todoCreateRevision: number = 0;
   @Local extensionRefreshRevision: number = 0;
   @Local messageLift: PhoneMessageLiftHost = new PhoneMessageLiftHost();
+  @Local chatForward: PhoneChatForward = new PhoneChatForward();
   @Local applications: ExtensionNavigation = new ExtensionNavigation();
   @Local shownName: string = '';
   @Local phonePath: string[] = [];
@@ -892,7 +897,7 @@ struct Index {
   @Monitor('model.profile', 'model.connected', 'model.features') applicationOwnerChanged(): void {
     this.applications.bind(this.model); this.applications.connectionChanged();
   }
-  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
+  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.chatForward.end(); this.chatForward.clearNew(); this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
   @Monitor('model.conversations', 'model.mainId', 'model.mainMachineId', 'model.sidebarConfig', 'model.connected', 'spacesShown', 'breakpoint', 'collapsed', 'sidebarTaskHistory.revision') conversationsChanged(): void { this.syncConversationRows(); }
   @Monitor('model.appearance') appearanceChanged(): void {
     this.getUIContext().getHostContext()?.getApplicationContext().setColorMode(this.model.appearance === 1 ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT : this.model.appearance === 2 ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -2040,7 +2045,7 @@ struct Index {
     const machine = this.chosenAgentMachine(), tree = this.selectedAgentTree();
     return !!machine && this.agentOwnsMachine(machine) && this.agentMachineOnline(machine) && !this.creatingAgent && !this.switchingAgentMachine &&
       this.agentModel.connected && !this.agentModel.operationBlocked('/api/v1/sessions') &&
-      (!!this.newTask.trim() || this.promptOptional()) && (!(this.agentWorktree || this.pickedAgentTree) || !!tree && tree.canStart && tree.cwd === this.directory) &&
+      (!!this.newTask.trim() || this.promptOptional() || !!this.chatForward.newFor(this.agentModel)) && this.chatForward.newAllows(this.agentModel,this.chosenLauncher()) && (!(this.agentWorktree || this.pickedAgentTree) || !!tree && tree.canStart && tree.cwd === this.directory) &&
       !this.blockedLaunchers.some((v:LaunchChoice) => v.id === this.effectiveLauncher()) &&
       (!this.launchListReady || !this.launcher || this.agentLauncherOptions.includes(this.launcher));
   }
@@ -2307,7 +2312,7 @@ struct Index {
         Row() {
           Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('20vp').fontColor([Colors.ink]) }
             .width(42).height(42).padding(0).backgroundColor(Colors.sheetCard).border({width:0.5,color:Colors.divider,radius:21})
-            .accessibilityText(tr('cancel')).onClick(() => this.showSheet = false).enabled(!this.creatingAgent).id('agent.cancel')
+            .accessibilityText(tr('cancel')).onClick(() => { this.chatForward.clearNew(); this.showSheet=false; }).enabled(!this.creatingAgent).id('agent.cancel')
           Text(tr('phone_new_chat_title')).fontSize(17).maxFontScale(Tokens.chromeFontMaxScale).maxLines(2).fontWeight(600).fontColor(Colors.ink).textAlign(TextAlign.Center).layoutWeight(1)
           Blank().width(42)
         }.width('100%').padding({left:14,right:14,top:17,bottom:11})
@@ -2390,6 +2395,7 @@ struct Index {
             Text(this.agentModelHelp()).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
               .width('100%').padding({left:12,right:12,top:6}).id('agent.model.help')
             this.agentSectionTitle('flow_first_message',true)
+            if (this.chatForward.newFor(this.agentModel)) PhoneForwardNewTray({model:this.agentModel,state:this.chatForward})
             TextArea({text:this.newTask,placeholder:tr(this.promptOptional() ? 'flow_draft_optional' : 'task')})
               .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
               .minLines(3).maxLines(10,{overflowMode:MaxLinesMode.SCROLL}).width('100%')
@@ -2452,7 +2458,8 @@ struct Index {
     } catch (_) { /* Older nodes support entering the existing launcher name directly. */ }
   }
   private agentDraftKey(): string { return 'new-agent:' + (this.agentWorktree?.key || this.agentTodo?.id || 'standalone'); }
-  private async prepareAgent(todo?: ResourceRow, tree?: ProjectWorktree): Promise<void> {
+  private async prepareAgent(todo?: ResourceRow, tree?: ProjectWorktree, keepForward: boolean = false): Promise<void> {
+    if (!keepForward) this.chatForward.clearNew();
     const revision = ++this.agentFormRevision, generation = this.model.connectionGeneration(), scope = this.model.scope();
     this.agentMessageFocused = false;
     this.startTreeSource = undefined; this.startWorktree.close(); this.startFailure = ''; this.agentPanel = '';
@@ -2601,7 +2608,10 @@ struct Index {
     this.creatingAgent = true;
     try {
       const effort = this.startAgentEffort();
-      const row = await owner.createAgent(this.newTask, machine, this.directory, this.launcher, this.agentTodo?.id || '', valid, tree?.boundStart ? tree.sourceId : '', tree?.boundStart ? tree.source : '', this.agentModelId, effort);
+      const note=this.newTask,prompt=this.chatForward.newPrompt(owner,note);
+      const row = await owner.createAgent(prompt, machine, this.directory, this.launcher, this.agentTodo?.id || '', valid, tree?.boundStart ? tree.sourceId : '', tree?.boundStart ? tree.source : '', this.agentModelId, effort);
+      if (!valid()) return;
+      await this.chatForward.afterNew(owner,row,note);
       if (!valid()) return;
       const setup = new RecentAgentSetup(); setup.machine = this.machineKey(machine); setup.cwd = this.directory; setup.tree = tree?.key || '';
       setup.launcher = this.launcher; setup.model = this.agentModelId; setup.effort = effort; setup.preset = this.agentPreset;
@@ -2695,7 +2705,7 @@ struct Index {
       if (['projects','project','project_tree','machine_projects'].includes(name)) {
         this.projectPage(name, param as string)
       } else if (name === 'session' || name === 'conversation') {
-        if (this.targetReady(name, param)) Conversation({ liftHost:this.messageLift, searchPresented:this.chatSearchShown, searchHitId:this.searchHitFor(param), decisionTool:this.decisionToolFor(param), model: this.detailModel, onPlace: (kind: string) => { if (this.activeChild === this.childKey(name, param)) this.openSpace(kind); }, admission: (): boolean => this.activeChild === this.childKey(name, param) && this.targetReady(name, param), onOpenFile: (path: string) => this.openTools(path), active: this.activeChild === this.childKey(name, param), onOpenResource: (row: ResourceRow) => this.openFrom(name, param, row), onLink: (address: string) => this.openReader(address), showContextMenu: this.mainDestination(name, param) || this.hideChatTitle(name, param), onOpenCard: (itemId: string, kind: string) => { if (this.activeChild === this.childKey(name, param) && this.targetReady(name, param)) this.openAssistantCard(itemId, kind); }, onLongDraftHeader: (floating: boolean) => {
+        if (this.targetReady(name, param)) Conversation({ liftHost:this.messageLift, forwardState:this.chatForward, onForwardOrigin:(row:ResourceRow,item:string):void => this.openPickedChat(row,item), searchPresented:this.chatSearchShown, searchHitId:this.searchHitFor(param), decisionTool:this.decisionToolFor(param), model: this.detailModel, onPlace: (kind: string) => { if (this.activeChild === this.childKey(name, param)) this.openSpace(kind); }, admission: (): boolean => this.activeChild === this.childKey(name, param) && this.targetReady(name, param), onOpenFile: (path: string) => this.openTools(path), active: this.activeChild === this.childKey(name, param), onOpenResource: (row: ResourceRow) => this.openFrom(name, param, row), onLink: (address: string) => this.openReader(address), showContextMenu: this.mainDestination(name, param) || this.hideChatTitle(name, param), onOpenCard: (itemId: string, kind: string) => { if (this.activeChild === this.childKey(name, param) && this.targetReady(name, param)) this.openAssistantCard(itemId, kind); }, onLongDraftHeader: (floating: boolean) => {
           const child = this.childKey(name, param);
           if (floating && this.activeChild === child && this.targetReady(name, param)) this.longDraftIdentity = child;
           else if (!floating && this.longDraftIdentity === child) this.longDraftIdentity = '';
@@ -2793,10 +2803,23 @@ struct Index {
       .menus(this.navigationMenus(name, param))
       .onShown(() => this.routeShown(name, param))
       .onHidden(() => { if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; if (this.activeChild === this.childKey(name, param)) { this.activeChild = ''; this.dismissChatActions(); } if ((name === 'session' || name === 'conversation') && this.routeRow(param).key() === this.detailModel.selected.key()) this.detailModel.hideConversation(false); if (name === 'assistant') this.detailModel.watchDecisions(false); if (name === 'tools') this.detailModel.releaseTerminal(); })
-      .onBackPressed((): boolean => { if (this.messageLift.dismiss()) return true; if (!this.spacesShown && this.returnToPhoneSettings()) return true; if (this.spacesShown) { this.spacesShown = false; return true; } if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; this.phoneBack(); return true; })
+      .onBackPressed((): boolean => { if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true; if (!this.spacesShown && this.returnToPhoneSettings()) return true; if (this.spacesShown) { this.spacesShown = false; return true; } if (this.pendingInboxHandoff === this.childKey(name, param)) this.pendingInboxHandoff = ''; this.phoneBack(); return true; })
+  }
+  private closeForwardNavigation(): boolean {
+    if (this.chatForward.isChoosing(this.detailModel)) { this.chatForward.cancelPicker(); return true; }
+    if (this.chatForward.isPicking(this.detailModel)) { this.chatForward.end(); return true; }
+    return false;
+  }
+  @Monitor('showSheet') forwardFormVisibility(change:IMonitor): void {
+    const visible=change.value<boolean>('showSheet');
+    if (visible && visible.before && !visible.now && this.sheetKind==='newagent') this.chatForward.clearNew();
+  }
+  @Builder forwardPickerContent() {
+    PhoneChatForwardPicker({source:this.detailModel,state:this.chatForward,onTarget:(row:ResourceRow):void => this.openPickedChat(row),
+      onNewAgent:():void => { if (this.chatForward.newFor(this.model)) void this.prepareAgent(undefined,undefined,true); }})
   }
   onBackPress(): boolean {
-    if (this.messageLift.dismiss()) return true;
+    if (this.messageLift.dismiss() || this.closeForwardNavigation()) return true;
     if (this.chatSearchShown) { this.chatSearchShown = false; return true; }
     if (this.phoneSettingsShown) {
       if (this.phoneSettingsPage) this.phoneSettingsPage = '';
@@ -2885,6 +2908,11 @@ struct Index {
         onAppear: () => { this.spacesLayoutReady = true; this.measureSpaces(); }, onDisappear: () => { this.spacesLayoutReady = false; if (this.wide()) this.spacesShown = false; } })
     }
     }
+    Column().width(0).height(0).bindSheet(this.chatForward.isChoosing(this.detailModel),this.forwardPickerContent(),{
+      height:forwardRestingDetent,detents:[forwardRestingDetent,SheetSize.LARGE],
+      detentSelection:this.chatForward.expanded ? SheetSize.LARGE : forwardRestingDetent,
+      preferType:SheetType.BOTTOM,dragBar:true,showClose:false,
+      onDisappear:():void => { if (this.chatForward.isChoosing(this.detailModel)) this.chatForward.cancelPicker(); }})
     if (this.messageLift.current) {
       WithTheme({theme:nativeLookTheme(this.look,this.model.style,this.environment.dark),colorMode:this.environment.dark ? ThemeColorMode.DARK : ThemeColorMode.LIGHT}) {
         PhoneMessageLiftHostLayer({content:this.messageLift.current!.content})

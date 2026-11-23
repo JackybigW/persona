@@ -3053,6 +3053,10 @@
       "value": "选择文本"
     },
     {
+      "name": "chat_lift_multiple",
+      "value": "多选"
+    },
+    {
       "name": "chat_lift_me",
       "value": "我"
     },

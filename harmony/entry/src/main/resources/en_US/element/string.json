@@ -3053,6 +3053,10 @@
       "value": "Select Text"
     },
     {
+      "name": "chat_lift_multiple",
+      "value": "Select Messages"
+    },
+    {
       "name": "chat_lift_me",
       "value": "Me"
     },

@@ -263,6 +263,7 @@ function formTree(machine, id, source = 'orca') {
 function phoneForm(root, selectedMachine, machines, trees) {
   root.directoryMachines = machines;
   const form = Object.assign(new NativeAgentForm(), {
+    chatForward: {newFor:()=>undefined,newAllows:()=>true,newPrompt:(_owner,note)=>note,afterNew:async()=>{}},
     model: root, agentModel: root, agentPanel: '', agentFormRevision: 1, machineIntent: 1, launcherRevision: 0,
     newTask: 'test', directory: '', launcher: 'codex', agentModelId: '', pickedAgentTree: '', launchListReady: false, blockedLaunchers: [],
     showSheet: true, sheetKind: 'newagent', switchingAgentMachine: false, creatingAgent: false,

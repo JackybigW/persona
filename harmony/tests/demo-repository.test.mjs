@@ -33,6 +33,8 @@ const stubs = new Map([
 
 registerHooks({
   resolve(specifier, context, next) {
+    if (context.parentURL?.endsWith('/Compatibility.ets') && specifier === '../core/ChatForwardWire')
+      return {url:new URL('../core/ChatForwardWire.ts',context.parentURL).href,shortCircuit:true};
     if (specifier === '../platform/HubTransport') return { url: 'demo-stub:transport', shortCircuit: true };
     if (specifier === '../platform/LocalStore') return { url: 'demo-stub:local-store', shortCircuit: true };
     if (specifier === './MutationStore') return { url: 'demo-stub:mutation-store', shortCircuit: true };

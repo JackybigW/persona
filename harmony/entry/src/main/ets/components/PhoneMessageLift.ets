@@ -47,6 +47,9 @@ export struct PhoneMessageLift {
   @Require @Param frame: MessageLiftFrame;
   @Param own: boolean = false;
   @Param hasMore: boolean = false;
+  @Param canForward: boolean = false;
+  @Event onForward: () => void = () => {};
+  @Event onSelectMessages: () => void = () => {};
   @Param selectOnOpen: boolean = false;
   @BuilderParam moreMenu: () => void;
   @Event onCopyText: (text: string) => void = () => {};
@@ -69,8 +72,10 @@ export struct PhoneMessageLift {
 
   @Computed get words(): string { return liftedMessageWords(this.text,this.own); }
   @Computed get runs(): MarkdownProseRun[] { return markdownProseRuns(this.words); }
-  @Computed get barHeight(): number { return Math.max(62,51 + 11 * Math.min(this.environment.fontScale,1.5)); }
-  @Computed get barWidth(): number { return Math.min(Math.max(1,this.windowWidth-16),12+58*(this.hasMore ? 4 : 3)); }
+  @Computed get actionsHeight(): number { return Math.max(62,51 + 11 * Math.min(this.environment.fontScale,1.5)); }
+  @Computed get multipleHeight(): number { return Math.max(44,44*Math.min(this.environment.fontScale,1.31)); }
+  @Computed get barHeight(): number { return this.actionsHeight + (this.canForward ? this.multipleHeight : 0); }
+  @Computed get barWidth(): number { return Math.min(Math.max(1,this.windowWidth-16),12+58*(3+(this.hasMore ? 1 : 0)+(this.canForward ? 1 : 0))); }
   @Computed get placement(): MessageLiftPlacement {
     const ui=this.getUIContext();
     const top=this.environment.isFullScreen && this.windowHeight>500 ? Math.max(Tokens.compactStatusInset,ui.px2vp(this.environment.safeTopPx)) :
@@ -117,7 +122,7 @@ export struct PhoneMessageLift {
         SymbolGlyph(symbol).fontSize(20).fontColor([Colors.ink])
         Text(tr(key)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.ink).maxLines(1)
       }.alignItems(HorizontalAlign.Center)
-    }.width(58).height(this.barHeight).padding(0).backgroundColor(Color.Transparent)
+    }.width(58).height(this.actionsHeight).padding(0).backgroundColor(Color.Transparent)
       .accessibilityText(tr(key)).id('chat.lift.'+id).onClick(action)
   }
   @Builder selectionLayer() {
@@ -158,20 +163,32 @@ export struct PhoneMessageLift {
           }));
         })
       if (!this.selecting) {
+        Column() {
         Row() {
           this.barButton('copy',IconActions.symbol('copy'),'copy',() => this.finishCopy(this.text))
           this.barButton('chat_lift_select',$r('sys.symbol.textformat'),'select',() => this.select())
           this.barButton('chat_lift_quote',$r('sys.symbol.ellipsis_bubble'),'quote',() => this.quote())
+          if (this.canForward) this.barButton('chat_forward_action',$r('sys.symbol.rectangle_and_arrowshape_turn_up_right'),'forward',this.onForward)
           if (this.hasMore) {
             Button({type:ButtonType.Normal}) {
               Column({space:4}) {
                 Image(Symbols.more).width(20).height(20).fillColor(Colors.ink)
                 Text(tr('more')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.ink)
               }
-            }.width(58).height(this.barHeight).padding(0).backgroundColor(Color.Transparent)
+            }.width(58).height(this.actionsHeight).padding(0).backgroundColor(Color.Transparent)
               .accessibilityText(tr('more')).id('chat.lift.more').bindMenu(this.moreMenu)
           }
-        }.padding({left:6,right:6}).width(this.barWidth).height(this.barHeight)
+        }.width('100%').height(this.actionsHeight).padding({left:6,right:6})
+        if (this.canForward) {
+          Button({type:ButtonType.Normal}) {
+            Row({space:10}) {
+              SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(18).fontColor([Colors.ink])
+              Text(tr('chat_lift_multiple')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.ink)
+            }.width('100%').alignItems(VerticalAlign.Center)
+          }.width('100%').height(this.multipleHeight).padding({left:16,right:16}).backgroundColor(Color.Transparent)
+            .accessibilityText(tr('chat_lift_multiple')).id('chat.selectMessages').onClick(this.onSelectMessages)
+        }
+        }.width(this.barWidth).height(this.barHeight)
           .backgroundColor(Colors.surface).borderRadius(12).shadow({radius:10,color:'#26000000',offsetY:3})
           .position({x:Math.max(8,Math.min(this.own ? this.frame.left+this.frame.width-this.barWidth : this.frame.left,this.windowWidth-this.barWidth-8)),
             y:this.placement.barTop-this.windowTop}).id('chat.lift.actions')

@@ -14,8 +14,9 @@ import { i18n } from '@kit.LocalizationKit';
 import { DemoRepository } from './DemoRepository';
 import { NavigationContext } from './NavigationContext';
 import { utf8Bytes } from '../core/TranscriptCache';
-import { ChatDraftStore, ChatDraft, ChatOutboxEntry } from './ChatDraftStore';
+import { ChatDraftStore, ChatDraft, ChatOutboxEntry, DraftForwardImage, draftForwardRows } from './ChatDraftStore';
 import { clearImagePreviews } from '../platform/NativePreview';
+import { forwardPrefix, forwardOrigin, forwardGroups } from '../core/ChatForwardWire';
 import { parseMessageContent } from '../core/MessageContent';
 import { decodeInteractionDecision, firstBlockingDecision, isPersonaAskUserQuestion } from './InteractionDecision';
 import { ChatAttachments } from './ChatAttachments';
@@ -1188,12 +1189,91 @@ export class ClientModel {
     if (this.operationBlocked('/api/v1/interactions/' + segment(decision.id) + '/resolve')) decision.status = 'unknown';
     return decision;
   }
-  prepareMessageText(text: string = this.draft): string { return withSourceContext(text, this.sourceContext, this.features); }
+  sentForwards(message:ChatMessage):Record<string,Object>[] {
+    if(message.ownerTarget!==this.target() || message.role!=='user' || !message.source)return [];
+    const original=this.revisionItems.find((item:TranscriptItem)=>item.id===(message.itemId||message.id));
+    return original?.text?forwardPrefix(original.text).entries.filter((r:Record<string,Object>)=>Wire.text(r,'kind')==='forward'):[];
+  }
+  sentOtherSourceTitle(message:ChatMessage):string {
+    if (!this.sentForwards(message).length) return message.source;
+    const item=this.revisionItems.find((v:TranscriptItem) => v.id===(message.itemId || message.id));
+    return item?.text ? forwardPrefix(item.text).entries.filter((r:Record<string,Object>) => Wire.text(r,'kind')!=='forward')
+      .map((r:Record<string,Object>) => Wire.text(r,'title')).filter((v:string)=>!!v).join(' · ') : message.source;
+  }
+  forwardedOrigin(ref:Record<string,Object>):ResourceRow|undefined {
+    const link=forwardOrigin(ref);if(!link)return undefined;
+    const dir=this.forwardDirectory();
+    return dir.conversations.concat(dir.sessions).find(r=>(!r.group||r.group===this.profile.id) &&
+      r.machine===link.machine && (r.session||r.id)===link.session && this.capabilities(r).canRead);
+  }
+  sentForwardGroups(message:ChatMessage):Record<string,Object>[][] {
+    if(message.ownerTarget!==this.target() || message.role!=='user' || !message.source)return [];
+    const original=this.revisionItems.find((item:TranscriptItem)=>item.id===(message.itemId||message.id));
+    return original?.text?forwardGroups(forwardPrefix(original.text).entries):[];
+  }
+  forwardDraftGroups():Record<string,Object>[][] {return forwardGroups(this.draftContexts(this.sourceContext));}
+  hasForwardContext():boolean { return this.sourceContext.includes('"forward"') && draftForwardRows(this.sourceContext).length>0; }
+  forwardContexts():Record<string,Object>[] { return draftForwardRows(this.sourceContext); }
+  prepareMessageText(text:string=this.draft):string {
+    if (!text.trim() && this.hasForwardContext()) text=tr(this.forwardContexts().length===1 ? 'chat_forward_single_note' : 'chat_forward_several_note');
+    return withSourceContext(text,this.sourceContext,this.features);
+  }
+  /** Target lists use only the directory captured for the originating Hub. */
+  forwardDirectory():ClientModel {
+    const root=this.directoryParent;
+    return root && root.profile.id===this.profile.id && root.profile.hubId===this.profile.hubId ? root : this;
+  }
+  canForwardTo(row:ResourceRow,ended:boolean=true):boolean {
+    if (!this.connected || (row.group && row.group!==this.profile.id) || !['session','conversation'].includes(row.kind) ||
+      !row.id || !row.machine || !this.profile.id) return false;
+    const endpoints=this.forwardDirectory();
+    const current=endpoints.conversations.concat(endpoints.sessions).find(r=>r.kind===row.kind && r.id===row.id &&
+      r.machine===row.machine && (!r.group || r.group===this.profile.id) && (!r.manager || !row.manager || r.manager===row.manager));
+    if(!current)return false;
+    const d=current.data(), effective=this.capabilities(current), caps=Wire.object(d,'capabilities');
+    if(Wire.bool(d,'deleted') || Wire.has(d,'capabilities') && !Wire.bool(caps,'send'))return false;
+    if (!effective.canSend || Wire.bool(d,'archived') || Wire.bool(d,'health') || Wire.bool(d,'is_health') ||
+        Wire.text(d,'space')==='health' || Wire.text(d,'purpose')==='health' || Wire.text(d,'kind')==='health') return false;
+    if (this.selected.machine===row.machine && (this.selected.session||this.selected.id)===(row.session||row.id)) return false;
+    if (row.kind==='conversation' || Wire.bool(d,'assistant')) return true;
+    const machine=endpoints.machines.find((m:ResourceRow)=>m.id===row.machine && (!m.group || m.group===this.profile.id));
+    return !!machine && Wire.bool(machine.data(),'online') && (ended || current.state.toLowerCase()!=='offline');
+  }
+  async receiveForward(target:ResourceRow,refs:Record<string,Object>[],images:DraftForwardImage[],transfer:string,admit:()=>boolean):Promise<void> {
+    const generation=this.connectionGeneration(),scope=this.scope();
+    const key=JSON.stringify([scopeKey({groupId:this.profile.id,managerId:target.manager || this.profile.manager}),target.kind,target.machine,target.id]);
+    const current=():boolean=>admit() && this.owns(generation,scope) && this.canForwardTo(target);
+    if(!current()) throw new Error('request_updated');
+    const root=this.directoryParent || this, viewers:ClientModel[]=[root,...Array.from(root.views.values())];
+    const active=viewers.filter((v:ClientModel)=>v.selected.id && v.target()===key && !v.draftLoading && !v.retired);
+    for(const v of active) if(v.draftTimer!==-1){v.cancelDraftTimer();await v.persistDraft();}
+    const snapshots=new Map<ClientModel,string>();
+    for(const v of active)snapshots.set(v,v.draftRevision);
+    const store=new ChatDraftStore(this.local);
+    let merged=await store.appendForwards(key,refs,images,transfer,current);
+    if(!current())throw new Error('request_updated');
+    for(const v of active) if(v.target()===key && !v.retired) {
+      if(v.draftRevision!==snapshots.get(v)){
+        v.cancelDraftTimer();await v.persistDraft();
+        merged=await store.appendForwards(key,refs,images,transfer,current);
+      }
+      if(!current() || v.target()!==key || v.retired)continue;
+      v.draft=merged.text;v.sourceContext=merged.context;v.draftRevision=merged.revision;
+    }
+  }
+  async removeForward(item:string,url:string):Promise<void> {
+    const before=this.sourceContext,key=this.target(),old=this.draftRevision;
+    const refs=this.draftContexts(before);const index=refs.findIndex((v:Record<string,Object>)=>Wire.text(v,'kind')==='forward' && Wire.text(v,'msg')===item && Wire.text(v,'url')===url);
+    if(index<0)return;refs.splice(index,1);this.sourceContext=refs.length?JSON.stringify(Wire.payload(['contexts'],[refs])):'';this.draftRevision=util.generateRandomUUID();
+    const current=this.draftRevision;
+    try { await this.persistDraft();await new ChatDraftStore(this.local).discardForwardMedia(key,before,this.sourceContext); }
+    catch (_) { if(this.target()===key && this.draftRevision===current){this.sourceContext=before;this.draftRevision=old;this.error='cache_unavailable';} }
+  }
   async send(admit?: () => boolean): Promise<boolean> {
     if (admit && !admit()) return false;
     const text = this.draft;
     if (utf8Bytes(text) > 100000) { this.error = 'chat_attachment_text_too_large'; return false; }
-    if (this.draftLoading || !this.canSend() || !text.trim() || ['pending', 'unknown'].includes(this.operationState)) return false;
+    if (this.draftLoading || !this.canSend() || (!text.trim() && !this.hasForwardContext()) || ['pending', 'unknown'].includes(this.operationState)) return false;
     if (this.demo && this.demoRepository) {
       const prepared = this.prepareMessageText(text); if (utf8Bytes(prepared) > 100000) { this.error = 'chat_attachment_request_too_large'; return false; }
       try { this.demoRepository.sendLocal(this.selected, prepared); this.sourceContext = ''; this.updateDraft(''); await this.loadChat(this.selected); return true; }
@@ -1220,6 +1300,12 @@ export class ClientModel {
       const captured = new ChatDraft(); captured.text = draft; captured.context = context; captured.revision = entry.revision;
       await store.save(target, captured);
       if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo) { this.activeMessages.delete(entry.id); if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; } return false; }
+      if (context.includes('"forward"') && draftForwardRows(context).length) {
+        const current=():boolean=>this.owns(generation,scope) && this.target()===target && this.repository===repo && this.draftRevision===entry.revision && (!admit || admit());
+        const extras=await store.forwardedImages(target,context,4-images.length,current);
+        images=images.concat(extras);entry.imageCount=images.length;
+        if (utf8Bytes(JSON.stringify(Wire.payload(['text','images'],[text,images])))>=4*1024*1024) throw new Error('chat_attachment_request_too_large');
+      }
       await store.stage(scope, entry); staged = true;
       if (admit && !admit() || !this.owns(generation, scope) || this.target() !== target || this.repository !== repo || this.draftRevision !== entry.revision || !this.canSend()) { await store.settle(scope, entry.id, 'failed'); this.activeMessages.delete(entry.id); entry.state = 'failed'; if (this.owns(generation, scope) && this.target() === target) { this.operationState = 'failed'; this.error = 'request_updated'; this.publishMessages(); } return false; }
       this.localMessages = this.localMessages.concat([entry]); this.publishMessages();
@@ -1611,7 +1697,7 @@ export class ClientModel {
   }
   otherContextTitle(): string {
     if (!this.sourceContext) return '';
-    return this.draftContexts(this.sourceContext).filter((ref:Record<string,Object>) => !['message','quote'].includes(Wire.text(ref,'kind')))
+    return this.draftContexts(this.sourceContext).filter((ref:Record<string,Object>) => !['message','quote','forward'].includes(Wire.text(ref,'kind')))
       .map((ref:Record<string,Object>) => Wire.text(ref,'title')).filter((title:string) => !!title).join(' · ');
   }
   removeMessageQuote(ref: Record<string,Object>): void {
@@ -1623,9 +1709,9 @@ export class ClientModel {
     this.draftRevision=util.generateRandomUUID(); void this.persistDraft().catch(() => this.error='cache_unavailable');
   }
   removeOtherContexts(): void {
-    const quotes=this.draftMessageQuotes();
-    if (!quotes.length) { this.removeContext(); return; }
-    this.sourceContext=this.serializeDraftContexts(quotes); this.draftRevision=util.generateRandomUUID();
+    const keep=this.draftContexts(this.sourceContext).filter((ref:Record<string,Object>) => ['message','quote','forward'].includes(Wire.text(ref,'kind')));
+    if (!keep.length) { this.removeContext(); return; }
+    this.sourceContext=this.serializeDraftContexts(keep); this.draftRevision=util.generateRandomUUID();
     void this.persistDraft().catch(() => this.error='cache_unavailable');
   }
   contextTitle(): string {
@@ -1680,6 +1766,8 @@ export class ClientModel {
   }
   private sshViewKey(hub: string): string { return 'view:' + scopeKey({ groupId: hub, managerId: '' }) + ':ssh-tunnel'; }
   private viewKey(key: string): string {
+    if (key === 'pickIncludeQuestions') return 'device:pickIncludeQuestions';
+    if (key === 'forwardTargets') return 'view:'+scopeKey({groupId:this.profile.id,managerId:''})+':forwardTargets';
     if (key === 'agent-hub-mode') return 'device:agent-hub-mode';
     if (key === 'usage.hiddenProviders') return 'device:usage.hiddenProviders';
     return key === 'ssh-tunnel' ? this.sshViewKey(this.profile.id) : 'view:' + this.scope() + ':' + key;
@@ -1710,7 +1798,10 @@ export class ClientModel {
   }
   async saveView(key: string, value: string, expectedEpoch: number = this.viewRevision(key)): Promise<void> { await this.local.put(this.viewKey(key), value, expectedEpoch); }
   async loadView(key: string): Promise<string> { return this.local.get(this.viewKey(key)); }
-  removeContext(): void { this.sourceContext = ''; this.draftRevision = util.generateRandomUUID(); this.persistDraft().catch(() => this.error = 'failed'); }
+  removeContext():void {
+    const previous=this.sourceContext,target=this.target();this.sourceContext='';this.draftRevision=util.generateRandomUUID();
+    this.persistDraft().then(()=>new ChatDraftStore(this.local).discardForwardMedia(target,previous,'')).catch(()=>this.error='failed');
+  }
   async createAgent(prompt: string, machine: ResourceRow, directory: string, launcher: string, todoId: string = '', admit?: () => boolean, workspaceId: string = '', host: string = '', model: string = '', effort: string = ''): Promise<ResourceRow> {
     if (machine.manager !== this.profile.manager) throw new Error('request_updated');
     const generation = this.generation, scope = this.scope(), repo = this.repo();

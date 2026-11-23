@@ -47,6 +47,20 @@ export class LocalStore {
       await store.insert('client_state', { key: key, value: value }, relationalStore.ConflictResolution.ON_CONFLICT_REPLACE);
     });
   }
+  /** Commit a draft and its bounded local media chunks together, under the same Hub retirement check. */
+  async updateRecords(mainKey:string,epoch:number,values:Map<string,string>,deletions:string[],current:()=>boolean):Promise<void> {
+    const store=this.store;if(!store)throw new Error('cache_unavailable');
+    await this.queue(async():Promise<void>=>{
+      if (!current() || !this.accepts(mainKey,epoch)) throw new Error('scope_retired');
+      await store.beginTransaction();
+      try {
+        for(const pair of values) await store.executeSql('INSERT OR REPLACE INTO client_state(key, value) VALUES (?, ?)',[pair[0],pair[1]]);
+        for(const key of deletions) await store.executeSql('DELETE FROM client_state WHERE key = ?',[key]);
+        if(!current() || !this.accepts(mainKey,epoch))throw new Error('scope_retired');
+        await store.commit();
+      } catch(error) { await store.rollBack();throw error as Error; }
+    });
+  }
   async remove(key: string, expectedEpoch: number = this.keyEpoch(key), expectedValue?: string): Promise<void> {
     if (!this.store) return;
     const store = this.store, epoch = expectedEpoch;

@@ -1,3 +1,5 @@
+import { PhoneChatForward } from '../models/PhoneChatForward';
+import { PhoneChatPickBar, PhoneChatForwardTray, PhoneForwardSentCard } from './PhoneChatForward';
 import { SessionComposerModeChip } from './SessionComposerModeChip';
 import { ComposerSize, restingComposerSize, ComposerReadingSize, composerReadingSize, composerTypeSample, CompactDraftRoom, compactDraftRoom } from '../core/ComposerSize';
 import { PhoneMessageLift, PhoneMessageLiftHost, PhoneLiftPresentation } from './PhoneMessageLift';
@@ -157,6 +159,8 @@ class ConversationLine {
 export struct Conversation {
   @Require @Param model: ClientModel;
   @Param liftHost: PhoneMessageLiftHost = new PhoneMessageLiftHost();
+  @Param forwardState: PhoneChatForward = new PhoneChatForward();
+  @Event onForwardOrigin: (row:ResourceRow, item:string) => void = () => {};
   @Param active: boolean = true;
   @Param searchHitId: string = '';
   @Param searchPresented: boolean = false;
@@ -847,7 +851,7 @@ export struct Conversation {
       leading + (leading ? Tokens.gap : 0);
     return Math.ceil(width * this.composerColumns() / this.composerWidth);
   }
-  private primaryStop(): boolean { return this.composerAvailable() && this.model.canStop() && !this.model.draft.trim() && !this.attachments.attachments.length; }
+  private primaryStop(): boolean { return this.composerAvailable() && this.model.canStop() && !this.model.draft.trim() && !this.model.hasForwardContext() && !this.attachments.attachments.length; }
   @Monitor('active', 'model.selected', 'model.sessions', 'model.connected', 'model.draft', 'model.decision', 'attachments.attachments', 'model.interruptPendingKey')
   primaryStopChanged(): void { this.onPrimaryStop(this.active && this.primaryStop()); }
   private maxControlsHeight(): number {
@@ -1219,7 +1223,7 @@ export struct Conversation {
   }
   private primaryEnabled(): boolean {
     return this.sendCurrent() && (this.primaryStop() || this.model.canSend() && !this.model.stopPending() && !this.sending &&
-      !this.attachments.busy && !this.model.draftLoading && (this.model.draft.trim().length > 0 || this.attachments.attachments.length > 0) &&
+      !this.attachments.busy && !this.model.draftLoading && (this.model.draft.trim().length > 0 || this.attachments.attachments.length > 0 || this.model.hasForwardContext()) &&
       this.model.operationState !== 'pending' && this.model.operationState !== 'unknown');
   }
   private dictationOwner(): string { return JSON.stringify([this.model.connectionGeneration(), this.model.scope(), this.model.target()]); }
@@ -1483,12 +1487,21 @@ export struct Conversation {
       }));
     });
   }
+  private forwardLiftedMessage(multiple: boolean): void {
+    const message=this.currentLift();
+    if (!message || !this.forwardState.isEligible(this.model,message)) return;
+    this.closeOwnedLift();
+    if (multiple) this.forwardState.startPicking(this.model,message);
+    else this.forwardState.startForward(this.model,message);
+  }
   @Builder liftMore() {
     if (this.liftMessage) this.messageMenu(this.liftMessage!)
   }
   @Builder liftedContent() {
     if (this.liftMessage && this.liftFrame) {
       PhoneMessageLift({text:this.liftMessage!.text,own:this.liftMessage!.role==='user',frame:this.liftFrame!,
+        canForward:this.model.connected && this.forwardState.isEligible(this.model,this.liftMessage!),
+        onForward:():void => this.forwardLiftedMessage(false),onSelectMessages:():void => this.forwardLiftedMessage(true),
         selectOnOpen:this.liftSelectOnOpen,hasMore:!!this.liftMessage!.itemId &&
           (this.revisions.canFork(this.liftMessage!.itemId) || this.revisions.canRewind(this.liftMessage!.itemId)),
         moreMenu:():void => this.liftMore(),onClose:():void => { this.closeOwnedLift(); },
@@ -1497,7 +1510,22 @@ export struct Conversation {
     }
   }
   @Builder message(entry: RepeatItem<ConversationLine>) {
-    if (this.canLiftMessage(entry.item.message!)) {
+    if (this.forwardState.isPicking(this.model) && this.forwardState.isEligible(this.model,entry.item.message!)) {
+      Row({space:8}) {
+        Stack() {
+          Circle().width(22).height(22).fill(this.forwardState.isPicked(this.model,entry.item.message!) ? Colors.link : Color.Transparent)
+            .stroke(this.forwardState.isPicked(this.model,entry.item.message!) ? Colors.link : Colors.secondary).strokeWidth(1)
+          if (this.forwardState.isPicked(this.model,entry.item.message!))
+            SymbolGlyph($r('sys.symbol.checkmark')).fontSize(13).fontColor([Color.White])
+        }.width(24).height(32).margin({left:Tokens.page,top:3}).opacity(this.forwardState.isBrought(this.model,entry.item.message!) ? .5 : 1)
+        Column() { this.messageBody(entry) }.layoutWeight(1).hitTestBehavior(HitTestMode.None).accessibilityLevel('no-hide-descendants')
+      }.width('100%').alignItems(VerticalAlign.Top).accessibilityGroup(true).accessibilityRole(AccessibilityRoleType.BUTTON)
+        .accessibilityText(entry.item.message!.text).accessibilitySelected(this.forwardState.isPicked(this.model,entry.item.message!))
+        .id('chat.pick.'+(entry.item.message!.itemId || entry.item.message!.id))
+        .onClick(() => this.forwardState.toggle(this.model,entry.item.message!))
+    } else if (this.forwardState.isPicking(this.model)) {
+      Column() { this.messageBody(entry) }.width('100%').hitTestBehavior(HitTestMode.None)
+    } else if (this.canLiftMessage(entry.item.message!)) {
       Column() { this.messageBody(entry) }.width('100%')
         .priorityGesture(LongPressGesture({repeat:false}).onActionEnd((event:GestureEvent) => {
           this.showLift(entry,event.fingerList[0]?.globalY,false,event.target.area);
@@ -1539,7 +1567,12 @@ export struct Conversation {
         }
       }
       if (entry.item.message!.localImageCount > 0) Text(tr('photos') + ' · ' + entry.item.message!.localImageCount).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor($r('sys.color.font_secondary'))
-      if (entry.item.message!.source) Text(entry.item.message!.source).fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary')).width('100%')
+      if (entry.item.message!.source) {
+        if (this.model.sentForwards(entry.item.message!).length) PhoneForwardSentCard({model:this.model,message:entry.item.message!,
+          onOpen:(row:ResourceRow,item:string):void => this.onForwardOrigin(row,item)})
+        if (this.model.sentOtherSourceTitle(entry.item.message!))
+          Text(this.model.sentOtherSourceTitle(entry.item.message!)).fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary')).width('100%')
+      }
       if (entry.item.message!.ownerTarget === this.model.target()) ForEach(entry.item.message!.imagePaths, (path: string, index: number) => {
         TranscriptImage({ model: this.model, remotePath: path, active: this.active,
           sourceKey: this.imageKey(entry.item.message!, 'path', path, index), galleryEntries: this.imageGallery,
@@ -1828,8 +1861,10 @@ export struct Conversation {
     }.width('100%').height('100%').backgroundColor(Colors.surface).id(this.pageSheetNodeId)
       .onAreaChange(() => this.measurePageSheet())
   }
+  @Computed get quoteRemoveSize(): number { return Math.min(68,44*this.environment.fontScale); }
   @Builder composer() {
     Column({ space: Tokens.gap }) {
+      if (this.model.hasForwardContext()) PhoneChatForwardTray({model:this.model})
       AttachmentStrip({ attachments: this.attachments.attachments, errorKey: this.attachments.errorKey, actionsEnabled: !this.sending && !this.attachments.busy,
           onRemove: (id: string) => this.attachments.remove(id), onEdit: (id: string) => this.attachments.editPhoto(id), onPreview: (item: ChatAttachment) => this.preview(item) })
       ForEach(this.model.draftMessageQuotes(),(ref:Record<string,Object>) => {
@@ -1841,9 +1876,11 @@ export struct Conversation {
             Text(Wire.text(ref,'text')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).fontColor(Colors.ink)
               .maxLines(2).textOverflow({overflow:TextOverflow.Ellipsis}).id('chat.context.quote.text')
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-          Button({type:ButtonType.Circle}) {
+          Button({type:ButtonType.Normal}) {
             SymbolGlyph(IconActions.symbol('remove')).fontSize(Tokens.symbolFont).fontColor([Colors.secondary])
-          }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('chat_lift_remove_quote')).enabled(!this.sending)
+          }.width(this.quoteRemoveSize).height(this.quoteRemoveSize).padding(0)
+            .buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
+            .accessibilityText(tr('chat_lift_remove_quote')).enabled(!this.sending)
             .id('chat.context.quote.remove').onClick(() => this.model.removeMessageQuote(ref))
         }.width('100%').padding({left:Tokens.inset,right:Tokens.fine,top:3,bottom:3}).backgroundColor(Colors.control)
           .borderRadius(Tokens.inset).id('chat.context.quote')
@@ -2023,7 +2060,8 @@ export struct Conversation {
         } }).onAreaChange((_old: Area, area: Area): void => { const height = Number(area.height); if (Number.isFinite(height) && height > 0 && Math.abs(height - this.foldContainerHeight) > 0.1) this.foldContainerHeight = height; })
       } else {
         Column() { this.readingContent() }.width('100%').layoutWeight(1).clip(true)
-        if (this.model.decision) this.blockingContent()
+        if (this.forwardState.isPicking(this.model)) PhoneChatPickBar({source:this.model,state:this.forwardState})
+        else if (this.model.decision) this.blockingContent()
         else Column() { this.interactionContent() }.width('100%')
           .height(Math.max(1, Math.min(this.controlsHeight, this.maxControlsHeight())))
       }

@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from 'node:fs';
 
 registerHooks({
   resolve(specifier, context, next) {
+    if ((context.parentURL?.endsWith('/Compatibility.ets') || context.parentURL?.endsWith('/ClientModel.ets')) && specifier === '../core/ChatForwardWire')
+      return {url:new URL('../core/ChatForwardWire.ts',context.parentURL).href,shortCircuit:true};
     if (context.parentURL?.endsWith('/ClientModel.ets') && specifier === '../core/Markdown')
       return {url:new URL('../core/Markdown.ts',context.parentURL).href,shortCircuit:true};
     if (specifier === '@kit.ArkTS') return {url:'client-boundary:'+specifier,shortCircuit:true};
@@ -1526,4 +1528,24 @@ test('a failed device-token write restores pending SSH metadata on the verified 
   await assert.rejects(model.useEndpoint({hubId:id,baseUrl:base,pin,token:'synthetic-new-device'},'Synthetic',()=>true,route),/device is locked/);
   assert.deepEqual(settled,[false]);assert.equal(model.scope(),previousScope);
   assert.ok([...model.local.data.values()].every(value=>value!=='synthetic-pending-ssh'));
+});
+
+test('forward recipients recheck the current same-Hub inventory, owner, read-only flag, and live machine before accepting a draft',()=>{
+ const {model}=fixture();
+ function destination(id,attrs={}){
+  const r=ResourceRow.from({session_id:id,machine_id:'studio',title:id,state:'idle',...attrs},'session');
+  r.manager='personal';r.group=model.profile.id;return r;
+ }
+ const target=destination('to'),computer=ResourceRow.from({id:'studio',name:'Studio',online:true},'machine');
+ model.machines=[computer];model.sessions=[model.selected,target];
+ assert.equal(model.canForwardTo(target),true);
+ const cross=destination('to');cross.group='second-pair';assert.equal(model.canForwardTo(cross),false);
+ const foreignOwner=destination('to');foreignOwner.manager='work';assert.equal(model.canForwardTo(foreignOwner),false);
+ for(const disallowed of [{archived:true},{space:'health'},{deleted:true},{read_only:true},{source_kind:'new_source',capabilities:{read:true,send:false}},{capabilities:{send:false}}]){
+  model.sessions=[destination('to',disallowed)];assert.equal(model.canForwardTo(target),false,JSON.stringify(disallowed));
+ }
+ model.sessions=[destination('to',{state:'offline',capabilities:{send:true}})];
+ assert.equal(model.canForwardTo(target,false),false);assert.equal(model.canForwardTo(target,true),true);
+ computer.raw=JSON.stringify({online:false});assert.equal(model.canForwardTo(target,true),false);
+ model.sessions=[];assert.equal(model.canForwardTo(target),false);
 });
