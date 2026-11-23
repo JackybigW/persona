@@ -23,6 +23,8 @@ import { markdownVisibleText, parseMarkdown } from '../core/Markdown';
 import { composerModelName } from '../models/SessionComposerModes';
 import { launchModelName } from '../models/AgentLaunchChoices';
 
+interface TodoWindowFrame { left:number; top:number; width:number; height:number; }
+
 @ObservedV2
 class BoundTodoSection {
   readonly identity: string;
@@ -565,6 +567,18 @@ export struct TodoWorkspacePage {
     const review=group.phone, label=tr(review.reviewKey).replace('{round}',String(review.reviewRound));
     return review.reviewCount ? label+' · '+review.reviewCount : label;
   }
+  private openTodoAt(todo:TodoWorkspaceItem,hasSeen:boolean,event:ClickEvent):void {
+    if (hasSeen && this.phoneList && !this.hubMode() && this.workspace.supportsSeen()) {
+      const chip=this.windowFrame('todos.seen.'+todo.id);
+      // The status line clips a child's hit test at its own height. Its surrounding row receives the vertical outset.
+      if (chip && event.windowX>=chip.left && event.windowX<=chip.left+chip.width &&
+        event.windowY>=chip.top-16 && event.windowY<=chip.top+chip.height+16) {
+        this.workspace.markSeen(todo);
+        return;
+      }
+    }
+    this.onOpenResource(this.workspace.todoResource(todo));
+  }
   @Builder phoneStatusWords(binding:BoundRow<TodoWorkspaceGroup>) {
     Row({space:6}) {
         Stack() {
@@ -617,9 +631,9 @@ export struct TodoWorkspacePage {
           .letterSpacing(this.phoneMeasure(0,-0.45)+'vp').lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(Colors.secondary).margin({top:5}).maxLines(1)
       }.width('100%').alignItems(VerticalAlign.Top)
       if (binding.value.phone.canFileSeen && this.workspace.supportsSeen()) {
-        Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center,space:{main:LengthMetrics.vp(4),cross:LengthMetrics.vp(4)}}) {
+        Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center,space:{cross:LengthMetrics.vp(4)}}) {
           this.phoneStatusWords(binding)
-          Row() { this.seenChip(():TodoWorkspaceItem=>binding.value.lead) }.justifyContent(FlexAlign.End).flexGrow(1)
+          Row() { this.seenChip(():TodoWorkspaceItem=>binding.value.lead) }.justifyContent(FlexAlign.End).padding({left:4}).flexGrow(1)
         }.width('100%')
       } else {
         Row() { this.phoneStatusWords(binding) }.width('100%')
@@ -679,7 +693,7 @@ export struct TodoWorkspacePage {
             SymbolGlyph(Symbols.expand).fontSize((this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : 12)+'vp').fontColor([Colors.secondary])
               .width(this.phoneList && !this.hubMode() ? this.phoneMeasure(12,16) : undefined)
           }.layoutWeight(1).constraintSize({minHeight:44}).accessibilityGroup(!(this.phoneList && !this.hubMode() && binding.value.phone.canFileSeen && this.workspace.supportsSeen()))
-            .onClick(() => this.onOpenResource(this.workspace.todoResource(binding.value.lead)))
+            .onClick((event:ClickEvent) => this.openTodoAt(binding.value.lead,binding.value.phone.canFileSeen,event))
             .bindContextMenu(this.rowMenu(binding.value.lead),ResponseType.LongPress).id('todos.open.'+binding.value.lead.id)
         }.width('100%').alignItems(this.phoneList && !this.hubMode() ? VerticalAlign.Top : VerticalAlign.Center)
           .padding(this.phoneList && !this.hubMode() ? {left:20,right:20,top:15,bottom:15} : {left:6,right:13,top:8,bottom:8})
@@ -696,7 +710,8 @@ export struct TodoWorkspacePage {
               if (this.phoneList && !this.hubMode() && this.workspace.showsSeenOnMember(todo)) this.seenChip(():TodoWorkspaceItem=>this.workspace.items.find((item:TodoWorkspaceItem):boolean=>item.id===todo.id && item.manager===todo.manager) || todo)
               SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
             }.constraintSize({minHeight:44}).width('100%').padding({left:57,right:14})
-              .accessibilityGroup(!(this.phoneList && !this.hubMode() && this.workspace.showsSeenOnMember(todo))).onClick(() => this.onOpenResource(this.workspace.todoResource(todo))).id('todos.member.'+todo.id)
+              .accessibilityGroup(!(this.phoneList && !this.hubMode() && this.workspace.showsSeenOnMember(todo)))
+              .onClick((event:ClickEvent) => this.openTodoAt(todo,this.workspace.showsSeenOnMember(todo),event)).id('todos.member.'+todo.id)
           },(todo:TodoWorkspaceItem) => JSON.stringify([todo.id,todo.title]))
         }
         if (this.phoneList && !this.hubMode() && section.rows[section.rows.length-1]!==binding) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:20})
@@ -823,13 +838,17 @@ export struct TodoWorkspacePage {
     if (hour<0) this.workspace.startCreate(todoDayKey(date));
     else { date.setHours(hour,0,0,0); this.workspace.startCreate('',date.toISOString()); }
   }
-  private bounds(id:string,days:number[],hour:number):TodoCalendarBand|undefined {
+  private windowFrame(id:string):TodoWindowFrame|undefined {
     try {
       const context=this.getUIContext(),r=context.getComponentUtils().getRectangleById(id);
       if (r.size.width<=0 || r.size.height<=0) return undefined;
       return {left:context.px2vp(r.windowOffset.x),top:context.px2vp(r.windowOffset.y),
-        width:context.px2vp(r.size.width),height:context.px2vp(r.size.height),days:days,hour:hour};
+        width:context.px2vp(r.size.width),height:context.px2vp(r.size.height)};
     } catch (_) { return undefined; }
+  }
+  private bounds(id:string,days:number[],hour:number):TodoCalendarBand|undefined {
+    const frame=this.windowFrame(id);
+    return frame ? {left:frame.left,top:frame.top,width:frame.width,height:frame.height,days:days,hour:hour} : undefined;
   }
 
   private measureDropBands():void {

@@ -551,7 +551,8 @@ test('same-key Todo group bindings replace immutable values and deferred row act
 
   const page = readFileSync(new URL('../entry/src/main/ets/components/TodoWorkspacePage.ets', import.meta.url), 'utf8');
   assert.match(page, /ForEach\(section\.rows, \(binding: BoundRow<TodoWorkspaceGroup>\) => this\.todoRow\(binding,section\),\s*\(binding: BoundRow<TodoWorkspaceGroup>\) => binding\.key\)/);
-  assert.match(page, /\.onClick\(\(\) => this\.onOpenResource\(this\.workspace\.todoResource\(binding\.value\.lead\)\)\)/);
+  assert.match(page, /this\.openTodoAt\(binding\.value\.lead,binding\.value\.phone\.canFileSeen,event\)/);
+  assert.match(page, /this\.onOpenResource\(this\.workspace\.todoResource\(todo\)\)/);
   assert.match(page, /ForEach\(this\.lineageRowBindings/);
   assert.match(page, /ForEach\(this\.relatedTodoBindings/);
   assert.match(page, /ForEach\(this\.spaceBindings, \(binding: BoundRow<TodoWorkspaceSpace>\) => this\.spaceRow\(binding\)/);
