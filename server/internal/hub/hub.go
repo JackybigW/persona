@@ -310,6 +310,9 @@ func runHub(ctx context.Context, b update.Build, cfg *Config, budget *shutdownBu
 	h.teeErrors()                  // the log's error lines become reports while an extension takes them (error_reports.go)
 	h.builtinLooks = builtinPersonaFS()
 	h.live = newLiveActivities(h)
+	if err := cfg.checkPrivateNetworkOnly(); err != nil {
+		return err // before anything starts that could reach past the private network
+	}
 	h.upd = newUpdater(h)
 	h.upd.confirmed = !updating // an update under way is confirmed by this process (its watchdog waits for that)
 	h.upd.logSource()
@@ -354,6 +357,7 @@ func runHub(ctx context.Context, b update.Build, cfg *Config, budget *shutdownBu
 	h.push.userLang = h.userLang
 	h.push.userLoc = h.userLocation
 	h.push.attention = h.attentionMode
+	h.push.privateOnly = cfg.Security.PrivateNetworkOnly          // own APNs key only, sealed (push.go relayed, push_send.go)
 	h.push.devicesChanged = func() { go h.fleetClientsChanged() } // a phone that takes MCP forms by push (fleet_link.go)
 	go h.projectReviewOwnerLoop(ctx)
 	go h.push.maintenanceLoop(ctx)
