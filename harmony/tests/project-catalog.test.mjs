@@ -885,7 +885,11 @@ test('active project search follows the same fixed navigation field and separate
   assert.match(search,/Row\(\{space:this\.searchMode \? 11 : 8\}\)/);
   assert.match(search,/\.width\(44\)\.height\(44\).*\n[^\n]*\.accessibilityText\(tr\('cancel'\)\)/);
   assert.match(search,/Column\(\{space:this\.searchMode \? 20 : 6\}\)/);
-  assert.match(search,/\.textFont\(\{size:this\.compact \? Tokens\.interfaceFontVp\(17,/);
+  assert.match(search,/\.textFont\(\{size:this\.searchTextSize\(\)\}\)\.placeholderFont\(\{size:this\.searchTextSize\(\)/);
+  assert.match(source,/this\.compact \? String\(PhoneStyle\.formSize\(17, 22\.2, nativeEnvironment\.fontScale\) \* Math\.min\(1, nativeEnvironment\.fontScale\)\) \+ 'vp' : '16fp'/);
+  assert.match(source,/compactSearchIcon\(\): string \{\n\s+return String\(PhoneStyle\.formSize\(20, 27\.33, nativeEnvironment\.fontScale\)\)/);
+  assert.match(search,/\.searchIcon\(this\.compact \? \{size:this\.compactSearchIcon\(\)/);
+  assert.match(search,/CancelButtonStyle\.INPUT,icon:\{size:this\.compactSearchIcon\(\)/);
   assert.match(source,/quickHeight\(\):number \{ return PhoneStyle\.formSize\(44,57\.7,/);
   assert.match(search,/\.align\(Alignment\.Start\)\.scrollable\(ScrollDirection\.Horizontal\)/);
 });
