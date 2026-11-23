@@ -2053,12 +2053,6 @@ struct Index {
       this.chatSearchShown || this.phoneSettingsShown || this.showSheet) return 0;
     return this.compactNavigationInset();
   }
-  @Builder knowledgeNavigationInset() {
-    if (this.knowledgeInsetHeight() > 0) {
-      Rect().width('100%').height(this.knowledgeInsetHeight()).fill(Colors.grouped)
-        .hitTestBehavior(HitTestMode.None).accessibilityLevel('no').id('knowledge.navigation_inset')
-    }
-  }
   @Builder phoneSettings() {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
@@ -3127,7 +3121,7 @@ struct Index {
           onWillDismiss:(dismiss:DismissSheetAction) => { this.chatSearchShown=false; dismiss.dismiss(); }
         })
     }.width('100%').height('100%').padding({top:this.compactNavigationInset()}).clip(true)
-      .overlay(this.knowledgeNavigationInset, {align:Alignment.Top})
+      .backgroundColor(this.knowledgeInsetHeight() > 0 ? Colors.grouped : Color.Transparent)
       .blur(this.messageLift.current ? this.getUIContext().vp2px(3) : 0)
       .accessibilityLevel(this.messageLift.current ? 'no-hide-descendants' : 'auto')
       .onAreaChange((_old:Area,now:Area) => { this.phoneWidth = Number(now.width); this.phoneHeight = Number(now.height); })
