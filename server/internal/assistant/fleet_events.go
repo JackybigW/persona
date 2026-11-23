@@ -114,7 +114,11 @@ func (s *Service) endNodeInteraction(p nodeInteractionEnd, status, preparedText 
 				return
 			}
 		}
-		if s.endPreparedByID(p.ID, status, preparedText) {
+		by := ""
+		if resolution != nil {
+			by = resolution.AnsweredBy
+		}
+		if s.endPreparedByIDWithBy(p.ID, status, preparedText, by) {
 			return
 		}
 		s.recordEnd(p.ID, status, resolution)
@@ -132,9 +136,13 @@ func (s *Service) endNodeInteraction(p nodeInteractionEnd, status, preparedText 
 	}
 	if live != nil {
 		if live.prepared != nil {
-			// endPreparedIf rechecks this exact pointer under fleet.mu before its
-			// terminal claim; it cannot fall through to a bare-ID history write.
-			s.endPrepared(live, status, preparedText)
+			// endPreparedIfBy rechecks this exact pointer under fleet.mu before its
+			// terminal claim; only that winner may record the node's terminal actor.
+			by := ""
+			if resolution != nil {
+				by = resolution.AnsweredBy
+			}
+			s.endPreparedIfBy(live, status, preparedText, nil, by)
 			return
 		}
 		if err := s.recordEndOccurrenceStrict(live.ix, status, resolution); err != nil {

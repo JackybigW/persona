@@ -9,10 +9,12 @@ import (
 	"time"
 
 	approvalops "github.com/nwverse/persona/server/internal/approval"
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
 const approvalJournalKey = "assistant.approval_clarifications"
+const approvalRestartCancelledText = "The assistant restarted, so the retained operation was cancelled without executing. Ask for a fresh approval if the change is still wanted."
 
 var (
 	errApprovalConversationGone = errors.New("the originating conversation no longer exists")
@@ -723,7 +725,7 @@ func (s *Service) finalizeRecoveredApprovals(ctx context.Context, seq uint64, re
 // recoveredApprovalOutcome closes a restored card consistently with its durable
 // journal. An unfinished apply is uncertain, another unfinished entry is
 // cancelled, and an already recorded outcome is retained without executing it.
-func recoveredApprovalOutcome(a approvalJournalEntry) (historyStatus, journalStatus, text string) {
+func recoveredApprovalOutcome(a approvalJournalEntry) (historyStatus, journalStatus, text string, restartCancelled bool) {
 	journalStatus, text = a.Status, a.Result
 	if text == "" {
 		if journalStatus == "applying" {
@@ -731,7 +733,7 @@ func recoveredApprovalOutcome(a approvalJournalEntry) (historyStatus, journalSta
 			text = "The assistant restarted while the approved operation was executing. Its execution outcome is uncertain: check current state before retrying; do not assume it applied or that nothing changed."
 		} else {
 			journalStatus = "cancelled"
-			text = "The assistant restarted, so the retained operation was cancelled without executing. Ask for a fresh approval if the change is still wanted."
+			text = approvalRestartCancelledText
 		}
 	} else {
 		// finishPrepared adds the standard result prefix when it refreshes the
@@ -755,7 +757,12 @@ func recoveredApprovalOutcome(a approvalJournalEntry) (historyStatus, journalSta
 	default:
 		historyStatus = "cancelled"
 	}
-	return historyStatus, journalStatus, text
+	// A retry of our own restart cancellation keeps Cleared even after the
+	// journal has its terminal delivery text. Other retained outcomes keep the
+	// attribution implied by their actual terminal status; a restart must not
+	// relabel an earlier expiry or owner decision as a local clear.
+	restartCancelled = journalStatus == "cancelled" && text == approvalRestartCancelledText
+	return historyStatus, journalStatus, text, restartCancelled
 }
 
 func approvalJournalInteraction(entry approvalJournalEntry) proto.Interaction {
@@ -796,11 +803,20 @@ func (s *Service) finishRecoveredApproval(entry approvalJournalEntry) error {
 	}
 	entry = current
 	id := entry.ID
-	historyStatus, journalStatus, text := recoveredApprovalOutcome(entry)
+	historyStatus, journalStatus, text, restartCancelled := recoveredApprovalOutcome(entry)
 	r := proto.Resolution{Dismiss: true, Reason: "assistant_restarted"}
 	if journalStatus == "denied" {
 		allow := false
 		r = proto.Resolution{Allow: &allow, Reason: "assistant_restarted"}
+	}
+	if historyStatus == "expired" {
+		// Match live finishPrepared expiry semantics. Persisting the synthetic
+		// restart dismissal here would replay an expired card as merely dismissed.
+		r = proto.Resolution{Dismiss: true, Reason: proto.DismissedExpired}
+	}
+	by := endedByOf(historyStatus, &r)
+	if restartCancelled {
+		by = db.EndedByCleared
 	}
 	s.fleet.mu.Lock()
 	p := s.fleet.interactions[id]
@@ -839,7 +855,7 @@ func (s *Service) finishRecoveredApproval(entry approvalJournalEntry) error {
 				}
 			}
 		}
-		err := s.recordEndOccurrenceStrict(candidate, historyStatus, &r)
+		err := s.recordEndOccurrenceStrictBy(candidate, historyStatus, by, &r)
 		s.fleet.mu.Unlock()
 		if err != nil {
 			return err
@@ -858,13 +874,14 @@ func (s *Service) finishRecoveredApproval(entry approvalJournalEntry) error {
 	}
 	if p.prepared != nil {
 		s.fleet.mu.Unlock()
-		if !s.endPrepared(p, historyStatus, text) {
+		if !s.endPreparedIfBy(p, historyStatus, text, nil, by) {
 			return fmt.Errorf("interaction %s has an owner claim still finalizing", id)
 		}
 	} else {
 		a := &preparedApproval{terminal: true, clarified: true, result: r,
 			outcome: approvalops.Outcome{Text: text}, reportStatus: journalStatus}
 		p.prepared, p.claimed, p.resolution = a, true, &r
+		p.endedBy = by
 		p.expired = historyStatus == "expired"
 		if p.resolved == nil {
 			p.resolved = make(chan struct{})
@@ -872,7 +889,7 @@ func (s *Service) finishRecoveredApproval(entry approvalJournalEntry) error {
 		s.fleet.mu.Unlock()
 		_ = s.finishPrepared(p, historyStatus)
 	}
-	if err := s.recordEndOccurrenceStrict(p.ix, historyStatus, &r); err != nil {
+	if err := s.recordEndOccurrenceStrictBy(p.ix, historyStatus, by, &r); err != nil {
 		return err
 	}
 	return s.approvalJournalFinalized(context.Background(), entry)

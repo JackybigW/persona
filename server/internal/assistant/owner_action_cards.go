@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 )
@@ -283,6 +284,10 @@ func (s *Service) resolveOwnerProposal(ctx context.Context, ix proto.Interaction
 // durable decision can commit. The persisting marker makes a timeout wait for
 // the decision rather than recording a competing expiry.
 func (s *Service) claimOwnerProposal(ix proto.Interaction, r proto.Resolution, expected *interactionExpectation) (*pending, error) {
+	return s.claimOwnerProposalBy(ix, r, expected, "")
+}
+
+func (s *Service) claimOwnerProposalBy(ix proto.Interaction, r proto.Resolution, expected *interactionExpectation, by string) (*pending, error) {
 	s.fleet.mu.Lock()
 	defer s.fleet.mu.Unlock()
 	p := s.fleet.interactions[ix.ID]
@@ -292,6 +297,7 @@ func (s *Service) claimOwnerProposal(ix proto.Interaction, r proto.Resolution, e
 	}
 	p.claimed = true
 	p.resolution = &r
+	p.endedBy = by
 	p.persisting = &questionPersistence{done: make(chan struct{})}
 	p.persistenceErr = nil
 	if p.resolved == nil {
@@ -318,6 +324,7 @@ func (s *Service) releaseOwnerProposalClaim(p *pending, decisionErr error, retry
 	if retry {
 		p.claimed, p.resolution = false, nil
 		p.answeredBy, p.answeredReason, p.answeredWith = "", "", nil
+		p.endedBy = ""
 		attempt.retry = true
 	}
 	attempt.err = decisionErr
@@ -350,10 +357,11 @@ func (s *Service) completeOwnerProposalClaim(p *pending, r proto.Resolution) {
 	p.resolution = &r
 	p.answeredBy, p.answeredReason = r.AnsweredBy, r.Reason
 	p.answeredWith = r.Answers
+	by := p.endedBy
 	s.fleet.mu.Unlock()
 	status := endStatus(r)
 	told := redacted(p.ix, r)
-	if err := s.recordEndOccurrenceStrict(p.ix, status, &told); err != nil {
+	if err := s.recordEndOccurrenceStrictBy(p.ix, status, by, &told); err != nil {
 		s.logf("record owner-action proposal outcome: %v", err)
 	}
 	s.channelsEnded(p.ix, &told)
@@ -467,7 +475,7 @@ func (s *Service) resolveOwnerProposalAt(ctx context.Context, ix proto.Interacti
 	if r.Reason == "" {
 		r.Reason = "exact owner-action decision " + ix.ApprovalBatchID
 	}
-	p, err := s.claimOwnerProposal(ix, r, expected)
+	p, err := s.claimOwnerProposalBy(ix, r, expected, cmpOr(endedByOf("", &r), db.EndedBy(ctx)))
 	if err != nil {
 		return err
 	}

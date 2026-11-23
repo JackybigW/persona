@@ -13,6 +13,7 @@ import (
 	approvalops "github.com/nwverse/persona/server/internal/approval"
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/compat"
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/devicewire"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/prompts"
@@ -62,6 +63,9 @@ type pending struct {
 	graceEnded bool
 	// expired: it ended because its time ran out, unanswered (await); finished() reads it.
 	expired bool
+	// endedBy is who gave the answer claimed on it, for the history (interactions.ended_by, recordEndBy): a device,
+	// the assistant, a kept "Always"… "" while none is claimed, or when the way it came does not say.
+	endedBy string
 	// announced: a screen card that rang (announce), carried through a detach (screenGone.announced), so the card
 	// read again once the node is back rings at the window's end only if its predecessor never did (#4979).
 	announced bool
@@ -495,9 +499,13 @@ func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction
 			}
 			if p.graceEnded {
 				// The grace period ended and the card is being ended outside the lock (the history, the apps): the
-				// hook hands over, as one back just after would (#5043's kind of gap).
+				// hook hands over, as one back just after would (#5043's kind of gap). Preserve which unanswered end won.
+				reason := dismissedReason("cancelled")
+				if p.expired {
+					reason = dismissedReason("expired")
+				}
 				s.fleet.mu.Unlock()
-				return proto.Resolution{Dismiss: true}, nil
+				return proto.Resolution{Dismiss: true, Reason: reason}, nil
 			}
 			if p.orphaned != nil {
 				p.orphaned.Stop() // fired but not decided yet: it finds p.orphaned nil and leaves the card to the hook
@@ -598,7 +606,7 @@ func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction
 		s.finishPrepared(replaced, "cancelled")
 	}
 	for _, old := range dropped { // as a Codex card withdraws a screen card
-		s.recordEnd(old.ix.ID, "cancelled", nil)
+		s.recordEndBy(old.ix.ID, "cancelled", db.EndedByCleared, nil)
 		s.finished(old)
 	}
 	if again {
@@ -710,11 +718,12 @@ func (s *Service) awaitOnce(ctx context.Context, p *pending) (proto.Resolution, 
 			s.finishPending(p)
 			return *p.resolution, nil
 		}
-		return proto.Resolution{Dismiss: true}, nil
+		return proto.Resolution{Dismiss: true, Reason: dismissedReason(status)}, nil
 	}
 	if s.fleet.interactions[id] != p {
 		s.fleet.mu.Unlock()
-		return proto.Resolution{Dismiss: true}, nil
+		// No longer the card pending under its id: a newer one replaced it, or it was cleared with the others.
+		return proto.Resolution{Dismiss: true, Reason: proto.DismissedCleared}, nil
 	}
 	if status == "cancelled" && persistentOwnerProposal(p.ix) {
 		// Only this caller is leaving. The durable proposal and every original
@@ -724,14 +733,26 @@ func (s *Service) awaitOnce(ctx context.Context, p *pending) (proto.Resolution, 
 	}
 	if status == "cancelled" && p.ix.Resumable && s.orphanLocked(p) {
 		s.fleet.mu.Unlock()
-		return proto.Resolution{Dismiss: true}, nil // disconnected hook; a new one can resume
+		// disconnected hook; a new one can resume
+		return proto.Resolution{Dismiss: true, Reason: proto.DismissedWithdrawn}, nil
 	}
 	p.claimed, p.graceEnded = true, true
 	p.expired = status == "expired"
 	s.fleet.mu.Unlock()
-	s.recordEnd(id, status, nil)
+	s.recordEndBy(id, status, endedByOfStatus(status), nil)
 	s.finishPending(p)
-	return proto.Resolution{Dismiss: true}, nil
+	// Why nobody answered it, so that whoever waits on it never takes the end for the user's decline: its time
+	// ran out, or the one waiting went away first.
+	return proto.Resolution{Dismiss: true, Reason: dismissedReason(status)}, nil
+}
+
+// dismissedReason is the Reason of the Dismiss await hands back for a card that ended with status (its history's)
+// without an answer: its time ran out (expired), or the one waiting went away first (cancelled: withdrawn).
+func dismissedReason(status string) string {
+	if status == "expired" {
+		return proto.DismissedExpired
+	}
+	return proto.DismissedWithdrawn
 }
 
 // orphanLocked starts p's grace period: it ends (cancelled) unless its hook claims it again first. Callers hold
@@ -824,7 +845,14 @@ func (s *Service) outcome(id string) (status string, r proto.Resolution, ended b
 	case res != nil && (status == "resolved" || status == "cancelled" && res.Cancel):
 		return status, *res, true
 	default:
-		return status, proto.Resolution{Dismiss: true}, true
+		r := proto.Resolution{Dismiss: true}
+		if res != nil && res.Dismiss {
+			r = *res
+		}
+		if r.Reason == "" && (status == "expired" || status == "cancelled") {
+			r.Reason = dismissedReason(status)
+		}
+		return status, r, true
 	}
 }
 
@@ -851,12 +879,27 @@ func (s *Service) recordEnd(id, status string, r *proto.Resolution) {
 	}
 }
 
+// recordEndBy is recordEnd that keeps who or what ended the card (interactions.ended_by, db.EndedBy*): by, or when by
+// is empty, what its status and its answer tell (endedByOf).
+func (s *Service) recordEndBy(id, status, by string, r *proto.Resolution) {
+	if by == "" {
+		by = endedByOf(status, r)
+	}
+	if err := s.recordEndStrictBy(id, status, by, r); err != nil {
+		s.logf("record interaction outcome: %v", err)
+	}
+}
+
 func (s *Service) recordEndStrict(id, status string, r *proto.Resolution) error {
+	return s.recordEndStrictBy(id, status, endedByOf(status, r), r)
+}
+
+func (s *Service) recordEndStrictBy(id, status, by string, r *proto.Resolution) error {
 	st := s.fleetStore()
 	if st == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	ctx, cancel := context.WithTimeout(db.WithEndedBy(context.Background(), by), historyTimeout)
 	defer cancel()
 	return st.FinishInteraction(ctx, id, status, r)
 }
@@ -866,11 +909,15 @@ func (s *Service) recordEndStrict(id, status string, r *proto.Resolution) error 
 // and keeps the journal undelivered; once that occurrence is terminal, its row
 // itself prevents the older original from replaying through an Always rule.
 func (s *Service) recordEndOccurrenceStrict(ix proto.Interaction, status string, r *proto.Resolution) error {
+	return s.recordEndOccurrenceStrictBy(ix, status, endedByOf(status, r), r)
+}
+
+func (s *Service) recordEndOccurrenceStrictBy(ix proto.Interaction, status, by string, r *proto.Resolution) error {
 	st := s.fleetStore()
 	if st == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	ctx, cancel := context.WithTimeout(db.WithEndedBy(context.Background(), by), historyTimeout)
 	defer cancel()
 	matched, currentTerminal, err := st.FinishInteractionOccurrence(ctx, ix, status, r)
 	if err != nil {
@@ -883,6 +930,39 @@ func (s *Service) recordEndOccurrenceStrict(ix proto.Interaction, status string,
 }
 
 var errInteractionIDReused = errors.New("interaction id belongs to a different occurrence")
+
+// endedByOf is who or what ended a card, as far as its history's status and the answer kept on it tell: someone who
+// answered for the user (AnsweredBy), a kept "Always allow", its time running out, its asker going away, or a newer
+// card. "" when they do not tell (an answer whose route does not say it came from a device).
+func endedByOf(status string, r *proto.Resolution) string {
+	if r != nil {
+		switch {
+		case r.AnsweredBy != "":
+			return r.AnsweredBy
+		case r.Remembered:
+			return db.EndedByRemembered
+		case r.Dismiss && (r.Reason == proto.DismissedCleared || r.Reason == "replaced"):
+			return db.EndedByCleared
+		case r.Dismiss && r.Reason == proto.DismissedWithdrawn:
+			return db.EndedByWithdrawn
+		case r.Dismiss && r.Reason == proto.DismissedExpired:
+			return db.EndedByExpired
+		}
+	}
+	return endedByOfStatus(status)
+}
+
+// endedByOfStatus is who or what ended a card nobody answered, by its history's status: its time ran out (expired), or
+// its asker went away (cancelled). "" for any other status.
+func endedByOfStatus(status string) string {
+	switch status {
+	case "expired":
+		return db.EndedByExpired
+	case "cancelled":
+		return db.EndedByWithdrawn
+	}
+	return ""
+}
 
 // errNotPending: the interaction was answered, withdrawn or expired already.
 var errNotPending = errors.New("no longer pending")
@@ -1012,6 +1092,9 @@ func (s *Service) resolveAnswerAt(ctx context.Context, id string, r proto.Resolu
 func (s *Service) resolveActiveAnswer(ctx context.Context, id string, r proto.Resolution, remember bool, authorization *standingResolution,
 	approver *assistantwire.HandoffApprover, expected *interactionExpectation) error {
 	r.ModeActor = nil // provenance is never taken from an answer body
+	// Who answered, for the history (interactions.ended_by): the route the apps answer through says it came from a
+	// device (db.WithEndedBy); someone answering for the user, or a kept "Always", says so in the answer itself.
+	by := cmpOr(endedByOf("", &r), db.EndedBy(ctx))
 	s.fleet.mu.Lock()
 	prepared := s.fleet.interactions[id]
 	isPrepared := prepared != nil && prepared.prepared != nil
@@ -1110,6 +1193,7 @@ func (s *Service) resolveActiveAnswer(ctx context.Context, id string, r proto.Re
 	} else if p != nil {
 		p.claimed = true
 		p.resolution = &r
+		p.endedBy = by
 		if durableQuestion(p.ix) || authorization != nil {
 			p.persisting = &questionPersistence{done: make(chan struct{})}
 			p.persistenceErr = nil
@@ -1157,7 +1241,7 @@ func (s *Service) resolveActiveAnswer(ctx context.Context, id string, r proto.Re
 		if kept.Text != "" {
 			kept.Text = redactedValue
 		}
-		if err := s.recordEndOccurrenceStrict(p.ix, status, &kept); err != nil {
+		if err := s.recordEndOccurrenceStrictBy(p.ix, status, by, &kept); err != nil {
 			s.logf("record local interaction occurrence outcome: %v", err)
 		}
 		s.finished(p)
@@ -1173,7 +1257,7 @@ func (s *Service) resolveActiveAnswer(ctx context.Context, id string, r proto.Re
 			return err
 		}
 	} else {
-		s.recordEnd(id, status, &told)
+		s.recordEndBy(id, status, by, &told)
 	}
 	s.channelsEnded(p.ix, &told)
 	go s.InteractionResolved(context.Background(), InteractionResolved{Interaction: p.ix, Resolution: told, Status: status})

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	approvalops "github.com/nwverse/persona/server/internal/approval"
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/proto"
@@ -62,6 +63,7 @@ func (s *Service) resolvePreparedAnswerAt(ctx context.Context, p *pending, r pro
 	}
 	p.claimed = true
 	p.resolution = &r
+	p.endedBy = cmpOr(endedByOf("", &r), db.EndedBy(ctx)) // for the history: who answered (recordEndBy)
 	if p.resolved == nil {
 		p.resolved = make(chan struct{})
 	}
@@ -167,6 +169,10 @@ func (s *Service) resolvePreparedAnswerAt(ctx context.Context, p *pending, r pro
 // endPreparedByID routes a lifecycle ending through the prepared card's one
 // terminal boundary. False means the card is not prepared and keeps its old path.
 func (s *Service) endPreparedByID(id, status, text string) bool {
+	return s.endPreparedByIDWithBy(id, status, text, "")
+}
+
+func (s *Service) endPreparedByIDWithBy(id, status, text, by string) bool {
 	s.fleet.mu.Lock()
 	p := s.fleet.interactions[id]
 	prepared := p != nil && p.prepared != nil
@@ -174,7 +180,7 @@ func (s *Service) endPreparedByID(id, status, text string) bool {
 	if !prepared {
 		return false
 	}
-	s.endPrepared(p, status, text)
+	s.endPreparedIfBy(p, status, text, nil, by)
 	return true
 }
 
@@ -189,6 +195,10 @@ func (s *Service) endPrepared(p *pending, status, text string) bool {
 // that attempt finishes. A stale decision/pause timer therefore cannot end a
 // card whose state changed while its callback was waiting.
 func (s *Service) endPreparedIf(p *pending, status, text string, guard func(*preparedApproval) bool) bool {
+	return s.endPreparedIfBy(p, status, text, guard, "")
+}
+
+func (s *Service) endPreparedIfBy(p *pending, status, text string, guard func(*preparedApproval) bool, by string) bool {
 	for {
 		s.fleet.mu.Lock()
 		if p.prepared == nil || p.prepared.terminal || p.claimed || s.fleet.interactions[p.ix.ID] != p {
@@ -211,6 +221,11 @@ func (s *Service) endPreparedIf(p *pending, status, text string, guard func(*pre
 			} else {
 				text = cmpOr(a.op.Unanswered, prompts.RenderSettingUnanswered())
 			}
+		}
+		if by != "" {
+			// Only the lifecycle call that wins the terminal claim may replace an
+			// already-claimed answer's attribution.
+			p.endedBy = by
 		}
 		a.terminal = true
 		p.claimed = true
@@ -258,6 +273,7 @@ func (s *Service) finishPrepared(p *pending, status string) error {
 	if journalStatus == "" {
 		journalStatus = status
 	}
+	by := p.endedBy
 	s.fleet.mu.Unlock()
 
 	if a.op.Discard != nil {
@@ -268,14 +284,17 @@ func (s *Service) finishPrepared(p *pending, status string) error {
 		told := redacted(p.ix, r)
 		kept = &told
 	}
+	if status == "expired" || by == "" {
+		by = endedByOf(status, kept)
+	}
 	var historyErr error
 	if clarified {
-		historyErr = s.recordEndOccurrenceStrict(p.ix, status, kept)
+		historyErr = s.recordEndOccurrenceStrictBy(p.ix, status, by, kept)
 		if historyErr != nil {
 			s.logf("record approval occurrence outcome: %v", historyErr)
 		}
 	} else {
-		s.recordEnd(p.ix.ID, status, kept)
+		s.recordEndBy(p.ix.ID, status, by, kept)
 	}
 	if clarified {
 		// The delivery drain retries an unfinalized occurrence before it can hand

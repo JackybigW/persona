@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
 	"github.com/nwverse/persona/server/internal/screen"
@@ -131,11 +132,15 @@ func (s *Service) syncCodexInteractions(machine string, params json.RawMessage) 
 	}
 	s.fleet.mu.Unlock()
 	for _, old := range screens {
-		s.recordEnd(old.ix.ID, "cancelled", nil)
+		s.recordEndBy(old.ix.ID, "cancelled", db.EndedByCleared, nil)
 		s.finished(old)
 	}
 	for _, old := range gone {
-		if err := s.recordEndOccurrenceStrict(old.ix, "cancelled", nil); err != nil {
+		by := db.EndedByWithdrawn
+		if replaced[old.ix.ID] {
+			by = db.EndedByCleared
+		}
+		if err := s.recordEndOccurrenceStrictBy(old.ix, "cancelled", by, nil); err != nil {
 			s.logf("record Codex occurrence outcome: %v", err)
 		}
 		s.finished(old)
