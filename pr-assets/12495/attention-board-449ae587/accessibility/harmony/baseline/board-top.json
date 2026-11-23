@@ -1,0 +1,229 @@
+{
+  "source": "1370b7f1320042e76e5ac0fb8e2a5ec2e03b66ee",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "07047038903e8f6e190e1c7ea783871dd21b218e70817d52b785d495a69a0eff",
+  "originalNativePNGSHA256": "1397053d2fbea209bf86eb9707ee6668a6aed26b9d3c1a7c92012bf3ee1220fc",
+  "screenPNG": "screens/harmony/baseline/board-top.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "任务",
+      "boundsLogicalPoints": [
+        184.0,
+        65.0,
+        34.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        16.0,
+        117.0,
+        51.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "照片同步支持 HEIC",
+      "boundsLogicalPoints": [
+        52.0,
+        151.33,
+        145.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "补齐网络层的单元测试",
+      "boundsLogicalPoints": [
+        52.0,
+        197.33,
+        170.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "网络层的单元测试补到 80% 覆盖。",
+      "boundsLogicalPoints": [
+        52.0,
+        219.33,
+        201.0,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "选缓存方案",
+      "boundsLogicalPoints": [
+        52.0,
+        258.67,
+        85.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "本地缓存还是 Redis，选定后交给网络层 Agent。",
+      "boundsLogicalPoints": [
+        52.0,
+        280.67,
+        283.0,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "登录页表单",
+      "boundsLogicalPoints": [
+        52.0,
+        322.0,
+        85.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "工作中",
+      "boundsLogicalPoints": [
+        16.0,
+        370.0,
+        51.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "接入支付回调",
+      "boundsLogicalPoints": [
+        52.0,
+        404.33,
+        102.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "首页加骨架屏",
+      "boundsLogicalPoints": [
+        52.0,
+        452.33,
+        102.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "排查 /orders 接口变慢",
+      "boundsLogicalPoints": [
+        52.0,
+        500.33,
+        166.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "修小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        52.0,
+        546.33,
+        136.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "天气 App 的主屏幕小组件在横屏时崩溃，修好并补测试。",
+      "boundsLogicalPoints": [
+        52.0,
+        568.33,
+        306.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "会话续期",
+      "boundsLogicalPoints": [
+        52.0,
+        609.67,
+        68.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "给天气 App 写 Windows 小组件",
+      "boundsLogicalPoints": [
+        52.0,
+        657.67,
+        240.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "未读",
+      "boundsLogicalPoints": [
+        16.0,
+        705.67,
+        38.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "整理发布说明",
+      "boundsLogicalPoints": [
+        52.0,
+        738.0,
+        102.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "把这周合并的 PR 整理成发布说明，只读。",
+      "boundsLogicalPoints": [
+        52.0,
+        760.0,
+        244.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "博客迁移到 Astro",
+      "boundsLogicalPoints": [
+        52.0,
+        799.33,
+        131.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "把博客从 Hexo 迁到 Astro。",
+      "boundsLogicalPoints": [
+        52.0,
+        821.33,
+        163.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "没开起来",
+      "boundsLogicalPoints": [
+        16.0,
+        862.67,
+        64.33,
+        11.33
+      ]
+    }
+  ]
+}
