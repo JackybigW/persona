@@ -238,6 +238,26 @@ test('Got It files an eligible phone row immediately, preserves its list fields 
   assert.deepEqual(state.calls.filter(call=>call.method!=='GET').map(call=>call.method),['PUT','DELETE']);
 });
 
+test('a retained compact row files the current member when the previous lead was seen',async()=>{
+  const stamp=new Date(Date.now()-60000).toISOString(),group='one-plan',make=id=>todo(id,{title:'One shared title',plan_id:group,
+    ask:{verdict:'ready',asked_at:stamp,outcome:'done'},updated_at:stamp});
+  const original=[make('first'),make('second')];
+  const {workspace,state,client}=await opened({features:['todo_seen'],todos:original});
+  const writes=[];
+  state.request=async({path,method})=>{
+    const key=pathOnly(path).split('/').at(-2);writes.push([method,key]);
+    const item=original.find(v=>v.id===key);return {todo:{...item,seen_at:method==='PUT'?new Date().toISOString():''}};
+  };
+  const rows=()=>workspace.sections().find(s=>s.key==='just_done')?.rows||[];
+  const bind=old=>reconcileBoundRows(old,rows(),group=>group.key,client,client,'list','list');
+  let bound=bind([]);assert.equal(bound.length,1);const button=()=>bound[0].value.lead;
+  const first=button();assert.equal(await workspace.markSeen(first),true);
+  const old=bound[0];bound=bind(bound);assert.equal(bound[0],old);
+  const second=button();assert.notEqual(second.id,first.id);assert.equal(await workspace.markSeen(second),true);
+  assert.equal(await workspace.undoSeen(),true);
+  assert.deepEqual(writes,[['PUT',first.id],['PUT',second.id],['DELETE',second.id]]);
+});
+
 test('seen respects feature, acceptance, current owner and failed writes',async()=>{
   const when=new Date(Date.now()-5000).toISOString();
   const task=todo('report',{ask:{verdict:'ready',asked_at:when,outcome:'done'}});
