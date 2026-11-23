@@ -248,6 +248,22 @@ not returned because it can belong to background naming. No `model_started`, exe
 is synthesized. The tool invokes no model, writes no settings, resolves no card, renames nothing and publishes no
 session list. Ordinary coding Agents, extensions and work machines cannot call it.
 
+### Health intake changes client
+
+`GET /api/v1/assistant/health/intake/changes?space=health&after=<seq>&limit=<n>` requires full device credentials
+and always targets the default manager, without a manager header or query. `after` is exclusive and nonnegative;
+`limit` defaults to 100 (1–1000). The result is `{changes: [HealthIntakeEntry], next, has_more}`. Entries are in ascending
+`seq` order, including revoked records with `deleted_at`. The stream gives current record states, so a record added
+and revoked before the read may appear only as a tombstone. `next` is the last sequence in the page, or the requested
+`after` for an empty page. Use `next` to paginate; sequence gaps are valid, and row counts are not cursors.
+
+The iPhone Apple Health sync client checkpoints each successful HealthKit operation, then commits the page's `next`
+after every entry succeeds. A failure leaves that entry unacknowledged and stops the stream for a later trigger.
+Consent and cursor belong to the selected hub; never apply another hub's changes under them. A missing cursor replays
+from zero with stable HealthKit sync identifiers. `health_intake` broadcasts invalidate totals and trigger the same
+ordered sync; their payload contains no records and is never a cursor. See `docs/assistant/health.md`
+("Syncing to Apple Health").
+
 ### Health check and feature flags
 
 `GET /api/v1/health` needs no authentication. Public sources get only:
@@ -3285,6 +3301,8 @@ GET /api/v1/agents/sessions?counts=1&source=demo
 
 `held_needs` (omitted when 0) is how many of `state.needs_you` only wait on held non-interrupting cards (`P1`/`P2`); when push grading is on, web and desktop clients subtract it from alert badges while keeping ordinary `state.needs_you` counts intact.
 
+`supervisor_held` (omitted when 0) is how many of `state.needs_you` only wait on cards their task's supervisor holds (a card of any kind but `question` marked `delegating`, `docs/assistant/unified-entry.md` "Asks go to the supervisor first"); none of them is in `held_needs`. They are not the user's until the supervisor escalates them, so clients subtract it from every Needs you count, push grading or not.
+
 Each map counts the complete filtered membership by that dimension; missing attributes use the empty-string key. `limit` does not truncate counts. With a matching `cursor`, counts refer to that frozen view; without one they refer to the current collection. `since`, if supplied, is validated but does not turn counts into counts of changes. Read counts separately when a group expands, rather than deriving totals from loaded pages. The runtime `pane_source` map uses the explicit four origins above, including `unknown`; the personal-agent collection omits this dimension. The maps do not contain preference-defined custom sections, per-user pins/mutes or computed repository trees.
 
 #### Counts with the page (`sessions_page_counts`, #4858)
@@ -3789,6 +3807,7 @@ Share › Persona on iOS uploads shared files the same way to the target's compu
   (0700 / 0600, kept like the chat's images rather than swept), limit 50 MB (`proto.MaxFileUploadBytes`). The node echoes `dest`; a node from before it answers `unknown upload destination`, and the manager falls back to `dest=terminal`.
 - `?dest=health` (checkup reports for the health space, `docs/assistant/health.md` ("Checkup reports")): the node stores it in the health directory's `reports/` (`name-YYYYMMDD-HHMMSS.ext`, 0700 / 0600, no expiry), with the same limit as `MaxUploadBytes`. It is the health space of the computer's manager: the built-in manager's `health/` as ever, another manager's `health-<id>/` (the hub passes `health_dir` on `file.upload.begin`, which the node echoes; a node without the `health_spaces` capability gets 409 `node_outdated` instead of a report in the wrong space).
 
+- Built-in water reminder pushes (#13274) carry APNs category `HEALTH_WATER` and top-level `health: {reminder: string}`. Each reminder has its own id; collapse id `health-water` replaces the previous reminder. The iPhone and iPad register background actions `HEALTH_WATER_DRINK` (drink), `HEALTH_WATER_SNOOZE` (later) and `HEALTH_WATER_LOG` (text input, millilitres). Each posts `POST /api/v1/assistant/health/water/reminder?space=health`; `action` is `drink`, `snooze` or `log`, for example `{"reminder":"<reminder id>","action":"log","amount":"300"}`. The optional `amount` is a string supplied only for `log`. The request uses the default manager, without a manager header or query. The response is `{"toast":"<localized result>"}`, shown as a local notification; widget timelines refresh on receipt and after an action. Recent successful callbacks are suppressed per hub/reminder/action in the app (up to 256); failures can retry the same identity. The hub supplies durable deduplication. The watch's restricted credential cannot call this route: its Log Water intent instead posts intake with a new UUID each run. Manager notifications use `kind: "health_water"`, Level P1, no RelatedKey; WebSocket delivery is an `alert` with fixed id `health-water` and the same `health.reminder`.
 - `GET /api/v1/machines/{mid}/health/reports`: the reports, newest first, `{"reports":[{name,title,path?,record_path?,size,modified_at}]}` (`proto.HealthReport`, #4998). `path` is the original, `record_path` the same-name `.md` record; both are read through `file` / `file/download`.
 - `DELETE /api/v1/machines/{mid}/health/reports/{name}`: permanently delete a report (original and record), succeeding even if already absent; `name` must name an ordinary file under `reports/`. Both endpoints require full credentials; old nodes return 409 `node_outdated` (RPC `health.reports.list` / `health.reports.delete`). They are of the computer's manager's health space: another manager than the built-in passes its `health_dir`, which the node echoes (no capability `health_spaces`, or no echo: 409 `node_outdated`), and asks a delete only after a list of that space echoed it. The node refuses any other name, `health` included (the built-in's is named by leaving `health_dir` out).
 
@@ -6336,7 +6355,7 @@ not installed.
 
 ### Delegated task instructions
 
-Optional node capability `task_instructions_v1` adds `task_instructions` and `task_attachments` strings to `session.start`. The manager sends only stable framework rules in the former; assignment, caller-supplied `context`, criteria, project facts and effective decisions remain in `prompt`. The latter carries the already-authorized attachment suffix so a launcher fallback can append rules before it. Supported terminal launches use their instruction channel and retain it for resume; other launchers append the rules to the first message, with attachments last. Managers that cannot verify the capability keep the rules and attachments in `prompt`. The protocol floor is unchanged.
+Optional node capability `task_instructions_v1` adds `task_instructions` and `task_attachments` strings to `session.start`. The manager sends only stable framework rules in the former; assignment, caller-supplied `context`, criteria, project facts and effective decisions remain in `prompt`. The latter carries the already-authorized attachment suffix so a launcher fallback can append rules before it. Supported terminal launches use their instruction channel and retain it for resume; other launchers append the rules to the first message, with attachments last. Managers that cannot verify the capability keep the rules and attachments in `prompt`. The protocol floor is unchanged. The node adds no rules of its own on any platform (#13642). A computer whose owner wants standing rules for every Agent started there keeps them in `agent-rules.md` in the node's data directory; a new start (never a resume) carries that text after the caller's `task_instructions`, through the same channels.
 
 Closeout blocks optionally carry `delivery: live|pr|merged|off|none` and `unblock: user|agent|other`. Their parsed values are additive fields of `work.closeout`; `missing` is the delivery gate and `waiting` its concrete dependency. A completed final report without an outstanding dependency may also carry one optional `next` line, up to 180 characters. It supplies the existing `suggestion` on the session and the owner can edit or send it. It never starts another turn on its own. Unknown enum values are ignored. A historical delivery line still wins, followed by explicit structured delivery, then the legacy merged/deployed/artifact inference. A to-do's `delivery.unblock` on the wire may also be `supervisor` (#13191): an owner hold on a supervised task that no review followed, its supervisor's until it opens a `needs_user` decision ([agent-work.md](../assistant/agent-work.md) "Closeout"). Only `user` is the owner's; clients treat `supervisor`, like any value they do not know, as not waiting on the owner.
 
