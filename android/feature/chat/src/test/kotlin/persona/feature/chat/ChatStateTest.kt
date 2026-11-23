@@ -250,6 +250,101 @@ class ChatStateTest {
         assertTrue(resumed.lines.any { it.holds(newerReply.id) })
     }
 
+    @Test fun frozenLinesStartedBeforeRacingUnfrozenPassFinishesReturnsBackfilledTurnDirectly() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val unfrozenWorkerRef = AtomicReference<Thread?>(null)
+        val unfrozenError = AtomicReference<Throwable?>(null)
+        val frozenError = AtomicReference<Throwable?>(null)
+        val frozenResult = AtomicReference<persona.core.domain.lines.ChatSnapshot?>(null)
+        val timeline = ChatTimeline(beforeMemo = {
+            if (Thread.currentThread() === unfrozenWorkerRef.get()) {
+                entered.countDown()
+                assertTrue(release.await(5, TimeUnit.SECONDS))
+            }
+        })
+
+        // First live turn populates shownLiveId with turn 1 before turn 2 begins.
+        val turn1 = listOf(
+            Item("u1#0", 1, role = "user", kind = "text", text = "First question"),
+            Item("t1#0", 2, role = "assistant", kind = "thinking", text = "First thought"),
+        )
+        val firstSnapshot = timeline.lines(turn1, live = true, open = emptySet())
+        val turn1LiveId = checkNotNull(firstSnapshot.liveTurnId)
+
+        // Turn 2 starts running while its unfrozen lines() stalls inside memoLock.
+        val turn2 = turn1 + listOf(
+            Item("a1#0", 3, role = "assistant", kind = "text", text = "First answer"),
+            Item("u2#0", 4, role = "user", kind = "text", text = "Second question"),
+            Item("t2#0", 5, role = "assistant", kind = "thinking", text = "Second thought"),
+        )
+        val newerReply = Item("a2#0", 6, role = "assistant", kind = "text", text = "Arrived after freeze")
+        val withNewer = turn2 + newerReply
+
+        val unfrozenWorker = Thread {
+            try {
+                val _ = timeline.lines(turn2, live = true, open = emptySet())
+            } catch (t: Throwable) {
+                unfrozenError.set(t)
+            }
+        }
+        unfrozenWorkerRef.set(unfrozenWorker)
+        val frozenStarted = CountDownLatch(1)
+        val frozenWorker = Thread {
+            try {
+                frozenStarted.countDown()
+                frozenResult.set(timeline.lines(withNewer, live = false, open = emptySet()))
+            } catch (t: Throwable) {
+                frozenError.set(t)
+            }
+        }
+
+        unfrozenWorker.start()
+        try {
+            assertTrue("unfrozen lines() did not enter memoLock", entered.await(5, TimeUnit.SECONDS))
+            // Freeze captures stale turn1LiveId while unfrozenWorker is still computing turn 2.
+            assertTrue(timeline.freezeChanged(turn2))
+            // Start the frozen lines() call BEFORE releasing the stalled unfrozen pass.
+            frozenWorker.start()
+            assertTrue(frozenStarted.await(5, TimeUnit.SECONDS))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (frozenWorker.state != Thread.State.WAITING &&
+                frozenWorker.state != Thread.State.TIMED_WAITING &&
+                frozenWorker.state != Thread.State.BLOCKED &&
+                System.nanoTime() < deadline
+            ) {
+                Thread.yield()
+            }
+            assertTrue("frozen lines() did not reach memoLock wait before release: ${frozenWorker.state}",
+                frozenWorker.state == Thread.State.WAITING ||
+                    frozenWorker.state == Thread.State.TIMED_WAITING ||
+                    frozenWorker.state == Thread.State.BLOCKED)
+        } finally {
+            release.countDown()
+            unfrozenWorker.join(5_000)
+            frozenWorker.join(5_000)
+        }
+
+        assertFalse("unfrozen worker did not finish", unfrozenWorker.isAlive)
+        assertFalse("frozen worker did not finish", frozenWorker.isAlive)
+        assertNull(unfrozenError.get())
+        assertNull(frozenError.get())
+
+        // Without any extra lines() call, the racing frozen snapshot must already reflect turn 2's backfilled live turn.
+        val frozen = checkNotNull(frozenResult.get())
+        assertNotEquals(turn1LiveId, frozen.liveTurnId)
+        assertNotNull(frozen.liveTurnId)
+        assertFalse(frozen.lines.any { it.holds(newerReply.id) })
+        val works = frozen.lines.filterIsInstance<ChatLine.Work>()
+        assertEquals(2, works.size)
+        assertFalse("turn 1 work line must not stay live", works.first().live)
+        assertTrue("turn 2 work line must use the backfilled live turn", works.last().live)
+
+        // The cached frozen snapshot matches on subsequent frozen reads too.
+        val cachedAgain = timeline.lines(withNewer, live = false, open = emptySet())
+        assertSame(frozen, cachedAgain)
+    }
+
     @Test fun concurrentSearchItemsAndUiControlsNeverDeadlockOrThrow() {
         val timeline = ChatTimeline()
         val base = (1..200).map { seq ->

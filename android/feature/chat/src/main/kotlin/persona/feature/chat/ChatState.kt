@@ -9,6 +9,9 @@ import persona.core.designsystem.StatusLineKind
 import persona.core.designsystem.resolveStatusLine
 import persona.core.domain.lines.Fold as LineFold
 import persona.core.domain.lines.TaskNote as LineTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 internal fun Item.asLineItem() = LineItem(this,
     fold?.let { LineFold(it.items, it.tools, it.thoughts, it.throughSeq, it.throughId, parseTime(it.until)) },
@@ -91,7 +94,8 @@ internal class ChatTimeline(
         chatItemOrder,
         { it.role == "assistant" && it.kind == "text" })
     private val stateLock = Any()
-    private val memoLock = Any()
+    private val memoLock = ReentrantLock()
+    private val liveBackfillDone = memoLock.newCondition()
     @Volatile private var control = ControlState()
     @Volatile private var shownLiveId: String? = null
     private var inFlightLiveLines = 0
@@ -223,6 +227,20 @@ internal class ChatTimeline(
         return out
     }
 
+    private fun finishUnfrozenUnderMemoLock(liveTurnId: String?) {
+        synchronized(stateLock) {
+            val current = control
+            if (!current.frozen) {
+                shownLiveId = liveTurnId
+            } else if (current.frozenLivePending) {
+                // Freeze raced an unfrozen lines() pass: preserve the live turn that was running when it froze.
+                shownLiveId = liveTurnId
+                control = current.copy(frozenLiveId = liveTurnId, frozenLivePending = false)
+            }
+        }
+        liveBackfillDone.signalAll()
+    }
+
     /** [live]: the agent is at work; [open] is the same persisted choice for live and historical lines. */
     fun lines(items: List<Item>, live: Boolean, open: Set<String>): persona.core.domain.lines.ChatSnapshot {
         val stateBefore = synchronized(stateLock) {
@@ -232,21 +250,46 @@ internal class ChatTimeline(
         }
         try {
             val resolved = resolveItems(items, stateBefore.frozen, stateBefore.expanded)
-            val options = if (stateBefore.frozen) LineOptions(liveTurnId = stateBefore.frozenLiveId, openWork = open)
-                else LineOptions(openWork = open, live = live)
-            val snapshot = synchronized(memoLock) {
+            return memoLock.withLock {
+                if (stateBefore.frozen) {
+                    while (true) {
+                        val current = control
+                        if (!current.frozen || current.freezeToken != stateBefore.freezeToken || !current.frozenLivePending) {
+                            break
+                        }
+                        try {
+                            val _ = liveBackfillDone.await(50L, TimeUnit.MILLISECONDS)
+                        } catch (_: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            break
+                        }
+                    }
+                }
+                val currentControl = control
+                val effectiveLiveId = if (stateBefore.frozen) {
+                    if (currentControl.frozen && currentControl.freezeToken == stateBefore.freezeToken) {
+                        currentControl.frozenLiveId
+                    } else {
+                        stateBefore.frozenLiveId
+                    }
+                } else {
+                    null
+                }
                 val cached = lastLines
                 if (cached != null &&
                     cached.sourceItems === resolved &&
                     cached.frozen == stateBefore.frozen &&
                     (!stateBefore.frozen || cached.freezeToken == stateBefore.freezeToken) &&
-                    (if (stateBefore.frozen) cached.liveTurnId == stateBefore.frozenLiveId else cached.live == live) &&
+                    (if (stateBefore.frozen) cached.liveTurnId == effectiveLiveId else cached.live == live) &&
                     cached.open == open &&
                     cached.expanded === stateBefore.expanded
                 ) {
-                    return@synchronized cached.snapshot
+                    if (!stateBefore.frozen) finishUnfrozenUnderMemoLock(cached.snapshot.liveTurnId)
+                    return@withLock cached.snapshot
                 }
                 beforeMemo?.invoke()
+                val options = if (stateBefore.frozen) LineOptions(liveTurnId = effectiveLiveId, openWork = open)
+                    else LineOptions(openWork = open, live = live)
                 val foldAnchors = if (stateBefore.expanded.isEmpty()) emptyMap() else buildMap(stateBefore.expanded.size) {
                     for ((foldId, entry) in stateBefore.expanded) {
                         val anchor = entry.anchorId
@@ -260,38 +303,43 @@ internal class ChatTimeline(
                     val anchor = foldAnchors[item.id]
                     source += if (anchor != null) lineItem.copy(exchangeId = anchor) else lineItem
                 }
-                memo.lines(source, options).also { built ->
-                    val stateAfter = control
-                    if (stateAfter.frozen == stateBefore.frozen && stateAfter.freezeToken == stateBefore.freezeToken) {
-                        lastLines = LinesCache(
-                            sourceItems = resolved,
-                            frozen = stateBefore.frozen,
-                            freezeToken = stateBefore.freezeToken,
-                            live = live,
-                            liveTurnId = built.liveTurnId,
-                            open = open.toSet(),
-                            expanded = stateBefore.expanded,
-                            snapshot = built,
-                        )
-                    }
+                val built = memo.lines(source, options)
+                if (!stateBefore.frozen) {
+                    finishUnfrozenUnderMemoLock(built.liveTurnId)
                 }
-            }
-            if (!stateBefore.frozen) {
-                synchronized(stateLock) {
-                    val current = control
-                    if (!current.frozen) {
-                        shownLiveId = snapshot.liveTurnId
-                    } else if (current.frozenLivePending) {
-                        // Freeze raced an unfrozen lines() pass: preserve the live turn that was running when it froze.
-                        shownLiveId = snapshot.liveTurnId
-                        control = current.copy(frozenLiveId = snapshot.liveTurnId, frozenLivePending = false)
-                    }
+                val stateAfter = control
+                if (stateAfter.frozen == stateBefore.frozen &&
+                    stateAfter.freezeToken == stateBefore.freezeToken &&
+                    (!stateBefore.frozen || stateAfter.frozenLiveId == effectiveLiveId)
+                ) {
+                    lastLines = LinesCache(
+                        sourceItems = resolved,
+                        frozen = stateBefore.frozen,
+                        freezeToken = stateBefore.freezeToken,
+                        live = live,
+                        liveTurnId = built.liveTurnId,
+                        open = open.toSet(),
+                        expanded = stateBefore.expanded,
+                        snapshot = built,
+                    )
                 }
+                built
             }
-            return snapshot
         } finally {
             if (!stateBefore.frozen) {
-                synchronized(stateLock) { inFlightLiveLines-- }
+                val clearedPending = synchronized(stateLock) {
+                    inFlightLiveLines--
+                    val current = control
+                    if (inFlightLiveLines == 0 && current.frozen && current.frozenLivePending) {
+                        control = current.copy(frozenLivePending = false)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (clearedPending) {
+                    memoLock.withLock { liveBackfillDone.signalAll() }
+                }
             }
         }
     }
