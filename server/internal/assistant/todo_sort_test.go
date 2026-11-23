@@ -342,3 +342,55 @@ func TestGoldenTodoSortLanguages(t *testing.T) {
 		})
 	}
 }
+
+// A project's name counts in a title only as a whole word; Chinese and Japanese need no spaces around it.
+func TestTodoSortWholeWord(t *testing.T) {
+	cases := []struct {
+		text, word string
+		want       bool
+	}{
+		{"fix ranking bug", "ranking", true},
+		{"reranking", "ranking", false},
+		{"ranking-v2", "ranking", true},
+		{"rankings", "ranking", false},
+		{"rankings and ranking", "ranking", true},
+		{"build the happy hour list", "app", false},
+		{"修复排序服务的缓存", "排序服务", true},      // i18n-ignore
+		{"ranking: 修复", "ranking", true}, // i18n-ignore
+	}
+	for _, c := range cases {
+		if got := wholeWord(c.text, c.word); got != c.want {
+			t.Errorf("wholeWord(%q, %q) = %v", c.text, c.word, got)
+		}
+	}
+	byslug := map[string]*kb.Project{"ui": {Slug: "ui", Name: "UI"}, "docs-site": {Slug: "docs-site", Name: "Docs site"}}
+	if got := titleNames("Rebuild the build script", byslug, nil); got != "" {
+		t.Fatalf("UI matched inside build: %q", got)
+	}
+	if got := titleNames("Polish the UI colors", byslug, nil); got != "ui" {
+		t.Fatalf("UI as a word: %q", got)
+	}
+}
+
+// A Windows Agent's work folder as it reports it (C:\Users\...) is in the project whose folder the knowledge base
+// keeps in the hub's canonical form (c:/Users/...).
+func TestTodoSortRulesWindowsFolder(t *testing.T) {
+	e := sortEnv(t, nil)
+	eng := kbEng(t, e.s)
+	if _, err := eng.Apply(kb.KindProject, "Win app", kb.Update{Name: "Win app", Kind: "long",
+		Dirs: []string{"laptop:" + workspaceDirectory(`C:\Users\me\winapp`)}}); err != nil {
+		t.Fatal(err)
+	}
+	byslug := map[string]*kb.Project{}
+	for _, p := range sortCandidates(eng) {
+		byslug[p.Slug] = p
+	}
+	todo := Todo{ID: "todo_w", Title: "Fix the build", Agents: []TodoAgent{{MachineID: "laptop", Cwd: `C:\Users\me\winapp\src`}}}
+	var it sortItem
+	e.s.sortRules(context.Background(), eng, byslug, todo, &it, func(key string, a i18n.Args) string {
+		return i18n.T(i18n.En, "assistant-todos.sort_reason_"+key, a)
+	})
+	if it.By != "dirs" || byslug[it.Project] == nil || byslug[it.Project].Name != "Win app" {
+		t.Fatalf("a Windows Agent in its project's folder: %+v", it)
+	}
+}
