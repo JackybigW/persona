@@ -92,6 +92,13 @@ leader_progress
 decision_record
 decisions_query
 health_intake
+watch_draft
+watch_confirm
+watch_list
+watch_update
+watch_delete
+watch_reorder
+watch_report
 subscription_list
 subscription_get
 subscription_sources

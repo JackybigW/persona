@@ -143,7 +143,7 @@
   },
   {
     "name": "schedule_followup",
-    "description": "Wake yourself later with `prompt`; `new_conversation: true` uses its own chat. Wakes reset the message hop chain at most once per 10 minutes. `at` accepts RFC3339 or relative 30m/2h/1d. For repeats set `every` (5m-7d) once; never chain runs. Or use `cron` instead of at/every: 5 fields in the user's zone, at least 5m apart; @hourly/@daily/@weekly/@monthly/@yearly work. Day 0/7 is Sunday; restricted day fields match either. Inspect the reply's next runs. `until` cannot be a bare clock time.\n\nRuns inherit Main chat's launcher/model/effort; overrides require an own conversation, and permission mode stays the user's choice. `inbox` is only for requested Inbox results. `fresh_each_run: true` starts a new chat each run with its state note. See field descriptions for push and end-time edit rules.\n\nFor approved recurring work advancing a supervised to-do, pass its explicit `todo_id`; do not guess from a title. Omission keeps an association; \"\" clears it; one-shots refuse it. From the second run, progress is new Agent answers or tool calls (not waits or repeats), criterion changes or progress reports; a long stall asks Change approach / Keep waiting, even with `push: asked`. Get owner consent before creating or changing recurring work.",
+    "description": "Wake yourself later with `prompt`; `new_conversation: true` uses its own chat. Wakes reset the message hop chain at most once per 10 minutes. `at` accepts RFC3339 or relative 30m/2h/1d. For repeats set `every` (5m-7d) once; never chain runs. Or `cron` instead of at/every (5 fields in the user's zone, at least 5m apart, 0/7 = Sunday, restricted day fields match either; check the reply's next runs). `until` cannot be a bare clock time.\n\nRuns inherit Main chat's launcher/model/effort; overrides need an own conversation; permission mode stays the user's. `fresh_each_run: true` starts a new chat each run with its state note.\n\nFor approved recurring work advancing a supervised to-do, pass its explicit `todo_id`, never guessed from a title (omit keeps, \"\" clears, one-shots refuse it). From the second run progress is new Agent answers or tool calls (not waits or repeats), criterion changes or reports; a long stall asks Change approach / Keep waiting, even with `push: asked`. Get owner consent before creating or changing recurring work.",
     "input_schema": {
       "type": "object",
       "required": [
@@ -187,7 +187,7 @@
             "every",
             "asked"
           ],
-          "description": "every (default for a new task): each run's answer is pushed to the user; asked: only what a run sends with notify_user, for a task that watches something or a standing loop (a patrol, a daily round). Continuing this conversation, a run's answer is then not pushed or sent to channels; from Main chat it runs in its own conversation instead. Omit to keep an existing task's"
+          "description": "every (default): each run's answer is pushed; asked: only what a run sends with notify_user, for watching something or a standing loop (patrol, daily round). Continuing this conversation, answers are then not pushed or sent to channels; from Main chat it runs in its own conversation. Omit to keep"
         },
         "inbox": {
           "type": "string",
@@ -196,22 +196,22 @@
             "worthy",
             "every"
           ],
-          "description": "what of a run goes into the user's Inbox, independent of push: off (default for a new task), worthy (a run puts a row there with inbox_post only when it finds something worth a look), every (every run ends with a row made by Persona). Set it only when the user asked for it. Omit to keep an existing task's"
+          "description": "Inbox rows, independent of push: off (default), worthy (the run uses inbox_post only for something worth a look), every (Persona adds a row after each run). Only when the user asked. Omit to keep"
         },
         "until": {
           "type": [
             "string",
             "null"
           ],
-          "description": "optional end time (RFC 3339 or 30m / 2h / 1d). After it, Persona turns the task off and records a skipped run instead of running. Omit to keep an existing task's end time; null clears it. Ignored for a one-off."
+          "description": "optional end time (RFC 3339 or 30m / 2h / 1d); then Persona turns it off and records a skipped run. Omit keeps; null clears; ignored for a one-off"
         },
         "launcher": {
           "type": "string",
-          "description": "this task's own launcher, instead of Main chat's (a name on the computer where its runs start). Needs new_conversation: true: a follow-up that continues this conversation runs on that conversation's launcher. Empty clears the override and follows Main chat again. Omit to keep an existing task's"
+          "description": "own launcher instead of Main chat's (a name on the run's computer); needs new_conversation: true, since continuing this conversation keeps its launcher. Empty follows Main chat. Omit to keep"
         },
         "model": {
           "type": "string",
-          "description": "model id for the launcher above; without a launcher it pins the launcher the task runs on now. Empty uses the launcher's default. Omit to keep an existing task's"
+          "description": "model id for that launcher (without one, pins the current launcher); empty: its default. Omit to keep"
         },
         "effort": {
           "type": "string",
@@ -222,14 +222,14 @@
             "xhigh",
             "max"
           ],
-          "description": "thinking effort for Claude launchers; without a launcher it pins the launcher the task runs on now. Omit to keep an existing task's; empty clears it"
+          "description": "Claude thinking effort (without a launcher, pins the current one). Omit keeps; empty clears"
         }
       }
     }
   },
   {
     "name": "schedule_routine",
-    "description": "Create a recurring routine, or pass `id` from list_followups to edit only the fields supplied. `enabled: false` pauses it. Use `time` with optional `weekdays`, or `cron` instead. Times use the user's zone; cron has 5 fields, runs at least 5m apart, supports the listed aliases, treats 0/7 as Sunday and restricted day fields as either. Seconds, @every and TZ= are refused; inspect the reply's next runs. `until` cannot be a bare clock time.\n\nRuns inherit Main chat's launcher/model/effort. Omit overrides to keep them; an empty launcher returns to Main chat. Permission mode stays the user's choice. `inbox` is only for requested Inbox results. `fresh_each_run: true` starts a new chat per run with its state note. See field descriptions for push and end-time edit rules.\n\nFor approved work advancing a supervised to-do, pass its explicit `todo_id`; this conversation must supervise it. Omission keeps its association; \"\" clears it. From the second run Persona checks Agent answers, tool calls (not waits or repeats), criterion changes and progress reports; a long stall asks Change approach / Keep waiting, even with `push: asked`. Get owner consent before creating or changing recurring work.",
+    "description": "Create a recurring routine, or pass `id` from list_followups to edit only the fields supplied. `enabled: false` pauses it. Use `time` with optional `weekdays`, or `cron` (5 fields in the user's zone, at least 5m apart, 0/7 = Sunday, restricted day fields match either; seconds, @every and TZ= are refused; check the reply's next runs). `until` cannot be a bare clock time.\n\nRuns inherit Main chat's launcher/model/effort; permission mode stays the user's. `fresh_each_run: true` starts a new chat per run with its state note.\n\nFor approved work advancing a supervised to-do, pass its explicit `todo_id` (this conversation must supervise it; omit keeps, \"\" clears). From the second run Persona checks progress (Agent answers, tool calls, criterion changes, reports; not waits or repeats); a long stall asks Change approach / Keep waiting, even with `push: asked`. Get owner consent before creating or changing recurring work. For a result kept as an Overview card, use watch_draft.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -274,7 +274,7 @@
         },
         "report": {
           "type": "boolean",
-          "description": "a daily report (such as a leader conversation's): each run opens with Persona's north-star lines (today's interruptions and availability, the change against yesterday until the same time, the source), which the report starts with. Omit to keep an existing routine's"
+          "description": "a daily report (as a leader's): each run opens with Persona's north-star lines (interruptions, availability, change since yesterday), which the report starts with. Omit to keep"
         },
         "push": {
           "type": "string",
@@ -282,7 +282,7 @@
             "every",
             "asked"
           ],
-          "description": "every (default for a new task): each run's answer is pushed to the user; asked: only what a run sends with notify_user, for a task that watches something (it then runs in its own conversation). Omit to keep an existing task's"
+          "description": "every (default): each run's answer is pushed; asked: only what a run sends with notify_user, for watching something (runs in its own conversation). Omit to keep"
         },
         "inbox": {
           "type": "string",
@@ -291,14 +291,14 @@
             "worthy",
             "every"
           ],
-          "description": "what of a run goes into the user's Inbox, independent of push: off (default for a new task), worthy (a run puts a row there with inbox_post only when it finds something worth a look; for a task that watches something), every (every run ends with a row made by Persona; for a briefing the user follows daily). Set it only when the user asked for it. Omit to keep an existing task's"
+          "description": "Inbox rows, independent of push: off (default), worthy (the run uses inbox_post only for something worth a look), every (Persona adds a row after each run, for a daily briefing). Only when the user asked. Omit to keep"
         },
         "run_if": {
           "type": [
             "object",
             "null"
           ],
-          "description": "Optional owner-approved shell check on the routine computer before scheduled runs. Exit 0 runs; exit 1 skips. Other errors follow on_error. Omit to keep it or use null to remove it.",
+          "description": "owner-approved shell check on the routine's computer before scheduled runs: exit 0 runs, 1 skips, other errors follow on_error. Omit keeps; null removes",
           "properties": {
             "command": {
               "type": "string",
@@ -329,15 +329,15 @@
             "string",
             "null"
           ],
-          "description": "optional end time (RFC 3339 or 30m / 2h / 1d). After it, Persona turns the task off and records a skipped run instead of running. Omit to keep an existing task's end time; null clears it. Ignored for a one-off."
+          "description": "optional end time (RFC 3339 or 30m / 2h / 1d); then Persona turns it off and records a skipped run. Omit keeps; null clears"
         },
         "launcher": {
           "type": "string",
-          "description": "this routine's own launcher, instead of Main chat's (a name on the computer where its runs start). Empty clears the override and follows Main chat again. Omit to keep an existing routine's"
+          "description": "own launcher instead of Main chat's (a name on the run's computer); empty follows Main chat. Omit to keep"
         },
         "model": {
           "type": "string",
-          "description": "model id for the launcher above; without a launcher it pins the launcher the routine runs on now. Empty uses the launcher's default. Omit to keep an existing routine's"
+          "description": "model id for that launcher (without one, pins the current launcher); empty: its default. Omit to keep"
         },
         "effort": {
           "type": "string",
@@ -348,7 +348,7 @@
             "xhigh",
             "max"
           ],
-          "description": "thinking effort for Claude launchers; without a launcher it pins the launcher the routine runs on now. Omit to keep an existing routine's; empty clears it"
+          "description": "Claude thinking effort (without a launcher, pins the current one). Omit keeps; empty clears"
         }
       }
     }
@@ -677,7 +677,7 @@
   },
   {
     "name": "agents_switch",
-    "description": "Move many Claude Code agents to another launcher on their computers in one call. Use it when the user asks to move agents to another launcher (\"move everything on the default launcher to X\", \"switch these to X\"), for example because they watch their subscription quota; never on your own. Name the agents in `agents`, or leave it out to take every Claude Code agent (running ones, and stopped ones Persona started), narrowed by `machine` and `from_launcher` (`claude` is the default launcher). First call it with `preview` true and tell the user what it will do with each agent, then call it again without `preview` once they agree; when the user already named exactly which agents and where, one call is enough. Each agent goes as its state allows: one its usage limit stopped is switched now and goes on with what it was doing; an idle one is switched now and nothing is sent (it waits on the new launcher for the next message); one that is working, waits for the user (a question, a permission, a plan), is starting or has background work is queued and switched when its turn ends (with the usage-limit continuation if that turn ended on a limit); a stopped one Persona started has the launcher it resumes on changed, so its next Resume, or the message that resumes it, comes up on the new launcher; one the checks refuse (another CLI, a runtime's session, an assistant conversation, a launcher that does not run there, a model the launcher's default cannot be read for: give model) is reported and left as it is, and so is one whose switch failed on its computer (it is back on its launcher; not tried again: tell the user why). The answer has one line per agent: switched and continued, switched, switched (takes effect when resumed), queued, or refused with why. A queued switch is dropped if the agent moves to another launcher meanwhile or after a day; if it stops meanwhile, its Resume is pointed at the new launcher instead; agents_list shows queued ones as switch_queued=. The switch is the same as the user's from the agent's chat: same conversation, same terminal.",
+    "description": "Move many Claude Code agents to another launcher on their computers in one call. Use it only when the user asks to move agents to another launcher (\"switch these to X\"), never on your own. Name the agents in `agents`, or leave it out to take every Claude Code agent (running ones, and stopped ones Persona started), narrowed by `machine` and `from_launcher` (`claude` is the default launcher). First call it with `preview` true and tell the user what it will do with each agent, then call it again without `preview` once they agree; when the user already named exactly which agents and where, one call is enough. Each agent goes as its state allows: one its usage limit stopped is switched now and goes on with what it was doing; an idle one is switched now and nothing is sent (it waits on the new launcher for the next message); one that is working, waits for the user (a question, a permission, a plan), is starting or has background work is queued and switched when its turn ends (with the usage-limit continuation if that turn ended on a limit); a stopped one Persona started has the launcher it resumes on changed, so its next Resume, or the message that resumes it, comes up on the new launcher; one the checks refuse (another CLI, a runtime's session, an assistant conversation, a launcher that does not run there, a model the launcher's default cannot be read for: give model) is reported and left as it is, and so is one whose switch failed on its computer (it is back on its launcher; not tried again: tell the user why). The answer has one line per agent: switched and continued, switched, switched (takes effect when resumed), queued, or refused with why. A queued switch is dropped if the agent moves to another launcher meanwhile or after a day; if it stops meanwhile, its Resume is pointed at the new launcher instead; agents_list shows queued ones as switch_queued=. The switch is the same as the user's from the agent's chat: same conversation, same terminal.",
     "input_schema": {
       "type": "object",
       "required": [
@@ -994,7 +994,7 @@
   },
   {
     "name": "agent_autoname_receipt",
-    "description": "Read-only: inspect the current assistant's existing agent_autoname confirmation cards and one coding agent's current naming snapshot. This does not prove that a particular earlier model call started, completed or succeeded: the model's tool-call id is not a manager-side correlation. The naming snapshot may predate the call or come from another caller, and background naming failures are not attributed to it. Do not retry a request from this result; unknown or ambiguous means the evidence cannot settle the outcome. Use only the exact machine and full session id from agents_list. The caller is verified from the actual assistant conversation; no other assistant's cards can be read. Optional since/before are an RFC3339 window of at most 24 hours, and must be supplied together. Confirmation history is read with bounded pages; incomplete pages are reported. This tool never calls the naming model, writes settings, approves or resolves a card, renames an agent, or publishes a session list. Not for Persona conversations, ordinary coding Agents, or extensions.",
+    "description": "Read-only: this assistant's agent_autoname confirmation cards and one coding agent's current naming snapshot. It cannot prove an earlier call started or succeeded (no correlation with the tool-call id; the snapshot may be older or another caller's; background failures are not attributed), so never retry from it: unknown means unsettled. Use the exact machine and full session id from agents_list; only the calling assistant's cards are read. since/before: an RFC3339 window of at most 24 hours, given together; pages are bounded and incomplete ones reported. It never calls the naming model, writes settings, resolves a card or renames. Not for Persona conversations, ordinary coding Agents or extensions.",
     "input_schema": {
       "type": "object",
       "additionalProperties": false,
@@ -1014,12 +1014,12 @@
         "since": {
           "type": "string",
           "format": "date-time",
-          "description": "inclusive RFC3339 start of the original confirmation window; requires before"
+          "description": "inclusive window start; requires before"
         },
         "before": {
           "type": "string",
           "format": "date-time",
-          "description": "exclusive RFC3339 end of the original confirmation window [since,before); at most 24 hours after since"
+          "description": "exclusive window end, at most 24 hours after since"
         }
       }
     },
@@ -1614,7 +1614,7 @@
   },
   {
     "name": "kb_history_plan",
-    "description": "Show or change what a source's history import reads. What is read of each chat comes from the knowledge base's selection (the same rules as daily ingestion; per-chat settings are changed here with `set`): the whole chat, only the user's own messages (with the messages around them) and mentions of the user, or nothing. Without `set` or `back_days` it refreshes the source's chat list and lists the chats grouped that way, largest first, with each chat's id and any per-chat setting of the user's. `set` changes per-chat settings, which apply to daily ingestion too: a chat by its id or exact name (a name two chats share is refused with their ids, a name no chat has gets close names; then nothing is changed); `read: false` never reads it, `read: true, store: true` keeps the whole chat (for `days`, or as the rules say), `read: true, store: false` only the user's messages and mentions, `reset: true` back to the rules. `back_days` limits how far back the import goes (null: as far as the rules keep messages). A change, or a refreshed list, that reads more than the user approved takes the approval back, so the import needs kb_history_resume again; reading less does not. Listing or changing never starts the import: show the user the list, apply the exceptions they name, show the result again, and only when they say to start call kb_history_resume. Needs `kb.history.enabled` in manager.json.",
+    "description": "Show or change what a source's history import reads. What is read of each chat comes from the knowledge base's selection (the same rules as daily ingestion; per-chat settings are changed here with `set`): the whole chat, only the user's own messages (with the messages around them) and mentions of the user, or nothing. Without `set` or `back_days` it refreshes the source's chat list and lists the chats grouped that way, largest first, with each chat's id and any per-chat setting of the user's. `set` changes per-chat settings, which apply to daily ingestion too: a chat by its id or exact name (a shared or unknown name changes nothing and lists the candidates), with the fields below. `back_days` limits how far back the import goes (null: as far as the rules keep messages). A change, or a refreshed list, that reads more than the user approved takes the approval back, so the import needs kb_history_resume again; reading less does not. Listing or changing never starts the import: show the user the list, apply the exceptions they name, show the result again, and only when they say to start call kb_history_resume. Needs `kb.history.enabled` in manager.json.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -4029,6 +4029,206 @@
         }
       },
       "additionalProperties": false
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_draft",
+    "description": "Draft an Overview watch card when the user wants something checked regularly (\"check X for me every day\"). Show the preview, revise with `id`, and watch_confirm once they agree.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "question"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string",
+          "description": "what each run checks"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "HH:MM daily (default 09:00), 30m/2h/1d or cron"
+        },
+        "display": {
+          "type": "string",
+          "enum": [
+            "number",
+            "status",
+            "table",
+            "trend"
+          ]
+        },
+        "unit": {
+          "type": "string"
+        },
+        "alert": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "when": {
+              "type": "string",
+              "enum": [
+                "above",
+                "below",
+                "bad",
+                "change"
+              ]
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "when"
+          ]
+        },
+        "project": {
+          "type": "string",
+          "description": "knowledge-base project"
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_confirm",
+    "description": "Put an agreed draft card on Overview and start its schedule.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_list",
+    "description": "List watch cards (drafts too) in Overview order, with ids and latest values.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string"
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_update",
+    "description": "Change a watch card: `id` plus the watch_draft fields to change; `paused` stops or resumes it.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_delete",
+    "description": "Delete a watch card and its scheduled task; confirm first unless the user asked.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_reorder",
+    "description": "Reorder Overview's watch cards: ids first; the rest follow in their order.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "ids"
+      ],
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "defer_loading": true
+  },
+  {
+    "name": "watch_report",
+    "description": "Record a watch run's result, as its run message says.",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "id",
+        "text"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "warn",
+            "bad"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "table": {
+          "type": "object",
+          "properties": {
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "defer_loading": true
   }

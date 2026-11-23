@@ -774,7 +774,9 @@ export function firstScreenOverBudget(bytes: [string, number][], budget = FIRST_
 // And 12 B for the Agents list's Filter switch (#13727): the idle Palette's "Filter Agents list" row (palette/
 // SavedSearchesDialog.tsx) draws only while Settings > Agents has the list's Filter on (useShowFilter), which is the
 // tier's whole growth: this tree merged with main measured 46,065 B against the 46,063 B budget, 2 B over. 10 B of room on top.
-export const IDLE_TIER_BUDGET = 46_075;
+// And 29 B for the watch wall (#13020): Overview (idle) gains the lazy import of views/watch/WatchWall.tsx and its
+// Suspense; the wall itself loads as a chunk of its own. This tree measured 46,104 B against 46,075 B. 11 B of room on top.
+export const IDLE_TIER_BUDGET = 46_115;
 
 const gzip = promisify(gzipCompress);
 
