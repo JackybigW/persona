@@ -189,6 +189,18 @@
       "value": "#F2F2F7"
     },
     {
+      "name": "phone_readiness_surface",
+      "value": "#FCFCFC"
+    },
+    {
+      "name": "phone_readiness_pill",
+      "value": "#F8F8F9"
+    },
+    {
+      "name": "phone_readiness_edge",
+      "value": "#E1E1E4"
+    },
+    {
       "name": "persona_sheet_card",
       "value": "#FFFFFF"
     },

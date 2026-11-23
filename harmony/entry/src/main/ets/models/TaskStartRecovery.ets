@@ -49,6 +49,7 @@ export class TaskStartRecovery {
   private refreshTodo:(() => Promise<void>) | undefined;
   private editableTodo:(() => boolean) | undefined;
   private client:ClientModel | undefined;
+  get language():string { return this.client?.language || 'default'; }
   private feed:AssistantFeedModel | undefined;
   private repository:HubRepository | undefined;
   private generation:number=0;
