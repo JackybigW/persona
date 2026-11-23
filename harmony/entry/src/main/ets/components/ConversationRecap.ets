@@ -137,13 +137,15 @@ export struct ConversationRecap {
   @Builder details() {
     Column() {
       Stack({alignContent:Alignment.Center}) {
-        Text(this.sheetTitle()).fontSize(16).maxFontScale(Tokens.navigationTextMaxScale).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
+        Text(this.sheetTitle()).fontSize(16).maxFontScale(PhoneStyle.recapTitleMaxScale).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
           .maxLines(2).textAlign(TextAlign.Center).width('100%').padding({left:54,right:54})
         Row() {
-          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('18vp').fontColor([Colors.ink]) }
-            .width(40).height(40).padding(0).backgroundColor(Colors.surface).border({width:Tokens.divider,color:Colors.divider,radius:20})
-            .responseRegion({x:-2,y:-2,width:44,height:44}).accessibilityText(tr('close')).onClick(() => this.shown=false).id('chat.recap.close')
-        }.width('100%').padding({left:Tokens.page})
+          Button({type:ButtonType.Circle}) {
+            SymbolGlyph($r('sys.symbol.xmark')).fontSize(PhoneStyle.recapCloseGlyph(nativeEnvironment.fontScale)).fontWeight(FontWeight.Medium).fontColor([Colors.ink])
+          }.width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Colors.surface)
+            .border({width:Tokens.divider,color:Colors.divider,radius:PhoneStyle.bar / 2})
+            .responseRegion({x:-2,y:-2,width:Tokens.touch,height:Tokens.touch}).accessibilityText(tr('close')).onClick(() => this.shown=false).id('chat.recap.close')
+        }.width('100%').padding({left:PhoneStyle.inset})
       }.width('100%').height(PhoneStyle.recapBarHeight)
       Scroll() {
       Column({ space: 16 }) {

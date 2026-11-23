@@ -16,6 +16,8 @@ export class PhoneStyle {
   static readonly recapSheetSurfaceHeight: string = 'calc(100% - 8vp)';
   static readonly recapSheetRadius: number = 44;
   static readonly recapBarHeight: number = 58;
+  static readonly recapTitleMaxScale: number = 1.2;
+  static recapCloseGlyph(scale: number): string { return String(PhoneStyle.formSize(24.5, 30.5, scale)) + 'vp'; }
 
   // Grouped form controls follow the capped interface text, including their vertical padding.
   static formSize(regular: number, largest: number, scale: number): number {
