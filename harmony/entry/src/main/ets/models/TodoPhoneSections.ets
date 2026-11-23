@@ -12,6 +12,7 @@ export function phoneTodoSeenCanFile(todo:TodoWorkspaceItem):boolean {
 
 export class TodoPhoneRowContext {
   canFileSeen:boolean = false;
+  showAgentMetadata:boolean = true;
   lead: ResourceRow | undefined = undefined;
   activeAgents: number = 0;
   urgentState: string = '';
@@ -140,6 +141,7 @@ export class TodoPhoneSections {
   rowContext(todo: TodoWorkspaceItem, placement?: TodoPhonePlacement): TodoPhoneRowContext {
     const row = new TodoPhoneRowContext();
     row.canFileSeen=placement?.section==='just_done' && phoneTodoSeenCanFile(todo);
+    row.showAgentMetadata=placement?.section!=='pr';
     let best = -1, leadMoved = Number.NEGATIVE_INFINITY;
     const taskStates=new Set<string>();
     for (const agent of todo.agents) {

@@ -558,8 +558,8 @@ export struct TodoWorkspacePage {
   }
   private phoneReviewInk(tone:string):ResourceColor {
     if (tone==='caution') return nativeEnvironment.dark ? '#FF9F0A' : '#B35400';
-    if (tone==='danger') return Colors.danger;
-    return tone==='positive' ? Colors.positive : $r('app.color.project_card_secondary');
+    if (tone==='danger') return nativeEnvironment.dark ? '#FF5F57' : '#D93A3A';
+    return tone==='positive' ? (nativeEnvironment.dark ? '#30D158' : '#248A3D') : $r('app.color.project_card_secondary');
   }
   private phoneReviewCaption(group:TodoWorkspaceGroup):string {
     const review=group.phone, label=tr(review.reviewKey).replace('{round}',String(review.reviewRound));
@@ -576,9 +576,9 @@ export struct TodoWorkspacePage {
           .accessibilityText(tr('agent_task_state_'+(group.phone.urgentState || (group.phone.taskState==='done' ? 'idle' : 'unknown'))))
         Text(tr(group.phone.statusKey)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(600).maxLines(1)
           .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(this.phoneStateInk(group.phone.shownState)).id('todos.status.'+group.lead.id)
-        if (group.phone.activeAgents) Text(this.leadMetadata(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+        if (group.phone.showAgentMetadata && group.phone.activeAgents) Text(this.leadMetadata(group)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
           .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).flexShrink(1)
-        if (group.phone.lead && group.phone.activeAgents>1) Text('+'+String(group.phone.activeAgents-1)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+        if (group.phone.showAgentMetadata && group.phone.lead && group.phone.activeAgents>1) Text('+'+String(group.phone.activeAgents-1)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
           .lineHeight(this.phoneMeasure(15.7,23.4)+'vp').fontColor(Colors.secondary).maxLines(1)
         if (group.phone.reviewKey) Text(this.phoneReviewCaption(group)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
           .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
