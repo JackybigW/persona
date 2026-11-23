@@ -55,13 +55,21 @@ func (s *idleCompactSink) Write(line []byte) (int, error) {
 func idleCompactFixture(t *testing.T) (*Node, *assistantProc, *idleCompactSink) {
 	t.Helper()
 	n := codexTestNode(t)
+	// Record the fake process's launcher and profile as a real start would. The
+	// compaction watchdog can then time delivery without discovering a legacy profile in the host shell.
+	const launcher = "idle-compaction-test"
+	n.setManaged([]proto.ManagedLauncher{{Name: launcher, Kind: "api", Agent: "claude"}})
+	cachedAssistantProbe(t, launcher, proto.LauncherDetail{Agent: "claude"})
 	sink := &idleCompactSink{compact: make(chan struct{}, 10)}
 	p := viewErrorsClaude(t, n, sink)
+	p.launcher = launcher
 	p.model.IsMain = true
-	p.fingerprint = n.executionFingerprint("claude", modelExecution{IsMain: true})
+	p.model.ConfigDir = "default"
+	p.fingerprint = n.executionFingerprint(launcher, p.model)
 	p.context = idleCompactPolicy.ContextTokens
 	p.stdin = &ackControlWriter{WriteCloser: sink, p: p}
 	n.state.update(p.id, func(st *sessionState) bool {
+		st.Launcher, st.ConfigDir = p.launcher, p.model.ConfigDir
 		st.IsMain = true
 		st.OriginKnown = true
 		st.IdleCompaction = &idleCompactionState{
