@@ -81,6 +81,9 @@ export struct AssistantCards {
   @Local trayContentHeight: number = 0;
   @Local trayBucket: string = '';
   private trayOwner: string = '';
+  private readonly trayScroller: Scroller = new Scroller();
+  private planScrollKey: string = '';
+  @Local private planActionsHeight: number = 0;
   @Local private requests: AgentDecisionQueue = new AgentDecisionQueue();
   private offRequests: (() => void) | undefined;
   private subscribedOwner: string = '';
@@ -183,6 +186,7 @@ export struct AssistantCards {
   trayOwnerChanged(): void { if (!this.active || this.trayOwner !== this.trayScope()) { this.trayOpen = false; this.boardOpen=false; this.hideFailure(); } this.syncRequests(); }
   private openTray(bucket: string): void {
     if (!this.active) return;
+    this.planScrollKey='';
     if (this.trayOpen && this.trayBucket===bucket) { this.trayOpen=false; return; }
     this.trayContentHeight=0; this.trayBucket=bucket; this.trayOwner=this.trayScope(); this.expandedEntry=''; this.trayOpen=true;
   }
@@ -269,10 +273,35 @@ export struct AssistantCards {
   }
   private trayHeight(): number {
     const cap = this.expandedEntry ? 380 : 280;
-    const available = Math.max(48,this.dockRoom-this.composerHeight-this.actionBarHeight-70);
+    const actions = this.pinnedTrayPlan ? this.planActionsHeight || 56 : 0;
+    const available = Math.max(actions ? 0 : 48,this.dockRoom-this.composerHeight-this.actionBarHeight-70-actions);
     return Math.min(cap,available,this.trayContentHeight || 54);
   }
   @Local private expandedEntry:string='';
+  @Computed get pinnedTrayPlan(): TaskTrayRow | undefined {
+    if (!this.active || !this.trayOpen || this.trayBucket!=='needs' ||
+      this.trayOwner!==this.trayScope() || !this.expandedEntry.startsWith('plan:')) return undefined;
+    return this.trayRows.find((row: TaskTrayRow) => row.kind==='plan' && row.bucket==='needs' &&
+      row.key()===this.expandedEntry && this.feed.planState(row.id)==='open');
+  }
+  private alignOpenedTrayPlan(entry:TaskTrayRow, area:Area): void {
+    if (!this.planScrollKey || this.planScrollKey!==entry.key() || this.pinnedTrayPlan?.id!==entry.id) return;
+    const top=Number(area.position.y);
+    if (!Number.isFinite(top) || Number(area.height)<=0) return;
+    // The row is a child of the scrolling content. Its layout position already includes prior rows and group headings.
+    this.planScrollKey='';
+    this.trayScroller.scrollTo({xOffset:0,yOffset:Math.max(0,top)});
+  }
+  private trayPlanAction(entry:TaskTrayRow, owner:string, action:string): void {
+    const visible=this.pinnedTrayPlan;
+    if (!visible || owner!==this.trayOwner || visible.id!==entry.id ||
+      Wire.text(visible.data,'conversation')!==Wire.text(entry.data,'conversation')) return;
+    if (action==='edit' && this.feed.planCanEdit(entry.id)) this.feed.editPlan(entry.id);
+    if (action==='start' && this.feed.planCanStart(entry.id) && Wire.rows(entry.data,'tasks').length) {
+      this.feed.startPlan(entry.id,this.feed.rememberPlan(entry.id),undefined,JSON.stringify(entry.data));
+    }
+    if (action==='dismiss' && this.feed.planCanDismiss(entry.id)) this.feed.dismissPlan(entry.id,JSON.stringify(entry.data));
+  }
   private rowState(entry:TaskTrayRow):string {
     if (entry.kind==='plan' || entry.kind==='message') return tr('assistant_feed_'+entry.kind);
     if (entry.status==='failed') return tr('failed');
@@ -290,6 +319,7 @@ export struct AssistantCards {
     if (!actual) return;
     if (actual.kind==='message' || actual.kind==='plan') {
       this.expandedEntry=this.expandedEntry===actual.key() ? '' : actual.key();
+      this.planScrollKey=this.expandedEntry && actual.kind==='plan' ? actual.key() : '';
       if (this.expandedEntry && actual.kind==='plan') {
         const id=this.planId(actual.data);
         if (!this.feed.planIsFresh(id) && !this.feed.planLoading(id)) this.feed.refreshPlan(id);
@@ -443,7 +473,7 @@ export struct AssistantCards {
     }
   }
 
-  @Builder planCard(item: Record<string, Object>) {
+  @Builder planCard(item: Record<string, Object>, actionsPinned:boolean = false) {
     Column({ space: Tokens.page }) {
       if (!Object.keys(this.plan(item)).length) {
         Text(tr('assistant_feed_plan_unavailable')).fontSize(Tokens.body).fontColor($r('sys.color.font_secondary'))
@@ -469,7 +499,7 @@ export struct AssistantCards {
           ComposeListItemV2({ contentItemV2: new ContentItemV2({ primaryText: tr('assistant_feed_remember') }),
             operateItemV2: new OperateItemV2({ checkbox: new OperateCheckV2({ isCheck: this.feed.rememberPlan(this.planId(item)),
               accessibilityText: tr('assistant_feed_remember'), onChange: (_checked: boolean) => this.feed.toggleRememberPlan(this.planId(item)) }) }) })
-          Row({ space: Tokens.inset }) {
+          if (!actionsPinned) Row({ space: Tokens.inset }) {
             Button({ type: ButtonType.Circle }) { SymbolGlyph(Symbols.edit).fontSize(Tokens.symbolFont).fontColor([Colors.link]) }
               .attributeModifier(ButtonStyles.chrome).accessibilityText(tr('edit')).enabled(this.feed.planCanEdit(this.planId(item)))
               .onClick(() => this.feed.editPlan(this.planId(item))).id('assistant.plan.edit')
@@ -590,8 +620,9 @@ export struct AssistantCards {
       if (entry.kind==='todo' && entry.status==='failed' && entry.resource) TaskTrayStartActions({model:this.model,feed:this.feed,row:entry.resource!,
         visible:():boolean=>this.trayOpen && this.active && this.trayScope()===this.trayOwner})
       if (this.expandedEntry===entry.key() && entry.kind==='message') this.message(entry.data)
-      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data)
+      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data,this.pinnedTrayPlan?.id===entry.id)
     }.width('100%').alignItems(HorizontalAlign.Start)
+      .onAreaChange((_before:Area,area:Area) => this.alignOpenedTrayPlan(entry,area))
   }
 
   @Builder boardMark(row:TaskTrayRow) {
@@ -657,6 +688,26 @@ export struct AssistantCards {
     }.width('100%').height('100%').backgroundColor(Colors.sheetBackground).id('tasks-board')
   }
 
+  @Builder pinnedPlanActions(entry:TaskTrayRow, owner:string) {
+    Column() {
+      Divider().strokeWidth(Tokens.hairline).color(Colors.divider).padding({left:12,right:12})
+      Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center,space:{main:LengthMetrics.vp(8),cross:LengthMetrics.vp(8)}}) {
+        Button(Wire.rows(entry.data,'tasks').length>1 ? tr('tray_plan_start_many').replace('{count}',String(Wire.rows(entry.data,'tasks').length)) : tr('tray_plan_start'))
+          .attributeModifier(ButtonStyles.primary).flexGrow(1).flexShrink(0).id('assistant.plan.start')
+          .enabled(this.feed.planCanStart(entry.id) && Wire.rows(entry.data,'tasks').length>0)
+          .onClick(() => this.trayPlanAction(entry,owner,'start'))
+        Row({space:8}) {
+          Button(tr('tray_plan_edit')).attributeModifier(ButtonStyles.secondary).id('assistant.plan.edit')
+            .enabled(this.feed.planCanEdit(entry.id)).onClick(() => this.trayPlanAction(entry,owner,'edit'))
+          Button(tr('tray_plan_dismiss')).attributeModifier(ButtonStyles.secondary).id('assistant.plan.dismiss')
+            .enabled(this.feed.planCanDismiss(entry.id)).onClick(() => this.trayPlanAction(entry,owner,'dismiss'))
+        }.flexShrink(0)
+      }.width('100%').padding({left:16,right:16,top:8,bottom:8})
+    }.width('100%').id('action-tray.plan-actions').onAreaChange((_before:Area,area:Area) => {
+      const measured=Number(area.height);
+      if (measured>0 && Math.abs(measured-this.planActionsHeight)>.5) this.planActionsHeight=measured;
+    })
+  }
   @Builder trayList() {
     Column() {
       Row({space:8}) {
@@ -670,7 +721,7 @@ export struct AssistantCards {
         Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(15).fontColor([Colors.secondary]) }
           .width(44).height(44).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('close')).onClick(() => this.trayOpen=false).id('action-tray.close')
       }.width('100%').padding({left:12}).constraintSize({minHeight:44})
-      Scroll() {
+      Scroll(this.trayScroller) {
         Column() {
           ForEach(this.trayRows.filter((row:TaskTrayRow) => row.bucket===this.trayBucket),(row:TaskTrayRow) => {
             if (row.groupHeading) Text(this.trayGroupTitle(row.groupHeading)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
@@ -681,7 +732,8 @@ export struct AssistantCards {
           if (!this.trayRows.some((row:TaskTrayRow) => row.bucket===this.trayBucket)) Text(tr('empty')).fontSize(13).fontColor(Colors.secondary).padding(16)
           if (this.feed.todoError) Text(tr(this.feed.todoError)).fontSize(13).fontColor(Colors.danger)
         }.width('100%').onAreaChange((_old:Area,area:Area) => {this.trayContentHeight=Number(area.height);})
-      }.width('100%').height(this.trayHeight()).align(Alignment.TopStart).scrollBar(BarState.Auto)
+      }.width('100%').height(this.trayHeight()).align(Alignment.TopStart).scrollBar(BarState.Auto).id('action-tray.rows')
+      if (this.pinnedTrayPlan) this.pinnedPlanActions(this.pinnedTrayPlan!,this.trayOwner)
     }.width('100%').alignItems(HorizontalAlign.Start).padding({bottom:4}).margin({bottom:16})
       .backgroundColor(Colors.surface).border({width:0.5,color:Colors.divider,radius:20}).borderRadius(20).id('chat.tasks.tray')
   }
