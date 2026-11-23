@@ -321,6 +321,9 @@ type Service struct {
 	editWriteHook func(id string)
 	// acceptSweepHook, when set, runs in the acceptance sweeps' unlocked window, after a todo is read (tests).
 	acceptSweepHook func(id string)
+	// deadlineDefaultHook, when set, runs in the deadline sweep after it found no owner choice on its way for decision
+	// id and before it takes the default or marks the reminder (tests: the choice arrives in between).
+	deadlineDefaultHook func(id string)
 	// sendsSettleHook, when set, runs in sendsSettle once the task is opened again, before the turn held for it is
 	// taken up (tests).
 	sendsSettleHook func()

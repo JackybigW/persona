@@ -324,7 +324,7 @@ func TestSupervisorChoiceExpiresAndStaysBounded(t *testing.T) {
 	}
 
 	for i := range supervisorSettleMax + 10 {
-		s.deferSupervisorSettle(supervisorRef(), fmt.Sprintf("flood-%d", i), "todo_other", time.Now(), "x")
+		s.deferSupervisorSettle(context.Background(), supervisorRef(), fmt.Sprintf("flood-%d", i), "todo_other", time.Now(), time.Now(), "x")
 	}
 	s.supervisorSettles.mu.Lock()
 	n := len(s.supervisorSettles.pending)
@@ -423,4 +423,240 @@ func TestSupervisorChoiceRestartWhileKeptKeepsCard(t *testing.T) {
 		t.Fatalf("the reloaded manager did not send the kept message once: %q", got)
 	}
 	stillWaiting(t, reloaded, nextHub, todo.ID, sent, "a kept message sent after a restart")
+}
+
+// Second review on #13189.
+
+// settleEntry is the waiting choice of message id in conversation conv1, as the book has it.
+func settleEntry(s *Service, id string) (supervisorSettle, bool) {
+	s.supervisorSettles.mu.Lock()
+	defer s.supervisorSettles.mu.Unlock()
+	p, ok := s.supervisorSettles.pending[supervisorSettleKey(supervisorRef(), id)]
+	return p, ok
+}
+
+// settlesAged lets d pass for every waiting choice: what the book finds that much later.
+func settlesAged(s *Service, d time.Duration) {
+	s.supervisorSettles.mu.Lock()
+	defer s.supervisorSettles.mu.Unlock()
+	for k, p := range s.supervisorSettles.pending {
+		p.expires = p.expires.Add(-d)
+		if !p.keepBy.IsZero() {
+			p.keepBy = p.keepBy.Add(-d)
+		}
+		s.supervisorSettles.pending[k] = p
+	}
+}
+
+// The sweep looks for a choice on its way before it holds the card's action lock. One that arrives right after that
+// look, before the default is taken, still wins: the default looks again under the lock the choice is registered
+// under. Reversible: the recommendation is not taken; one that cannot be undone: its deadline is not marked handled
+// and no reminder goes out. Delivery then settles the owner's option.
+func TestSupervisorChoiceArrivingAfterTheSweepLookedBeatsTheDefault(t *testing.T) {
+	irreversible := dropTableDecision()
+	irreversible["deadline"], irreversible["reversible"] = "1h", false
+	for name, review := range map[string]map[string]any{"reversible": rolloutDecision(), "irreversible": irreversible} {
+		t.Run(name, func(t *testing.T) {
+			s, f, todo := newSupervisedService(t)
+			presenceTimes(t, 0, 0)
+			ownerTurnTimes(t, 0, 0)
+			waitsForReview(t, s, f, todo.ID, "The agent needs a choice between two options.")
+			if _, err := reviewErr(s, todo.ID, review); err != nil {
+				t.Fatal(err)
+			}
+			a := askOf(s, todo.ID)
+			want := a.Options[1].Label
+			if want == a.Recommend || a.Reversible != (name == "reversible") {
+				t.Fatalf("fixture: %+v", a)
+			}
+			sent, pushes := len(workerSends(f)), deadlinePushes(f, todo.ID)
+			pastDeadline(t, s, todo.ID)
+			arrived := 0
+			s.deadlineDefaultHook = func(id string) { // the sweep found nothing on its way and is about to act
+				if id != todo.ID {
+					return
+				}
+				arrived++
+				spokeOnBus(t, s, supervisorRef(), want, "msg-raced")
+			}
+			s.sweepDecisionDeadlines(time.Now())
+			s.deadlineDefaultHook = nil
+			if arrived != 1 {
+				t.Fatalf("the sweep reached the default %d times, want 1", arrived)
+			}
+			stillWaiting(t, s, f, todo.ID, sent, "a choice that arrived after the sweep looked")
+			if got := askOf(s, todo.ID); !got.DueAt.IsZero() {
+				t.Fatalf("the deadline was handled over the owner's choice on its way: %+v", got)
+			}
+			if n := deadlinePushes(f, todo.ID); n != pushes {
+				t.Fatalf("%d overdue reminders while the owner's choice was on its way", n-pushes)
+			}
+			sentNotice(s, supervisorRef(), "msg-raced", assistantwire.ConversationDelivered)
+			settledTo(t, s, f, todo.ID, want, sent)
+		})
+	}
+}
+
+// A choice that arrives while the default is being taken waits for the card's action lock (the default holds it
+// across its send to the Agent), then finds the round answered: nothing is registered, so nothing waits to settle
+// and its delivery changes nothing.
+func TestSupervisorChoiceWaitsForADefaultUnderWay(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	a := askOf(s, todo.ID)
+	want := a.Options[1].Label
+	pastDeadline(t, s, todo.ID)
+	actions := &s.reviewDismissals.actions
+	actions.acquire(todo.ID) // the default, as acceptDefault takes it
+	spoke := make(chan struct{})
+	go func() {
+		defer close(spoke)
+		spokeOnBus(t, s, supervisorRef(), want, "msg-late")
+	}()
+	waitFor(t, "the choice to wait for the card's action lock", func() bool {
+		actions.mu.Lock()
+		defer actions.mu.Unlock()
+		l := actions.m[todo.ID]
+		return l != nil && l.n == 2
+	})
+	if _, ok := settleEntry(s, "msg-late"); ok {
+		t.Fatal("the choice was registered outside the card's action lock")
+	}
+	result, err := s.acceptTryAsDismissalLocked(context.Background(), todo.ID, "", time.Time{}, true)
+	actions.release(todo.ID)
+	if err != nil || !result.taken {
+		t.Fatalf("the default was not taken: %+v %v", result, err)
+	}
+	<-spoke
+	if _, ok := settleEntry(s, "msg-late"); ok || s.supervisorSettlePending(todo.ID, time.Now()) {
+		t.Fatal("a choice that came after the default waits to settle an answered round")
+	}
+	sent := len(workerSends(f))
+	sentNotice(s, supervisorRef(), "msg-late", assistantwire.ConversationDelivered)
+	if got := askOf(s, todo.ID); got == nil || !got.ByDefault || got.Chosen == want {
+		t.Fatalf("the late choice changed the default taken before it: %+v", got)
+	}
+	if got := workerSends(f)[sent:]; len(got) != 0 {
+		t.Fatalf("the late choice was relayed after the default: %q", got)
+	}
+}
+
+// The hub tells session.user_spoke for every try of a message, and answers a retry of a kept one from its record
+// with no session.assistant_sent. The retry must not start the choice over: it stays kept, with the kept message's
+// lifetime, so it still holds the default past the plain wait and settles when the kept message goes in.
+func TestSupervisorChoiceToldAgainKeepsItsKeptState(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	sent := len(workerSends(f))
+	want := keptChoice(t, s, todo, "msg-retried")
+	before, ok := settleEntry(s, "msg-retried")
+	if !ok || !before.kept || !before.keptSeen {
+		t.Fatalf("fixture: the kept choice is %+v, %v", before, ok)
+	}
+	for range 2 { // the app retries; the hub answers "kept" from its record
+		spokeOnBus(t, s, supervisorRef(), want, "msg-retried")
+	}
+	after, ok := settleEntry(s, "msg-retried")
+	if !ok || !after.kept || !after.keptSeen || !after.expires.Equal(before.expires) || !after.at.Equal(before.at) ||
+		!after.asked.Equal(before.asked) {
+		t.Fatalf("the retry replaced the kept choice:\nbefore %+v\nafter  %+v", before, after)
+	}
+	settlesAged(s, supervisorSettleTTL+time.Minute) // the kept message goes in after the plain wait is over
+	pastDeadline(t, s, todo.ID)
+	s.sweepDecisionDeadlines(time.Now())
+	stillWaiting(t, s, f, todo.ID, sent, "the deadline passing after a retry of the kept message")
+	s.undeliveredSend(context.Background(), "conv1")
+	if got := ownerSends(f); len(got) != 1 || got[0] != "msg-retried" {
+		t.Fatalf("the kept message was not sent once: %q", got)
+	}
+	settledTo(t, s, f, todo.ID, want, sent)
+}
+
+// A try told again while the first send still runs keeps the first entry's time: retries do not push the wait out.
+func TestSupervisorChoiceToldAgainKeepsItsTime(t *testing.T) {
+	s, _, todo := decisionAgentReplyService(t)
+	want := askOf(s, todo.ID).Options[1].Label
+	spokeOnBus(t, s, supervisorRef(), want, "msg-again")
+	settlesAged(s, supervisorSettleTTL-time.Minute)
+	before, _ := settleEntry(s, "msg-again")
+	spokeOnBus(t, s, supervisorRef(), want, "msg-again")
+	if after, ok := settleEntry(s, "msg-again"); !ok || !after.expires.Equal(before.expires) || !after.at.Equal(before.at) {
+		t.Fatalf("the retry started the wait over:\nbefore %+v\nafter  %+v", before, after)
+	}
+	if s.supervisorSettlePending(todo.ID, time.Now().Add(2*time.Minute)) {
+		t.Fatal("a retried choice holds the default past its first try's time")
+	}
+}
+
+// A message the manager already keeps when its choice is registered (no entry is left of the first try) waits on
+// that kept message from the start: no notice will come for a retry the hub answers from its record.
+func TestSupervisorChoiceOfAnAlreadyKeptMessageWaitsOnIt(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	sent := len(workerSends(f))
+	want := askOf(s, todo.ID).Options[1].Label
+	keepFor(t, s, "msg-known", want)
+	spokeOnBus(t, s, supervisorRef(), want, "msg-known")
+	if p, ok := settleEntry(s, "msg-known"); !ok || !p.kept || !p.keptSeen {
+		t.Fatalf("the choice does not wait on its kept message: %+v, %v", p, ok)
+	}
+	settlesAged(s, supervisorSettleTTL+time.Minute)
+	pastDeadline(t, s, todo.ID)
+	s.sweepDecisionDeadlines(time.Now())
+	stillWaiting(t, s, f, todo.ID, sent, "the deadline passing while the message is kept")
+	s.undeliveredSend(context.Background(), "conv1")
+	settledTo(t, s, f, todo.ID, want, sent)
+}
+
+// A choice belongs to the round it answered. After a new needs_user review replaced that round, the earlier round's
+// choice, in flight or kept, neither holds the new round's deadline default nor settles the new round when its
+// message goes in.
+func TestSupervisorChoiceOfAnEarlierRoundDoesNotHoldTheNextRound(t *testing.T) {
+	for _, kept := range []bool{false, true} {
+		name := "in flight"
+		if kept {
+			name = "kept"
+		}
+		t.Run(name, func(t *testing.T) {
+			s, f, todo := decisionAgentReplyService(t)
+			first := askOf(s, todo.ID)
+			want := first.Options[1].Label
+			if kept {
+				keptChoice(t, s, todo, "msg-old-round")
+			} else {
+				spokeOnBus(t, s, supervisorRef(), want, "msg-old-round")
+			}
+			if !s.supervisorSettlePending(todo.ID, time.Now()) {
+				t.Fatal("fixture: the choice does not hold its own round's default")
+			}
+			if _, err := reviewErr(s, todo.ID, map[string]any{"verdict": "rework", "note": "Revise the rollout plan."}); err != nil {
+				t.Fatal(err)
+			}
+			waitsForReview(t, s, f, todo.ID, "The agent needs a choice between two rollout options.")
+			if _, err := reviewErr(s, todo.ID, rolloutDecision()); err != nil {
+				t.Fatal(err)
+			}
+			next := askOf(s, todo.ID)
+			if next == nil || next.AskedAt.Equal(first.AskedAt) || !next.AcceptedAt.IsZero() {
+				t.Fatalf("fixture: no new round: %+v", next)
+			}
+			sent := len(workerSends(f))
+			if s.supervisorSettlePending(todo.ID, time.Now()) {
+				t.Fatal("an earlier round's choice holds the new round's default")
+			}
+			// The earlier round's message goes in: it answers a question no longer asked.
+			if kept {
+				s.undeliveredSend(context.Background(), "conv1")
+			} else {
+				sentNotice(s, supervisorRef(), "msg-old-round", assistantwire.ConversationDelivered)
+			}
+			stillWaiting(t, s, f, todo.ID, sent, "the earlier round's message going in")
+			pastDeadline(t, s, todo.ID)
+			s.sweepDecisionDeadlines(time.Now())
+			got := askOf(s, todo.ID)
+			if got == nil || !got.ByDefault || got.Chosen == want {
+				t.Fatalf("the new round did not take its default at the deadline: %+v", got)
+			}
+			if delivered := workerSends(f)[sent:]; len(delivered) != 1 || !strings.Contains(delivered[0], next.Recommend) {
+				t.Fatalf("the new round's default was not relayed once: %q", delivered)
+			}
+		})
+	}
 }
