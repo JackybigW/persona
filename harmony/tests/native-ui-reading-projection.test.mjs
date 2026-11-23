@@ -297,3 +297,32 @@ test('the docked plan folds native reading lines and keeps its full-text action 
   assert.match(form, /if \(this\.admission\(\)\) this\.fullPlan=true; \}\)\.id\('interaction\.task\.plan\.expand'\)/);
   assert.ok(form.indexOf('this.dockPlanWords()', form.indexOf('@Builder dockPanel')) < form.indexOf(".id('interaction.body')", form.indexOf('@Builder dockPanel')));
 });
+
+test('the main plan uses the actual footer edge while its approval stays pinned and its full-text control can scroll', () => {
+  const read = file=>readFileSync(new URL('../entry/src/main/ets/components/'+file,import.meta.url),'utf8');
+  const conversation=read('Conversation.ets'), cards=read('AssistantCards.ets');
+  const C=new Function('Tokens','return '+stripTypeScriptTypes('class Header {'+method('mainDockHeaderEnd',conversation)+'}'))({compactStatusInset:62,gap:8});
+  const D=new Function('Tokens','return '+stripTypeScriptTypes('class Dock {'+method('measuredMainPlanRoom',cards)+'}'))({gap:8});
+  const c=new C(), dock=new D(), env={isFullScreen:true,nativeHoverAvailable:false,keyboardHeightPx:0,windowWidthPx:1206,windowHeightPx:2622,safeBottomPx:2538,safeTopPx:117};
+  c.environment=env;c.getUIContext=()=>({px2vp:value=>value/3});c.model={mainId:'main',mainMachineId:'owner',profile:{id:'test',manager:'manager'},selected:{id:'main',machine:'owner',group:'test',manager:'manager',kind:'conversation'}};
+  dock.shownDecisions=[{kind:'plan'}];
+  const geometry=(paneTop,cardBottom,logicalOrigin=0)=>{
+    c.availableHeight=(2538-paneTop)/3;c.contentTop=paneTop/3+logicalOrigin;
+    dock.mainHeaderEnd=c.mainDockHeaderEnd();dock.cardBottom=cardBottom/3+logicalOrigin;dock.dockRoom=c.availableHeight;
+    return dock.measuredMainPlanRoom();
+  };
+  const large=geometry(374,2081), normal=geometry(346,2159);
+  assert.ok(normal>413,'the full regular plan requires only about 413 vp including its pager');
+  // Native 914 frames had a 495.7 vp pager, its 175 vp words area showing the whole full-text link.
+  // iPhone caps those same words to 151 vp. The remainder still belongs to the scrolling body.
+  assert.ok(Math.abs((175-(495.7-large))-151)<1.5);
+  assert.ok(Math.abs(large-geometry(374,2081,-39))<0.001,'both measured positions use the same containing window');
+  env.keyboardHeightPx=500;assert.equal(c.mainDockHeaderEnd(),-1);env.keyboardHeightPx=0;
+  c.model.selected.machine='other';assert.equal(c.mainDockHeaderEnd(),-1);c.model.selected.machine='owner';
+  c.model.selected.kind='session';assert.equal(c.mainDockHeaderEnd(),-1);c.model.selected.kind='conversation';
+  env.windowWidthPx=2800;assert.equal(c.mainDockHeaderEnd(),-1);
+  dock.shownDecisions=[{kind:'permission'}];assert.equal(dock.measuredMainPlanRoom(),0);
+  const limit=method('dockHeightLimit',cards);
+  assert.ok(limit.indexOf('this.dragHeight')<limit.indexOf('this.measuredMainPlanRoom()'));
+  assert.match(limit,/share<0 \? this\.measuredMainPlanRoom\(\) \|\| fallback : shortest\+share/);
+});

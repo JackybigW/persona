@@ -51,6 +51,8 @@ export struct AssistantCards {
   @Param decisionPager: DecisionPager | undefined = undefined;
   @Param dockRoom: number = 400;
   @Param composerHeight: number = 0;
+  @Param mainHeaderEnd:number = -1;
+  @Local private cardBottom:number = 0;
   @Event onDockVisibility:(shown:boolean)=>void = (_shown:boolean)=>{};
   @Local private actionBarHeight: number = 28;
   @Local private measuredDockHeight: number = 0;
@@ -687,6 +689,14 @@ export struct AssistantCards {
   private metric(points:number):number {
     return points*Math.min(67/51,Math.max(1,this.environment.fontScale));
   }
+  private measuredMainPlanRoom():number {
+    if (this.mainHeaderEnd<0 || this.cardBottom<=this.mainHeaderEnd || this.shownDecisions[0]?.kind!=='plan') return 0;
+    // The bottom of the visible plan already excludes the actual composer,
+    // action bar and their gaps. Reserve the outer pager inset, the list
+    // one-point line and gap, and 72 points of conversation above the pager.
+    const free=Math.max(44,this.cardBottom-this.mainHeaderEnd-Tokens.gap-(Tokens.gap+1));
+    return Math.min(free,Math.max(this.dockRoom/2,free-72));
+  }
   private dockHeightLimit():number {
     // The navigation bar sits outside this pane. Leave the other footer controls, list floor,
     // and a strip of conversation visible as the keyboard and the real window change size.
@@ -698,7 +708,7 @@ export struct AssistantCards {
     const tallest=this.tallestDock(), shortest=Math.min(150,tallest);
     if (this.dragCard===this.shownDecisions[0]?.id && this.dragHeight>=0) return Math.max(shortest,Math.min(tallest,this.dragHeight));
     const share=this.model.questionCardHeightShare;
-    return share<0 ? fallback : shortest+share*(tallest-shortest);
+    return share<0 ? this.measuredMainPlanRoom() || fallback : shortest+share*(tallest-shortest);
   }
   private tallestDock():number {
     const rest=Math.max(0,this.composerHeight)+this.actionBarHeight+20+Tokens.gap*3;
@@ -769,6 +779,8 @@ export struct AssistantCards {
       .onAreaChange((_before:Area,area:Area):void => {
         const h=Number(area.height)+(this.decisionIds.length>1 ? this.pagerHeight+4 : 0);
         if (h>0 && Math.abs(this.measuredDockHeight-h)>0.5) this.measuredDockHeight=h;
+        const bottom=Number(area.globalPosition.y)+Number(area.height);
+        if (request.kind==='plan' && this.shownDecisions[0]?.id===request.id && Number.isFinite(bottom) && Math.abs(bottom-this.cardBottom)>0.5) this.cardBottom=bottom;
       }).parallelGesture(PanGesture({fingers:1,direction:PanDirection.Horizontal,distance:24}).onActionEnd((event:GestureEvent) => {
         if (Math.abs(event.offsetX)>66 && Math.abs(event.offsetX)>2*Math.abs(event.offsetY)) this.moveDecision(event.offsetX<0 ? 1 : -1);
       }))
