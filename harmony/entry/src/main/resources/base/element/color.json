@@ -153,6 +153,10 @@
       "value": "#0A000000"
     },
     {
+      "name": "phone_inbox_request_well",
+      "value": "#EFEFF0"
+    },
+    {
       "name": "persona_subtle",
       "value": "#F1F3F6"
     },

@@ -1902,7 +1902,7 @@ struct Index {
       } })
   }
   @Builder inboxList() {
-    InboxWorkspacePage({ model: this.model, visible: this.model.section === 2, refreshRevision: this.inboxRefreshRevision, toolbarActions:!this.wide() && this.rootModuleMenuKind()==='inbox', composeRevision:this.inboxComposeRevision, onComposeAvailability:(enabled:boolean) => { if (this.model.section===2 && !this.phoneTop) { this.inboxComposeScope=this.inboxPermissionOwner();this.inboxComposeAvailable=enabled; } }, onChanged: () => this.inboxRefreshRevision++, onOpen: (row: ResourceRow) => this.openRow(row), onLink: (address: string) => this.openReader(address),
+    InboxWorkspacePage({ model: this.model, visible: this.model.section === 2, phoneList:!this.wide(), refreshRevision: this.inboxRefreshRevision, toolbarActions:!this.wide() && this.rootModuleMenuKind()==='inbox', composeRevision:this.inboxComposeRevision, onComposeAvailability:(enabled:boolean) => { if (this.model.section===2 && !this.phoneTop) { this.inboxComposeScope=this.inboxPermissionOwner();this.inboxComposeAvailable=enabled; } }, onChanged: () => this.inboxRefreshRevision++, onOpen: (row: ResourceRow) => this.openRow(row), onLink: (address: string) => this.openReader(address),
       onHandoff: (row: ResourceRow) => this.openLinkedResource(row) })
   }
   private openFromPhoneSettings(page: string): void {

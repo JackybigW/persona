@@ -221,6 +221,7 @@ export struct InboxWorkspacePage {
   @Require @Param model: ClientModel;
   @Param row: ResourceRow | undefined = undefined;
   @Param list: boolean = true;
+  @Param phoneList: boolean = false;
   @Param visible: boolean = true;
   @Param handoffRequested: boolean = false;
   @Event onHandoffConsumed: () => void = (): void => {};
@@ -691,11 +692,28 @@ export struct InboxWorkspacePage {
     }
     return tr('needs_you');
   }
+  private get listFill():ResourceColor {
+    return this.phoneList && Colors.styleID==='glass' ? Colors.listBackground : Colors.surface;
+  }
+  @Builder requestAvatar(row:ResourceRow, identity:string) {
+    Stack() {
+      if (this.phoneList && row.kind==='session' && Wire.text(row.data(),'inbox_request_kind')==='question') {
+        SymbolGlyph($r('sys.symbol.message_fill')).fontSize('19vp').fontColor([Colors.needsMark])
+        Text('?').fontSize('11vp').fontWeight(FontWeight.Bold).fontColor($r('app.color.phone_inbox_request_well'))
+          .offset({y:-1}).accessibilityLevel('no')
+      } else {
+        SymbolGlyph(this.rowSymbol(row)).fontSize(this.phoneList && row.kind==='session' ? '17vp' : '18vp')
+          .fontColor([this.phoneList && row.kind==='session' ? Colors.needsMark : Colors.link])
+      }
+    }.width(40).height(40).flexShrink(0).borderRadius(this.phoneList && row.kind==='session' ? 12 : 10)
+      .backgroundColor(this.phoneList && row.kind==='session' ? $r('app.color.phone_inbox_request_well') : Colors.subtle)
+      .id('inbox.row.icon.'+identity)
+  }
   private rowSymbol(row:ResourceRow):Resource {
     const data=row.data();
     if (row.kind==='session') {
       const kind=Wire.text(data,'inbox_request_kind');
-      if (kind==='plan') return Symbols.document;
+      if (kind==='plan') return this.phoneList ? $r('sys.symbol.text_clipboard_fill') : Symbols.document;
       if (kind==='question') return $r('sys.symbol.questionmark_circle');
       if (kind==='permission') return $r('sys.symbol.hand_raised_fingers_spread');
       return Symbols.agent;
@@ -773,8 +791,7 @@ export struct InboxWorkspacePage {
         ForEach(section.rows, (binding: BoundRow<ResourceRow>) => {
           ListItem() {
             Row({ space: 12 }) {
-              Stack() { SymbolGlyph(this.rowSymbol(binding.value)).fontSize('18vp').fontColor([Colors.link]) }
-                .width(40).height(40).flexShrink(0).borderRadius(10).backgroundColor(Colors.subtle).id('inbox.row.icon.' + binding.key)
+              this.requestAvatar(binding.value,binding.key)
               Column({ space: 4 }) {
                 Row({space:5}) {
                   Text(binding.value.title || tr('inbox')).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
@@ -791,7 +808,7 @@ export struct InboxWorkspacePage {
                 }.width('100%')
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%').constraintSize({minHeight:PhoneStyle.formSize(86,108,this.environment.fontScale)}).alignItems(VerticalAlign.Top)
-              .padding({left:16,right:12,top:12,bottom:12}).backgroundColor(Colors.surface)
+              .padding({left:16,right:12,top:12,bottom:12}).backgroundColor(this.listFill)
           }.onClick(() => this.openRow(binding.value)).accessibilityGroup(true).id('inbox.' + inboxLineKey(binding.value))
         }, (binding: BoundRow<ResourceRow>) => binding.key)
             }
@@ -805,7 +822,7 @@ export struct InboxWorkspacePage {
           ListItem() { Text(tr(this.workspace.search.trim() ? 'no_results' : 'flow_inbox_section_empty')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary).padding(Tokens.page).width('100%') }
       }.layoutWeight(1).width('100%').margin({top:27}).padding({bottom:Tokens.inset})
       Row() { this.inboxSearch(true) }.width('100%').padding({left:Tokens.page,right:Tokens.page,top:3,bottom:8})
-    }.width('100%').height('100%').backgroundColor(Colors.surface)
+    }.width('100%').height('100%').backgroundColor(this.listFill)
   }
 
   @Builder header() {
