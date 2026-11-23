@@ -1,5 +1,6 @@
 import { Tokens } from '../design/Tokens';
-import { nativeEnvironment } from '../platform/NativeEnvironment';
+import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { DictationPreference, dictationPreference } from '../platform/DictationPreference';
 import { inputMethod } from '@kit.IMEKit';
 import { i18n } from '@kit.LocalizationKit';
@@ -116,6 +117,7 @@ export struct SettingsDirectory {
   @Param avatar: string = '';
   @Param initialQuery: string = '';
   @Param showDismissSearch: boolean = false;
+  @Local private environment:NativeEnvironment=nativeEnvironment;
   @Event onDismissSearch: () => void = () => {};
   @Local query: string = '';
   @Local meeting:MeetingPreferences=new MeetingPreferences();
@@ -190,6 +192,23 @@ export struct SettingsDirectory {
       this.field.caretPosition(this.query.length);
     },0);
   }
+  private searchSize(regular:number,largest:number):number {
+    return PhoneStyle.formSize(regular,largest,this.environment.fontScale);
+  }
+  private searchTextSize():string {
+    return this.showDismissSearch ? String(this.searchSize(16.5,22)*Math.min(this.environment.fontScale,1))+'vp' : Tokens.interfaceFontVp(16,this.environment.fontScale);
+  }
+  @Builder clearSearchButton() {
+    Button({type:ButtonType.Circle}) {
+      Stack() {
+        Circle().width(this.searchSize(17.33,23.33)).height(this.searchSize(17.33,23.33)).fill(Colors.ink)
+        PhoneOutlineIcon({name:'navigationClose',color:Colors.sheetControl,iconScale:this.searchSize(7.3,10)/17})
+      }.accessibilityLevel('no')
+    }.width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Color.Transparent)
+      .accessibilityText(tr('clear')).onClick(()=>{
+        this.query=''; this.onQueryChange(''); this.getUIContext().getFocusController().requestFocus('settings.search'); this.field.caretPosition(0);
+      }).id('settings.search.clear')
+  }
   private openEntry(id:string):void {
     this.field.stopEditing();
     this.onOpen(id);
@@ -234,20 +253,23 @@ export struct SettingsDirectory {
   build() {
     List() {
       if (!this.advanced) ListItem() {
-        Row({space:8}) {
-          Row({space:7}) {
-          SymbolGlyph($r('sys.symbol.magnifyingglass')).fontSize('16vp').fontColor([Colors.secondary])
+        Row({space:this.showDismissSearch ? 11 : 8}) {
+          Row({space:this.showDismissSearch ? 8 : 7}) {
+          SymbolGlyph($r('sys.symbol.magnifyingglass')).fontSize(String(this.showDismissSearch ? this.searchSize(20,27.33) : 16)+'vp')
+            .fontColor([this.showDismissSearch ? Colors.ink : Colors.secondary]).accessibilityLevel('no')
           TextInput({text:this.query,placeholder:tr('phone_settings_search'),controller:this.field})
-            .fontSize(Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)})
+            .fontSize(this.searchTextSize()).placeholderFont({size:this.searchTextSize()})
             .height(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).padding(0)
-            .layoutWeight(1).backgroundColor(Color.Transparent).cancelButton({style:CancelButtonStyle.INPUT})
+            .layoutWeight(1).backgroundColor(Color.Transparent).cancelButton({style:this.showDismissSearch ? CancelButtonStyle.INVISIBLE : CancelButtonStyle.INPUT})
             .enterKeyType(EnterKeyType.Search).onSubmit(() => this.field.stopEditing())
             .enableKeyboardOnFocus(true).onAppear(() => this.restoreSearchFocus())
             .defaultFocus(this.elevated && this.initialQuery.trim().length>0)
             .onChange((v:string) => { this.query = v; this.onQueryChange(v); }).id('settings.search')
-        }.padding({left:12,right:8}).layoutWeight(1).borderRadius(32).backgroundColor(this.elevated ? Colors.sheetControl : Colors.control)
+          if (this.showDismissSearch && this.query.length) this.clearSearchButton()
+        }.padding({left:this.showDismissSearch ? 12.33 : 12,right:this.showDismissSearch && this.query.length ? this.searchSize(2.33,5.67) : 8})
+          .layoutWeight(1).borderRadius(32).backgroundColor(this.elevated ? Colors.sheetControl : Colors.control)
           if (this.showDismissSearch && this.query.trim()) Button({type:ButtonType.Circle}) {
-            SymbolGlyph($r('sys.symbol.xmark')).fontSize('18vp').fontColor([Colors.ink])
+            PhoneOutlineIcon({name:'navigationClose',color:Colors.ink,iconScale:this.searchSize(1.02,23.33/17)})
           }.width(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).height(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).padding(0).backgroundColor(Colors.card(this.elevated)).accessibilityText(tr('close'))
             .onClick(() => { this.field.stopEditing(); this.onDismissSearch(); }).id('settings.close')
         }.width('100%').margin({bottom:10})

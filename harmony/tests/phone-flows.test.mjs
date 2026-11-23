@@ -59,9 +59,9 @@ test('native phone search sizes the entered text and placeholder together and pr
   }
   const read=name=>readFileSync(new URL('../entry/src/main/ets/'+name+'.ets',import.meta.url),'utf8');
   const query=[read('components/PhoneConversationSearch'),read('components/SettingsDirectory')];
-  for(const source of query) {
-    assert.match(source,/TextInput\(\{text:this\.query,[^]*?\.fontSize\(Tokens\.interfaceFontVp\(16,nativeEnvironment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(16,nativeEnvironment\.fontScale\)\}\)/);
-  }
+  assert.match(query[0],/TextInput\(\{text:this\.query,[^]*?\.fontSize\(Tokens\.interfaceFontVp\(16,nativeEnvironment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(16,nativeEnvironment\.fontScale\)\}\)/);
+  assert.match(query[1],/TextInput\(\{text:this\.query,[^]*?\.fontSize\(this\.searchTextSize\(\)\)\.placeholderFont\(\{size:this\.searchTextSize\(\)\}\)/);
+  assert.match(query[1],/this\.searchSize\(16\.5,22\)\*Math\.min\(this\.environment\.fontScale,1\)/);
   assert.match(query[0],/phone_search_conversation_count[^]*?\.fontSize\(13\)\.maxFontScale\(Tokens\.interfaceScaleFor\(13\)\)[^]*?id\('phone_search.count'\)/);
   const shell=read('pages/Index');
   const switcher=shell.slice(shell.indexOf('@Builder assistantMenuCommand'),shell.indexOf('@Builder drawerManagerMenu'));
@@ -705,4 +705,14 @@ test('the phone start action floats over the form and scrolls the last field cle
   assert.match(start,/bottom:14\+this\.agentFooterHeight/);
   assert.match(start,/\.onAreaChange\(\(_old:Area,current:Area\)=>\{\s*const height=Number\(current.height\)[^}]+this\.agentFooterHeight=height;/);
   assert.match(start,/\.hitTestBehavior\(HitTestMode.Block\)\.enabled\(this\.canStartAgent\(\)\)/);
+});
+
+test('clearing a compact settings query keeps the field active and dismissing still closes the sheet',()=>{
+  const source=readFileSync(new URL('../entry/src/main/ets/components/SettingsDirectory.ets',import.meta.url),'utf8');
+  const clear=source.slice(source.indexOf('  @Builder clearSearchButton()'),source.indexOf('  private openEntry('));
+  assert.match(clear,/this\.query=''; this\.onQueryChange\(''\)/);
+  assert.match(clear,/requestFocus\('settings.search'\)/);
+  assert.doesNotMatch(clear,/onDismissSearch/);
+  assert.match(source,/this\.field\.stopEditing\(\); this\.onDismissSearch\(\); \}\)\.id\('settings.close'\)/);
+  assert.match(source,/style:this.showDismissSearch \? CancelButtonStyle.INVISIBLE : CancelButtonStyle.INPUT/);
 });
