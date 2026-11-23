@@ -157,6 +157,10 @@
       "value": "#39393D"
     },
     {
+      "name": "machine_session_avatar_fill",
+      "value": "#3D767680"
+    },
+    {
       "name": "machine_count_surface",
       "value": "#0AFFFFFF"
     },

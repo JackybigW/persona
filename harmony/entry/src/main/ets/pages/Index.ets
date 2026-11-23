@@ -1673,7 +1673,9 @@ struct Index {
         }
       }.padding({left:12,right:12,top:4,bottom:4}).constraintSize({minHeight:this.drawerMetric(44)}).width('100%')
     }.borderRadius(10).backgroundColor(this.drawerPlaceSelected(kind) ? this.wide() ? Colors.control : Colors.phoneDrawerSelection : Color.Transparent)
-      .selectable(true).selected(this.drawerPlaceSelected(kind)).onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
+      .selectable(this.wide()).selected(this.wide() && this.drawerPlaceSelected(kind))
+      .accessibilitySelected(this.drawerPlaceSelected(kind))
+      .onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
   }
   @Builder spacesContent() {
     Column() {

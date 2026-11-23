@@ -18,7 +18,7 @@ registerHooks({
 });
 const {ResourceRow}=await import('../entry/src/main/ets/models/Wire.ets');
 const {MachineReading,machineKey,machineAgents,machineAgentTimeBeside,machineAlerts,machineConcern,machineTrace,
-  machineBytes,machinePercent,machineTokens,machineTokenTotal,osFamily}=await import('../entry/src/main/ets/models/MachineDashboard.ets');
+  machineBytes,machinePercent,machineTokens,machineTokenTotal,machineAvatarSymbol, osFamily}=await import('../entry/src/main/ets/models/MachineDashboard.ets');
 
 test('the dashboard orders concerns exactly as the iPhone and keeps the Hub order for equal priorities',()=>{
   const readings=new MachineReading({system:{cores:4}, latest:{cpu:90,mem_used:80,mem_total:100,disk_used:95,disk_total:100,load:4}});
@@ -284,4 +284,19 @@ test('live monitoring keeps the iPhone two-column summary on a phone and collaps
   for(const width of [160,220,257])assert.equal(columns.call({liveGridWidth:width}),1,'width '+width);
   assert.match(live,/Text\(tile\.title\)[^\n]*\.maxLines\(2\)/);
   assert.match(live,/Text\(tile\.detail[^\n]*\.minFontSize\(9\)[\s\S]*?\.maxLines\(2\)/);
+});
+
+
+test('machine detail session avatars use the explicit machine role and its legacy laptop default',()=>{
+  for(const icon of ['server','desktop','laptop']) assert.equal(machineAvatarSymbol(icon),icon);
+  for(const icon of ['','unknown','Server']) assert.equal(machineAvatarSymbol(icon),'laptop');
+});
+
+test('the standard machine session avatar composites to the measured system fill on both cards',()=>{
+  for (const [mode,background,expected] of [['base',[255,255,255],[239,239,240]],['dark',[44,44,46],[62,62,66]]]) {
+    const colors=JSON.parse(readFileSync(new URL('../entry/src/main/resources/'+mode+'/element/color.json',import.meta.url),'utf8')).color;
+    const value=colors.find(color=>color.name==='machine_session_avatar_fill').value;
+    const [alpha,...rgb]=value.slice(1).match(/../g).map(byte=>parseInt(byte,16));
+    assert.deepEqual(rgb.map((v,ix)=>Math.round((v*alpha+background[ix]*(255-alpha))/255)),expected);
+  }
 });

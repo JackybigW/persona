@@ -38,6 +38,11 @@ export function machinePending(data: Record<string,Object>): boolean {
   return Wire.text(data, 'trust') === 'pending' || Wire.bool(data, 'pending_confirm') || Wire.bool(data, 'pending');
 }
 
+// Machine.symbol uses the Hub's explicit desktop/server roles. Earlier records default to a laptop.
+export function machineAvatarSymbol(icon: string): string {
+  return icon === 'server' || icon === 'desktop' ? icon : 'laptop';
+}
+
 export function osFamily(system: Record<string,Object>, reported: string): string {
   const identifiers = [Wire.text(system, 'distro')].concat(Wire.text(system,'like').split(/\s+/));
   const families: Record<string,string> = {
