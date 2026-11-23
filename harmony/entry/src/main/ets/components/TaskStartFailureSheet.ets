@@ -2,6 +2,7 @@ import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
 import { tr } from '../design/Strings';
 import { Tokens } from '../design/Tokens';
+import { TaskStartupQuestionCard } from './TaskStartupQuestionCard';
 import { TaskStartRecovery } from '../models/TaskStartRecovery';
 
 @ComponentV2
@@ -74,6 +75,7 @@ export struct TaskStartFailureSheet {
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%').constraintSize({minHeight:60}).padding(12).alignItems(VerticalAlign.Top)
               .backgroundColor(Colors.sheetCard).borderRadius(12).id('task.failure.card')
+            if (this.recovery.question) TaskStartupQuestionCard({recovery:this.recovery,question:this.recovery.question!})
             if (this.recovery.alternative) {
               Row() { this.action('retry-launcher',tr('task_recovery_instead').replace('{launcher}',this.recovery.alternative),true) }.width('100%')
             }

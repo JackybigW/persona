@@ -1142,3 +1142,14 @@ test('an older Hub ignoring a plan field rolls it back, a read-only or retired o
   p=e.plan.copy();p.hasDue=true;e.change(env.workspace,p,'due');await e.flush(env.workspace);assert.equal(env.state.calls.length,n);
   env.state.generation++;env.workspace.detailReadOnly=false;e.focus(env.workspace);e.type('late');await e.finish(env.workspace);assert.equal(env.state.calls.length,n);
 });
+
+test('the ordinary failed task binds the visible Hub and manager and retires its recovery before another task or root can send',async()=>{
+ const {workspace,client,state}=await opened({todos:[todo('failed',{origin:'origin',plan_id:'launch',start_error:'Waiting',done_at:'then'}),todo('other')]});
+ await workspace.openRow(workspace.items[0]);
+ let current,canWrite,get,owner; const probe={close(){},openTodo(client,selected,visible,can){owner=client;get=selected;current=visible;canWrite=can;}};
+ workspace.openTaskStart(probe,()=>true);
+ assert.equal(owner,client);assert.equal(get().id,'failed');assert.equal(current(),true);assert.equal(canWrite(),true);
+ workspace.detailReadOnly=true;assert.equal(canWrite(),false);workspace.detailReadOnly=false;
+ await workspace.openRow(workspace.items.find(row=>row.id==='other'));assert.equal(current(),false);
+ assert.equal(state.calls.filter(c=>c.method==='POST').length,0);
+});

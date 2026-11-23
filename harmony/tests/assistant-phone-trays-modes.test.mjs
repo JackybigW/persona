@@ -295,3 +295,91 @@ test('failed task removal asks for confirmation only if an Agent has previously 
  prior.ctl.open(prior.client,prior.feed,prior.row,()=>true);await settleRecovery(prior.ctl);assert.equal(prior.ctl.confirmRemoval,true);
  assert.equal(prior.calls.filter(entry=>entry.method==='DELETE').length,0);
 });
+
+const {TaskStartupQuestion}=await import('../entry/src/main/ets/models/TaskStartupQuestion.ets');
+const offer={kind:'zsh_newuser',line:'Run setup?',choices:'y, n, q',screen:'(y/n/q)',default:'n',kept_until:'2099-01-01T00:00:00Z'};
+async function shellCase(ordinary=false) {
+  const v=recoveryCase(); await settleRecovery(v.ctl);
+  v.client.features.push('todo_start_answer'); v.task.error_code='shell_waiting';v.task.error_args={...offer};
+  v.task.start={attempt:1,pane:'w1:p1',state:'failed'};
+  if (ordinary) v.ctl.openTodo(v.client,()=>v.todo,()=>v.ctx.active,()=>v.ctx.role,async()=>{});
+  else v.ctl.open(v.client,v.feed,v.row,()=>v.ctx.active);
+  await settleRecovery(v.ctl);return v;
+}
+
+test('task startup answers use the exact manager-bound route and one enumerated choice on both the ordinary and assistant task paths',async()=>{
+ for (const ordinary of [false,true]) {
+  const v=await shellCase(ordinary), question=v.ctl.question;
+  assert.ok(question?.open());assert.deepEqual(question.choices,['y','n','q']); assert.equal(question.label('q'),'task_start_not_now');
+  for(const value of ['','as typed','q\n','cancel']) assert.equal(await v.ctl.act('answer',value,question.attempt),false);
+  assert.equal(await v.ctl.act('answer','q','from a previous question'),false);
+  const submitting=v.ctl.act('answer','q',question.attempt);
+  assert.equal(await v.ctl.act('answer','q',question.attempt),false); assert.equal(await submitting,true);
+  assert.equal(v.ctl.question,undefined);assert.equal(v.ctl.state,'starting');
+  assert.deepEqual(v.calls.filter(c=>c.method!=='GET'),[{path:'/api/v1/todos/failed/start/answer?manager=owner',method:'POST',body:{choice:'q'},empty:false}]);
+ }
+});
+
+test('only a current owner, target, feature and still-open startup attempt can send; a lost reply never repeats the answer',async()=>{
+ for (const change of [v=>v.client.features=[],v=>v.ctx.role=false,v=>v.ctx.active=false,v=>v.ctx.epoch++,
+   v=>v.client.profile.manager='other',v=>v.client.profile.id='other',v=>v.ctx.blocked=true,
+   v=>v.task.start={...v.task.start,attempt:2},v=>v.task.error_args={...offer,line:'A different question?'},
+   v=>v.task.error_args={...offer,kept_until:'2020-01-01T00:00:00Z'},v=>v.task.start={state:'remedying',attempt:2},
+   v=>v.ctx.changed={...v.todo,manager:'other'},v=>v.ctx.changed={...v.todo,read_only:true}]) {
+  const v=await shellCase(), id=v.ctl.question.attempt;change(v);
+  assert.equal(await v.ctl.act('answer','q',id),false,change.toString());assert.deepEqual(v.calls.filter(c=>c.method==='POST'),[]);
+ }
+ const lost=await shellCase();lost.ctx.unknown=true;const id=lost.ctl.question.attempt;
+ assert.equal(await lost.ctl.act('answer','q',id),false);await lost.ctl.refresh();
+ assert.equal(lost.ctl.state,'unknown');assert.equal(await lost.ctl.act('answer','q',id),false);assert.equal(await lost.ctl.act('retry'),false);
+ assert.equal(lost.calls.filter(c=>c.method==='POST').length,1);
+});
+
+test('password and host-key questions only expose safe offered IDs; missing expiry stays open while expired choices and old hubs stay absent',async()=>{
+ const question=(args)=>new TaskStartupQuestion({...offer,...args},'original');
+ assert.deepEqual(question({secret:'true',choices:'y,cancel'}).choices,['cancel']);
+ assert.deepEqual(question({kind:'ssh_host_key',choices:'yes,no,cancel'}).choices,['no','cancel']);
+ assert.equal(question({kept_until:'invalid'}).open(),true);assert.equal(question({kept_until:'2000-01-01T00:00:00Z'}).open(),false);
+ assert.equal(question({choices:' ,  ,'}).open(),false);assert.equal(question({line:''}).open(),false);
+ const x=await shellCase();x.client.features=[];x.ctl.open(x.client,x.feed,x.row,()=>true);await settleRecovery(x.ctl);
+ assert.equal(x.ctl.question,undefined);assert.equal(x.ctl.canAct('retry'),true);
+ x.client.features=['todo_start_answer'];x.task.error_code='other';x.ctl.open(x.client,x.feed,x.row,()=>true);await settleRecovery(x.ctl);
+ assert.equal(x.ctl.question,undefined);
+});
+
+test('an ordinary failed task without a plan ID resolves only the unique non-dismissed plan on its own conversation and reloads the original todo',async()=>{
+ const v=await shellCase(true), original=v.client.repo().call;let changed=0,ambiguous=false;
+ v.todo.plan_id=''; const copy={...v.plan,id:'similar'};
+ const other={...v.plan,id:'wrong-conversation',conversation:'elsewhere'},gone={...v.plan,id:'gone',state:'dismissed'};
+ v.client.repo().call=async function(path,...args){
+  if (path.includes('/feed?')) {assert.equal(path,'/api/v1/assistant/conversations/main/feed?manager=owner');return {plans:{plan:v.plan,similar:ambiguous?copy:{},'wrong-conversation':other,gone}};}
+  return original(path,...args);
+ };
+ const open=()=>v.ctl.openTodo(v.client,()=>v.todo,()=>v.ctx.active,()=>v.ctx.role,async()=>{changed++;});
+ open();await settleRecovery(v.ctl);assert.ok(v.ctl.question);
+ assert.equal(await v.ctl.act('answer','n',v.ctl.question.attempt),true);assert.equal(changed,1);
+ ambiguous=true;open();await settleRecovery(v.ctl);assert.equal(v.ctl.question,undefined);assert.equal(v.ctl.canAct('answer'),false);
+ assert.equal(v.calls.filter(c=>c.method==='POST').length,1);
+});
+
+test('a second confirmed task startup question replaces the first offer without reusing the first button',async()=>{
+ const v=await shellCase();const first=v.ctl.question.attempt;assert.equal(await v.ctl.act('answer','n',first),true);
+ v.ctl.observeNextAttempt(); assert.equal(v.ctl.state,'starting');assert.equal(v.ctl.question,undefined);
+ v.task.start.attempt=2;v.task.error_args={...offer,line:'Retry the environment setup?'};
+ v.ctl.observeNextAttempt();await settleRecovery(v.ctl);assert.equal(v.ctl.state,'ready');
+ const second=v.ctl.question.attempt;assert.notEqual(second,first);
+ assert.equal(await v.ctl.act('answer','n',first),false);assert.equal(v.calls.filter(c=>c.method==='POST').length,1);
+ assert.equal(await v.ctl.act('answer','q',second),true);assert.equal(v.calls.filter(c=>c.method==='POST').length,2);
+});
+
+test('failed tasks enter the same native task detail from the board and the ordinary conversation, while ordinary editing remains available',()=>{
+ const source=readFileSync(new URL('../entry/src/main/ets/components/AssistantCards.ets',import.meta.url),'utf8');
+ const registered=(key)=>source.split('  private '+key+'(')[1].split('\n  }')[0];
+ assert.match(registered('openBoardRow'),/openFailedTask\(row,true\)/);
+ assert.match(registered('activateTray'),/openFailedTask\(actual.resource,false\)/);
+ assert.match(registered('activateTray'),/onOpenTodo\(actual.resource\)/);
+ const full=readFileSync(new URL('../entry/src/main/ets/components/TaskStartFailureSheet.ets',import.meta.url),'utf8');
+ assert.match(full,/TaskStartupQuestionCard\(/);assert.match(full,/this\.onEdit\(/);
+ const form=readFileSync(new URL('../entry/src/main/ets/components/PhoneTodoDetailForm.ets',import.meta.url),'utf8');
+ assert.match(form,/PhoneTodoStartSection\(\{workspace:this\.workspace/);
+});

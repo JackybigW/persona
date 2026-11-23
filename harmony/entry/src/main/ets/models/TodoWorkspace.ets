@@ -1,3 +1,4 @@
+import type { TaskStartRecovery } from './TaskStartRecovery';
 import { ClientModel } from './ClientModel';
 import { HubRepository, segment } from './HubRepository';
 import { HttpFailure } from '../platform/HubTransport';
@@ -1031,6 +1032,17 @@ export class TodoWorkspace {
     this.draftReady = true;
     try { await this.clearDraft(owner, todo, title, this.notesDraft); } catch (_) { this.error = 'draft_save_failed'; }
     return true;
+  }
+
+  openTaskStart(recovery:TaskStartRecovery, visible:()=>boolean):void {
+    const todo=this.selected, owner=this.capture(todo);
+    recovery.close();
+    if (!owner || !todo.id || !todo.origin || (this.initialRow?.group && this.initialRow.group!==owner.client.profile.id) ||
+      (!todo.startError && todo.agents.length)) return;
+    const current=():boolean=>visible() && this.owns(owner) && !this.targetGone;
+    recovery.openTodo(owner.client,()=>this.selected.data(),current,()=>current() && this.detailEditable(),async()=>{
+      if (current()) await this.refresh();
+    });
   }
 
   detailEditable(): boolean {

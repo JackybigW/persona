@@ -1,4 +1,5 @@
 import { LengthMetrics } from '@kit.ArkUI';
+import { PhoneTodoStartSection } from './PhoneTodoStartSection';
 import { TodoWorkspace } from '../models/TodoWorkspace';
 import { PhoneTodoDetailEditor } from '../models/PhoneTodoDetailEditor';
 import { ResourceRow, Wire } from '../models/Wire';
@@ -105,7 +106,6 @@ export struct PhoneTodoDetailForm {
         }
       }.width('100%')
       if (this.statusLine) Text(this.statusLine).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary)
-      if (this.workspace.selected.startError) Text(this.workspace.selected.startError).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger)
       if (this.workspace.selected.doneReason) Text(this.workspace.selected.doneReason).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary)
     }.alignItems(HorizontalAlign.Start).width('100%').constraintSize({minHeight:this.metric(94.3,109)}).padding({left:20,right:20,top:19,bottom:15})
       .backgroundColor(Colors.surface).borderRadius(13).id('todo.detail')
@@ -195,6 +195,8 @@ export struct PhoneTodoDetailForm {
         this.rule(60);this.choiceRow('priority')
         this.rule(60);this.choiceRow('project')
       }.width('100%').backgroundColor(Colors.surface).borderRadius(13).clip(true)
+      if (this.workspace.selected.startError || this.workspace.selected.origin && !this.workspace.selected.agents.length)
+        PhoneTodoStartSection({workspace:this.workspace})
     }.width('100%').alignItems(HorizontalAlign.Start).padding({top:23})
   }
 }

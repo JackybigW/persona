@@ -6,6 +6,7 @@ import { InteractionDecisionForm } from './InteractionDecisionForm';
 import { util } from '@kit.ArkTS';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { nativeSheetInset } from '../platform/NativeInsets';
+import { TaskTrayStartActions } from './TaskTrayStartActions';
 import { TaskStartFailureSheet } from './TaskStartFailureSheet';
 import { TaskStartRecovery } from '../models/TaskStartRecovery';
 import { AssistantViewCard } from './AssistantViewCard';
@@ -214,18 +215,21 @@ export struct AssistantCards {
     if (!this.boardOpen || this.trayScope()!==this.trayOwner) return;
     const actual=this.boardRows.find((value:TaskTrayRow) => value.key()===entry.key()), row=actual?.resource;
     if (!row || !actual) return;
-    if (actual.kind==='todo' && actual.status==='failed') {
-      this.failureRow=row; this.showFailureAfterBoard=true;
-      const scope=this.trayScope(), id=row.id;
-      this.recovery.open(this.model,this.feed,row,()=>this.active && this.trayScope()===scope && this.failureRow?.id===id &&
-        (this.showFailureAfterBoard || this.failureOpen));
-      if (!this.recovery.id) { this.showFailureAfterBoard=false; this.failureRow=undefined; }
-      else { this.boardOpen=false; return; }
-    }
+    if (actual.kind==='todo' && actual.status==='failed' && this.openFailedTask(row,true)) return;
     this.boardOpen=false;
     if (row.kind==='session') this.onOpenSession(row); else this.onOpenTodo(row);
   }
-  @Monitor('feed.todos','model.sessions','recovery.state') failureStarted():void {
+  private openFailedTask(row:ResourceRow, board:boolean):boolean {
+    const scope=this.trayScope(), id=row.id;
+    this.failureRow=row; this.showFailureAfterBoard=board;
+    if (!board) this.failureOpen=true;
+    this.recovery.open(this.model,this.feed,row,()=>this.active && this.trayScope()===scope && this.failureRow?.id===id &&
+      (this.showFailureAfterBoard || this.failureOpen));
+    if (!this.recovery.id) { this.hideFailure(); return false; }
+    if (board) this.boardOpen=false; else this.trayOpen=false;
+    return true;
+  }
+  @Monitor('feed.todos','feed.plans','model.sessions','recovery.state','recovery.busy') failureStarted():void {
     if (!this.failureOpen || this.recovery.state!=='starting' || !this.failureRow || !this.active || this.trayScope()!==this.trayOwner) return;
     const todo=this.feed.todo(this.failureRow.id);
     if (Wire.text(todo,'origin')!==this.feed.conversationId || Wire.text(todo,'manager',this.feed.owner)!==this.feed.owner) return;
@@ -235,6 +239,7 @@ export struct AssistantCards {
         row.machine===Wire.text(agent,'machine_id') && (row.session||row.id)===Wire.text(agent,'session_id'));
       if (session) { this.hideFailure(); this.onOpenSession(session); return; }
     }
+    this.recovery.observeNextAttempt();
   }
   private hideFailure():void {
     this.showFailureAfterBoard=false;this.failureOpen=false;this.failureRow=undefined;this.recovery.close();
@@ -289,6 +294,7 @@ export struct AssistantCards {
       }
       return;
     }
+    if (actual.kind==='todo' && actual.status==='failed' && actual.resource && this.openFailedTask(actual.resource,false)) return;
     this.trayOpen=false;
     if (actual.kind === 'question') {
       const at = this.decisionIds.indexOf(actual.id);
@@ -577,6 +583,8 @@ export struct AssistantCards {
       }.width('100%').padding(0).backgroundColor(Color.Transparent)
         .id('chat.tasks.'+entry.kind+'.'+entry.id).accessibilityText([entry.title,this.trayDetail(entry),this.rowNote(entry)].filter((v:string) => !!v).join('、'))
         .onClick(() => this.activateTray(entry))
+      if (entry.kind==='todo' && entry.status==='failed' && entry.resource) TaskTrayStartActions({model:this.model,feed:this.feed,row:entry.resource!,
+        visible:():boolean=>this.trayOpen && this.active && this.trayScope()===this.trayOwner})
       if (this.expandedEntry===entry.key() && entry.kind==='message') this.message(entry.data)
       if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data)
     }.width('100%').alignItems(HorizontalAlign.Start)

@@ -46,7 +46,7 @@
     },
     {
       "name": "task_recovery_launcher_missing",
-      "value": "%1$@ 在这台电脑的终端里开不起来"
+      "value": "{launcher} 在这台电脑的终端里开不起来"
     },
     {
       "name": "task_recovery_gone",
@@ -62,11 +62,99 @@
     },
     {
       "name": "task_recovery_instead",
-      "value": "改用 %1$@"
+      "value": "改用 {launcher}"
     },
     {
       "name": "task_recovery_remove_title",
       "value": "移除任务？"
+    },
+    {
+      "name": "task_start_title",
+      "value": "电脑的终端在问：“{value}”"
+    },
+    {
+      "name": "task_start_generic",
+      "value": "选一个回答，Agent 就会在那个标签里启动。"
+    },
+    {
+      "name": "task_start_secret",
+      "value": "它在要密码，Persona 不会从这里输入密码。可以在这里取消，或者去电脑上输入。"
+    },
+    {
+      "name": "task_start_host",
+      "value": "要不要信任新的主机密钥，需要在电脑上决定；在这里只能拒绝。"
+    },
+    {
+      "name": "task_start_until",
+      "value": "标签会留到 {value}。"
+    },
+    {
+      "name": "task_start_enter_yes",
+      "value": "回车（是）"
+    },
+    {
+      "name": "task_start_enter_no",
+      "value": "回车（否）"
+    },
+    {
+      "name": "task_start_enter",
+      "value": "回车"
+    },
+    {
+      "name": "task_start_cancel",
+      "value": "取消（Ctrl-C）"
+    },
+    {
+      "name": "task_start_yes",
+      "value": "是"
+    },
+    {
+      "name": "task_start_no",
+      "value": "否"
+    },
+    {
+      "name": "task_start_yes_key",
+      "value": "是（{value}）"
+    },
+    {
+      "name": "task_start_no_key",
+      "value": "否（{value}）"
+    },
+    {
+      "name": "task_start_update",
+      "value": "更新（{value}）"
+    },
+    {
+      "name": "task_start_not_now",
+      "value": "暂不（{value}）"
+    },
+    {
+      "name": "task_start_continue",
+      "value": "仍然继续（{value}）"
+    },
+    {
+      "name": "task_start_stop_compinit",
+      "value": "停止 compinit（{value}）"
+    },
+    {
+      "name": "task_start_empty_zshrc",
+      "value": "创建空的 .zshrc（{value}）"
+    },
+    {
+      "name": "task_start_quit_wizard",
+      "value": "退出向导（{value}）"
+    },
+    {
+      "name": "task_start_no_trust",
+      "value": "不信任（{value}）"
+    },
+    {
+      "name": "task_start_cancel_key",
+      "value": "取消（{value}）"
+    },
+    {
+      "name": "task_start_press",
+      "value": "按 {value}"
     }
   ]
 }

@@ -46,7 +46,7 @@
     },
     {
       "name": "task_recovery_launcher_missing",
-      "value": "%1$@ can't start in this computer's terminal"
+      "value": "{launcher} can't start in this computer's terminal"
     },
     {
       "name": "task_recovery_gone",
@@ -62,11 +62,99 @@
     },
     {
       "name": "task_recovery_instead",
-      "value": "Use %1$@ instead"
+      "value": "Use {launcher} instead"
     },
     {
       "name": "task_recovery_remove_title",
       "value": "Remove task?"
+    },
+    {
+      "name": "task_start_title",
+      "value": "Your computer's terminal is asking: “{value}”"
+    },
+    {
+      "name": "task_start_generic",
+      "value": "Pick an answer and the agent starts in that tab."
+    },
+    {
+      "name": "task_start_secret",
+      "value": "It's asking for a password, which Persona never types from here. Cancel it, or type it on the computer."
+    },
+    {
+      "name": "task_start_host",
+      "value": "Whether to trust a new host key is decided on the computer; from here you can say no."
+    },
+    {
+      "name": "task_start_until",
+      "value": "The tab stays open until {value}."
+    },
+    {
+      "name": "task_start_enter_yes",
+      "value": "Enter (yes)"
+    },
+    {
+      "name": "task_start_enter_no",
+      "value": "Enter (no)"
+    },
+    {
+      "name": "task_start_enter",
+      "value": "Enter"
+    },
+    {
+      "name": "task_start_cancel",
+      "value": "Cancel (Ctrl-C)"
+    },
+    {
+      "name": "task_start_yes",
+      "value": "Yes"
+    },
+    {
+      "name": "task_start_no",
+      "value": "No"
+    },
+    {
+      "name": "task_start_yes_key",
+      "value": "Yes ({value})"
+    },
+    {
+      "name": "task_start_no_key",
+      "value": "No ({value})"
+    },
+    {
+      "name": "task_start_update",
+      "value": "Update ({value})"
+    },
+    {
+      "name": "task_start_not_now",
+      "value": "Not now ({value})"
+    },
+    {
+      "name": "task_start_continue",
+      "value": "Continue anyway ({value})"
+    },
+    {
+      "name": "task_start_stop_compinit",
+      "value": "Stop compinit ({value})"
+    },
+    {
+      "name": "task_start_empty_zshrc",
+      "value": "Create an empty .zshrc ({value})"
+    },
+    {
+      "name": "task_start_quit_wizard",
+      "value": "Quit the wizard ({value})"
+    },
+    {
+      "name": "task_start_no_trust",
+      "value": "Don't trust ({value})"
+    },
+    {
+      "name": "task_start_cancel_key",
+      "value": "Cancel ({value})"
+    },
+    {
+      "name": "task_start_press",
+      "value": "Press {value}"
     }
   ]
 }
