@@ -101,6 +101,9 @@ func (s *Service) reconcilePhoneAsks(list []proto.Interaction, canWithdraw func(
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		q := &askedOne{cancel: cancel}
+		if ix.ToolName == sessionReviewTool {
+			q.ready = make(chan struct{})
+		}
 		f.asked[ix.ID] = q
 		go func(ix proto.Interaction) {
 			defer func() {
@@ -108,7 +111,17 @@ func (s *Service) reconcilePhoneAsks(list []proto.Interaction, canWithdraw func(
 				q.ended = time.Now()
 				f.askMu.Unlock()
 			}()
-			r, err := s.waitOwnedQuestion(ctx, ix)
+			r, err := s.waitOwnedQuestionReady(ctx, ix, q.ready)
+			if q.ready != nil {
+				select {
+				case <-q.ready:
+				default:
+					// History may already hold an answer, or its read may have failed
+					// before this waiter could register. Release callers in either case.
+					q.registrationErr = err
+					close(q.ready)
+				}
+			}
 			if err != nil {
 				if ctx.Err() == nil {
 					s.logf("assistant: question %s: %v", ix.ID, err)
@@ -141,6 +154,10 @@ func (s *Service) reconcilePhoneAsks(list []proto.Interaction, canWithdraw func(
 type askedOne struct {
 	cancel context.CancelFunc
 	ended  time.Time
+	// A stored review can appear in the app's inventory before its ordinary
+	// question waiter registers. Only that review's caller waits on ready.
+	ready           chan struct{}
+	registrationErr error
 }
 
 // askAgainAfter is how long a question the assistant still reports after its answer went may stay off the phone.
