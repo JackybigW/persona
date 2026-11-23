@@ -699,12 +699,24 @@ test('the compact meeting, knowledge and inbox header replaces its native button
   assert.match(shell,/ForEach\(\[this\.rootModuleMenuKind\(\)\],\(kind:string\) => \{\s*this\.phoneModuleMore\(kind,this\.menuOwner\(kind\)\)\s*\},\(kind:string\) => this\.menuOwner\(kind\)\)/);
 });
 
-test('the phone start action floats over the form and scrolls the last field clear of its actual height',()=>{
+test('the phone start action belongs to the bottom of the scroll area, separate from the sheet close control',()=>{
   const start=formSource.slice(formSource.indexOf('  @Builder agentStartFooter()'),formSource.indexOf('  private async loadAgentLaunchers()'));
-  assert.match(start,/\.overlay\(this\.agentStartFooter\(\),\{align:Alignment\.Bottom\}\)/);
-  assert.match(start,/bottom:14\+this\.agentFooterHeight/);
-  assert.match(start,/\.onAreaChange\(\(_old:Area,current:Area\)=>\{\s*const height=Number\(current.height\)[^}]+this\.agentFooterHeight=height;/);
+  const cancel=start.indexOf("id('agent.cancel')"),stack=start.indexOf('Stack({alignContent:Alignment.Bottom})'),scroll=start.indexOf('Scroll(this.agentFormScroll)');
+  assert.ok(cancel>=0 && stack>cancel && scroll>stack);
+  assert.match(start,/\.height\('100%'\)\.justifyContent\(FlexAlign.End\)/);
+  assert.match(start,/this\.agentStartFooter\(\)\s*\}\.width\('100%'\)\.layoutWeight\(1\)\.clip\(true\)/);
+  assert.match(start,/bottom:this\.agentScrollClearance\(\)/);
   assert.match(start,/\.hitTestBehavior\(HitTestMode.Block\)\.enabled\(this\.canStartAgent\(\)\)/);
+  assert.doesNotMatch(start,/\.overlay\(/);
+  const Form=new Function('PhoneStyle','Tokens','return '+stripTypeScriptTypes('class Form{'+
+    ['agentStartButtonHeight','agentActionBottom','agentScrollClearance'].map(key=>formMethods.get(key)).join('\n')+'}'))(
+    {formSize:(regular,large,scale)=>scale===1?regular:large},{gap:8});
+  const f=new Form();f.fullHeightPhone=()=>true;f.getUIContext=()=>({px2vp:n=>n/3});
+  f.environment={keyboardHeightPx:0,safeBottomPx:2520,windowHeightPx:2622,fontScale:1};
+  f.startFailure='';f.agentErrorHeight=0;
+  assert.equal(f.agentScrollClearance(),14+7+60+42);
+  f.environment.fontScale=3.2;f.environment.keyboardHeightPx=810;f.startFailure='maintenance';f.agentErrorHeight=47;
+  assert.equal(f.agentScrollClearance(),14+7+69.3+16+8+47);
 });
 
 test('clearing a compact settings query keeps the field active and dismissing still closes the sheet',()=>{

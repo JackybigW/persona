@@ -237,7 +237,7 @@ struct Index {
   @Local recentAgentDirectories: LaunchChoice[] = [];
   private agentFormScroll: Scroller = new Scroller();
   private agentMessageFocused: boolean = false;
-  @Local agentFooterHeight: number = 0;
+  @Local agentErrorHeight: number = 0;
   @Local startFailure: string = '';
   @Local startWorktree: WorktreeActions = new WorktreeActions();
   private startTreeSource: ProjectWorktree | undefined;
@@ -2446,20 +2446,28 @@ struct Index {
       .accessibilityGroup(true).accessibilityText((row.title || row.id)+' · '+this.machineChoiceDetail(row))
       .accessibilitySelected(this.sameMachine(row,this.chosenAgentMachine())).onClick(() => this.pickAgentMachine(row)).id('agent.machine')
   }
+  private agentStartButtonHeight():number {
+    return PhoneStyle.formSize(60,69.3,this.environment.fontScale);
+  }
+  private agentScrollClearance():number {
+    const error = this.startFailure ? this.agentErrorHeight + Tokens.gap : 0;
+    return 14 + 7 + this.agentStartButtonHeight() + this.agentActionBottom() + error;
+  }
   @Builder agentStartFooter() {
     Column({space:Tokens.gap}) {
       if (this.startFailure) Text(trError(this.startFailure)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14))
         .fontColor(Colors.danger).width('100%').padding(8).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius).id('agent.error')
+        .onAreaChange((_old:Area,current:Area) => {
+          const height=Number(current.height);
+          if (Number.isFinite(height) && height >= 0) this.agentErrorHeight=height;
+        })
       Button(tr(this.creatingAgent || this.agentModel.operationBlocked('/api/v1/sessions') ? this.createAgentKey() : 'flow_start_chat'),{type:ButtonType.Capsule})
-        .height(PhoneStyle.formSize(60,69.3,this.environment.fontScale)).width('100%').backgroundColor(Colors.action).fontColor(Colors.onAction)
+        .height(this.agentStartButtonHeight()).width('100%').backgroundColor(Colors.action).fontColor(Colors.onAction)
         .borderWidth(Colors.systemControls ? 0.67 : 0).borderColor(Colors.prominentRim)
         .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
         .hitTestBehavior(HitTestMode.Block).enabled(this.canStartAgent()).onClick(() => this.createAgent()).id('agent.create')
-    }.width('100%').padding({left:24,right:24,top:7,bottom:this.agentActionBottom()})
-      .hitTestBehavior(HitTestMode.Transparent).onAreaChange((_old:Area,current:Area)=>{
-        const height=Number(current.height);
-        if (Number.isFinite(height) && height>0 && Math.abs(height-this.agentFooterHeight)>0.3) this.agentFooterHeight=height;
-      })
+    }.width('100%').height('100%').justifyContent(FlexAlign.End)
+      .padding({left:24,right:24,top:7,bottom:this.agentActionBottom()}).hitTestBehavior(HitTestMode.Transparent)
   }
   @Builder newAgentForm() {
     if (this.agentPanel === 'worktree') {
@@ -2478,102 +2486,107 @@ struct Index {
           Text(tr('phone_new_chat_title')).fontSize(17).maxFontScale(Tokens.chromeFontMaxScale).maxLines(2).fontWeight(600).fontColor(Colors.ink).textAlign(TextAlign.Center).layoutWeight(1)
           Blank().width(PhoneStyle.bar)
         }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
-        Scroll(this.agentFormScroll) {
-          Column() {
-            if (!this.agentWorktree && !this.agentTodo && this.recentSetups.length) {
-              this.agentSectionTitle('flow_recent_setups',false)
-              Column() { ForEach(this.recentSetups.slice(0,3),(r:RecentAgentSetup) => {
-                Row({space:12}) {
-                  SymbolGlyph(Symbols.folder).fontSize('17vp').fontColor([Colors.link])
-                  Column({space:2}) {
-                    Text() {
-                      Span(this.recentFolderTitle(r)).fontWeight(600).fontColor(Colors.ink)
-                      Span(' · '+this.recentMachineTitle(r)).fontColor(Colors.secondary)
-                    }.fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
-                    Text([r.launcher,r.model,r.preset,r.effort].filter((v:string) => !!v).join(' · ')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
-                  }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-                  if (this.agentMachineKey === r.machine && this.directory === r.cwd && this.launcher === r.launcher && this.agentModelId === r.model && this.agentEffort === r.effort)
-                    SymbolGlyph(Symbols.check).fontSize('16vp').fontColor([Colors.link])
-                }.width('100%').padding({left:16,right:16,top:8,bottom:8}).constraintSize({minHeight:48})
-                  .onClick(() => this.reuseSetup(r)).accessibilityGroup(true).id('agent.recent')
-              },(r:RecentAgentSetup) => r.key) }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(14)
-            }
-            if (!this.agentWorktree) {
-              this.agentSectionTitle('phone_machines',!this.agentTodo && this.recentSetups.length > 0)
-              Scroll() { Row({space:12}) {
-                ForEach(this.agentMachines(),(m:ResourceRow) => this.machineChoice(m),(m:ResourceRow) => JSON.stringify([m.group,m.manager,m.id,m.title,m.state,this.machineChoiceDetail(m)]))
-              } }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).width('100%')
-                .padding({left:16,right:16,top:12,bottom:12}).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-            }
-            if (this.agentWorktree || this.selectedAgentTree() || this.availableAgentTrees().some((t:ProjectWorktree) => t.boundStart)) {
-              Column() {
-                this.workspaceOption()
-                if (this.selectedAgentTree()) {
-                  if (this.selectedAgentTree()!.permits('create')) {
-                    this.launchDivider()
-                    Button(tr('tree_create'),{buttonStyle:ButtonStyleMode.TEXTUAL}).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.link).onClick(() => this.makeChildFromAgent()).id('agent.child')
-                  }
-                }
-              }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-                .margin({top:this.agentWorktree ? 0 : 35})
-              if (this.selectedAgentTree()) {
-                Column() {
-                  Text(this.selectedTreeKind(this.selectedAgentTree()!)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-                    .fontColor(Colors.secondary).id('agent.worktree.kind')
-                  Text(this.agentPathLabel(this.selectedAgentTree()!.cwd)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-                    .fontColor(Colors.secondary).id('agent.worktree')
-                }.width('100%').alignItems(HorizontalAlign.Start).padding({left:20,right:20,top:6})
-              }
-            }
-            if (!this.selectedAgentTree() && !this.agentWorktree) {
-              this.agentSectionTitle('directory',true)
-              Column() {
-                this.agentOptionRow('folder')
-                ForEach(this.recentAgentDirectories.slice(0,6),(row:LaunchChoice) => {
-                  Stack({alignContent:Alignment.TopStart}) {
-                    this.recentDirectory(row)
-                    Divider().strokeWidth(Tokens.divider).color(Colors.divider).margin({left:this.agentSize(48,55),right:20})
-                      .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
-                  }.width('100%')
-                },(row:LaunchChoice) => row.id)
-              }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-            }
-            this.agentSectionTitle('flow_launcher_model_once',true)
-            Column() {
-              if (this.agentPresets.length) {
-                this.agentOptionRow('preset')
-                this.launchDivider()
-              }
-              this.agentOptionRow('launcher')
-              if (this.effectiveLauncher()) {
-                this.launchDivider()
-                this.agentOptionRow('model')
-              }
-              if (this.launchChoices.startEfforts(this.chosenLauncher()).length > 0) {
-                this.launchDivider()
-                this.agentOptionRow('effort')
-              }
-            }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(14)
-            Text(this.agentModelHelp()).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
-              .width('100%').padding({left:12,right:12,top:6}).id('agent.model.help')
-            this.agentSectionTitle('flow_first_message',true)
-            if (this.chatForward.newFor(this.agentModel)) PhoneForwardNewTray({model:this.agentModel,state:this.chatForward})
-            TextArea({text:this.newTask,placeholder:tr(this.promptOptional() ? 'flow_draft_optional' : 'task')})
-              .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
-              .minLines(3).maxLines(10,{overflowMode:MaxLinesMode.SCROLL}).width('100%')
-              .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
-              .padding({left:16,right:16,top:11,bottom:11}).fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-              .onFocus(() => { this.agentMessageFocused = true; this.revealFocusedAgentDraft(); })
-              .onBlur(() => { this.agentMessageFocused = false; })
-              .onChange((v:string) => { this.newTask = v; this.saveAgentDraft(); }).id('agent.task')
-            if ((this.agentWorktree || this.pickedAgentTree) && !this.selectedAgentTree()) Text(tr('project_gone')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).padding(8)
-          }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:14+this.agentFooterHeight})
-            .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
-        }.width('100%').layoutWeight(1).align(Alignment.TopStart)
-          .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
+        Stack({alignContent:Alignment.Bottom}) {
+          this.agentStartFields()
+          this.agentStartFooter()
+        }.width('100%').layoutWeight(1).clip(true)
       }.width('100%').height('100%').backgroundColor(Colors.sheetBackground)
-        .overlay(this.agentStartFooter(),{align:Alignment.Bottom})
     }
+  }
+  @Builder agentStartFields() {
+    Scroll(this.agentFormScroll) {
+      Column() {
+        if (!this.agentWorktree && !this.agentTodo && this.recentSetups.length) {
+          this.agentSectionTitle('flow_recent_setups',false)
+          Column() { ForEach(this.recentSetups.slice(0,3),(r:RecentAgentSetup) => {
+            Row({space:12}) {
+              SymbolGlyph(Symbols.folder).fontSize('17vp').fontColor([Colors.link])
+              Column({space:2}) {
+                Text() {
+                  Span(this.recentFolderTitle(r)).fontWeight(600).fontColor(Colors.ink)
+                  Span(' · '+this.recentMachineTitle(r)).fontColor(Colors.secondary)
+                }.fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+                Text([r.launcher,r.model,r.preset,r.effort].filter((v:string) => !!v).join(' · ')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+              }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+              if (this.agentMachineKey === r.machine && this.directory === r.cwd && this.launcher === r.launcher && this.agentModelId === r.model && this.agentEffort === r.effort)
+                SymbolGlyph(Symbols.check).fontSize('16vp').fontColor([Colors.link])
+            }.width('100%').padding({left:16,right:16,top:8,bottom:8}).constraintSize({minHeight:48})
+              .onClick(() => this.reuseSetup(r)).accessibilityGroup(true).id('agent.recent')
+          },(r:RecentAgentSetup) => r.key) }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(14)
+        }
+        if (!this.agentWorktree) {
+          this.agentSectionTitle('phone_machines',!this.agentTodo && this.recentSetups.length > 0)
+          Scroll() { Row({space:12}) {
+            ForEach(this.agentMachines(),(m:ResourceRow) => this.machineChoice(m),(m:ResourceRow) => JSON.stringify([m.group,m.manager,m.id,m.title,m.state,this.machineChoiceDetail(m)]))
+          } }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).width('100%')
+            .padding({left:16,right:16,top:12,bottom:12}).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+        }
+        if (this.agentWorktree || this.selectedAgentTree() || this.availableAgentTrees().some((t:ProjectWorktree) => t.boundStart)) {
+          Column() {
+            this.workspaceOption()
+            if (this.selectedAgentTree()) {
+              if (this.selectedAgentTree()!.permits('create')) {
+                this.launchDivider()
+                Button(tr('tree_create'),{buttonStyle:ButtonStyleMode.TEXTUAL}).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.link).onClick(() => this.makeChildFromAgent()).id('agent.child')
+              }
+            }
+          }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+            .margin({top:this.agentWorktree ? 0 : 35})
+          if (this.selectedAgentTree()) {
+            Column() {
+              Text(this.selectedTreeKind(this.selectedAgentTree()!)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+                .fontColor(Colors.secondary).id('agent.worktree.kind')
+              Text(this.agentPathLabel(this.selectedAgentTree()!.cwd)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+                .fontColor(Colors.secondary).id('agent.worktree')
+            }.width('100%').alignItems(HorizontalAlign.Start).padding({left:20,right:20,top:6})
+          }
+        }
+        if (!this.selectedAgentTree() && !this.agentWorktree) {
+          this.agentSectionTitle('directory',true)
+          Column() {
+            this.agentOptionRow('folder')
+            ForEach(this.recentAgentDirectories.slice(0,6),(row:LaunchChoice) => {
+              Stack({alignContent:Alignment.TopStart}) {
+                this.recentDirectory(row)
+                Divider().strokeWidth(Tokens.divider).color(Colors.divider).margin({left:this.agentSize(48,55),right:20})
+                  .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+              }.width('100%')
+            },(row:LaunchChoice) => row.id)
+          }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+        }
+        this.agentSectionTitle('flow_launcher_model_once',true)
+        Column() {
+          if (this.agentPresets.length) {
+            this.agentOptionRow('preset')
+            this.launchDivider()
+          }
+          this.agentOptionRow('launcher')
+          if (this.effectiveLauncher()) {
+            this.launchDivider()
+            this.agentOptionRow('model')
+          }
+          if (this.launchChoices.startEfforts(this.chosenLauncher()).length > 0) {
+            this.launchDivider()
+            this.agentOptionRow('effort')
+          }
+        }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(14)
+        Text(this.agentModelHelp()).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+          .width('100%').padding({left:12,right:12,top:6}).id('agent.model.help')
+        this.agentSectionTitle('flow_first_message',true)
+        if (this.chatForward.newFor(this.agentModel)) PhoneForwardNewTray({model:this.agentModel,state:this.chatForward})
+        TextArea({text:this.newTask,placeholder:tr(this.promptOptional() ? 'flow_draft_optional' : 'task')})
+          .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
+          .minLines(3).maxLines(10,{overflowMode:MaxLinesMode.SCROLL}).width('100%')
+          .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
+          .padding({left:16,right:16,top:11,bottom:11}).fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+          .onFocus(() => { this.agentMessageFocused = true; this.revealFocusedAgentDraft(); })
+          .onBlur(() => { this.agentMessageFocused = false; })
+          .onChange((v:string) => { this.newTask = v; this.saveAgentDraft(); }).id('agent.task')
+        if ((this.agentWorktree || this.pickedAgentTree) && !this.selectedAgentTree()) Text(tr('project_gone')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).padding(8)
+      }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:this.agentScrollClearance()})
+        .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
+    }.width('100%').height('100%').align(Alignment.TopStart)
+      .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
   }
   private async loadAgentLaunchers(): Promise<void> {
     const rev = ++this.launcherRevision, form = this.agentFormRevision, owner = this.agentModel, machine = this.chosenAgentMachine()?.id;
