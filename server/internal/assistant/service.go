@@ -71,8 +71,10 @@ type Options struct {
 // Service is the assistant. It implements Handler.
 type Service struct {
 	// modules are the feature modules loaded (modules.go); nil, none.
-	modules          *kernel.Kernel
-	compactRecovery  compactRecoveryCache
+	modules         *kernel.Kernel
+	compactRecovery compactRecoveryCache
+	// sendFanout: whom each conversation woke with conversation_send lately (conversation_fanout.go).
+	sendFanout       sendFanout
 	logical          logicalDeviceState
 	a2aWake          chan struct{}
 	a2aLogicalWrites chan struct{}
@@ -165,6 +167,9 @@ type Service struct {
 	// superviseTimes are how supervision messages gather and space out (zero fields: the package's; tests shorten
 	// them, supervise_signals.go superviseTimings).
 	superviseTimes superviseTimings
+	// noReportHold: a report goes out without waiting for its Agent's stop (reportStopHold). Tests about what a report
+	// says set it; supervise_slim_test.go's turn it off again.
+	noReportHold bool
 	// todoAskAfter is how long a linked to-do goes without progress before its recurring check asks the owner (0:
 	// scheduleAskAfter's floor; tests shorten it, schedule_todo_evidence.go).
 	todoAskAfter time.Duration
@@ -314,8 +319,10 @@ type Service struct {
 	tpush      todosPush         // todos.go: the {"type":"todos"} waiting for the rest of its write
 	directions directionBook     // directions.go: the leaders' records and what the extensions were told of them
 	lreports   leaderReportBook  // leader_reports.go: what the leaders' tasks were reported as
+	outbound   outboundOnce      // outbound_once.go: one card per hand-off the owner is asked about, none again once allowed
 	dtree      directionTreeBook // direction_tree.go: the direction tree the apps were last told of
 	tview      todoViewBook      // todo_view_push.go: what the apps were told each to-do is filed under
+	trevision  todoRevisionBook  // todo_revision.go: the pushed read's cheap validator
 	offers     routeBook         // route.go: the directions offered for New chats
 	standing   standingBoard     // feishu_board.go: the standing "waiting for you" card
 	workbench  workbenchState    // feishu_workbench_pin.go: the pinned workbench
@@ -326,17 +333,18 @@ type Service struct {
 	viewEvents viewNotifications // views.go: only coalesced notifications; contents are stored first
 	viewMemo   viewMemo          // views.go: encoded cards for the feed snapshot, checked against the database
 
-	devs          Devices // the computers (devices.go); nil: no fleet
-	mcpWaitMu     sync.Mutex
-	mcpWaits      map[string]*mcpWaitReporter // live opted-in mcp.call requests, by their validated call id
-	agentArchives agentArchiveBook
-	orphans       orphanBook                // tasks_orphan.go: the open to-dos nobody works on
-	agentNative   agentNativeBook           // the tools' own archives (agent_archive_native.go)
-	switchQ       switchQueue               // agents_switch's switches waiting for their agents' turns to end (agents_switch.go)
-	fleet         fleetBook                 // what comes from the nodes (fleet.go)
-	convAttention conversationAttentionBook // the main conversation's silent-round unread cache
-	nextSug       nextSuggestBook           // suggest_next.go: the hub-made next-message suggestions
-	askUp         escalationBook            // cards that reached the user through an escalation (ask_route.go), under fleet.mu
+	devs                 Devices // the computers (devices.go); nil: no fleet
+	mcpWaitMu            sync.Mutex
+	mcpWaits             map[string]*mcpWaitReporter // live opted-in mcp.call requests, by their validated call id
+	agentArchives        agentArchiveBook
+	orphans              orphanBook                // tasks_orphan.go: the open to-dos nobody works on
+	agentNative          agentNativeBook           // the tools' own archives (agent_archive_native.go)
+	switchQ              switchQueue               // agents_switch's switches waiting for their agents' turns to end (agents_switch.go)
+	conversationSwitches conversationSwitchBook    // Assistant conversation batch switches (conversations_switch.go)
+	fleet                fleetBook                 // what comes from the nodes (fleet.go)
+	convAttention        conversationAttentionBook // the main conversation's silent-round unread cache
+	nextSug              nextSuggestBook           // suggest_next.go: the hub-made next-message suggestions
+	askUp                escalationBook            // cards that reached the user through an escalation (ask_route.go), under fleet.mu
 	// delegateHook stands in for Delegate in tests (fleet_delegate.go).
 	delegateHook func(context.Context, DelegateParams) (DelegateResult, error)
 	// fleetEnded, when set, sees every card's end the channels are told (tests).
@@ -396,13 +404,13 @@ func New(o Options) *Service {
 	if s.logf == nil {
 		s.logf = func(string, ...any) {}
 	}
-	s.loadModules(o.Modules, o.ModulesOff) // before anything a module adds to is set up
 	// The kept old keys too while a rotation keeps them (keyrotate.go).
 	s.models.secret = secretkey.NewWithFallback(o.SecretKey)
 	s.archiveRoutes()
 	s.conversationTagRoutes()
 	s.conversationDeleteRoutes()
 	s.logicalSwitchRoutes()
+	s.conversationSwitchRoutes()
 	s.modelPickRoutes()
 	s.agentArchiveRoutes()
 	s.agentNamingRoutes() // agent_naming_request.go
@@ -473,6 +481,8 @@ func New(o Options) *Service {
 	s.launcherImportRoutes()
 	s.launcherHealthRoutes()
 	s.remoteImageRoutes()
+	// Core routes form the reserved namespace for module routes. Runtime module access starts only after New returns.
+	s.loadModules(o.Modules, o.ModulesOff)
 	return s
 }
 
@@ -873,6 +883,9 @@ func (s *Service) push(ctx context.Context, n Notification) {
 // alerting the phone (notify_user shows that to the model).
 func (s *Service) pushResult(ctx context.Context, n Notification) (NotifyResult, error) {
 	n.ID, n.Kind = "ntf_"+randomHex(8), NotifyPush
+	if n.CardID != "" {
+		n.ID = "card:" + n.CardID // a card's push asked for again replaces the one the phone shows (managerPushCollapseID)
+	}
 	// A track's push_cap holds the level (track_attention.go).
 	s.capTrackPush(ctx, &n)
 	if n.Asked { // the conversation pushed what matters itself: its own finished push is left out (fleet_push.go)
@@ -1170,6 +1183,7 @@ func (s *Service) SessionsChanged(ctx context.Context, d DeviceSessions) {
 	s.taskStageSessions(ctx, d)
 	s.nativeArchivesListed(d.MachineID) // agent_archive_native.go
 	s.switchQueueListed(d.MachineID)    // a queued launcher switch whose turn ended (agents_switch.go)
+	s.wakeConversationSwitches()        // queued Assistant conversation batch items (conversations_switch.go)
 	s.followStarts(ctx, d)              // the app's starts, for launcher health (launcher_health_starts.go)
 	s.directionTreeSessions(d)          // an Agent of the direction tree may have moved (direction_tree.go)
 	s.agentNamesChanged(d)
