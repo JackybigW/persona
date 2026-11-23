@@ -280,6 +280,14 @@ export struct SessionTools {
     return JSON.stringify([this.model.scope(),this.workspace.currentTarget(),this.workspace.currentPath,this.workspace.cwd]);
   }
   @Computed get fileNavigationHeight():number { return PhoneStyle.formSize(44,53.3,nativeEnvironment.fontScale); }
+  @Computed get menuDotSize():number { return PhoneStyle.formSize(4.3,5.3,nativeEnvironment.fontScale); }
+  @Builder horizontalMenuGlyph() {
+    Row({space:PhoneStyle.formSize(3.6,4.1,nativeEnvironment.fontScale)}) {
+      ForEach([0,1,2],(_dot:number) => {
+        Circle().width(this.menuDotSize).height(this.menuDotSize).fill(Colors.link)
+      },(dot:number) => String(dot))
+    }.accessibilityLevel('no')
+  }
   @Computed get shownFileRows():BoundRow<WorkspaceEntry>[] {
     return this.fileRowBindings.filter((binding:BoundRow<WorkspaceEntry>) => this.showHidden || !binding.value.name.startsWith('.'));
   }
@@ -864,7 +872,7 @@ export struct SessionTools {
           .backgroundColor(Colors.control).borderRadius(22).layoutWeight(1)
           .onChange((v:string) => { this.fileQuery=v; if (v.trim()) this.workspace.loadFileIndex(); }).id('session.files.query')
         else Blank().layoutWeight(1)
-        Button({type:ButtonType.Circle}) { Text('•••').fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Bold).fontColor(Colors.link) }
+        Button({type:ButtonType.Circle}) { this.horizontalMenuGlyph() }
           .width(44).height(44).padding(0).backgroundColor(Colors.control).bindMenu(this.fileMenu).accessibilityText(tr('more')).id('session.files.more')
           .bindSheet($$this.transferOpen,this.fileTransferForm(),{title:{title:tr('file_transfer_title')},height:SheetSize.LARGE,showClose:true})
       }.width('100%').id('session.files.find')
@@ -1375,9 +1383,7 @@ export struct SessionTools {
       }.layoutWeight(1)
       if (this.gitSheetMode==='diff' && this.workspace.gitDiff || this.gitSheetMode==='history' && Wire.text(this.workspace.gitShow,'diff') && (!this.phoneGitReader || this.patchSubpage())) {
         Button({type:ButtonType.Circle}) {
-          Text('•••').fontSize(13).maxFontScale(Tokens.navigationTextMaxScale).fontWeight(FontWeight.Bold)
-            .fontColor(this.phoneGitReader ? Colors.ink : Colors.link).textAlign(TextAlign.Center)
-            .width(this.phoneGitReader ? 36 : 44).height(this.phoneGitReader ? 36 : 44)
+          Stack() { this.horizontalMenuGlyph() }.width(this.phoneGitReader ? 36 : 44).height(this.phoneGitReader ? 36 : 44)
             .backgroundColor(Colors.surface).border({width:Tokens.divider,color:Colors.divider,radius:22})
         }.width(44).height(44).padding(0).backgroundColor(Color.Transparent)
           .bindMenu(this.gitSheetMenu).accessibilityText(tr('more')).id('session.git.sheet.more')
