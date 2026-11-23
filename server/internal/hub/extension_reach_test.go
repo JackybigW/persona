@@ -220,6 +220,36 @@ func TestTodoRepositoryRoutesStayOnTheirManager(t *testing.T) {
 	}
 }
 
+func TestAssistantEntriesStayOnTokenManager(t *testing.T) {
+	_, url, a, b := reachHub(t)
+	const path = "/api/v1/assistant/entries"
+	beforeA, beforeB := len(reached(a)), len(reached(b))
+	for _, request := range []struct {
+		path   string
+		header map[string]string
+	}{
+		{path, map[string]string{ManagerHeader: assistantwire.AssistantID}},
+		{path + "?manager=assistant&by=user", nil},
+	} {
+		if code, out := extDo(t, url, "GET", request.path, "", request.header); code != http.StatusForbidden || !strings.Contains(out, codeOtherManager) {
+			t.Errorf("another manager's ledger: %d %s", code, out)
+		}
+	}
+	if len(reached(a)) != beforeA || len(reached(b)) != beforeB {
+		t.Fatal("a refused ledger selector reached a manager")
+	}
+	if code, out := extDo(t, url, "GET", path+"?by=user", "", nil); code != http.StatusOK || !strings.Contains(out, `"who":"b"`) {
+		t.Fatalf("the token manager's ledger: %d %s", code, out)
+	}
+	if len(reached(a)) != beforeA {
+		t.Fatal("the ledger read reached another manager")
+	}
+	calls := reached(b)[beforeB:]
+	if len(calls) != 1 || !strings.HasPrefix(calls[0], assistantwire.MethodHTTP+" ") || !strings.Contains(calls[0], path) {
+		t.Fatalf("ledger read did not reach only the token manager: %v", calls)
+	}
+}
+
 // The To-dos view's reads (todo_view.go): one to-do and its timeline go to its own manager (byTodo), another manager's
 // are refused; the places are asked of the extension's own manager alone (mergedAsk), and naming another is refused.
 func TestTodoViewRoutesStayOnTheirManager(t *testing.T) {
@@ -252,6 +282,58 @@ func TestTodoViewRoutesStayOnTheirManager(t *testing.T) {
 	for i, path := range paths {
 		if !strings.Contains(calls[i], path) {
 			t.Errorf("B's call %d is %s, want %s", i, calls[i], path)
+		}
+	}
+}
+
+// The literal self-refresh route has no object id to route by. The authenticated extension token alone chooses its
+// manager; explicitly naming another manager is not an alternate path to that manager's markets.
+func TestExtensionSelfMarketRefreshStaysOnTokenManager(t *testing.T) {
+	_, url, a, b := reachHub(t)
+	beforeA, beforeB := len(reached(a)), len(reached(b))
+	// guardManager answers RPCs but does not take an HTTP relay. Stop after the dispatch this test is about; the real
+	// manager's immediate 202 and its background read are covered in extmgr.
+	const path = "/api/v1/extensions/-/self/market/refresh"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url+path, strings.NewReader(""))
+	req.Header.Set("Authorization", "Bearer "+extTokenPrefix+"bx-token")
+	req.Header.Set("Content-Type", "application/json")
+	answered := make(chan error, 1)
+	go func() {
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			err = resp.Body.Close()
+		}
+		answered <- err
+	}()
+	eventually(t, 5*time.Second, "the token manager's self refresh", func() bool { return len(reached(b)) > beforeB })
+	cancel()
+	select {
+	case <-answered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the cancelled self refresh did not return")
+	}
+	if got := reached(a)[beforeA:]; len(got) != 0 {
+		t.Fatalf("the other manager received the self refresh: %v", got)
+	}
+	calls := reached(b)[beforeB:]
+	if len(calls) != 1 || !strings.HasPrefix(calls[0], extwire.MethodAccept+" ") {
+		t.Fatalf("the token owner's manager did not receive exactly one self refresh: %v", calls)
+	}
+	for _, tc := range []struct {
+		path   string
+		header map[string]string
+	}{
+		{"/api/v1/extensions/-/self/market/refresh", map[string]string{ManagerHeader: assistantwire.AssistantID}},
+		{"/api/v1/extensions/-/self/market/refresh?manager=" + assistantwire.AssistantID, nil},
+	} {
+		beforeA, beforeB = len(reached(a)), len(reached(b))
+		if code, out := extDo(t, url, http.MethodPost, tc.path, "", tc.header); code != http.StatusForbidden || !strings.Contains(out, codeOtherManager) {
+			t.Fatalf("naming the other manager: %d %s", code, out)
+		}
+		if len(reached(a)) != beforeA || len(reached(b)) != beforeB {
+			t.Fatalf("a refused manager selector reached a manager: A %v, B %v", reached(a)[beforeA:], reached(b)[beforeB:])
 		}
 	}
 }
@@ -310,21 +392,28 @@ func TestEveryExtensionRouteIsBounded(t *testing.T) {
 		"GET /api/v1/machines/{id}/usage":                  "path",
 		"GET /api/v1/machines/{mid}/stat":                  "path",
 		"POST /api/v1/notify":                              "body",    // machine_id, session_id: its manager's (ownsRef)
-		"GET /api/v1/push/intercepts":                      "manager", // only entries with its manager (lnRoutes, TestLnInterceptsHeldToManager)
+		"GET /api/v1/push/intercepts":                      "manager", // only entries with its manager (pushGradingRoutes, TestPushGradingInterceptsHeldToManager)
 		"GET /api/v1/push/ln-mode":                         "own",     // the hub-wide switch state, no manager's data in the answer
-		"GET /api/v1/push/stats/daily":                     "manager", // only its manager's counts (lnRoutes, TestPushDailyStatsHeldToManager)
+		"GET /api/v1/push/grading":                         "own",     // alias of the hub-wide switch state, same answer and authorization
+		"GET /api/v1/push/stats/daily":                     "manager", // only its manager's counts (pushGradingRoutes, TestPushDailyStatsHeldToManager)
 		"GET /api/v1/assistant":                            "manager",
 		"GET /api/v1/assistant/capabilities":               "manager",
+		"GET /api/v1/assistant/entries":                    "manager", // TestAssistantEntriesStayOnTokenManager
 		"POST /api/v1/assistant/conversations":             "manager",
 		"GET /api/v1/assistant/conversations/{id}/feed":    "path",
 		"POST /api/v1/assistant/conversations/{id}/stop":   "path",
 		"GET /api/v1/assistant/reporters":                  "manager",
 		"GET /api/v1/assistant/leaders":                    "manager",
+		"POST /api/v1/assistant/directions":                "manager", // create validates an optional body Agent against this manager
+		"POST /api/v1/assistant/directions/{id}/progress":  "manager", // current-direction membership is manager-owned
 		"GET /api/v1/assistant/dispatch-policy":            "manager",
 		"PUT /api/v1/assistant/dispatch-policy":            "manager",
+		"GET /api/v1/assistant/dispatch-guard":             "manager",
+		"PUT /api/v1/assistant/dispatch-guard":             "manager",
 		"GET /api/v1/assistant/worker-presets":             "manager",
 		"GET /api/v1/assistant/start-defaults":             "manager",
 		"PUT /api/v1/assistant/start-defaults":             "manager",
+		"POST /api/v1/assistant/start-defaults/preview":    "manager",
 		"GET /api/v1/todos":                                "manager", "GET /api/v1/todos/{id}/decisions": "manager",
 		"GET /api/v1/todos/{id}": "manager", "GET /api/v1/todos/places": "manager", // TestTodoViewRoutesStayOnTheirManager
 		"GET /api/v1/todos/{id}/timeline":                     "manager", // TestTodoViewRoutesStayOnTheirManager
@@ -340,11 +429,15 @@ func TestEveryExtensionRouteIsBounded(t *testing.T) {
 		"GET /api/v1/todos/{id}/workspace-naming/plans/{operation_id}": "manager",
 		"POST /api/v1/assistant/workspace-naming/preview":              "manager",
 		"POST /api/v1/todos":                                           "manager", "PATCH /api/v1/todos/{id}": "manager",
+		"POST /api/v1/decisions":                            "manager",
+		"GET /api/v1/decisions/{id}":                        "manager",
+		"POST /api/v1/decisions/{id}/withdraw":              "manager",
 		"POST /api/v1/todos/{id}/decisions":                 "manager",
 		"PUT /api/v1/todos/{id}/agents/{mid}/{sid}":         "path",
 		"DELETE /api/v1/todos/{id}/agents/{mid}/{sid}":      "path",
 		"PUT /api/v1/todos/{id}/spaces/{mid}/{space...}":    "path",
 		"DELETE /api/v1/todos/{id}/spaces/{mid}/{space...}": "path",
+		"POST /api/v1/extensions/-/self/market/refresh":     "manager",
 		"/api/v1/extensions/{id}/":                          "manager",
 	}
 	for route := range extwire.RouteScopes {

@@ -109,7 +109,7 @@ func (s *Service) toolAgentsSwitch(ctx context.Context, machine, self string, ar
 	}
 	// One confirmation for the whole batch (in the health space: one card), never one per agent.
 	summary := fmt.Sprintf("→ %s\n\n%s", t.Launcher, strings.Join(lines, "\n"))
-	if ok, err := s.confirmOutbound(ctx, machine, self, "agents_switch", summary, args); err != nil {
+	if ok, err := s.confirmOutbound(ctx, machine, self, "agents_switch", "", summary, args); err != nil {
 		return "", err
 	} else if !ok {
 		return "The user declined on the phone: no agent was moved and nothing was sent.", nil
@@ -171,7 +171,7 @@ func (s *Service) switchItems(ctx context.Context, a agentsSwitchArgs, t switchT
 				continue
 			}
 			own := cmp.Or(c.Launcher, "claude")
-			if own == t.Launcher || from != "" && own != from {
+			if own == t.Launcher && !c.OffLauncher || from != "" && own != from { // off it: a switch back (#11792)
 				continue
 			}
 			out = append(out, s.switchPlan(ctx, m, c, t))
@@ -452,7 +452,7 @@ func (s *Service) runSwitchQueue(ctx context.Context, machine string) {
 			drop = "queued over a day ago"
 		case !ok || switchStopped(c) && !c.StartedByPersona:
 			drop = "it stopped or is gone"
-		case cmp.Or(c.Launcher, "claude") == w.Launcher:
+		case cmp.Or(c.Launcher, "claude") == w.Launcher && !c.OffLauncher: // off it: the switch back (#11792)
 			drop = "it runs there already"
 		case cmp.Or(c.Launcher, "claude") != w.From:
 			drop = "it moved to another launcher meanwhile"

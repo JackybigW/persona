@@ -260,8 +260,9 @@ final class InboxStore {
         save()
     }
 
-    /// The current assistant's open items that still need the user, including ones already read: what the tab's badge
-    /// counts.
+    /// The current assistant's open items that still need the user, including ones already read: the Inbox widget's
+    /// Need You and the dot on the persona's face. The tab's badge and the sidebar's Inbox row count only the unread ones
+    /// (`unreadCount`).
     var actionCount: Int { scopedItems.filter { !$0.isDone && $0.triage == .action }.count }
 
     /// Unread open items in Needs you. Counted once per change of the items or of the current assistant and kept: the
@@ -368,8 +369,8 @@ final class InboxStore {
         }
     }
 
-    /// The connectors' items (GitHub…) are drawn on iOS and the Mac (#2611, #2736); the watch fetches its own (WatchModel, #2727).
-    #if os(iOS) || os(visionOS) || os(macOS)
+    /// The connectors' items (GitHub…) are drawn on iOS and visionOS (#2611, #2736); the watch fetches its own (WatchModel, #2727).
+    #if os(iOS) || os(visionOS)
     private static let drawsConnectors = true
     #else
     private static let drawsConnectors = false

@@ -21,11 +21,11 @@ import (
 	"github.com/nwverse/persona/server/internal/devicewire"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/kb"
+	"github.com/nwverse/persona/server/internal/modelhttp"
 	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/remoteimage"
 	"github.com/nwverse/persona/server/internal/secretkey"
-	"github.com/nwverse/persona/server/internal/taskworkspace"
 )
 
 // Options are what a Service runs with.
@@ -63,10 +63,18 @@ type Options struct {
 
 // Service is the assistant. It implements Handler.
 type Service struct {
+	compactRecovery  compactRecoveryCache
+	logical          logicalDeviceState
+	a2aWake          chan struct{}
+	a2aLogicalWrites chan struct{}
+	history          conversationHistoryBook
 	// agentDirs keeps each computer's hidden Agent folders (hidden_agent_dirs.go); nil: none.
 	agentDirs AgentDirs
 	// remoteImages fetches the pictures replies name by address for the apps (remote_image.go).
 	remoteImages *remoteimage.Fetcher
+	// channelPicture fetches an answer's pictures for a channel that sends them (channels_images.go): remoteImages.Get,
+	// a fake in tests.
+	channelPicture func(ctx context.Context, caller, rawURL string, size int) (*remoteimage.Image, error)
 	// inboxExt is what the extensions wrote for the Inbox, read at most once a minute (extension_context.go).
 	inboxExt inboxExtensionCache
 	// extTr are the extensions' transcription jobs running now (extension_transcribe.go).
@@ -76,6 +84,8 @@ type Service struct {
 	repositoriesMu   sync.Mutex
 	repositoryConfig string
 	repositoryCheck  func(context.Context, repository.Identity) error // tests only; production uses the guarded checker
+	// gitlabReview reads a GitLab merge request (tests only; production uses the guarded checker, code_host_gitlab.go).
+	gitlabReview func(ctx context.Context, id repository.Identity, link repository.TaskLink, token string) (repository.ReviewStatus, error)
 	// repoExt is the extensions' repository providers (SetExtensions; repository_providers.go); nil: none.
 	repoExt repository.Extensions
 	// repoStarted is closed once repoExt lists its providers (its manager has started); nil: it always does.
@@ -96,8 +106,13 @@ type Service struct {
 	mcpChanges mcpToolChanges
 	// ext is the extensions' tools in this process (extensions.go SetExtensions); nil: none (tests).
 	ext ExtensionTools
+	// extOwners keeps the extensions the user marked as their own for the profile (extension_trust.go).
+	extOwners extensionOwnerCache
 	// startDefaultsFor answers a task start's defaults from the extension layer (start_defaults.go); nil: no defaults.
 	startDefaultsFor func(ctx context.Context, facts StartFacts) (StartDefaults, bool, error)
+	// startCandidates lists the presets a start-defaults rule can pick on a machine (start_candidates.go); nil: the
+	// built-in model-profile source. A dynamic candidates source is injected here without touching matching or retries.
+	startCandidates startCandidateSource
 	// refs is the provider extensions' values for launcher keys that are references (launcher_secrets.go); nil: none.
 	refs launcherSecrets
 	// trans reaches the transcription contributions (meeting_transcribe_ext.go): the extensions' when they offer it
@@ -108,10 +123,12 @@ type Service struct {
 	// listen; nil: none.
 	heard ownerHeard
 	// humanSent: the messages a person's own app sent, as the hub vouched (secret_handoff.go).
-	humanSent humanSends
+	humanSent      humanSends
+	storeApprovals storeApprovals
 
-	hub   Hub
-	store func() Store
+	hub         Hub
+	store       func() Store
+	entriesDial func(context.Context, any) ([]byte, error)
 	// trustSrc is Options.Trust.
 	trustSrc MachineTrust
 	logf     func(format string, args ...any)
@@ -177,6 +194,7 @@ type Service struct {
 	phoneKept        keptPhoneTools        // fleet_tools.go: the phone's tools as the hub last listed them
 	agentNames       agentNamingBook       // agent_naming.go
 	prefs            settingsBook          // profile.go
+	guard            dispatchGuardBook     // dispatch_guard.go
 	main             mainBook              // start.go
 	archived         archiveBook           // conversations.go
 	tags             conversationTagsBook  // conversation_tags.go
@@ -187,6 +205,7 @@ type Service struct {
 	chatReplies      chatReplyBook         // chat_reply.go: what conversations that wrote as the user were told of the chats
 	undelivered      undeliveredBook       // undelivered.go: the owner's messages that could not go in
 	quotes           quoteBook             // relay_quote.go: the owner's messages relays carried, verified
+	handovers        handoverBook          // relay_handover.go: the owner's words handed to and from a direction's lead
 	avail            availBook             // availability.go
 	quiet            quietBook             // quiet.go
 	taskFileBook     taskFileBook          // task_files.go: the files tasks handed over, by todo id
@@ -197,6 +216,12 @@ type Service struct {
 	search           searchIndex           // search_index.go
 
 	deletedConversations conversationDeleteBook // conversation_delete.go
+	convSpaces           convSpaceBook          // conversation_space.go
+	trackReg             trackRegistry          // track_registry.go
+	infoTags             infoTagCache           // info_tag.go
+	infoTagWaiting       infoTagPending         // info_use.go
+	spaceFill            spaceBackfill          // conversation_space_backfill.go
+	outcomeLines         outcomeLines           // todo_outcome.go
 	conversationWrites   sync.RWMutex
 
 	modelPicks modelPickBook // model_pick.go
@@ -206,6 +231,10 @@ type Service struct {
 	// briefsOptional: task_plan takes a task without done_when / expect_minutes (briefRequired). Only the tests of
 	// what a plan does once it exists set it; the hub never does.
 	briefsOptional bool
+	// noInfoTag: nothing is tagged with information categories whatever model info.tag has (infoTagConfigured), as
+	// with none set up. Tests turn tagging off unless they are about it: a model's socket inside a synctest bubble
+	// never counts as blocked.
+	noInfoTag      bool
 	background     backgroundBook    // supervise_background.go
 	autoRuns       autoReviewBook    // supervise_autoreview.go
 	sessionReviews sessionReviewBook // agents_session_review.go
@@ -219,6 +248,7 @@ type Service struct {
 	accept         acceptBook        // acceptance.go
 	pushQuiet      quietSwitch       // push_quiet.go: the hub's low-distraction switch as last read
 	deploy         deployProbe       // deploy_check.go: is the work in the running hub
+	prEventRoute   prEventRouteBook  // pr_status_route.go: opt-in direct PR-event routing dedupe
 	parkReplies    parkReplyBook     // park_reply.go: bounded source reads for explicitly bound person replies
 
 	reviewDismissals taskReviewDismissalBook // task_review_dismissals.go
@@ -329,11 +359,15 @@ var _ Handler = (*Service)(nil)
 // New makes the assistant; nothing runs until the hub calls it.
 func New(o Options) *Service {
 	s := &Service{hub: o.Hub, store: o.Store, logf: o.Logf, mux: http.NewServeMux(), epoch: randomHex(8), tasks: newTasksState(), born: time.Now(),
-		devs: o.Devices, trustSrc: o.Trust, agentDirs: o.AgentDirs, id: o.ID, build: o.Build, repositoryConfig: o.RepositoryConfig, urgentWake: make(chan struct{}, 1)}
+		devs: o.Devices, trustSrc: o.Trust, agentDirs: o.AgentDirs, id: o.ID, build: o.Build, repositoryConfig: o.RepositoryConfig, urgentWake: make(chan struct{}, 1),
+		a2aWake: make(chan struct{}, 1), a2aLogicalWrites: make(chan struct{}, 4)}
 	s.inbox.lang = func() i18n.Lang { return s.lang(context.Background()) }
 	s.remoteImages = remoteimage.New(remoteimage.Options{CacheDir: o.RemoteImageCache, Logf: o.Logf, DoH: s.remoteImageDoH})
 	if s.store == nil {
 		s.store = func() Store { return nil }
+	}
+	if _, ok := s.store().(logicalConversationStore); ok && s.devs != nil {
+		s.devs = &logicalDevices{Devices: s.devs, s: s}
 	}
 	if s.logf == nil {
 		s.logf = func(string, ...any) {}
@@ -343,10 +377,13 @@ func New(o Options) *Service {
 	s.archiveRoutes()
 	s.conversationTagRoutes()
 	s.conversationDeleteRoutes()
+	s.logicalSwitchRoutes()
 	s.modelPickRoutes()
 	s.agentArchiveRoutes()
 	s.agentNamingRoutes() // agent_naming_request.go
 	s.alwaysRoutes()
+	s.infoAccessRoutes()
+	s.trackRoutes()
 	s.undeliveredRoutes()
 	s.standingAuthorizationRoutes()
 	s.ruleSuggestionRoutes()
@@ -354,7 +391,9 @@ func New(o Options) *Service {
 	s.urgentCallRoutes() // urgent_call.go
 	s.reporterRoutes()
 	s.directionRoutes()
+	s.directionOutsideRoutes()
 	s.dispatchPolicyRoutes() // dispatch_policy_routes.go
+	s.dispatchGuardRoutes()  // dispatch_guard.go
 	s.startPresetRoutes()
 	s.startDefaultsRoutes() // start_defaults_routes.go
 	s.directionTreeRoutes()
@@ -365,6 +404,7 @@ func New(o Options) *Service {
 	s.directionNotesRoutes()
 	s.originRoutes()
 	s.profileRoutes()
+	s.entriesRoutes()
 	s.skillImportRoutes()
 	s.readinessRoutes()
 	s.availabilityRoutes()
@@ -375,6 +415,7 @@ func New(o Options) *Service {
 	s.scheduleGrantRoutes()
 	s.placeRoutes()
 	saved.Register(saved.Host{Store: func() any { return s.store() }, Event: s.event, Handle: s.handle, Full: fullRole, BodyErr: writeBodyErr})
+	s.resourceRoutes()
 	s.repositoryRoutes()
 	s.taskRoutes()
 	s.viewActionRoutes()
@@ -390,6 +431,7 @@ func New(o Options) *Service {
 	s.kbInit(o.KB)
 	s.kbRoutes()
 	s.searchRoutes()
+	s.historyRoutes()
 	s.inboxRoutes()
 	s.modelConfigRoutes()
 	s.modelProfileRoutes()
@@ -408,6 +450,9 @@ func New(o Options) *Service {
 // handle adds one of the routes the hub relays.
 func (s *Service) handle(pattern string, fn http.HandlerFunc) {
 	s.routes = append(s.routes, pattern)
+	if _, path, _ := strings.Cut(pattern, " "); strings.HasPrefix(path, "/api/v1/todos/{id}") {
+		fn = s.todoScoped(fn) // what an extension is not shown of a to-do, at every route of one (todo_scope.go)
+	}
 	s.mux.HandleFunc(pattern, fn)
 }
 
@@ -418,7 +463,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		apierr.Call(w, err)
 		return
 	}
-	s.mux.ServeHTTP(w, r)
+	s.mux.ServeHTTP(w, s.extensionReaderRequest(r))
 }
 
 // fullRole: the request came from a device that may do everything (RoleHeader; none: a test's own request).
@@ -467,6 +512,7 @@ func (s *Service) lang(ctx context.Context) i18n.Lang {
 
 // call is a DeviceCall whose answer is read into out (nil: not read).
 func (s *Service) call(ctx context.Context, device, method string, params, out any) error {
+	sessionSend := method == DeviceSessionSend || method == DeviceSessionSendOnce || a2aDeliveryMethod(method)
 	if conversationWrite(method) {
 		s.conversationWrites.RLock()
 		defer s.conversationWrites.RUnlock()
@@ -476,17 +522,42 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 			return beforeNodeWrite(method, err)
 		}
 	}
+	if method == DeviceSessionItems || method == DeviceAssistantHandoff || method == "session.item" || method == "session.image" {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			return err
+		}
+		if result, handled, err := s.logicalCall(ctx, device, method, raw); handled {
+			if err != nil || out == nil {
+				return err
+			}
+			return json.Unmarshal(result, out)
+		}
+		if result, handled, err := s.historyCall(ctx, device, method, raw); handled {
+			if err != nil || out == nil {
+				return err
+			}
+			return json.Unmarshal(result, out)
+		}
+	}
 	taken := false // the node took this send (or may have): a direction's notes block it carried counts as given
-	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || method == DeviceAssistantWarm || method == DeviceSessionSend ||
-		method == DeviceSessionSendOnce || method == assistantwire.DeviceAssistantAnswerAgain) {
+	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || method == DeviceAssistantWarm || sessionSend ||
+		method == assistantwire.DeviceAssistantAnswerAgain) {
 		id, _ := p["session_id"].(string)
+		if id != "" {
+			if _, trusted := p["model_source"].(modelhttp.Source); !trusted {
+				p["model_source"] = s.conversationModelSource(ctx, device, id)
+			}
+		} else if method == DeviceAssistantWarm {
+			p["model_source"] = modelhttp.Source{Role: "main"}
+		}
 		pctx, carry := withNotesCarry(ctx)
 		// Settled however this returns: a send refused before it left was not taken (direction_notes.go).
 		defer func() { s.notesSendOutcome(ctx, carry, taken) }()
 		if err := s.putSupervisionInstructions(pctx, device, id, p); err != nil {
 			return beforeNodeWrite(method, err)
 		}
-		if method == DeviceAssistantSend || method == DeviceSessionSend || method == DeviceSessionSendOnce {
+		if method == DeviceAssistantSend || sessionSend {
 			// Initial assistant.send starts do not pass through SendParams, and Inbox continuations use session.send.
 			// The hub forwards session.send_once to the same node entry, so attest it here before that forwarding too.
 			// Attest the explicit ordinary/unknown decision on every manager-owned node send.
@@ -505,10 +576,13 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 			if origin != "" {
 				p["origin"] = origin
 			}
+			if err := s.putInboxPermissionMode(ctx, device, id, p, origin, originKnown); err != nil {
+				return beforeNodeWrite(method, err)
+			}
 			if !originKnown || (origin != "" && origin != OriginTask) || p["is_main"] == true {
 				delete(p, devicewire.LegacyTaskExecution)
 			}
-			if method == DeviceSessionSend || method == DeviceSessionSendOnce {
+			if sessionSend {
 				cfg := s.settings(ctx)
 				if id != "" && id == cfg.Main && device == cfg.mainRouteMachine() {
 					p["is_main"] = true // internal sends must not restart main on ordinary-chat compaction settings
@@ -535,9 +609,18 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 			}
 		}
 	}
-	if p, ok := params.(map[string]any); ok && (method == DeviceSessionSend || method == DeviceSessionSendOnce) {
+	if p, ok := params.(map[string]any); ok && sessionSend {
 		if id, _ := p["session_id"].(string); id != "" {
 			s.workTold(device, id) // the turn it starts is this manager's doing, not the owner's hand (setup_suggest.go)
+		}
+	}
+	laterTaken := func(bool) {}
+	if p, ok := params.(map[string]any); ok && method == DeviceAssistantSend {
+		// What conversation_send with wake: false kept for this conversation goes in with this message (relay_later.go).
+		var err error
+		laterTaken, err = s.withRelayLater(ctx, p)
+		if err != nil {
+			return beforeNodeWrite(method, err)
 		}
 	}
 	if p, ok := params.(map[string]any); ok && method == DeviceAssistantSend {
@@ -553,12 +636,20 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 			p["interject_background"] = true // what the node does with a message that comes while it answers
 		}
 	}
-	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || method == DeviceSessionSend || method == DeviceSessionSendOnce) && p["is_main"] == true {
-		p["idle_compaction"] = assistantwire.IdleCompaction{
-			Enabled: s.idleAutoCompact(ctx), IdleMinutes: s.idleAutoCompactMinutes(ctx), ContextTokens: s.idleAutoCompactTokens(ctx),
+	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || sessionSend) && p["is_main"] == true {
+		p["idle_compaction"] = s.idleCompactionPolicy(ctx)
+	}
+	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || sessionSend) {
+		// Every manager-owned send into an existing conversation attests the cache refresh role here, not only those
+		// through sendModel: a leader's supervision digest, a relay, an A2A delivery or an Inbox continuation can be
+		// what starts the process, and the node mounts the refresh proxy only at a start (#12786). A new conversation's
+		// start (no id yet) keeps what start put; whatever a caller set for an existing one is replaced.
+		if id, _ := p["session_id"].(string); id != "" {
+			cfg := s.settings(ctx)
+			s.putCacheKeepalive(ctx, device, id, cfg.Main == id && cfg.mainRouteMachine() == device, p)
 		}
 	}
-	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || method == DeviceAssistantWarm || method == DeviceSessionSend || method == DeviceSessionSendOnce) {
+	if p, ok := params.(map[string]any); ok && (method == DeviceAssistantSend || method == DeviceAssistantWarm || sessionSend) {
 		// The window the main conversation is held to (main_compact_window.go), as sendModel puts it: a start, a relay,
 		// an internal message and the spare warmed for its next start carry it with is_main, or the node starts it again
 		// on its launcher's window (and never adopts the spare).
@@ -574,7 +665,11 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 	if p, ok := params.(map[string]any); ok && startScopeMethods[method] {
 		// A Persona-managed provider out of this computer's scope does not run there (models_launchers_scope.go).
 		if name, _ := p["launcher"].(string); name != "" {
-			if err := s.launcherScopeErr(ctx, device, name); err != nil {
+			scopeMachine := device
+			if id, _ := p["session_id"].(string); id != "" {
+				scopeMachine = s.logicalExecutionMachine(ctx, device, id)
+			}
+			if err := s.launcherScopeErr(ctx, scopeMachine, name); err != nil {
 				if method == DeviceAssistantSend {
 					s.recordManagerSend(device, p, nil, err) // a failed start or resume all the same (north_star.go)
 				}
@@ -606,16 +701,13 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 	if err != nil {
 		return beforeNodeWrite(method, err)
 	}
-	p := DeviceCall{Device: device, Method: method, Params: raw}
-	if fields, ok := params.(map[string]any); ok && method == DeviceSessionStart {
-		if _, managed := fields["backend_workspace"].(taskworkspace.Request); managed {
-			p.Method = devicewire.MethodStartBackendSession
-		}
+	p := DeviceCall{Device: device, Method: nodeMethod(method, params), Params: raw}
+	cctx, cancel, bounded := toolNodeContext(ctx, method) // a model's tool waits for a silent node only so long (tool_node_wait.go)
+	res, err := s.callDevice(cctx, p)
+	if bounded && err != nil && ctx.Err() == nil && errors.Is(context.Cause(cctx), errNodeSilent) {
+		err = s.nodeSilent(device, method, err)
 	}
-	res, ok, err := s.localFleetDeviceCall(ctx, p) // what the hub answered before the nodes' events were the manager's
-	if !ok {
-		res, err = s.hub.DeviceCall(ctx, p)
-	}
+	cancel()
 	// Not taken: refused before anything was typed, or it never reached the computer (relay_refusal.go).
 	taken = err == nil || !sendNotTaken(err)
 	if taskRoot != "" && (method == DeviceSessionSend || method == deviceTaskStart) {
@@ -627,6 +719,7 @@ func (s *Service) call(ctx context.Context, device, method string, params, out a
 	if err == nil {
 		round.sent(s, res) // whose round it is, for the owner's next message (owner_preempt.go)
 	}
+	laterTaken(err == nil)
 	if sent, ok := params.(map[string]any); ok && method == DeviceAssistantSend {
 		s.recordManagerSend(device, sent, res, err) // the north star's availability (north_star.go)
 	}
@@ -721,11 +814,13 @@ func (s *Service) device(ctx context.Context, id string) (Device, bool) {
 
 // startParams are what a new conversation starts with.
 type startParams struct {
+	modelSource         modelhttp.Source
 	TaskModel           *ModelBinding
 	MachineID           string
 	Cwd                 string
 	TaskExecution       bool
 	LegacyTaskExecution bool
+	PromptSelections    bool
 	Text                string               `json:"text"`
 	PermissionMode      string               `json:"permission_mode,omitempty"`
 	Purpose             string               `json:"purpose,omitempty"` // the model configuration's purpose; "" is the assistant's
@@ -851,6 +946,9 @@ func (s *Service) snapshot(ctx context.Context) Snapshot {
 		// identity on every client. Keep its stored ordinary title for when it ends.
 		names := s.directionSessionNames(ctx, cfg, titles)
 		for id, name := range names {
+			if d := s.directionOf(id); d != nil && d.Outside != nil {
+				continue // this is a direction, not a conversation to decorate
+			}
 			if name != "" {
 				view(id, leadersAt).Title = name
 			}
@@ -951,6 +1049,7 @@ func (s *Service) turnStartedObserved(ctx context.Context, r SessionRef, newTurn
 // TurnEnded: a task's agent may be done (in the background: it waits for the agents to settle), an agent's turn is
 // triaged; a new conversation is named after its first turn.
 func (s *Service) TurnEnded(ctx context.Context, r SessionRef) {
+	s.a2aSignal()
 	s.approvalAnswerTurnEnded(r)
 	s.turnEnded(ctx, r, s.meetingTurnEnded(r.MachineID, r.SessionID))
 }
@@ -963,6 +1062,8 @@ func (s *Service) turnEnded(ctx context.Context, r SessionRef, meeting bool) {
 	go s.registerInlineTurn(context.WithoutCancel(ctx), r)
 	s.afterSettle(context.WithoutCancel(ctx), s.registerInlineTurnSettled, r.MachineID, r.SessionID)
 	if !meeting {
+		s.infoTagTurnEnded(ctx, r.SessionID) // its categories are not known until it is tagged (info_use.go)
+		s.backgroundRoundTurnEnded(ctx, r.SessionID, time.Now())
 		s.availTurnEnded(ctx, r.MachineID, r.SessionID, time.Now()) // an assistant conversation's round (availability.go)
 		s.afterSettle(context.WithoutCancel(ctx), s.taskTurnSettled, r.MachineID, r.SessionID)
 		// A review's reviewer answered (supervise_autoreview.go, agents_session_review.go).
@@ -977,8 +1078,11 @@ func (s *Service) turnEnded(ctx context.Context, r SessionRef, meeting bool) {
 		// An assistant turn that failed is logged; a conversation conversation_new opened tells its parent (spawned.go).
 		s.afterSettle(context.WithoutCancel(ctx), s.assistantTurnSettled, r.MachineID, r.SessionID)
 		s.afterSettle(context.WithoutCancel(ctx), s.inboxAgentTurnSettled, r.MachineID, r.SessionID)
+		// What the turn said is tagged with its information categories (info_tag.go).
+		s.afterSettle(context.WithoutCancel(ctx), s.infoTagTurnSettled, r.MachineID, r.SessionID)
 	}
 	if !meeting {
+		s.spawnPinAfterTurn(ctx, r.MachineID, r.SessionID)
 		s.titleAfterTurn(ctx, r.MachineID, r.SessionID)
 	}
 }
@@ -1020,9 +1124,13 @@ func (s *Service) SessionsChanged(ctx context.Context, d DeviceSessions) {
 	}
 	s.toolLoopsChanged(d)
 	s.progressSessions(d, time.Now()) // what the working agents do, for no_progress (supervise_progress.go)
-	s.drainRelays(d.MachineID, d.Sessions)
+	if s.retractConfirmedStartUnknowns(ctx, d.Sessions) {
+		s.drainRelays(d.MachineID, d.Sessions)
+	}
 	s.undeliveredSeen(d)                      // kept owner messages go once their conversation runs again (undelivered.go)
 	s.originsChanged(d.MachineID, d.Sessions) // conversations from before origins were noted (origins.go)
+	// The conversations' spaces, before what may tell an extension of a to-do (conversation_space.go).
+	s.conversationSpacesListed(d.MachineID, d.Sessions)
 	s.todosSessionsChanged(ctx, d)
 	s.taskSpacesSessionsChanged(ctx, d)
 	s.todoRunsChanged(d.MachineID) // a to-do's view may file it elsewhere now (todo_view_push.go)

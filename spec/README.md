@@ -27,6 +27,7 @@ spec/
     graph-layout/     an extension graph's layout, reading order and folds, checked by the web, iOS, Android and the hub
     input-clip/       the whole-input bound after the hub and runtime SDK's two string passes
     attention/        Persona Link's "Needs you" summary against the web badge
+    counts/           every place a count is drawn, the count it draws, and how the clients' replays agree
     entries/          the Assistant's two composer entries, Needs you and In progress
     needs-you/        the Agents tab's Needs you: one row per waiting session, what its header, filter and badge count
     triage/           the To-dos page's sections (status SOP), checked by the web app and the hub
@@ -45,7 +46,9 @@ spec/
     star-prompt/      when the GitHub star prompts show (empty Agents pill, milestone card, onboarding toast)
     stream-chunks/     the completed-block split of a streaming reply, checked against iOS by the pure Rust core
     meeting-echo/     Persona's echo in a meeting: a line is one only when its time and its words match, checked by the hub and iOS
+    meeting-transcription-problems/ why the hub isn't transcribing a meeting: the extension's code, the phone's problem and what it says, checked by the hub and iOS
     minutes-overview/ the minutes' summary card: bold places, cleaning, the fallback and its Markdown, checked by the hub, the mock, iOS and web
+    minutes-wait/     what the minutes line says while the minutes wait for the final pass, with its progress, checked by the hub, iOS and web
     tool-names/       tool names, subjects and arguments in words, checked by Android (iOS later)
     chat-search/      what search in chat and the assistant's chat index find of each item, checked by web (Go and Android later)
     screen-link/      the live screen's session wire, checked by the node (Go) and the iPhone (PersonaScreenKit)
@@ -73,6 +76,7 @@ spec/
 | review | [README](fixtures/review/README.md): the node's real `git.review` answers, empty `header` and base `hash` left out, written by the node's test and decoded by iOS (#8733) |
 | comments | [README](fixtures/comments/README.md): the `> Comment N` / `Code comment N` / `Element comment N` blocks a message leads with, written and read back by the web app and the iOS app (#151) |
 | attention | [README](fixtures/attention/README.md): Persona Link's "Needs you" summary counts what the web app's badge counts, checked by Go and the web app |
+| counts | [README](fixtures/counts/README.md): the surface table, every place a count is drawn on each client, the count it draws and whether drawing the manager's view would show today's number, held to the code by `scripts/test/test_counts_surfaces.py`; and the agreement report, which compares what the iOS and Android needs-you replays count (`scripts/test/counts_agreement.py`, #11900) |
 | session-search | [README](fixtures/session-search/README.md): ranked runtime-Agent search, explicit query operators and shared local/server matching (#7624) |
 | chat-export | [README](fixtures/chat-export/README.md): a conversation exported as Markdown (#7375): who wrote each part, merged replies, work steps on and off, cut text and fences, written by the web app |
 | entries | [README](fixtures/entries/README.md): which of the Assistant's two composer entries (Needs you, In progress) each task, Agent, plan and message card goes to, checked by the web app and Android (#3387) |
@@ -96,7 +100,9 @@ spec/
 | deep-links | [README](fixtures/deep-links/README.md): the route table of `docs/protocol/deep-links.md` (#9926): the paths the hub's builder writes, and the page each client opens for a web link to a paired hub, an app link (`persona://open<path>`) or an older form, checked by the hub, iOS, the web and the desktop app (Android with #9932) |
 | star-prompt | [README](fixtures/star-prompt/README.md): when the GitHub star prompts show, the empty Agents pill, the milestone card after enough Agents started and the onboarding toast, checked by the web app and Android (#5761; iOS with #5910) |
 | meeting-echo | [README](fixtures/meeting-echo/README.md): which transcript lines of a meeting are Persona's own answer heard by the microphone (they overlap a stretch it spoke in and their words match what it said; a stretch saved without text keeps the time rule), checked by the hub and the iOS app (#5905) |
+| meeting-transcription-problems | [README](fixtures/meeting-transcription-problems/README.md): why the hub isn't transcribing a meeting (#13446): the transcription contribution's error code, the `problem` code the manager passes on (refused, busy, unreachable, failed) and what the phone's fallback notice makes of it, checked by the hub and the iOS app |
 | minutes-overview | [README](fixtures/minutes-overview/README.md): the minutes' summary card (#6563), which places of a text are bold (each `strong` entry's first occurrence after the one before), how a client cleans a malformed overview and when it falls back to the minutes as before, and the hub's Markdown of the same minutes, checked by the hub, the mock hub, the iPhone and the web |
+| minutes-wait | [README](fixtures/minutes-wait/README.md): what the minutes line says while a hub-mode meeting's minutes wait for the final pass (#13461): the hub's `transcription.final_done` and `end` and when it sends them, then which line a client shows (checking the whole recording, with minutes done of the total, or writing the minutes) and how it rounds them, checked by the hub, the iPhone and the web |
 | screen-link | [README](fixtures/screen-link/README.md): the live screen's session wire (#6398), every message framed byte for byte alike by the node and the iPhone's client |
 | file-types | [README](fixtures/file-types/README.md): a `.ts` / `.mts` / `.cts` file typed by its first bytes (#7974), a real TypeScript module and a real MPEG-TS segment, checked by the node and the hub (Go) |
 | graph-layout | [README](fixtures/graph-layout/README.md): an extension view's `graph` (UI version 10, #9727), each node's place in slots, the edges drawn, the reading order with depths, fold counts and group frames, written by the reference `scripts/gen/graph_layout.py` and checked by the web, iOS, Android and the hub |

@@ -86,6 +86,17 @@ class HttpChatActions internal constructor(
         }
     }
 
+    override suspend fun continueStart(session: Session, choice: String): Session {
+        require(session.machineId.isNotBlank() && session.sessionId.isNotBlank())
+        val body = buildJsonObject { put("choice", choice) }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        // The hub may wait 20 seconds for the kept terminal; only a completed 2xx is an answer.
+        return slow(api("sessions", session.machineId, session.sessionId, "start", "continue"), "POST", body).use {
+            if (!it.isSuccessful) throw HubFailure.from(it)
+            val answer = JsonCodec.parseToJsonElement(it.body?.string().orEmpty()).jsonObject
+            JsonCodec.decodeFromJsonElement(answer["session"] ?: error("no session in the answer"))
+        }
+    }
+
     override suspend fun editQueue(session: Session, keep: List<Int>): QueueEdit {
         // An empty keep list is meaningful (delete the only queued message), so the body is written out explicitly.
         val body = buildJsonObject { put("keep", JsonArray(keep.map(::JsonPrimitive))) }
@@ -313,9 +324,13 @@ private const val HISTORY_LIMIT = 500
  * drops the one that waited, and the rest then apply to the session as without it.
  */
 internal fun modesApplied(current: Session, action: ChatAction.Modes): Boolean {
-    val own = current.launcher?.takeIf(String::isNotEmpty) ?: "claude"
-    if (action.launcher != null && action.launcher != own)
-        return current.pendingSwitch?.launcher == action.launcher || current.launcher == action.launcher
+    val own = current.effectiveLauncher
+    if (action.launcher != null && action.launcher != own) {
+        val pending = current.pendingSwitch ?: return false
+        return pending.launcher == action.launcher &&
+            pending.model.orEmpty().equals(action.model.orEmpty(), ignoreCase = true) &&
+            pending.effort.orEmpty() == action.effort.orEmpty()
+    }
     return (action.launcher == null || current.pendingSwitch == null) &&
         (action.model == null || current.model.equals(action.model, ignoreCase = true)) &&
         // a queued bypass restart keeps the running mode with bypassPending; cancelling it clears bypassPending

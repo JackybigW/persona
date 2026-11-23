@@ -60,15 +60,42 @@ func askSummary(l i18n.Lang, a *acceptAsk) string {
 	return a.Changed
 }
 
+// checkOptionTaken identifies a check's recommendation or an explicitly recorded option. Older nonempty Chosen
+// text cannot establish an option selection, even if it spells a label.
+func checkOptionTaken(a *acceptAsk) bool {
+	return a.Check != "" && (a.Chosen == "" || a.OptionTaken)
+}
+
 // acceptedNote is what the bot answers under a card the owner passed.
 func acceptedNote(l i18n.Lang, a *acceptAsk) string {
 	switch {
+	case a.OutsideID != "" && !a.WithdrawnAt.IsZero():
+		return i18n.T(l, "assistant-reports.outside_withdrawn")
+	case a.OutsideID != "" && a.ByDefault:
+		return i18n.T(l, "assistant-reports.outside_answered_default")
+	case a.OutsideID != "":
+		return i18n.T(l, "assistant-reports.outside_answered")
+	case decideAsk(a) && a.Superseded:
+		if a.SupersededReason != "" {
+			return i18n.T(l, "assistant-reports.decision_superseded_reason", i18n.Args{"reason": a.SupersededReason})
+		}
+		return i18n.T(l, "assistant-reports.decision_superseded")
+	case decideAsk(a) && a.AgentReply != nil && a.AgentReply.Handled:
+		return i18n.T(l, "assistant-reports.decision_handled_in_agent")
 	case decideAsk(a) && a.ByDefault:
 		return i18n.T(l, "assistant-reports.verdict_taken_default")
-	case decideAsk(a) && a.Check != "" && a.Chosen != "": // a check's decision: it went to the supervisor (checkDecided)
+	case decideAsk(a) && a.TextDelivery == decisionTextAgent && a.Chosen != "":
+		return i18n.T(l, "assistant-reports.decision_chosen_noted", i18n.Args{"option": a.Chosen})
+	case decideAsk(a) && a.TextDelivery == decisionTextRecorded && a.Chosen != "":
+		return i18n.T(l, "assistant-reports.decision_chosen_for_supervisor", i18n.Args{"option": a.Chosen})
+	case decideAsk(a) && a.TextDelivery != "" && a.Chosen != "": // unknown future outcome: do not invent delivery
+		return i18n.T(l, "assistant-reports.decision_chosen_recorded", i18n.Args{"option": a.Chosen})
+	case decideAsk(a) && checkOptionTaken(a) && a.Chosen != "": // a check's option went to the supervisor
 		return i18n.T(l, "assistant-reports.decision_chosen_supervisor", i18n.Args{"option": a.Chosen})
-	case decideAsk(a) && a.Check != "" && a.Response == "":
+	case decideAsk(a) && checkOptionTaken(a) && a.Response == "": // its OK: to the supervisor, not the Agent
 		return i18n.T(l, "assistant-reports.verdict_taken_supervisor")
+	case decideAsk(a) && !a.OptionTaken && a.Chosen != "": // older text has no stored selection or delivery evidence
+		return i18n.T(l, "assistant-reports.decision_chosen_recorded", i18n.Args{"option": a.Chosen})
 	case decideAsk(a) && a.Chosen != "":
 		return i18n.T(l, "assistant-reports.decision_chosen_noted", i18n.Args{"option": a.Chosen})
 	case decideAsk(a) && a.Response != "":
@@ -88,14 +115,16 @@ func acceptedNote(l i18n.Lang, a *acceptAsk) string {
 func (s *Service) conclusionCard(ctx context.Context, t Todo, a acceptAsk) *feishubot.Card {
 	l := s.botLang(ctx)
 	title := s.feishuDirection(ctx, t, s.feishuDirections(ctx)) + i18n.T(l, "assistant-reports.verdict_title", i18n.Args{"task": clip(oneLine(t.Title), 30)})
-	icon, color := "📌", feishubot.Green
-	switch a.Outcome {
-	case outcomeCannot:
+	color := feishubot.Green
+	switch {
+	case !a.AcceptedAt.IsZero(): // passed: over
+		color = feishubot.Grey
+	case a.Outcome == outcomeCannot:
 		color = feishubot.Red
-	case outcomeDecide:
+	case a.Outcome == outcomeDecide:
 		color = feishubot.Orange
 	}
-	c := feishubot.NewCard(icon+" "+title, color, verdictText(l, &a))
+	c := feishubot.NewCard(title, color, verdictText(l, &a)).Tag(i18n.T(l, "assistant-reports.tag_conclusion"), feishubot.Neutral)
 	// The goal, where it is now (with how far the work went out) and the evidence below (#3218).
 	now := feishubot.EscapeMarkdown(verdictText(l, &a))
 	if live := liveText(l, s.todoStages(ctx)[t.ID]); live != "" && a.Outcome != outcomeDecide {
@@ -125,7 +154,10 @@ func (s *Service) conclusionCard(ctx context.Context, t Todo, a acceptAsk) *feis
 	if !a.AcceptedAt.IsZero() {
 		return c.Note(acceptedNote(l, &a))
 	}
+	// One row: the primary answer, the first other option of a decision, and a "more" menu with the rest — the other
+	// options, the fixed answers for a decision they cannot answer as it is (decision.go), the link.
 	var bs []feishubot.Button
+	var menu []feishubot.MenuItem
 	hint := "assistant-reports.verdict_reply_hint"
 	switch {
 	case decideAsk(&a) && a.Recommend != "":
@@ -136,30 +168,29 @@ func (s *Service) conclusionCard(ctx context.Context, t Todo, a acceptAsk) *feis
 	default:
 		bs = append(bs, feishubot.Btn(i18n.T(l, "assistant-reports.verdict_ack"), feishubot.Primary, map[string]any{"a": "accept", "id": t.ID}))
 	}
-	if a.Link != "" {
-		bs = append(bs, feishubot.LinkBtn(i18n.T(l, "assistant-reports.accept_open"), a.Link))
-	}
-	if len(bs) > 0 {
-		c.Buttons(bs...)
-	}
 	if decideAsk(&a) {
-		// The other options, then the fixed answers for a decision they cannot answer as it is (decision.go).
-		var more []feishubot.Button
 		for i, o := range a.Options {
-			if i > 0 {
-				more = append(more, feishubot.Btn(clip(o.Label, 20), feishubot.Default, map[string]any{"a": "accept", "id": t.ID, "opt": o.Label}))
+			if i == 0 {
+				continue
 			}
+			if len(bs) < 2 {
+				bs = append(bs, feishubot.Btn(clip(o.Label, 20), feishubot.Default, map[string]any{"a": "accept", "id": t.ID, "opt": o.Label}))
+				continue
+			}
+			menu = append(menu, feishubot.MenuItem{Label: clip(o.Label, 20), Value: map[string]any{"opt": o.Label}})
 		}
-		if len(more) > 0 {
-			c.Buttons(more...)
-		}
-		var cannot []feishubot.Button
 		for _, r := range ownerResponses {
-			cannot = append(cannot, feishubot.Btn(i18n.T(l, "assistant-reports.decision_response_"+r), feishubot.Default,
-				map[string]any{"a": "accept", "id": t.ID, "resp": r}))
+			menu = append(menu, feishubot.MenuItem{Label: i18n.T(l, "assistant-reports.decision_response_"+r), Value: map[string]any{"resp": r}})
 		}
-		c.Buttons(cannot...)
 	}
+	if a.Link != "" {
+		if len(menu) == 0 {
+			bs = append(bs, feishubot.LinkBtn(i18n.T(l, "assistant-reports.accept_open"), a.Link))
+		} else {
+			menu = append(menu, feishubot.MenuItem{Label: i18n.T(l, "assistant-reports.accept_open"), URL: a.Link})
+		}
+	}
+	c.Buttons(append(bs, feishubot.Overflow(map[string]any{"a": "accept", "id": t.ID}, menu...))...)
 	return c.Note(i18n.T(l, hint))
 }
 
@@ -297,6 +328,14 @@ func (s *Service) conclusionLink(ctx context.Context, t Todo, in conclusionInput
 // dropDecision ends task id's decision still waiting, once its review moved on (rework, cancelled): it is no longer
 // listed, its button takes nothing, and a reply to its card is answered "already handled".
 func (s *Service) dropDecision(ctx context.Context, id string) {
+	s.supersedeDecision(ctx, id, "")
+}
+
+// supersedeDecision clears task id's open needs_user decision ask when supervision transitions the review via
+// task_review, recording the natural-language reason (never fabricating an owner selection), notifying clients so it
+// leaves "Needs you", and redrawing any Lark cards to remove buttons and display the supersession note (#13112).
+func (s *Service) supersedeDecision(ctx context.Context, id, reason string) {
+	reason = clip(oneLine(strings.TrimSpace(reason)), 300)
 	b := &s.accept
 	b.mu.Lock()
 	if !s.loadAcceptLocked(ctx) {
@@ -308,10 +347,20 @@ func (s *Service) dropDecision(ctx context.Context, id string) {
 		b.mu.Unlock()
 		return
 	}
-	a.AcceptedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	a.AcceptedAt = now
+	if !a.Deadline.IsZero() && a.DueAt.IsZero() {
+		a.DueAt = now
+	}
+	a.Superseded = true
+	a.SupersededReason = reason
 	s.saveAcceptLocked(ctx)
+	cp := *a
 	b.mu.Unlock()
 	s.askChanged(ctx)
+	if len(cp.Messages) > 0 {
+		s.updateAskCards(ctx, id, cp)
+	}
 }
 
 // askCopy is task id's ask as it is now (false: none, or a claim still going out).
@@ -351,7 +400,7 @@ func (s *Service) takeRecommendation(ctx context.Context, id string, a acceptAsk
 		row.Reason, row.Source = defaultReason(l, s.location(ctx), a.Deadline), db.DecisionAgent
 	}
 	var sendErr error
-	if a.Check == "" {
+	if a.Check == "" && a.OutsideID == "" {
 		if _, err := s.relayToTask(ctx, t.Origin, id, msg, func(cur Todo) bool {
 			return cur.DoneAt == nil && !acceptAskStale(&a, cur)
 		}); err != nil {
@@ -375,8 +424,10 @@ func (s *Service) takeRecommendation(ctx context.Context, id string, a acceptAsk
 		}
 	}
 	switch {
+	case a.OutsideID != "":
+		// An outside caller polls the answer; there is no Agent or supervisor to relay to.
 	case a.Check != "":
-		s.checkDecided(ctx, t, &a, a.Recommend)
+		s.checkDecided(ctx, t, &a, a.Recommend, false)
 	case sendErr != nil:
 		return s.decisionNotDelivered(ctx, id, a.AskedAt, a.Recommend, sendErr), nil
 	default:

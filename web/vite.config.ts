@@ -10,6 +10,7 @@ import { clientKeys, i18nCatalogs, startupEntries } from "./i18n-catalogs";
 import { pageTokensPlugin } from "./page-tokens";
 import { thirdPartyLicenses } from "./third-party-licenses";
 import { compatBootstrap } from "./compat-bootstrap";
+import { testWorkerLimit } from "./test-scheduling";
 
 // `npm run dev` talks to a hub through Vite's proxy: PERSONA_HUB_URL (eval "$(python3 ../scripts/persona_config.py env)").
 const environment = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
@@ -187,6 +188,19 @@ function startupPreload(): Plugin {
   };
 }
 
+// Build only: when this build was made, in .build.json beside index.html (SOURCE_DATE_EPOCH when set, for a
+// reproducible build). The hub reads it to tell whether its data dir's copy is older than the one built into personad,
+// which then serves instead (server/internal/hub/web.go `webFrom`; docs/web/web.md "Running it"). A dot file: never served.
+const buildStamp: Plugin = {
+  name: "build-stamp",
+  apply: "build",
+  generateBundle() {
+    const epoch = Number(process.env.SOURCE_DATE_EPOCH);
+    const at = Number.isFinite(epoch) && epoch > 0 ? new Date(epoch * 1000) : new Date();
+    this.emitFile({ type: "asset", fileName: ".build.json", source: JSON.stringify({ built_at: at.toISOString() }) + "\n" });
+  },
+};
+
 // Build only: sw.js must not import anything (src/sw-entry-check.ts); the build fails, saying why and how to fix it.
 const classicWorker: Plugin = {
   name: "classic-worker",
@@ -227,7 +241,7 @@ const holdLazyImports: Plugin = {
 };
 
 export default defineConfig({
-  plugins: [katexFonts, i18nCatalogs, pageTokensPlugin, react(), tailwindcss(), adminFallback, showcaseImages, startupPreload(), holdLazyImports, classicWorker, thirdPartyLicenses,
+  plugins: [testWorkerLimit(), katexFonts, i18nCatalogs, pageTokensPlugin, react(), tailwindcss(), adminFallback, showcaseImages, startupPreload(), holdLazyImports, classicWorker, buildStamp, thirdPartyLicenses,
     compatBootstrap(fileURLToPath(new URL("./public/compatibility-bootstrap.js", import.meta.url)))],
   // Text size (src/lib/text-scale.ts): font sizes become calc(size * var(--text-scale, 1)), after Tailwind wrote them.
   css: { postcss: { plugins: [textScale()] } },

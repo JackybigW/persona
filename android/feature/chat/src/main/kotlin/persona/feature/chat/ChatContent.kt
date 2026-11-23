@@ -56,6 +56,7 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
+import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 import com.mikepenz.markdown.model.State as MarkdownResult
 import persona.core.contracts.Item
@@ -87,7 +88,11 @@ internal val LocalChatMarkdownCache = staticCompositionLocalOf<ChatMarkdownCache
 internal fun ChatMarkdown(text: String, id: String = text,
     bodyStyle: TextStyle = PersonaTheme.type.body, color: Color = PersonaTheme.palette.ink, selectable: Boolean = true,
     viewKeys: ((Int) -> String)? = null, streaming: Boolean? = null) {
-    if (selectable) SelectionContainer { ChatMarkdownBody(text, id, bodyStyle, color, viewKeys, streaming) }
+    if (selectable) SelectionContainer {
+        CompositionLocalProvider(LocalChatLinkMenu provides null) {
+            ChatMarkdownBody(text, id, bodyStyle, color, viewKeys, streaming)
+        }
+    }
     else ChatMarkdownBody(text, id, bodyStyle, color, viewKeys, streaming)
 }
 
@@ -110,12 +115,12 @@ private fun ChatMarkdownCards(text: String, id: String, fences: List<persona.cor
             when {
                 blocks == null -> CodeText(fence.raw.trimEnd('\n', '\r'), fence.language, syntax = true)
                 // Share's picture: the card as it looks, with nothing that answers, never its JSON (#7261).
-                inPicture -> key(fence.start) { blocks.picture(fence.language, fence.raw, fence.complete, fence.index) }
+                inPicture -> key(fence.start) { InterfaceContent { blocks.picture(fence.language, fence.raw, fence.complete, fence.index) } }
                 // A card is not words: a selection of the message goes round it.
-                fence.isView -> key(fence.index) { DisableSelection { blocks.block(viewKeys?.invoke(fence.index) ?: "$id/local/${fence.index}", fence.raw, fence.complete) } }
+                fence.isView -> key(fence.index) { DisableSelection { InterfaceContent { blocks.block(viewKeys?.invoke(fence.index) ?: "$id/local/${fence.index}", fence.raw, fence.complete) } } }
                 else -> {
                     val card = remember(blocks, fence.raw, fence.complete) { if (fence.complete) blocks.parse(fence.language, fence.raw) else null }
-                    if (card != null) DisableSelection { blocks.draw(card) } else CodeText(fence.raw.trimEnd('\n', '\r'), fence.language, syntax = true)
+                    if (card != null) DisableSelection { InterfaceContent { blocks.draw(card) } } else CodeText(fence.raw.trimEnd('\n', '\r'), fence.language, syntax = true)
                 }
             }
         }
@@ -171,6 +176,15 @@ private fun ChatMarkdownBody(text: String, id: String, bodyStyle: TextStyle, col
     val inlinePictures = rememberInlineReplyPictures(gallery, bodyStyle)
     val components = remember(color, bodyStyle, palette, type, gallery) {
         markdownComponents(
+            paragraph = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.paragraph) },
+            heading1 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h1, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            heading2 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h2, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            heading3 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h3, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            heading4 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h4, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            heading5 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h5, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            heading6 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h6, contentChildType = MarkdownTokenTypes.ATX_CONTENT, isHeading = true) },
+            setextHeading1 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h1, contentChildType = MarkdownTokenTypes.SETEXT_CONTENT, isHeading = true) },
+            setextHeading2 = { model -> LinkAwareMarkdownText(model.content, model.node, model.typography.h2, contentChildType = MarkdownTokenTypes.SETEXT_CONTENT, isHeading = true) },
             orderedList = { model -> MarkdownOrderedList(model.content, model.node, depth = model.listDepth,
                 markerModifier = { firstBaselineAligned().padding(end = 8.dp.dense) },
                 listModifier = { firstBaselineAligned(Modifier.weight(1f)) }) },
@@ -277,9 +291,11 @@ internal fun CodeText(text: String, language: String = "", syntax: Boolean = fal
         if (bar) CodeBody(preview, language, colour) { CodeBar(language) { copy(text, null) } }
         else {
             DisableSelection {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(language, Modifier.weight(1f), style = PersonaTheme.type.caption, color = PersonaTheme.palette.ink2)
-                    JTextButton(stringResource(R.string.chat_content_copy), { copy(text, null) }, icon = PhIcons.Copy)
+                InterfaceContent {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(language, Modifier.weight(1f), style = PersonaTheme.type.caption, color = PersonaTheme.palette.ink2)
+                        JTextButton(stringResource(R.string.chat_content_copy), { copy(text, null) }, icon = PhIcons.Copy)
+                    }
                 }
             }
             CodeBody(preview, language, colour)
@@ -287,7 +303,7 @@ internal fun CodeText(text: String, language: String = "", syntax: Boolean = fal
         // buttons, not words
         DisableSelection {
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s)) {
-                if (preview.length < text.length) JTextButton(stringResource(R.string.chat_content_show_all), { expanded = true })
+                if (preview.length < text.length) InterfaceContent { JTextButton(stringResource(R.string.chat_content_show_all), { expanded = true }) }
                 ReaderEntry(text, language.ifBlank { stringResource(R.string.chat_content_full_text) })
             }
         }
@@ -303,7 +319,7 @@ private fun CodeBody(preview: String, language: String, colour: Boolean, header:
     val palette = PersonaTheme.palette
     if (remember(preview) { ChatLinks.matches(preview).isNotEmpty() }) {
         Column(Modifier.fillMaxWidth().clip(PersonaTheme.shapes.controlShape).background(PersonaTheme.palette.sunken)) {
-            if (header != null) DisableSelection { header() }
+            if (header != null) DisableSelection { InterfaceContent { header() } }
             SelectableOnItsOwn {
                 val linked = chatLinkAnnotations(preview)
                 Text(if (colour) remember(linked, language, palette) { CodeSyntax.highlight(linked, language, palette) } else linked, style = PersonaTheme.type.code, color = PersonaTheme.palette.ink,
@@ -417,7 +433,10 @@ internal fun ChatLineContent(
             line is ChatLine.Row && (line.row.type == "reply" || line.row.type == "notice") -> line.row.item?.item?.text
             else -> null
         }
-        if (raw != null || line is ChatLine.ApiError) return TurnErrorFixCard(turnFix, raw, turnLauncher)
+        if (raw != null || line is ChatLine.ApiError) {
+            val retry = LocalChatRowActions.current?.takeIf { it.retryLineId == line.id }?.onRetry
+            return TurnErrorFixCard(turnFix, raw, turnLauncher, retry)
+        }
     }
     when (line) {
         is ChatLine.Row -> when (line.row.type) {
@@ -456,6 +475,7 @@ internal fun ChatLineContent(
         is ChatLine.Recaps -> RecapLine(line.items.map { it.item })
         is ChatLine.Viewed -> ViewedImagesRow(line.images, session, loader)
         is ChatLine.ModeChange -> ModeChangeDivider(line.change, agentSession)
+        is ChatLine.EngineChanged -> EngineChangeDivider(line.change)
         // Glass: where the replies' model changed (#5055, ModelChanges.mark), as the transcript names both.
         is ChatLine.ModelChange -> {
             val from = persona.core.domain.lines.ModelChanges.replyModelName(line.from)
@@ -552,7 +572,12 @@ private fun WorkStep(step: WorkItem, session: SessionKey, loader: ImageLoader, o
             // A Workflow call whose run the session lists draws the run's card (#3435); otherwise the row it always was.
             if (call.name == "Workflow") LocalChatWorkflows.current?.let { workflows ->
                 call.use.item.toolUseId?.let(workflows.runs::get)?.let { run ->
-                    JWorkflowCallCard(run, folds = workflows.folds, onOpenAgent = workflows.open)
+                    Column {
+                        JWorkflowCallCard(run, folds = workflows.folds, onOpenAgent = workflows.open)
+                        workflows.openBackground?.let { open ->
+                            JTextButton(stringResource(R.string.chat_background_open_workflow), onClick = { open(run) })
+                        }
+                    }
                     return
                 }
             }

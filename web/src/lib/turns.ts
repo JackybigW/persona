@@ -45,7 +45,7 @@ export interface UserMessage {
   source?: MessageSource;
   /** The previous visible message has the same source and no intervening reply or work. */
   continuedSource?: boolean;
-  /** Original injected input blocks, before display parsing or shortening. */
+  /** Original input blocks, before display parsing or shortening. */
   rawInput?: Item[];
   /** A scheduled task's or follow-up's input while background rounds fold (docs/assistant/assistant.md "Background
    *  rounds"): only its one line is shown, never the prompt (`injected.detail`, `rawInput`). */
@@ -97,6 +97,8 @@ export interface Segment {
    *  Codex turn's duration, a stopped turn's notice); each subagent counts once in the chat, in the exchange that
    *  launched it (chatLines' lineUsage). Absent when none of them carries tokens. */
   usage?: TurnUsage;
+  /** First observed streaming time-to-first-token (ms) in this exchange (proto.Item.TTFTMS, #12542). */
+  ttftMs?: number;
 }
 
 function blockPart(id: string) {
@@ -304,6 +306,8 @@ export function segments(items: Item[], results?: ReadonlyMap<string, Item>): Se
         cur = open(`seg:${it.id}`);
         cur.user = { id: it.id, text: "", images: [], queued: it.queued, ts: it.ts, contexts: [], from: it.from || undefined, source: sourceOf(it, null), rawInput: [it] };
         cur.start = it.ts;
+      } else {
+        cur.user.rawInput!.push(it);
       }
       lastUserEntry = entry;
       cur.user!.client_msg_id ??= it.client_msg_id || undefined;
@@ -329,6 +333,9 @@ export function segments(items: Item[], results?: ReadonlyMap<string, Item>): Se
     }
     if (it.ts) cur.end = it.ts;
     countUsage(cur, it);
+    if (cur.ttftMs === undefined && typeof it.ttft_ms === "number" && Number.isFinite(it.ttft_ms) && it.ttft_ms >= 0) {
+      cur.ttftMs = it.ttft_ms;
+    }
     switch (it.kind) {
       case "tool_use": {
         const st: Extract<Step, { kind: "tool" }> = { kind: "tool", id: it.id, use: it, result: it.tool_use_id ? results?.get(it.tool_use_id) : undefined, images: [] };
@@ -754,7 +761,7 @@ export function supervisionTool(rawName?: string): "notify_user" | "ask_user" | 
 }
 
 /** Visibility is round-wide and derived again after every page merge. Arguments alone never prove success. */
-export function supervisionVisible(ordered: Item[], results: ReadonlyMap<string, Item>, live: boolean): boolean {
+export function supervisionVisible(ordered: Item[], results: ReadonlyMap<string, Item>, live: boolean, routineMainRelay = false): boolean {
   if (ordered.some((i) => i.supervisionUser || i.fold?.supervision_user || (injectedOf(i)?.state === "supervise" && injectedOf(i)?.level === "user"))) return true;
   let silent = false;
   for (const use of ordered) {
@@ -783,7 +790,7 @@ export function supervisionVisible(ordered: Item[], results: ReadonlyMap<string,
       // A failed or malformed receipt does not decide visibility.
     }
   }
-  return !live && !silent && hasBackgroundReply(ordered);
+  return !live && !silent && !routineMainRelay && hasBackgroundReply(ordered);
 }
 
 /** An answer ends the round's work. Older runtimes also emit plain intermediate text before their next call. */
@@ -933,6 +940,9 @@ export interface ChatLinesOptions {
   /** Fold quiet background rounds in the main and leader conversations. A scheduled task's prompt stays hidden
    *  (docs/assistant/assistant.md "Background rounds"). */
   background?: boolean;
+  /** The main Assistant conversation: routine cross-conversation replies stay folded even when nonempty.
+   * Explicit owner-visibility actions and every leader conversation keep their existing behavior (#11764). */
+  main?: boolean;
 }
 
 function turnLines(t: Turn, live: boolean, results?: ReadonlyMap<string, Item>): ChatLine[] {
@@ -949,7 +959,12 @@ function turnLines(t: Turn, live: boolean, results?: ReadonlyMap<string, Item>):
   // woken and at work with nothing of it here yet: its work row
   if (woke && live && !segs.length) segs.push({ id: `seg:${woke.id}`, steps: [], tools: 0, thoughts: 0, replies: 0, folds: [] });
   // what the background task that woke it used is the work it woke
-  if (woke && segs[0]) countUsage(segs[0], woke);
+  if (woke && segs[0]) {
+    countUsage(segs[0], woke);
+    if (segs[0].ttftMs === undefined && typeof woke.ttft_ms === "number" && Number.isFinite(woke.ttft_ms) && woke.ttft_ms >= 0) {
+      segs[0].ttftMs = woke.ttft_ms;
+    }
+  }
   // stopped after everything it did (not an exchange that went on after it): its last words are not a finished reply
   const end = segs.at(-1), at = t.ordered.at(-1)?.seq ?? 0;
   if (end && !live && t.trailing.some((n) => isInterruptNotice(n) && n.seq > at)) end.cut = true;
@@ -983,7 +998,7 @@ export function chatLines(items: Item[], opts: ChatLinesOptions = {}): ChatLine[
   let round: { lines: ChatLine[]; ordered: Item[]; live: boolean; source?: MessageSource } | undefined;
   const flush = () => {
     if (!round) return;
-    if (supervisionVisible(round.ordered, results, round.live)) out.push(...round.lines);
+    if (supervisionVisible(round.ordered, results, round.live, opts.main === true && round.source?.kind === "conversation")) out.push(...round.lines);
     else out.push({ kind: "supervision", id: round.lines[0].id, lines: round.lines, live: round.live, ...(round.source ? { source: round.source } : {}) });
     round = undefined;
   };

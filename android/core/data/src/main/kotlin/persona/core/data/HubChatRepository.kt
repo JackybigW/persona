@@ -276,6 +276,7 @@ class HubChatRepository(
             recordAction(session, action, result, verified = true)
             return result
         }
+        override suspend fun continueStart(session: Session, choice: String): Session = delegate.continueStart(session, choice)
         override suspend fun editQueue(session: Session, keep: List<Int>) = delegate.editQueue(session, keep)
         override suspend fun sendQueuedNow(session: Session) = delegate.sendQueuedNow(session)
         override suspend fun retryUndelivered(session: Session, messageId: String) = delegate.retryUndelivered(session, messageId)
@@ -405,6 +406,16 @@ class HubChatRepository(
     }
 
     override suspend fun modeChanges(session: SessionKey): List<ModeChange> = transport.modeChanges(session)
+
+    override suspend fun earlierEnginePage(session: SessionKey, beforeSeq: Int?): ItemsResponse? =
+        try {
+            transport.items(session, ItemsQuery(beforeSeq = beforeSeq))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (missingHistory(error) != null) null else throw error
+        }
+
 
     override suspend fun loadOlder(session: SessionKey) {
         val entry = existing(session) ?: return
@@ -730,7 +741,13 @@ class HubChatRepository(
             result.operations.forEach { operation ->
                 synchronized(entry.operations) { entry.operations[operation.id] }?.complete(operation.requests)
             }
-            dispatch(entry, result.requests)
+            dispatch(entry, result.requests.filterNot { action ->
+                // expandFoldAsync owns its range HTTP request. It receives this action through the operation's
+                // acknowledged waiter, so generic catch-up dispatch must not ignore it or issue a duplicate.
+                action is Action.FetchRange && result.operations.any { operation ->
+                    operation.requests.contains(action) && synchronized(entry.operations) { entry.operations[operation.id] } != null
+                }
+            })
             if (continueFill) dispatch(entry, acceptAsync(entry, Input.ContinueFill)?.requests.orEmpty())
             if (result.stateChanged && entry.persistPending.compareAndSet(false, true)) entry.scope.launch { persist(entry) }
         }

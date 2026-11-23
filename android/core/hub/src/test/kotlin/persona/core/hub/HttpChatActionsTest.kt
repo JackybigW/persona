@@ -61,6 +61,49 @@ class HttpChatActionsTest {
         }
     }
 
+    @Test fun continueStartUsesSlowLaneEscapesChoiceAndRequiresTheReturnedSession() = runBlocking {
+        MockWebServer().use { server ->
+            val http = OkHttpClient.Builder().retryOnConnectionFailure(false).build()
+            val slow = mutableListOf<String>()
+            val actions = HttpChatActions({ path, method, body ->
+                slow += path
+                http.newCall(Request.Builder().url(server.url(path)).method(method, body).build()).execute()
+            }) { _, _, _ -> error("a session start answer must use the slow lane") }
+            val session = Session(machineId = "machine/one#", sessionId = "session/one #2")
+            val answer = "Resume \"kept\"\nnow\\terminal"
+            val path = "/api/v1/sessions/machine%2Fone%23/session%2Fone%20%232/start/continue"
+            server.enqueue(MockResponse().setBody("""{"session":{"machine_id":"machine/one#","session_id":"session/one #2","title":"Kept terminal","status":"working","model":"returned-model"}}"""))
+            val continued = actions.continueStart(session, answer)
+            assertEquals(session.key, continued.key)
+            assertEquals("Kept terminal", continued.title)
+            assertEquals("working", continued.status)
+            assertEquals("returned-model", continued.model)
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals(path, request.path)
+            val body = request.body.readUtf8()
+            assertEquals("""{"choice":"Resume \"kept\"\nnow\\terminal"}""", body)
+            assertNull(JsonCodec.parseToJsonElement(body).jsonObject["model"])
+            assertEquals(listOf(path), slow)
+
+            // A successful response without the kept session is not a successful continuation.
+            server.enqueue(MockResponse().setBody("{}"))
+            val missing = runCatching { actions.continueStart(session, answer) }.exceptionOrNull()
+            assertTrue(missing is IllegalStateException)
+            assertEquals("no session in the answer", missing?.message)
+            server.takeRequest()
+
+            server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"The start answer was refused","code":"start_answer_refused"}"""))
+            val failure = runCatching { actions.continueStart(session, answer) }.exceptionOrNull() as HubFailure
+            assertEquals(409, failure.status)
+            assertEquals("start_answer_refused", failure.code)
+            assertEquals("The start answer was refused", failure.message)
+            server.takeRequest()
+            assertEquals(listOf(path, path, path), slow)
+            assertEquals(3, server.requestCount)
+        }
+    }
+
     @Test fun ultracodeGoesAloneAndAQueuedSwitchVerifies() = runBlocking {
         MockWebServer().use { server ->
             val actions = actions(server)
@@ -101,6 +144,10 @@ class HttpChatActionsTest {
             "pending_switch":{"launcher":"work","model":"glm-5.3","effort":"high","at":"2026-11-12T10:00:00Z"}}""")
         assertTrue("the switch waits: its model and effort are the switch's", modesApplied(waiting, ChatAction.Modes(launcher = "work", from = "example", model = "glm-5.3", effort = "high")))
         assertFalse(modesApplied(waiting, ChatAction.Modes(launcher = "other", from = "example")))
+        assertFalse("a newer pick on the same launcher is not our pick",
+            modesApplied(waiting, ChatAction.Modes(launcher = "work", from = "example", model = "different", effort = "high")))
+        assertFalse("a canceled Codex handoff still waits",
+            modesApplied(waiting.copy(agent = "codex", launcher = null), ChatAction.Modes(launcher = "codex", from = "codex")))
         assertTrue("carried out by now", modesApplied(waiting.copy(launcher = "work", pendingSwitch = null), ChatAction.Modes(launcher = "work", from = "example")))
         assertFalse("its own launcher drops it", modesApplied(waiting, ChatAction.Modes(launcher = "example", from = "example")))
         assertTrue(modesApplied(waiting.copy(pendingSwitch = null), ChatAction.Modes(launcher = "example", from = "example")))
