@@ -207,6 +207,18 @@ test('the accepted window starts on the receipt and fresh terminal snapshots alo
   const blocked=activity();blocked.accept(1200);blocked.observeSession('blocked','','');assert.equal(blocked.visible(1500),'');
 });
 
+test('the Beautiful work header starts only after the accepted send has its own visible transcript echo', async () => {
+  const {model}=fixture(),entered=deferred(),reply=deferred();model.sourceContext='';
+  model.repository.send=async (_row,_text,id)=>{entered.resolve(id);await reply.promise;return {ok:true};};
+  const turn=model.send(),id=await entered.promise;assert.equal(model.sendFeedbackWorkHeader(),false);
+  reply.resolve();await turn;assert.equal(model.sendFeedbackPhase(),'processing');assert.equal(model.sendFeedbackWorkHeader(),false);
+  const echo={id:'same-text',seq:4,role:'user',kind:'text',text:model.draft,client_msg_id:'some-other-send'};
+  model.publishTranscript([echo],false);assert.equal(model.sendFeedbackWorkHeader(),false);
+  model.publishTranscript([{...echo,client_msg_id:id}],false);assert.equal(model.sendFeedbackWorkHeader(),true);
+  model.publishTranscript([{...echo,client_msg_id:id},{id:'answer',seq:5,role:'assistant',kind:'text',text:'done'}],false);
+  assert.equal(model.sendFeedbackWorkHeader(),false);
+});
+
 test('a follow-up during Agent approvals sends once to the active session and leaves every request unanswered', async () => {
   const { model, writes } = fixture();
   delete model.canSend;

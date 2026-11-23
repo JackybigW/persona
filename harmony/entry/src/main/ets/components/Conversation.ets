@@ -27,6 +27,7 @@ import { SessionRevision, SessionRevisionOutcome } from '../models/SessionRevisi
 import type { SessionRevisionRestore } from '../core/SessionRevision';
 import { ConversationRevisionLease, restoreAcknowledgedSessionDraft } from '../core/ConversationRevisionLease';
 import { TranscriptImage } from './TranscriptImage';
+import { BeautifulSendStatus } from './BeautifulSendStatus';
 import { conversationImageEntries, conversationImageKey } from '../core/MessageImageGallery';
 import type { MessageImageGalleryEntry, LoadedMessageImage } from '../core/MessageImageGallery';
 import { MarkdownText } from './MarkdownText';
@@ -1799,7 +1800,8 @@ export struct Conversation {
           .id('chat.line.' + entry.item.id)
       }).key((line: ConversationLine) => line.id).virtualScroll({ totalCount: this.lines.length, reusable: false })
       if (this.active && this.model.sendFeedbackPhase()) ListItem() {
-        ChatSendStatus({phase:this.model.sendFeedbackPhase(),reduced:this.environment.reduceMotion})
+        if (this.model.style === 'beautiful') BeautifulSendStatus({phase:this.model.sendFeedbackPhase(),workHeader:this.model.sendFeedbackWorkHeader()})
+        else ChatSendStatus({phase:this.model.sendFeedbackPhase(),reduced:this.environment.reduceMotion})
       }
     }.stackFromEnd(!this.showWelcome())
       // The native Agent list leaves 48 points between its last text and the footer.
