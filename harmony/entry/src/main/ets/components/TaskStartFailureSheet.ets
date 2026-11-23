@@ -1,5 +1,5 @@
 import { Colors } from '../design/Colors';
-import { ReadinessStyle } from '../design/PhoneStyle';
+import { ReadinessStyle } from '../design/ReadinessStyle';
 import { Symbols } from '../design/Symbols';
 import { tr } from '../design/Strings';
 import { Tokens } from '../design/Tokens';

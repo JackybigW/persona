@@ -46,20 +46,6 @@ export class PhoneStyle {
 
 export type NavigationMark = 'navigationBack' | 'navigationClose';
 
-// Capped interface typography stays independent of the user's transcript size.
-export class ReadinessStyle {
-  static readonly label: number = 12;
-  static readonly body: number = 15;
-  static metric(regular: number, largest: number): number {
-    return PhoneStyle.formSize(regular, largest, nativeEnvironment.fontScale);
-  }
-  static line(regular: number, largest: number): string {
-    return PhoneStyle.settingsExampleLineHeight(regular, largest, nativeEnvironment.fontScale);
-  }
-  static font(points: number): string { return Tokens.interfaceFontVp(points, nativeEnvironment.fontScale); }
-  static get choiceInset(): number { return ReadinessStyle.metric(7, 4); }
-}
-
 @ComponentV2
 export struct PhoneNavigationIcon {
   @Require @Param mark: NavigationMark;
