@@ -1134,3 +1134,22 @@ test('Inbox time grouping preserves applied filters, does not add a heading to a
   const working = workspace.listView('', () => '', true, now).sections[0];
   assert.deepEqual(working.groups, []); assert.equal(working.rows.length,2);
 });
+
+test('both compact Inbox list routes select the phone presentation and keep source details separate', () => {
+  const source=readFileSync(new URL('../entry/src/main/ets/pages/Index.ets',import.meta.url),'utf8');
+  const calls=source.split('InboxWorkspacePage({').slice(1);
+  assert.equal(calls.length,2);
+  for (const call of calls) {
+    const argumentsLine=call.split('\n')[0];
+    const binding=/\bphoneList:\s*([^,}]+)/.exec(argumentsLine);
+    assert.ok(binding, 'each Inbox entry passes its phone presentation');
+    const phoneList=new Function('name','return '+binding[1]);
+    assert.equal(phoneList.call({wide:()=>false},'resources'),true);
+    assert.equal(phoneList.call({wide:()=>true},'resources'),false);
+    if (argumentsLine.includes("'resources'")) {
+      for (const detail of ['inbox','todo_source','todo_thread']) {
+        assert.equal(phoneList.call({wide:()=>false},detail),false);
+      }
+    }
+  }
+});
