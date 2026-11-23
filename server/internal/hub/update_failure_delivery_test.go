@@ -31,7 +31,8 @@ func TestUpdateFailureIsPublishedAfterHistoryWrite(t *testing.T) {
 	release := sync.OnceFunc(func() { close(store.release) })
 	defer release()
 	app := &client{out: make(chan []byte, 64), role: roleFull}
-	h.clients[app] = struct{}{}
+	addTestClient(h, app)
+	t.Cleanup(func() { removeTestClient(h, app) })
 	h.upd.handover = func(context.Context, string, int64) error { return errors.New("edge could not start") }
 	ctx := t.Context()
 	if _, err := h.upd.check(ctx); err != nil {
