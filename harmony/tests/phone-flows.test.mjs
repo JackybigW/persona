@@ -240,18 +240,28 @@ const NativeAgentForm = new Function(...Object.keys(nativeFormDependencies), 're
 
 
 test('the focused New Agent draft follows the settled keyboard, content and text-size layout, and never a closed form', () => {
-  const callbacks=[],edges=[];
-  const Form=new Function('setTimeout','Edge','return '+stripTypeScriptTypes(
-    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(
-      fn=>callbacks.push(fn),{Bottom:'bottom'});
-  const form=Object.assign(new Form(),{agentMessageFocused:true,showSheet:true,sheetKind:'newagent',agentPanel:'',
-      agentFormRevision:1,agentFormScroll:{scrollEdge:edge=>edges.push(edge)}});
-  form.agentDraftAreaChanged({width:360,height:370},{width:360,height:440});
-  assert.deepEqual(edges,[]);callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentDraftAreaChanged({width:360,height:440},{width:360,height:440});assert.equal(callbacks.length,0);
-  form.revealFocusedAgentDraft();form.agentFormRevision++;callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentPanel='folder';form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
-  form.agentPanel='';form.agentMessageFocused=false;form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
+  const callbacks = [], moves = [];
+  const Form = new Function('setTimeout', 'return '+stripTypeScriptTypes(
+    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(fn=>callbacks.push(fn));
+  const frames = { 'agent.fields':[150,410], 'agent.create':[460,60], 'agent.task':[410,92], 'agent.tab_name':[535,52] };
+  const context = {px2vp:px=>px/3, getComponentUtils:()=>({getRectangleById(id){
+    const [y,height]=frames[id];
+    return {windowOffset:{y:y*3},size:{height:height*3}};
+  }})};
+  const form = Object.assign(new Form(), {focusedAgentField:'agent.task',showSheet:true,sheetKind:'newagent',agentPanel:'',
+    agentFormRevision:1,getUIContext:()=>context,agentFormScroll:{scrollBy:(x,y)=>moves.push([x,y])}});
+  form.agentDraftAreaChanged({width:402,height:624},{width:402,height:410});
+  assert.deepEqual(moves,[]); callbacks.shift()(); assert.deepEqual(moves,[[0,50]]);
+  form.agentDraftAreaChanged({width:402,height:410},{width:402,height:410}); assert.equal(callbacks.length,0);
+  form.focusedAgentField='agent.tab_name'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.deepEqual(moves.at(-1),[0,135]);
+  frames['agent.tab_name']=[110,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.deepEqual(moves.at(-1),[0,-48]);
+  frames['agent.tab_name']=[200,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.equal(moves.length,3);
+  frames['agent.task']=[90,460]; form.focusedAgentField='agent.task'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.equal(moves.length,3,'the focused multiline editor fills the viewport and can scroll its own caret');
+  form.revealFocusedAgentDraft(); form.agentFormRevision++; callbacks.shift()(); assert.equal(moves.length,3);
+  form.agentPanel='folder'; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
+  form.agentPanel=''; form.focusedAgentField=''; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
   assert.match(formSource,/\.minLines\(3\)\.maxLines\(10,\{overflowMode:MaxLinesMode\.SCROLL\}\)/);
   assert.match(formSource,/\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\}\)/);
 });
@@ -346,13 +356,15 @@ test('the start sheet and the session request agree on thinking effort for each 
     assert.equal(form.agentPanel,choices.length?'effort':'',launcher.name);
     if (choices.length) assert.deepEqual(form.pickerOptions().map(x=>x.id),['',...choices],launcher.name);
     form.closeAgentPanel(); form.directory='/work/login';
-    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort)=>
-      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort);
+    form.agentTabName = launcher.name === 'codex' ? '  版本复核  ' : '  ';
+    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort,tabName)=>
+      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort,tabName);
     owner.saveView=async()=>{}; form.openPickedChat=()=>{}; form.projectPlace=()=>false;
     await form.createAgent();
     assert.equal(form.startFailure??'',''); assert.equal(form.showSheet,false);
     const wire=starts.at(-1);
     assert.deepEqual([wire.machine_id,wire.cwd,wire.launcher,wire.model,wire.prompt],['mac','/work/login',launcher.name,model,'test']);
+    assert.equal(wire.tab_name,launcher.name==='codex' ? '版本复核' : undefined);
     assert.equal(Object.hasOwn(wire,'effort'),!!expected,launcher.name);
     assert.equal(wire.effort??'',expected,launcher.name);
   }

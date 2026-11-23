@@ -5485,6 +5485,18 @@
       "value": "部分对话仍在建立索引"
     },
     {
+      "name": "flow_start_tab_name",
+      "value": "标签名（可选）"
+    },
+    {
+      "name": "flow_start_tab_name_placeholder",
+      "value": "留空就按第一条消息起名"
+    },
+    {
+      "name": "flow_start_tab_name_help",
+      "value": "新会话标签的可选名称。留空则根据首条消息命名。"
+    },
+    {
       "name": "flow_first_message",
       "value": "第一条消息"
     },

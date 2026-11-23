@@ -5485,6 +5485,18 @@
       "value": "Some conversations are still being indexed"
     },
     {
+      "name": "flow_start_tab_name",
+      "value": "Tab Name (Optional)"
+    },
+    {
+      "name": "flow_start_tab_name_placeholder",
+      "value": "Leave empty to name it from the first message"
+    },
+    {
+      "name": "flow_start_tab_name_help",
+      "value": "Optional name for the new session tab. If empty, it is named from the first message."
+    },
+    {
       "name": "flow_first_message",
       "value": "First message"
     },

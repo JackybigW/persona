@@ -5485,6 +5485,18 @@
       "value": "一部の会話を索引付け中"
     },
     {
+      "name": "flow_start_tab_name",
+      "value": "タブ名（任意）"
+    },
+    {
+      "name": "flow_start_tab_name_placeholder",
+      "value": "空欄なら最初のメッセージから名前を付けます"
+    },
+    {
+      "name": "flow_start_tab_name_help",
+      "value": "新しいセッションのタブ名です。空欄の場合は最初のメッセージから名付けます。"
+    },
+    {
       "name": "flow_first_message",
       "value": "最初のメッセージ"
     },
