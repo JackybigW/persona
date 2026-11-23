@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { agentReplyBodySize, markdownProseRuns, markdownVisibleText, parseMarkdown } from '../entry/src/main/ets/core/Markdown.ts';
+import { agentReplyBodySize, markdownProseRuns, markdownVisibleText, parseMarkdown, recapGlyphSize } from '../entry/src/main/ets/core/Markdown.ts';
 
 test('Agent reply prose follows the reading metric at each Dynamic Type category and between categories', () => {
   const bodySizes = [14,15,16,17,19,21,23,28,33,40,47,53];
@@ -11,6 +11,15 @@ test('Agent reply prose follows the reading metric at each Dynamic Type category
   assert.equal(agentReplyBodySize(3.2),48);
   assert.equal(agentReplyBodySize(3.2,true),45.293);
   assert.ok(agentReplyBodySize(2)>31 && agentReplyBodySize(2)<37);
+});
+
+test('recap glyphs grow continuously in Latin and CJK at the native reading sizes', () => {
+  for (const [han, regular, largest] of [[true, 16.4, 43.6], [false, 17, 42]]) {
+    assert.equal(recapGlyphSize(17, han), regular);
+    assert.equal(recapGlyphSize(48, han), largest);
+    assert.ok(Math.abs(recapGlyphSize(32.5, han) - (regular + largest) / 2) < 0.001);
+    assert.ok(recapGlyphSize(14, han) < regular);
+  }
 });
 
 test('only Han and full-width punctuation use the narrower CJK fallback advance in reading prose', () => {

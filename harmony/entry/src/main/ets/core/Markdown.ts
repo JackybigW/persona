@@ -17,6 +17,14 @@ export function agentReplyBodySize(fontScale: number, han: boolean = false): num
   return a[column] + (b[column] - a[column]) * (body - a[0]) / (b[0] - a[0]);
 }
 
+/** Font advances of the native recap's mixed CJK and Latin body at standard and largest Dynamic Type. */
+export function recapGlyphSize(bodyPoints: number, han: boolean): number {
+  const regular = han ? 16.4 : 17;
+  const largest = han ? 43.6 : 42;
+  if (bodyPoints <= 17) return bodyPoints * regular / 17;
+  return regular + (bodyPoints - 17) * (largest - regular) / (48 - 17);
+}
+
 export class MarkdownProseRun {
   text: string;
   han: boolean;

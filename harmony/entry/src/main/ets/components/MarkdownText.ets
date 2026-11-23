@@ -2,7 +2,7 @@ import { LengthMetrics, Theme } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { tr } from '../design/Strings';
 import { IconActions } from '../design/IconActions';
-import { MarkdownBlock, MarkdownInline, MarkdownProseRun, MarkdownTableRow, agentReplyBodySize, hasHanProse, markdownProseRuns, parseMarkdown } from '../core/Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownProseRun, MarkdownTableRow, agentReplyBodySize, hasHanProse, markdownProseRuns, parseMarkdown, recapGlyphSize } from '../core/Markdown';
 import { Tokens } from '../design/Tokens';
 import { Colors } from '../design/Colors';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
@@ -84,6 +84,10 @@ export struct MarkdownText {
   private readingFont(size: number): number | string {
     return this.recapReading ? String(this.readingPoints(size)) + 'vp' : size;
   }
+  private proseFont(han: boolean): string | undefined {
+    if (this.recapProse) return String(recapGlyphSize(this.readingPoints(Tokens.body), han)) + 'vp';
+    return han ? String(this.agentHanVp) + 'vp' : undefined;
+  }
   private headingSize(level: number): number {
     if (this.chatReply) {
       if (level === 1) return Math.round(Tokens.body * 1.3);
@@ -149,7 +153,7 @@ export struct MarkdownText {
         .textBackgroundStyle({ color: this.chatReply ? Color.Transparent : this.codeFill, radius: Tokens.fine })
     } else if (readingBody && (this.scaleAgentProse || this.recapProse)) {
       ForEach(markdownProseRuns(node.text), (run: MarkdownProseRun) => {
-        Span(run.text).fontSize(run.han ? String(this.agentHanVp) + 'vp' : undefined)
+        Span(run.text).fontSize(this.proseFont(run.han))
           .fontColor(quiet ? this.secondary : this.foreground).fontWeight(weight).fontStyle(italic ? FontStyle.Italic : FontStyle.Normal)
       }, (run: MarkdownProseRun, index: number) => String(index))
     } else {
