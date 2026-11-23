@@ -164,6 +164,9 @@ type fakeHub struct {
 	infoTag      string
 	infoTagFails bool
 	infoTagAsked []modelCall
+	// captureSort answers sorting a quick capture (capture_sort.go): it fails when empty.
+	captureSort      string
+	captureSortAsked []modelCall
 	// The Progress row's paraphrase of a report (report_line.go): its answer (none: an error), and what was asked.
 	reportLine      string
 	reportLineAsked []modelCall
@@ -843,7 +846,9 @@ func (f *fakeHub) AppCall(ctx context.Context, p AppCall) (json.RawMessage, erro
 		return json.Marshal(map[string]any{"settings": []Setting{{Key: "inbox.rules", Title: "收件箱分拣规则", About: "the rules",
 			Value: "a string", Actions: []string{"get", "set"}}}})
 	case AppSettings + " " + AppTool:
-		return json.Marshal(proto.TextResult("the hub's: "+string(p.Params), false))
+		if f.apps[p.AppID+" "+p.Method] == nil { // else the test's answer (answerApp), below
+			return json.Marshal(proto.TextResult("the hub's: "+string(p.Params), false))
+		}
 	case AppPlugins + " " + assistantwire.PluginsPresets:
 		return json.Marshal(map[string]any{"presets": f.presets})
 	case AppPlugins + " " + assistantwire.PluginsVoice:
@@ -868,7 +873,7 @@ func (f *fakeHub) NotifyRequest(_ context.Context, p NotifyRequest) (NotifyResul
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	switch p.Notification.Kind {
-	case NotifyPush, assistantwire.NotifyDone, assistantwire.NotifyInput, assistantwire.NotifyReply, assistantwire.NotifyDecide:
+	case NotifyPush, assistantwire.NotifyDone, assistantwire.NotifyInput, assistantwire.NotifyReply, assistantwire.NotifyDecide, assistantwire.NotifyHealthWater:
 	default:
 		return NotifyResult{}, fmt.Errorf("kind %q", p.Notification.Kind)
 	}
@@ -1373,6 +1378,8 @@ func withSettings(t testing.TB, f *fakeHub, s *Service) *Service {
 	// And about what a supervisor does with its tasks, told to the main conversation: the background supervisor that
 	// takes them by default is supervise_background_test.go's, which turns this off.
 	s.noBackground = true
+	// And with each report told at once, not held for its Agent's stop (reportStopHold): supervise_slim_test.go's.
+	s.noReportHold = true
 	// And with no information tagging (info_tag.go), as before it: its tests turn it on (f.infoTagModel).
 	s.noInfoTag = !f.infoTagModel
 	if f.settings != nil {
@@ -1609,6 +1616,9 @@ func (f *fakeHub) fakeModel(t testing.TB) {
 		case strings.HasPrefix(in.System, "You tag a piece of text"): // information tagging (info_tag.go)
 			f.infoTagAsked = append(f.infoTagAsked, modelCall{in.System, user})
 			reply, fail = cmp.Or(f.infoTag, `{"categories":[]}`), f.infoTagFails
+		case strings.HasPrefix(in.System, "You sort a note the owner jotted down"): // quick capture (capture_sort.go)
+			f.captureSortAsked = append(f.captureSortAsked, modelCall{in.System, user})
+			reply, fail = f.captureSort, f.captureSort == ""
 		case strings.Contains(in.System, "起一个待办标题"): // a task's todo (todo_titles.go): none unless the test gives one
 			f.todoTitleAsked = append(f.todoTitleAsked, modelCall{in.System, user})
 			reply, fail = f.todoTitleReply, f.todoTitleErr != nil

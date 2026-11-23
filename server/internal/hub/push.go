@@ -51,6 +51,8 @@ type Pusher struct {
 	userLang func() i18n.Lang
 	// userLoc is the user's time zone (Hub.userLocation): quiet hours without a zone of their own read in it (quiethours.go).
 	userLoc func() *time.Location
+	// attention is the attention mode the assistant last reported (Hub.attentionMode, push_attention.go); nil: normal.
+	attention func() *assistantwire.Attention
 	// desktopOpen: the desktop app with this push device id is connected (Hub.desktopOpen); it posts its own
 	// notifications for agents then (the Mac's MacAttentionWatcher).
 	desktopOpen func(device string) bool
@@ -79,7 +81,9 @@ type Pusher struct {
 	acceptedDirty map[string]bool
 	// withdrawals: where each card's push went, to take it back when the card is over (push_withdraw.go).
 	withdrawals withdrawals
-	saveMu      sync.Mutex // one device row write at a time, always the latest state (register, setPrefsBy, renewal, forget, maintenance)
+	// todoPushes: when each to-do's push to the owner about one reason last rang (push_todo_dedup.go).
+	todoPushes todoPushBook
+	saveMu     sync.Mutex // one device row write at a time, always the latest state (register, setPrefsBy, renewal, forget, maintenance)
 	// storeTimeout bounds each device row write, which never runs under mu; tests shorten it.
 	storeTimeout time.Duration
 	// prefsEdit holds one change of a device's settings from its read to its write (editPrefs); taken before saveMu
