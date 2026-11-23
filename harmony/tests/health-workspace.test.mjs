@@ -20,7 +20,7 @@ registerHooks({
   }
 });
 
-const { HealthWorkspace, HealthMemoryFile } = await import('../entry/src/main/ets/models/HealthWorkspace.ets');
+const { HEALTH_SUGGESTIONS, HealthWorkspace, HealthMemoryFile } = await import('../entry/src/main/ets/models/HealthWorkspace.ets');
 const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
 const { healthGoalWidth } = await import('../entry/src/main/ets/core/HealthGoalLabel.ts');
 
@@ -193,6 +193,32 @@ async function opened(options = {}) {
 function pathMethod(env, method, prefix) {
   return env.shared.calls.filter((call) => call.method === method && call.path.startsWith(prefix));
 }
+
+test('the four iPhone Health suggestions retain distinct controls and send their displayed prompt to Health', async () => {
+  const english = ['How did I sleep this week?', 'How do my steps over the last 7 days compare with last week?',
+    'Log my weight today: 62.5 kg', 'Log my weight today: 62.5 kg'];
+  const questions = {
+    base: english, en_US: english,
+    zh_CN: ['这周我睡得怎么样？', '最近 7 天步数和上周比怎么样', '我的静息心率最近有变化吗', '帮我记一下今天体重 62.5 kg'],
+    ja_JP: ['今週の睡眠はどうでしたか？', '直近7日間の歩数は先週と比べてどうですか？', '今日の体重62.5kgを記録して', '今日の体重62.5kgを記録して']
+  };
+  assert.equal(new Set(HEALTH_SUGGESTIONS).size, 4);
+  for (const [locale, expected] of Object.entries(questions)) {
+    const file = new URL(`../entry/src/main/resources/${locale}/element/string.json`, import.meta.url);
+    const resources = new Map(JSON.parse(readFileSync(file, 'utf8')).string.map(v => [v.name, v.value]));
+    const displayed = HEALTH_SUGGESTIONS.map(id => resources.get(id));
+    assert.deepEqual(displayed, expected, locale);
+    const env = await opened();
+    for (const prompt of displayed) {
+      const row = await env.workspace.startConversation(prompt);
+      assert.equal(row.manager, 'health-owner');
+      assert.equal(row.data().space, 'health');
+    }
+    const sent = pathMethod(env, 'POST', '/api/v1/assistant/conversations');
+    assert.deepEqual(sent.map(call => call.body.prompt), expected, locale);
+    assert.ok(sent.every(call => call.body.space === 'health'));
+  }
+});
 
 test('Health resolves the roster default and keeps only health-space conversations from the health endpoint', async () => {
   const { workspace, root, rootState, shared, child } = await opened();

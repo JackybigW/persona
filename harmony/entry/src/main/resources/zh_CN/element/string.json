@@ -2422,15 +2422,19 @@
     },
     {
       "name": "health_question_sleep",
-      "value": "怎样改善睡眠？"
+      "value": "这周我睡得怎么样？"
     },
     {
       "name": "health_question_steps",
-      "value": "日常步数能说明什么？"
+      "value": "最近 7 天步数和上周比怎么样"
+    },
+    {
+      "name": "health_question_resting_heart_rate",
+      "value": "我的静息心率最近有变化吗"
     },
     {
       "name": "health_log_weight",
-      "value": "记录体重"
+      "value": "帮我记一下今天体重 62.5 kg"
     },
     {
       "name": "health_log_water",
@@ -2494,7 +2498,7 @@
     },
     {
       "name": "health_try_asking",
-      "value": "试着问问"
+      "value": "问问看"
     },
     {
       "name": "health_upload_pdf",
@@ -2506,7 +2510,7 @@
     },
     {
       "name": "health_upload_report",
-      "value": "上传报告"
+      "value": "上传体检报告"
     },
     {
       "name": "knowledge_agent_prompt",

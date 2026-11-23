@@ -7,7 +7,7 @@ import { dataSharePredicates } from '@kit.ArkData';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { ClientModel } from '../models/ClientModel';
-import { HealthMemoryFile, HealthReport, HealthWorkspace } from '../models/HealthWorkspace';
+import { HEALTH_SUGGESTIONS, HealthMemoryFile, HealthReport, HealthWorkspace } from '../models/HealthWorkspace';
 import { ResourceRow, Wire } from '../models/Wire';
 import { BoundRow, reconcileBoundRows } from '../models/RowBinding';
 import { MarkdownText } from './MarkdownText';
@@ -16,10 +16,10 @@ import { tr } from '../design/Strings';
 import { HealthToday } from './HealthToday';
 import { PhoneDictationControl } from './PhoneDictationControl';
 import { PhoneStyle } from '../design/PhoneStyle';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { compactDraftRoom } from '../core/ComposerSize';
 
-const HEALTH_SUGGESTIONS: string[] = ['health_question_sleep', 'health_question_steps', 'health_log_weight', 'health_log_water'];
 const HEALTH_REPORT_LIMIT: number = 32 * 1024 * 1024;
 const HEALTH_REPORT_SELECTION_LIMIT: number = 8;
 
@@ -352,45 +352,79 @@ export struct HealthWorkspacePage {
     }.width('100%').alignItems(HorizontalAlign.Start).padding(14).backgroundColor(Colors.surface).borderRadius(15)
   }
 
+  private reportTint(): string { return this.environment.dark ? '#FF6B8B' : '#D62E5C'; }
+
+  @Builder suggestionLabel(key: string, upload: boolean) {
+    Row({space:16}) {
+      Stack() {
+        if (upload) {
+          SymbolGlyph($r('sys.symbol.doc_plaintext')).fontSize(String(PhoneStyle.formSize(24,32,this.environment.fontScale))+'vp')
+            .fontColor([this.reportTint()]).accessibilityLevel('no')
+        } else {
+          PhoneOutlineIcon({name:'sparkles',iconScale:PhoneStyle.formSize(1,1.35,this.environment.fontScale),color:this.reportTint()})
+        }
+      }.width(PhoneStyle.formSize(24,32,this.environment.fontScale))
+      Text(tr(key)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(upload ? this.reportTint() : Colors.ink)
+        .layoutWeight(1).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+    }.width('100%').padding({left:20,right:20})
+  }
+
+  @Builder suggestions() {
+    Column() {
+      Text(tr('health_try_asking')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+        .width('100%').height(PhoneStyle.formSize(40.3,47.7,this.environment.fontScale)).padding({left:20,right:20})
+      Column() {
+        Button({type:ButtonType.Normal}) { this.suggestionLabel('health_upload_report', true) }
+          .width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.3,59.3,this.environment.fontScale)})
+          .padding(0).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
+          .accessibilityText(tr('health_upload_report')).bindMenu(this.reportUploadMenu)
+          .enabled(!this.pickerBusy && this.workspace.canUploadReports()).id('health.report.upload')
+        if (this.workspace.error) Text(tr(this.workspace.error)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
+          .fontColor(Colors.secondary).width('100%').padding({left:20,right:20})
+        if (this.pickerBusy || this.workspace.reportUploadState === 'sending') Row({space:Tokens.gap}) {
+          LoadingProgress().width(Tokens.touch).height(Tokens.touch)
+          Text(tr('health_report_uploading')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+        }.width('100%').padding({left:20,right:20})
+        if (this.pickerError) Text(tr(this.pickerError)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
+          .fontColor(Colors.danger).width('100%').padding({left:20,right:20})
+        ForEach(HEALTH_SUGGESTIONS, (key: string) => {
+          Divider().strokeWidth('1px').color(Colors.divider).margin({left:36+PhoneStyle.formSize(24,32,this.environment.fontScale),right:20})
+          Button({type:ButtonType.Normal}) { this.suggestionLabel(key, false) }
+            .width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.3,59.3,this.environment.fontScale)})
+            .padding(0).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
+            .accessibilityText(tr(key)).enabled(this.workspace.canStartConversation() && !this.pickerBusy)
+            .onClick(() => this.send(tr(key))).id('health.suggestion.'+key)
+        }, (key: string) => key)
+      }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface).borderRadius(26).clip(true)
+    }.width('100%').alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder privacy() {
+    Column({space:Tokens.gap}) {
+      Row({space:Tokens.gap}) {
+        SymbolGlyph($r('sys.symbol.checkmark_shield')).fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale))
+          .fontColor([Colors.ink]).accessibilityLevel('no')
+        Text(tr('privacy')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(600).fontColor(Colors.ink)
+      }
+      Text(tr('health_privacy_note')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary)
+        .width('100%').id('health.privacy.note')
+    }.width('100%').alignItems(HorizontalAlign.Start).padding({left:20,right:20,top:16,bottom:16})
+      .backgroundColor(Colors.surface).borderRadius(26).id('health.privacy')
+  }
+
   @Builder home() {
     Scroll() {
       Column({ space: 12 }) {
         HealthToday({intake:this.workspace.intake,model:this.model,resolving:this.workspace.loading,unavailable:this.workspace.error,onLink:(link:string) => this.onLink(link)})
-        Column({ space: Tokens.gap }) {
-          Text(tr('health_privacy_note')).fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary')).width('100%')
-        }.alignItems(HorizontalAlign.Start).width('100%')
-        Column({ space: Tokens.gap }) {
-          Text(tr('health_try_asking')).fontSize(Tokens.body).fontWeight(FontWeight.Medium).width('100%').padding({left:14,right:14})
-          Button({ type: ButtonType.Normal }) {
-            Row({space:16}) {
-              SymbolGlyph($r('sys.symbol.doc_plaintext')).fontSize(String(PhoneStyle.formSize(24,32,this.environment.fontScale))+'vp').fontColor([this.reportTint()])
-              Text(tr('health_upload_report')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(this.reportTint()).layoutWeight(1).maxLines(1)
-            }.width('100%')
-          }.width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.3,59.3,this.environment.fontScale)})
-            .buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent).padding({left:20,right:20})
-            .accessibilityText(tr('health_upload_report')).bindMenu(this.reportUploadMenu)
-            .enabled(!this.pickerBusy && this.workspace.canUploadReports()).id('health.report.upload')
-          Column({space:Tokens.gap}) {
-            if (this.workspace.error) Text(tr(this.workspace.error)).fontSize(Tokens.meta).fontColor(Colors.secondary).width('100%')
-            if (this.pickerBusy || this.workspace.reportUploadState === 'sending') Row({ space: Tokens.gap }) {
-              LoadingProgress().width(Tokens.touch).height(Tokens.touch)
-              Text(tr('health_report_uploading')).fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary'))
-            }.width('100%')
-            if (this.pickerError) Text(tr(this.pickerError)).fontSize(Tokens.meta)
-              .fontColor($r('app.color.persona_danger')).width('100%')
-            ForEach(HEALTH_SUGGESTIONS, (key: string) => Button({ type: ButtonType.Normal }) { Row({ space: Tokens.inset }) { Text(tr(key)).fontSize(Tokens.body).fontColor(Colors.ink).layoutWeight(1); SymbolGlyph($r('sys.symbol.arrow_up')).fontSize(Tokens.meta).fontColor([Colors.secondary]) }.width('100%').constraintSize({ minHeight: Tokens.touch }) }.buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent).padding({ left: Tokens.page, right: Tokens.page }).width('100%').constraintSize({ minHeight: Tokens.touch })
-              .enabled(this.workspace.canStartConversation() && !this.pickerBusy).onClick(() => this.send(tr(key))).id('health.suggestion.' + key), (key: string) => key)
-          }.width('100%').alignItems(HorizontalAlign.Start).padding({left:14,right:14})
-        }.width('100%').alignItems(HorizontalAlign.Start).padding({top:14,bottom:14}).backgroundColor(Colors.surface).borderRadius(15)
+        this.suggestions()
         this.reportsSection()
         this.conversationSection()
         this.memorySection()
+        this.privacy()
       }.padding({left:Tokens.page,right:Tokens.page,bottom:Tokens.page,top:PhoneStyle.formSize(4,0,this.environment.fontScale)})
         .width('100%').alignItems(HorizontalAlign.Start)
     }.scrollable(ScrollDirection.Vertical).scrollBar(BarState.Auto).layoutWeight(1).width('100%')
   }
-
-  private reportTint(): string { return this.environment.dark ? '#FF6B8B' : '#D62E5C'; }
 
   private draftOwner(): string {
     return this.workspace.composerOwner();

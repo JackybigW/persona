@@ -6,6 +6,9 @@ import { HealthIntakeModel } from './HealthIntake';
 const HEALTH_SPACE: string = 'health';
 const MEMORY_INDEX: string = 'MEMORY.md';
 const MAX_HEALTH_REPORT_BYTES: number = 32 * 1024 * 1024;
+export const HEALTH_SUGGESTIONS: string[] = [
+  'health_question_sleep', 'health_question_steps', 'health_question_resting_heart_rate', 'health_log_weight'
+];
 
 class HealthOwner {
   root: ClientModel;

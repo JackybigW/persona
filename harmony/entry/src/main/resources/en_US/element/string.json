@@ -2422,15 +2422,19 @@
     },
     {
       "name": "health_question_sleep",
-      "value": "How can I improve my sleep?"
+      "value": "How did I sleep this week?"
     },
     {
       "name": "health_question_steps",
-      "value": "What can my daily steps tell me?"
+      "value": "How do my steps over the last 7 days compare with last week?"
+    },
+    {
+      "name": "health_question_resting_heart_rate",
+      "value": "Log my weight today: 62.5 kg"
     },
     {
       "name": "health_log_weight",
-      "value": "Log my weight"
+      "value": "Log my weight today: 62.5 kg"
     },
     {
       "name": "health_log_water",
@@ -2494,7 +2498,7 @@
     },
     {
       "name": "health_try_asking",
-      "value": "Try asking"
+      "value": "Try Asking"
     },
     {
       "name": "health_upload_pdf",
@@ -2506,7 +2510,7 @@
     },
     {
       "name": "health_upload_report",
-      "value": "Upload a report"
+      "value": "Upload a Checkup Report"
     },
     {
       "name": "knowledge_agent_prompt",
