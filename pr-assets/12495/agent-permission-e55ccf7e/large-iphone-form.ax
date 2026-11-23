@@ -1,0 +1,298 @@
+Attributes: Application, 0x106b2e6c0, pid: 85882, label: 'Persona'
+Element subtree:
+ →Application, 0x106b2e6c0, pid: 85882, label: 'Persona'
+    Window, 0x106b2e800, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x106b2e940, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x106b2ea80, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x106b2ebc0, {{-402.0, -874.0}, {1206.0, 2622.0}}
+          Other, 0x106b2ed00, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x106b2ee40, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x106b2ef80, {{0.0, 0.0}, {402.0, 874.0}}
+                Other, 0x106b2f0c0, {{0.0, 0.0}, {402.0, 874.0}}
+                  Other, 0x106b2f200, {{0.0, 0.0}, {402.0, 874.0}}
+                    Other, 0x106b2f340, {{0.0, 0.0}, {402.0, 874.0}}
+                      Other, 0x106b2f480, {{0.0, 0.0}, {402.0, 874.0}}
+                        Other, 0x106b2f5c0, {{0.0, 0.0}, {402.0, 160.0}}
+                        Other, 0x106b2f700, {{0.0, 62.0}, {402.0, 778.0}}
+                        Other, 0x106b2f840, {{0.0, 62.0}, {402.0, 778.0}}
+                        Other, 0x106b2f980, {{0.0, 63.0}, {402.0, 198.0}}
+                        Button, 0x106b2fac0, {{16.0, 64.0}, {57.7, 57.7}}, identifier: 'assistant-sidebar-button', label: '历史对话', value: Persona，空闲，收件箱有事等你
+                          Other, 0x106b2fc00, {{16.0, 64.0}, {57.7, 57.7}}
+                        Button, 0x106b2fd40, {{106.3, 68.0}, {94.7, 47.3}}, identifier: 'shell-assistant', label: '助手'
+                          Button, 0x106b2fe80, {{106.3, 68.0}, {94.7, 47.3}}
+                            StaticText, 0x106b13700, {{106.3, 68.0}, {94.7, 47.3}}, label: '助手'
+                        Button, 0x106b135c0, {{201.0, 68.0}, {94.7, 47.3}}, identifier: 'shell-agents', label: 'Agents'
+                        StaticText, 0x106b13200, {{280.0, 62.0}, {23.7, 25.7}}, label: '3 个需要你'
+                        Button, 0x106b130c0, {{328.3, 64.0}, {57.7, 57.7}}, identifier: 'assistant-new', label: '新对话'
+                        Other, 0x106b13c00, {{54.0, 102.0}, {13.3, 13.3}}, identifier: 'assistant-sidebar-button', label: '历史对话', value: Persona，空闲，收件箱有事等你
+                        ScrollView, 0x106b16f80, {{0.0, 63.0}, {402.0, 198.0}}
+                          Other, 0x106b170c0, {{16.0, -17822.0}, {370.0, 18003.0}}
+                            Other, 0x106b17200, {{15.8, -1070.6}, {370.5, 1235.8}}
+                              Other, 0x106b17340, {{15.8, -1070.6}, {370.5, 1235.8}}, identifier: 'brief.card'
+                                Image, 0x106b17480, {{33.7, -1052.7}, {21.3, 21.3}}, identifier: 'sun.max.fill', label: '调高亮度'
+                                StaticText, 0x106b175c0, {{33.7, -1053.3}, {69.0, 23.0}}, label: '早报'
+                                StaticText, 0x106b17700, {{32.0, -1017.7}, {151.5, 31.7}}, label: '等你处理（2）'
+                                  Image, 0x106b17840, {{40.7, -1011.7}, {15.0, 19.7}}, identifier: 'hand.raised.fill', label: '屏蔽'
+                                  StaticText, 0x106b17980, {{71.5, -1013.4}, {112.0, 23.0}}, label: '等你处理（2）'
+                                StaticText, 0x106b17ac0, {{32.0, -978.1}, {237.3, 51.3}}, label: 'Mock 用协议注入还是保留单例？'
+                                Button, 0x106b17c00, {{308.0, -946.3}, {62.0, 37.0}}, label: '打开：Mock 用协议注入还是保留单例？'
+                                StaticText, 0x106b17d40, {{32.0, -924.8}, {249.7, 47.0}}, label: '已等 1小时20分钟 · 已催过 · 来自 Agent「网络层测试」'
+                                StaticText, 0x106b17e80, {{32.0, -865.8}, {100.3, 25.3}}, label: '需要你批准'
+                                StaticText, 0x106b14280, {{32.0, -838.5}, {223.7, 23.0}}, label: '已等 5分钟 · 来自 Persona'
+                                Button, 0x106b143c0, {{32.0, -795.0}, {338.0, 35.3}}, identifier: 'brief.past', label: '过去 12 小时：做完 6 · 没成 3', value: 已收起
+                                  StaticText, 0x106b14500, {{32.0, -791.0}, {289.9, 31.3}}, label: '过去 12 小时：做完 6 · 没成 3'
+                                    Image, 0x106b14640, {{38.7, -784.7}, {18.3, 18.3}}, identifier: 'clock', label: '时钟'
+                                    StaticText, 0x106b14780, {{71.5, -786.9}, {250.3, 23.0}}, label: '过去 12 小时：做完 6 · 没成 3'
+                                  Image, 0x106b148c0, {{351.7, -782.0}, {16.0, 9.3}}, identifier: 'chevron.down', label: '向下移动'
+                                StaticText, 0x106b14a00, {{32.0, -739.3}, {132.9, 31.7}}, label: '待验收（2）', Selected
+                                  Image, 0x106b14b40, {{38.7, -732.7}, {18.3, 18.3}}, identifier: 'checkmark.circle', label: '已选择', Selected
+                                  StaticText, 0x106b14c80, {{71.5, -735.0}, {93.3, 23.0}}, label: '待验收（2）'
+                                StaticText, 0x106b14dc0, {{32.0, -699.7}, {120.3, 25.3}}, label: '整理发布说明'
+                                StaticText, 0x106b14f00, {{32.0, -672.4}, {240.0, 47.0}}, label: '发布说明写好了，放在 docs/release-notes.md'
+                                StaticText, 0x106b15040, {{32.0, -623.4}, {266.3, 23.0}}, label: '已等 2小时 · 来自 Agent「发布」'
+                                Button, 0x106b15180, {{238.0, -594.3}, {62.0, 53.3}}, label: '打开：整理发布说明'
+                                Button, 0x106b152c0, {{308.0, -594.3}, {62.0, 53.3}}, identifier: 'brief.accept.todo_task_release', label: '验收通过：整理发布说明'
+                                StaticText, 0x106b15400, {{32.0, -529.0}, {100.3, 25.3}}, label: '选缓存方案'
+                                StaticText, 0x106b15540, {{32.0, -501.7}, {277.7, 23.0}}, label: '需要你拍板：本地缓存还是 Redis'
+                                StaticText, 0x106b15680, {{32.0, -476.7}, {278.0, 23.0}}, label: '推荐：本地缓存，先不引入 Redis'
+                                StaticText, 0x106b157c0, {{32.0, -451.7}, {323.0, 23.0}}, label: '已等 2小时 · 来自 Agent「网络层测试」'
+                                Button, 0x106be0000, {{92.7, -422.7}, {62.0, 53.3}}, label: '打开：选缓存方案'
+                                Button, 0x106be0140, {{162.7, -422.7}, {99.7, 53.3}}, identifier: 'brief.complete.todo_task_cache', label: '直接完成：选缓存方案'
+                                Button, 0x106be0280, {{270.3, -422.7}, {99.7, 53.3}}, identifier: 'brief.accept.todo_task_cache', label: '「选缓存方案」按推荐来'
+                                StaticText, 0x106be03c0, {{32.0, -345.0}, {170.5, 31.7}}, label: '可以晚点答（2）'
+                                  Image, 0x106be0500, {{37.7, -338.7}, {20.0, 19.0}}, identifier: 'questionmark.bubble', label: '对话气泡中的问号'
+                                  StaticText, 0x106be0640, {{71.5, -340.7}, {131.0, 23.0}}, label: '可以晚点答（2）'
+                                StaticText, 0x106be0780, {{32.0, -305.4}, {334.3, 51.3}}, label: '统一用 snake_case 还是 camelCase 命名新接口？'
+                                StaticText, 0x106be08c0, {{32.0, -252.1}, {307.7, 47.0}}, label: '已等 1天2小时 · 来自 Agent「网络层测试」'
+                                Button, 0x106be0a00, {{219.3, -199.0}, {62.0, 37.0}}, label: '打开：统一用 snake_case 还是 camelCase 命名新接口？'
+                                Button, 0x106be0b40, {{289.3, -199.0}, {80.7, 37.0}}, identifier: 'brief.later.lt_mock_1', label: '标记为已处理：统一用 snake_case 还是 camelCase 命名新接口？'
+                                StaticText, 0x106be0c80, {{32.0, -150.1}, {271.0, 25.3}}, label: '发布说明里要不要写内部编号？'
+                                StaticText, 0x106be0dc0, {{32.0, -122.7}, {267.0, 23.0}}, label: '已等 3小时 · 来自 Agent「发布」'
+                                Button, 0x106be0f00, {{289.3, -93.7}, {80.7, 37.0}}, identifier: 'brief.later.lt_mock_2', label: '标记为已处理：发布说明里要不要写内部编号？'
+                                StaticText, 0x106be1040, {{32.0, -32.3}, {132.9, 31.3}}, label: '进行中（2）'
+                                  Image, 0x106be1180, {{38.3, -26.0}, {19.0, 19.0}}, identifier: 'gearshape.fill', label: '齿轮形状，实心'
+                                  StaticText, 0x106be12c0, {{71.5, -28.1}, {93.3, 23.0}}, label: '进行中（2）'
+                                StaticText, 0x106be1400, {{32.0, 13.0}, {140.7, 25.3}}, label: '小组件横屏崩溃'
+                                Button, 0x106be1540, {{308.0, 7.0}, {62.0, 37.0}}, label: '打开：小组件横屏崩溃'
+                                Other, 0x106be1680, {{32.0, 46.7}, {338.0, 49.5}}, identifier: 'todo.stage'
+                                  Other, 0x106be17c0, {{32.0, 48.0}, {56.3, 21.0}}, identifier: 'todo.stage.plan', label: '方案，第 1 步，共 6 步，已完成'
+                                    Image, 0x106be1900, {{54.0, 52.7}, {12.3, 12.0}}, identifier: 'checkmark', label: '已选择', Selected
+                                  Other, 0x106be1a40, {{88.3, 46.7}, {56.3, 23.7}}, identifier: 'todo.stage.develop', label: '开发，第 2 步，共 6 步，当前步骤'
+                                  Other, 0x106be1b80, {{144.7, 48.0}, {56.3, 21.0}}, identifier: 'todo.stage.review', label: '审查，第 3 步，共 6 步，还没到'
+                                  Other, 0x106be1cc0, {{201.0, 48.0}, {56.3, 21.0}}, identifier: 'todo.stage.merge', label: '合入，第 4 步，共 6 步，还没到'
+                                  Other, 0x106be1e00, {{257.3, 48.0}, {56.3, 21.0}}, identifier: 'todo.stage.deploy', label: '部署，第 5 步，共 6 步，还没到'
+                                  Other, 0x106be1f40, {{313.7, 48.0}, {56.3, 21.0}}, identifier: 'todo.stage.verify', label: '已验证，第 6 步，共 6 步，还没到'
+                                  StaticText, 0x106be2080, {{32.0, 73.2}, {192.0, 23.0}}, label: '第 2 步，共 6 步 · 开发'
+                                StaticText, 0x106be21c0, {{32.0, 114.0}, {200.7, 25.3}}, label: '补齐网络层的单元测试'
+                                Button, 0x106be2300, {{308.0, 108.0}, {62.0, 37.0}}, label: '打开：补齐网络层的单元测试'
+                            Other, 0x106be2440, {{16.0, -17822.0}, {370.0, 18003.0}}
+                        Other, 0x106be2580, {{0.0, 165.0}, {402.0, 96.0}}
+                        Other, 0x106be26c0, {{12.0, 205.0}, {378.0, 488.0}}, identifier: 'question-dock'
+                          Button, 0x106be2800, {{262.3, 205.0}, {58.0, 57.7}}, identifier: 'question-dock.previous', label: '上一张', Disabled
+                          Button, 0x106be2940, {{328.3, 205.0}, {57.7, 57.7}}, identifier: 'question-dock.next', label: '下一张'
+                          Other, 0x106be2a80, {{16.0, 228.0}, {87.0, 11.7}}
+                          StaticText, 0x106be2bc0, {{110.9, 222.4}, {38.3, 23.0}}, identifier: 'question-dock.position', label: '1 / 5'
+                          Other, 0x106be2d00, {{12.0, 258.7}, {378.0, 425.3}}, identifier: 'chat.card.ix_photos'
+                            Button, 0x106be2e40, {{20.0, 250.7}, {362.0, 32.0}}, identifier: 'interaction-grabber', label: '卡片高度'
+                            Button, 0x106be2f80, {{188.0, 266.7}, {57.7, 57.7}}, identifier: 'question-skip-unavailable', label: '跳过', Disabled
+                            Button, 0x106be30c0, {{117.3, 276.0}, {72.7, 39.0}}, identifier: 'interaction-source', label: '看原文'
+                            Image, 0x106be3200, {{30.3, 284.3}, {15.3, 22.7}}, identifier: 'list.bullet.clipboard.fill', label: '剪贴板上的项目符号列表，实心'
+                            StaticText, 0x106be3340, {{54.0, 284.7}, {53.7, 21.7}}, label: '计划等你审批'
+                            Button, 0x106be3480, {{251.7, 277.3}, {36.7, 36.7}}, identifier: 'arrow.up.left.and.arrow.down.right', label: '全屏查看计划'
+                            Button, 0x106be35c0, {{294.3, 277.3}, {37.0, 36.7}}, identifier: 'interaction-menu', label: '更多'
+                              Button, 0x106be3700, {{294.3, 277.3}, {37.0, 36.7}}
+                                Image, 0x106be3840, {{294.3, 277.3}, {37.0, 36.7}}, identifier: 'ellipsis', label: '更多'
+                            Button, 0x106be3980, {{337.3, 277.3}, {36.7, 36.7}}, identifier: 'question-dock.collapse', label: '收起'
+                            StaticText, 0x106be3ac0, {{28.0, 318.5}, {160.0, 23.0}}, label: '照片同步支持 HEIC'
+                            StaticText, 0x106be3c00, {{28.0, 343.5}, {321.0, 47.0}}, identifier: 'interaction-no-skip', label: '这是计划审批，不能跳过：不想按这个计划做就打回。'
+                            ScrollView, 0x106be3d40, {{28.0, 402.3}, {346.0, 159.7}}
+                              Other, 0x106be3e80, {{28.0, 402.3}, {346.0, 173.3}}
+                                StaticText, 0x106bf8000, {{28.0, 402.4}, {209.3, 57.3}}, label: '支持 HEIC'
+                                Button, 0x106bf8140, {{28.0, 552.7}, {94.3, 23.0}}, identifier: 'card-plan.expand', label: '查看全文'
+                                  StaticText, 0x106bf8280, {{28.0, 552.7}, {94.3, 23.0}}, label: '查看全文'
+                                  Image, 0x106bf83c0, {{106.7, 560.3}, {16.7, 10.0}}, identifier: 'chevron.right', label: '前进'
+                                StaticText, 0x106bf8500, {{28.0, 469.7}, {341.0, 334.7}}, label: '用 sips 把 HEIC 转成 JPEG，质量 90，保留 EXIF'
+                                StaticText, 0x106bf8640, {{28.0, 814.3}, {308.0, 196.0}}, label: '转换放到导出前，原文件不动'
+                                StaticText, 0x106bf8780, {{28.0, 1020.3}, {306.7, 196.0}}, label: '已经转过的按内容哈希跳过'
+                                StaticText, 0x106bf88c0, {{28.0, 1226.3}, {308.0, 265.4}}, label: '补测试：竖拍、实况照片、没有 EXIF 的图'
+                            Button, 0x106bf8a00, {{28.0, 574.0}, {346.0, 54.3}}, label: '批准并自动执行'
+                              StaticText, 0x106bf8b40, {{28.0, 574.0}, {346.0, 54.3}}, label: '批准并自动执行'
+                              Image, 0x106bf8c80, {{121.3, 591.0}, {17.0, 19.0}}, identifier: 'play.fill', label: '播放'
+                            Button, 0x106bf8dc0, {{28.0, 640.3}, {169.0, 36.3}}, label: '自动接受编辑'
+                            Button, 0x106bf8f00, {{205.0, 640.3}, {169.0, 36.3}}, label: '打回'
+                          Other, 0x106bf9040, {{12.0, 258.7}, {378.0, 434.3}}
+                        ScrollView, 0x106bf9180, {{12.0, 713.0}, {378.0, 35.0}}, identifier: 'action-bar'
+                          Other, 0x106bf92c0, {{12.0, 713.0}, {475.0, 35.0}}
+                            Button, 0x106bf9400, {{16.0, 713.0}, {122.3, 35.0}}, identifier: 'action-bar.to-decide', label: '待选择、5', Selected
+                              StaticText, 0x106bf9540, {{28.0, 719.0}, {56.7, 23.0}}, label: '待选择'
+                              StaticText, 0x106bf9680, {{88.7, 719.0}, {12.0, 23.0}}, label: '5'
+                              Image, 0x106bf97c0, {{107.0, 725.7}, {17.0, 10.0}}, identifier: 'chevron.down', label: '向下移动'
+                            Button, 0x106bf9900, {{146.3, 713.0}, {115.7, 35.0}}, identifier: 'action-bar.needs-you', label: '要你处理、5'
+                              StaticText, 0x106bf9a40, {{158.3, 719.0}, {75.7, 23.0}}, label: '要你处理'
+                              StaticText, 0x106bf9b80, {{238.0, 719.0}, {12.0, 23.0}}, label: '5'
+                            Button, 0x106bf9cc0, {{270.0, 713.0}, {108.3, 35.0}}, identifier: 'action-bar.running', label: '进行中、15'
+                              StaticText, 0x106bf9e00, {{282.0, 719.0}, {56.7, 23.0}}, label: '进行中'
+                              StaticText, 0x106bf9f40, {{342.7, 719.0}, {23.7, 23.0}}, label: '15'
+                            Button, 0x106bfa080, {{386.3, 713.0}, {96.7, 35.0}}, identifier: 'action-bar.finished', label: '已完成、1'
+                              StaticText, 0x106bfa1c0, {{398.3, 719.0}, {56.7, 23.0}}, label: '已完成'
+                              StaticText, 0x106bfa300, {{459.0, 719.0}, {12.0, 23.0}}, label: '1'
+                        Other, 0x106bfa440, {{12.0, 760.0}, {378.0, 72.0}}
+                        Other, 0x106bfa580, {{12.0, 760.0}, {378.0, 72.0}}
+                        Other, 0x106bfa6c0, {{12.0, 760.0}, {378.0, 72.0}}
+                          Button, 0x106bfa800, {{16.0, 762.0}, {68.0, 68.0}}, identifier: 'shell-composer-add', label: '添加照片或文件'
+                            Button, 0x106bfa940, {{16.0, 762.0}, {68.0, 68.0}}
+                              Image, 0x106bfaa80, {{16.0, 762.0}, {68.0, 68.0}}, identifier: 'plus', label: '添加'
+                          Other, 0x106bfabc0, {{88.2, 761.8}, {225.7, 33.7}}
+                          TextField, 0x106bfad00, {{92.0, 764.3}, {218.0, 63.3}}, identifier: 'shell-composer-field', label: '问 Persona'
+                            Other, 0x106bfae40, {{92.0, 794.7}, {218.0, 30.0}}, label: '水平滚动条, 1页', value: 0%
+                              Other, 0x106bfaf80, {{95.0, 821.7}, {209.0, 3.0}}
+                          Button, 0x106bfb0c0, {{318.0, 762.0}, {68.0, 68.0}}, identifier: 'shell-composer-mic', label: '听写'
+                            Image, 0x106bfb200, {{318.0, 762.0}, {68.0, 68.0}}, identifier: 'mic', label: '麦克风'
+                          StaticText, 0x106bfb340, {{92.2, 779.1}, {130.7, 33.7}}, label: '问 Persona'
+                        Button, 0x106bfb480, {{29.6, 775.6}, {40.8, 40.8}}
+                        Other, 0x106bfb5c0, {{88.1, 768.0}, {1.4, 55.7}}
+                          Other, 0x106bfb700, {{88.1, 768.0}, {1.4, 55.7}}
+                            Other, 0x106bfb840, {{88.1, 768.0}, {1.4, 55.8}}
+                              Other, 0x106bfb980, {{88.1, 768.0}, {1.4, 55.8}}
+                        Button, 0x106bfbac0, {{259.4, 775.6}, {40.8, 40.8}}
+                        Button, 0x106bfbc00, {{331.6, 775.6}, {40.8, 40.8}}
+                        Other, 0x106bfbd40, {{201.0, 795.9}, {0.0, 0.0}}
+                        Other, 0x106bfbe80, {{201.0, 795.9}, {0.0, 0.0}}
+                        Other, 0x10f408000, {{201.0, 796.0}, {0.0, 0.0}}
+                Toolbar, 0x10f408140, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'Toolbar', label: '工具栏'
+                  Other, 0x10f408280, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x10f4083c0, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10f408500, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10f408640, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10f408780, {{0.0, 62.0}, {329.7, 812.0}}
+      Other, 0x10f4088c0, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10f408a00, {{-402.0, -874.0}, {1206.0, 2622.0}}
+        Other, 0x10f408b40, {{0.0, 62.0}, {402.0, 812.0}}
+          Other, 0x10f408c80, {{0.0, 62.0}, {402.0, 812.0}}
+            Other, 0x10f408dc0, {{0.0, 62.0}, {402.0, 812.0}}
+              Other, 0x10f408f00, {{0.0, 62.0}, {402.0, 812.0}}
+                Other, 0x10f409040, {{0.0, 62.0}, {402.0, 812.0}}
+                  NavigationBar, 0x10f409180, {{0.0, 78.0}, {402.0, 54.0}}, identifier: 'Agent'
+                    Button, 0x10f4092c0, {{16.0, 78.0}, {44.0, 44.0}}, identifier: 'BackButton', label: '设置'
+                    StaticText, 0x10f409400, {{172.0, 87.3}, {57.7, 25.3}}, label: 'Agent'
+                  Other, 0x10f409540, {{0.0, 62.0}, {402.0, 812.0}}
+                    Other, 0x10f409680, {{0.0, 62.0}, {402.0, 812.0}}
+                      Other, 0x10f4097c0, {{0.0, 62.0}, {402.0, 812.0}}
+                        Other, 0x10f409900, {{0.0, 62.0}, {402.0, 812.0}}
+                          CollectionView, 0x10f409a40, {{0.0, 62.0}, {402.0, 812.0}}
+                            Other, 0x10f409b80, {{-16.0, -1492.0}, {434.0, 1849.3}}
+                            Other, 0x10f409cc0, {{0.0, 62.0}, {402.0, 812.0}}
+                              Other, 0x10f409e00, {{0.0, 62.0}, {402.0, 110.0}}
+                            Other, 0x10f409f40, {{0.0, 62.0}, {402.0, 812.0}}
+                            Cell, 0x10f40a080, {{16.0, 132.0}, {370.0, 47.7}}
+                              Other, 0x10f40a1c0, {{16.0, 132.0}, {370.0, 47.7}}
+                              Other, 0x10f40a300, {{16.0, 132.0}, {370.0, 47.7}}
+                                Other, 0x10f40a440, {{16.0, 132.0}, {370.0, 47.7}}
+                                  Other, 0x10f40a580, {{16.0, 132.0}, {370.0, 47.7}}
+                                    StaticText, 0x10f40a6c0, {{16.0, 132.0}, {370.0, 47.7}}, label: '默认权限'
+                            Cell, 0x10f40a800, {{16.0, 179.7}, {370.0, 59.3}}
+                              Other, 0x10f40a940, {{16.0, 179.7}, {370.0, 59.3}}
+                                Other, 0x10f40aa80, {{16.0, 179.7}, {370.0, 59.3}}
+                              Other, 0x10f40abc0, {{16.0, 179.7}, {370.0, 59.3}}
+                                Other, 0x10f40ad00, {{16.0, 179.7}, {370.0, 59.3}}
+                                  Other, 0x10f40ae40, {{16.0, 179.7}, {370.0, 59.3}}
+                                    Button, 0x10f40af80, {{40.0, 188.3}, {326.0, 42.0}}, identifier: 'default-permission-mode', label: '新对话权限、默认权限'
+                                      StaticText, 0x10f40b0c0, {{257.3, 195.3}, {87.7, 27.7}}, label: '默认权限'
+                                    Image, 0x10f40b200, {{40.0, 194.7}, {24.0, 29.0}}, identifier: 'lock.shield', label: '盾牌中的挂锁'
+                                    StaticText, 0x10f40b340, {{83.7, 195.5}, {109.7, 27.7}}, label: '新对话权限'
+                            Cell, 0x10f40b480, {{16.0, 239.0}, {370.0, 59.3}}
+                              Other, 0x10f40b5c0, {{16.0, 239.0}, {370.0, 59.3}}
+                                Other, 0x10f40b700, {{16.0, 239.0}, {370.0, 59.3}}
+                              Other, 0x10f40b840, {{16.0, 239.0}, {370.0, 59.3}}
+                                Other, 0x10f40b980, {{16.0, 239.0}, {370.0, 59.3}}
+                                  Other, 0x10f40bac0, {{16.0, 239.0}, {370.0, 59.3}}
+                                    StaticText, 0x10f40bc00, {{16.0, 239.0}, {370.0, 59.3}}, label: '改文件、跑命令前都先问你'
+                            Other, 0x10f40bd40, {{83.7, 238.0}, {282.3, 1.0}}
+                            Cell, 0x10f40be80, {{16.0, 298.3}, {370.0, 59.0}}
+                              Other, 0x10f414000, {{16.0, 298.3}, {370.0, 59.0}}
+                              Other, 0x10f414140, {{16.0, 298.3}, {370.0, 59.0}}
+                                Other, 0x10f414280, {{16.0, 298.3}, {370.0, 59.0}}
+                                  Other, 0x10f4143c0, {{16.0, 298.3}, {370.0, 59.0}}
+                                    StaticText, 0x10f414500, {{16.0, 298.3}, {370.0, 59.0}}, label: '适用于未单独选择权限的新对话。现有对话保持当前权限模式。'
+                            Other, 0x10f414640, {{-16.0, 357.3}, {434.0, 1975.3}}
+                            Cell, 0x10f414780, {{16.0, 375.0}, {370.0, 59.3}}
+                              Other, 0x10f4148c0, {{16.0, 375.0}, {370.0, 59.3}}
+                                Other, 0x10f414a00, {{16.0, 375.0}, {370.0, 59.3}}
+                              Other, 0x10f414b40, {{16.0, 375.0}, {370.0, 59.3}}
+                                Other, 0x10f414c80, {{16.0, 375.0}, {370.0, 59.3}}
+                                  Other, 0x10f414dc0, {{16.0, 375.0}, {370.0, 59.3}}
+                                    Button, 0x10f414f00, {{16.0, 375.0}, {370.0, 59.3}}, label: 'Agent 文件夹'
+                                      StaticText, 0x10f415040, {{37.3, 390.8}, {176.7, 27.7}}, label: 'Agent 文件夹'
+                                      Image, 0x10f415180, {{37.3, 392.3}, {29.0, 24.3}}, identifier: 'slider.horizontal.3', label: '编辑'
+                                      Image, 0x10f4152c0, {{352.7, 396.3}, {9.7, 16.3}}, identifier: 'chevron.forward'
+                            Cell, 0x10f415400, {{16.0, 434.3}, {370.0, 59.3}}
+                              Other, 0x10f415540, {{16.0, 434.3}, {370.0, 59.3}}
+                                Other, 0x10f415680, {{16.0, 434.3}, {370.0, 59.3}}
+                              Other, 0x10f4157c0, {{16.0, 434.3}, {370.0, 59.3}}
+                                Other, 0x10f415900, {{16.0, 434.3}, {370.0, 59.3}}
+                                  Other, 0x10f415a40, {{16.0, 434.3}, {370.0, 59.3}}
+                                    Button, 0x10f415b80, {{16.0, 434.3}, {370.0, 59.3}}, identifier: 'settings-agent-claude', label: 'Claude Code 设置'
+                                      StaticText, 0x10f415cc0, {{37.3, 450.2}, {224.7, 27.7}}, label: 'Claude Code 设置'
+                                      Image, 0x10f415e00, {{37.3, 451.7}, {29.0, 24.3}}, identifier: 'slider.horizontal.3', label: '编辑'
+                                      Image, 0x10f415f40, {{352.7, 455.7}, {9.7, 16.3}}, identifier: 'chevron.forward'
+                            Other, 0x10f416080, {{83.7, 433.3}, {282.3, 1.0}}
+                            Cell, 0x10f4161c0, {{16.0, 493.7}, {370.0, 59.3}}
+                              Other, 0x10f416300, {{16.0, 493.7}, {370.0, 59.3}}
+                                Other, 0x10f416440, {{16.0, 493.7}, {370.0, 59.3}}
+                              Other, 0x10f416580, {{16.0, 493.7}, {370.0, 59.3}}
+                                Other, 0x10f4166c0, {{16.0, 493.7}, {370.0, 59.3}}
+                                  Other, 0x10f416800, {{16.0, 493.7}, {370.0, 59.3}}
+                                    Button, 0x10f416940, {{16.0, 493.7}, {370.0, 59.3}}, identifier: 'settings-agent-codex', label: 'Codex 设置'
+                                      StaticText, 0x10f416a80, {{37.3, 509.5}, {160.0, 27.7}}, label: 'Codex 设置'
+                                      Image, 0x10f416bc0, {{37.3, 511.0}, {29.0, 24.3}}, identifier: 'slider.horizontal.3', label: '编辑'
+                                      Image, 0x10f416d00, {{352.7, 515.0}, {9.7, 16.3}}, identifier: 'chevron.forward'
+                            Other, 0x10f416e40, {{83.7, 492.7}, {282.3, 1.0}}
+                            Cell, 0x10f416f80, {{16.0, 553.0}, {370.0, 59.3}}
+                              Other, 0x10f4170c0, {{16.0, 553.0}, {370.0, 59.3}}
+                                Other, 0x10f417200, {{16.0, 553.0}, {370.0, 59.3}}
+                              Other, 0x10f417340, {{16.0, 553.0}, {370.0, 59.3}}
+                                Other, 0x10f417480, {{16.0, 553.0}, {370.0, 59.3}}
+                                  Other, 0x10f4175c0, {{16.0, 553.0}, {370.0, 59.3}}
+                                    Button, 0x10f417700, {{16.0, 553.0}, {370.0, 59.3}}, identifier: 'settings-agent-agy', label: 'Antigravity 设置'
+                                      StaticText, 0x10f417840, {{37.3, 568.8}, {202.3, 27.7}}, label: 'Antigravity 设置'
+                                      Image, 0x10f417980, {{37.3, 570.3}, {29.0, 24.3}}, identifier: 'slider.horizontal.3', label: '编辑'
+                                      Image, 0x10f417ac0, {{352.7, 574.3}, {9.7, 16.3}}, identifier: 'chevron.forward'
+                            Other, 0x10f417c00, {{83.7, 552.0}, {282.3, 1.0}}
+                            Cell, 0x10f417d40, {{16.0, 612.3}, {370.0, 59.3}}
+                              Other, 0x10f417e80, {{16.0, 612.3}, {370.0, 59.3}}
+                                Other, 0x10f424000, {{16.0, 612.3}, {370.0, 59.3}}
+                              Other, 0x10f424140, {{16.0, 612.3}, {370.0, 59.3}}
+                                Other, 0x10f424280, {{16.0, 612.3}, {370.0, 59.3}}
+                                  Other, 0x10f4243c0, {{16.0, 612.3}, {370.0, 59.3}}
+                                    Button, 0x10f424500, {{16.0, 612.3}, {370.0, 59.3}}, identifier: 'settings-triage', label: '会话分诊'
+                                      StaticText, 0x10f424640, {{37.3, 628.2}, {134.0, 27.7}}, label: '会话分诊'
+                                      Image, 0x10f424780, {{37.3, 628.3}, {29.0, 27.3}}, identifier: 'text.badge.checkmark', label: '带勾号标记的文本'
+                                      Image, 0x10f4248c0, {{352.7, 633.7}, {9.7, 16.3}}, identifier: 'chevron.forward'
+                            Other, 0x10f424a00, {{83.7, 611.3}, {282.3, 1.0}}
+                            Cell, 0x10f424b40, {{16.0, 671.7}, {370.0, 37.0}}
+                              Other, 0x10f424c80, {{16.0, 671.7}, {370.0, 37.0}}
+                              Other, 0x10f424dc0, {{16.0, 671.7}, {370.0, 37.0}}
+                                Other, 0x10f424f00, {{16.0, 671.7}, {370.0, 37.0}}
+                                  Other, 0x10f425040, {{16.0, 671.7}, {370.0, 37.0}}
+                                    StaticText, 0x10f425180, {{16.0, 671.7}, {370.0, 37.0}}, label: '此助手电脑上的 Agent 工具与自动化。'
+                            Other, 0x10f4252c0, {{369.0, 132.0}, {30.0, 680.0}}, label: '垂直滚动条, 1页', value: 0%
+                              Other, 0x10f425400, {{396.0, 806.3}, {3.0, 7.0}}
+                            Other, 0x10f425540, {{369.0, 132.0}, {30.0, 680.0}}, label: '垂直滚动条, 1页', value: 0%
+                              Other, 0x10f425680, {{396.0, 806.3}, {3.0, 7.0}}
+                  Toolbar, 0x10f4257c0, {{0.0, 62.0}, {402.0, 812.0}}, identifier: 'Toolbar', label: '工具栏'
+                    Other, 0x10f425900, {{0.0, 62.0}, {402.0, 812.0}}
+    Window, 0x10f425a40, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10f425b80, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10f425cc0, {{0.0, 0.0}, {402.0, 874.0}}
+    Window (Main), 0x10f425e00, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10f425f40, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10f426080, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x10f4261c0, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x10f426300, {{0.0, 0.0}, {402.0, 874.0}}
+Path to element:
+ →Application, 0x106b2e6c0, pid: 85882, label: 'Persona'
+Query chain:
+ →Find: Application 'dev.local.persona.iosreference'
+  Output: {
+    Application, 0x10f426440, pid: 85882, label: 'Persona'
+  }

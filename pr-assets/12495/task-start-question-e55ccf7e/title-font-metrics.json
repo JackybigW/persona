@@ -1,0 +1,464 @@
+{
+  "scope": "Synthetic startup failure task, centered 402 logical units, 1206×2622 native pixels; thresholded ink boxes within unscaled native samples. Headline and button only. Both full native app trees are retained privately by hash.",
+  "iPhoneSource": "23b51faebb29764b3a37b5b778d06c2bfa2bd77b",
+  "harmonySource": "e55ccf7e391936e9d4c610ab71d8025a3fda6817",
+  "harmonyVisualHapSHA256": "1e3250f519911991357e6e533c55411cebb931e704eaadca938714a57603e720",
+  "nativeReleaseReceiptSHA256": "4cb252f1109b59b15bbc4adba15a49d0f397107b87c66054bae3a7e70fba4acf",
+  "originalMeasurementsSHA256": "fd2239ce4e38ed24e27ac03a8f9910cfd17ab98ccbd12cb8c9ce231d6bec8976",
+  "extendedPrivateAuditSHA256": "9fffe4707be39fef309ffcdc0870ec922f7093f41a21d6322719e0c4d4622376",
+  "screens": {
+    "light": {
+      "iPhone": {
+        "image": "light-iphone.png",
+        "imageSHA256": "131cc395955134ab210f2869ae317df2e41beddb39d2a6a15570903e99398949",
+        "rawAccessibilityTreeSHA256": "8d685669bdbafcc044e9ca49fe8a738b905a79ad28decb36d7bf41bfe105b1f3",
+        "fullTextInNativeTree": "Prepare the demo workspace",
+        "nativeTitleBounds": [
+          104.0,
+          79.8,
+          249.7,
+          122.1
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.0,
+            72.0,
+            124.0
+          ],
+          "more": [
+            330.0,
+            78.0,
+            386.0,
+            124.0
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare the demo",
+            "pixelRectOnOriginal": [
+              306,
+              245,
+              755,
+              304
+            ],
+            "unresampledNativeCropSHA256": "79e4ba75c442ffade8f8475e58a8f9a51cf17e74593dd46a457462608736a409",
+            "ink": {
+              "widthPx": 419,
+              "heightPx": 47,
+              "filledPixels": 5871,
+              "filledFraction": 0.2981
+            }
+          },
+          {
+            "visibleText": "workspace",
+            "pixelRectOnOriginal": [
+              306,
+              311,
+              755,
+              370
+            ],
+            "unresampledNativeCropSHA256": "be4e752a1ca2de25d29e33140931bd91d025924ff510d0ed0a306cfc48243aae",
+            "ink": {
+              "widthPx": 256,
+              "heightPx": 47,
+              "filledPixels": 3682,
+              "filledFraction": 0.306
+            }
+          }
+        ]
+      },
+      "harmony": {
+        "image": "light-after.png",
+        "imageSHA256": "a84c86aa29bd3c2469c99b734c1e0c9a2985835cc602dc19961199fb628ca78c",
+        "rawAccessibilityTreeSHA256": "d99411a08c970bedfc1b8a4fa70d28bd37f7376e68a27a7d48ca0d05c191a1f3",
+        "fullTextInNativeTree": "Prepare the demo workspace",
+        "nativeTitleBounds": [
+          104.0,
+          80.0,
+          306.0,
+          122.66666666666667
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.33333333333333,
+            72.0,
+            124.33333333333333
+          ],
+          "more": [
+            330.0,
+            78.33333333333333,
+            386.0,
+            124.33333333333333
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare the demo",
+            "pixelRectOnOriginal": [
+              306,
+              245,
+              924,
+              308
+            ],
+            "unresampledNativeCropSHA256": "0e238e39dcea9bb9be7cc3a95c1e10db7ef3354c22480d3d4f910bf456d62329",
+            "ink": {
+              "widthPx": 422,
+              "heightPx": 51,
+              "filledPixels": 6004,
+              "filledFraction": 0.279
+            }
+          },
+          {
+            "visibleText": "workspace",
+            "pixelRectOnOriginal": [
+              306,
+              309,
+              924,
+              372
+            ],
+            "unresampledNativeCropSHA256": "e3d5bc6069908e79fe9467330201318ad9cbe34b1c44c19312de553ac679333e",
+            "ink": {
+              "widthPx": 255,
+              "heightPx": 51,
+              "filledPixels": 3630,
+              "filledFraction": 0.2791
+            }
+          }
+        ]
+      }
+    },
+    "dark": {
+      "iPhone": {
+        "image": "dark-iphone.png",
+        "imageSHA256": "282df2abb0780061388ae44f33b1820eed47899bf9670ad80b2bfb85efb2cc2b",
+        "rawAccessibilityTreeSHA256": "eb6224f6acedceb3a227ed34424e0ba31456f758fda9f2e0c34444d9c34ebfc0",
+        "fullTextInNativeTree": "Prepare the demo workspace",
+        "nativeTitleBounds": [
+          104.0,
+          79.8,
+          249.7,
+          122.1
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.0,
+            72.0,
+            124.0
+          ],
+          "more": [
+            330.0,
+            78.0,
+            386.0,
+            124.0
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare the demo",
+            "pixelRectOnOriginal": [
+              306,
+              245,
+              755,
+              304
+            ],
+            "unresampledNativeCropSHA256": "9b0bf001733fe00c991cb24872009c2899886c92a7f9195f8cf900af05cd02b8",
+            "ink": {
+              "widthPx": 419,
+              "heightPx": 47,
+              "filledPixels": 5791,
+              "filledFraction": 0.2941
+            }
+          },
+          {
+            "visibleText": "workspace",
+            "pixelRectOnOriginal": [
+              306,
+              311,
+              755,
+              370
+            ],
+            "unresampledNativeCropSHA256": "c851ea696831cd1532e6bb2ffc53af3eb20b96fc82128ec4f2b42b6caee5270f",
+            "ink": {
+              "widthPx": 256,
+              "heightPx": 47,
+              "filledPixels": 3632,
+              "filledFraction": 0.3019
+            }
+          }
+        ]
+      },
+      "harmony": {
+        "image": "dark-after.png",
+        "imageSHA256": "99e51d1b11e10b44b0de7054b4940b6fe710cd23d104c29a98fdd5ee8f87b3f0",
+        "rawAccessibilityTreeSHA256": "2d910c8a92987acdd8068fa850fef4c78a8b7fa7aa939fcf188946c2a4337e29",
+        "fullTextInNativeTree": "Prepare the demo workspace",
+        "nativeTitleBounds": [
+          104.0,
+          80.0,
+          306.0,
+          122.66666666666667
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.33333333333333,
+            72.0,
+            124.33333333333333
+          ],
+          "more": [
+            330.0,
+            78.33333333333333,
+            386.0,
+            124.33333333333333
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare the demo",
+            "pixelRectOnOriginal": [
+              306,
+              245,
+              924,
+              308
+            ],
+            "unresampledNativeCropSHA256": "1be15ca47b3dfcb74410c968a9c48ac0f2a76971dc46f52397a78888f0fe64ce",
+            "ink": {
+              "widthPx": 422,
+              "heightPx": 51,
+              "filledPixels": 5924,
+              "filledFraction": 0.2753
+            }
+          },
+          {
+            "visibleText": "workspace",
+            "pixelRectOnOriginal": [
+              306,
+              309,
+              924,
+              372
+            ],
+            "unresampledNativeCropSHA256": "6bc4765464ae46332800f23a3c291b62eb119f136dab53b6311d483461ef5b9e",
+            "ink": {
+              "widthPx": 254,
+              "heightPx": 51,
+              "filledPixels": 3608,
+              "filledFraction": 0.2785
+            }
+          }
+        ]
+      }
+    },
+    "large": {
+      "iPhone": {
+        "image": "large-iphone.png",
+        "imageSHA256": "d4f68f3f3c63bd40a9fe5bda8ac77328cf8686e7b9b623a658a848b3166a6038",
+        "rawAccessibilityTreeSHA256": "7658b39583fc27d4b22fdc6307772fc5d730761262735fc988cb719fdc7707d8",
+        "fullTextInNativeTree": "Prepare the demo workspace",
+        "nativeTitleBounds": [
+          119.1,
+          78.0,
+          290.4,
+          134.7
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.3,
+            82.0,
+            134.3
+          ],
+          "more": [
+            320.0,
+            78.3,
+            386.0,
+            134.3
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare",
+            "pixelRectOnOriginal": [
+              351,
+              245,
+              877,
+              318
+            ],
+            "unresampledNativeCropSHA256": "a384fa9607f812b1c867d5b11f2b5ec4cfd21b181ef80735d451e0b1a201b44d",
+            "ink": {
+              "widthPx": 237,
+              "heightPx": 61,
+              "filledPixels": 4863,
+              "filledFraction": 0.3364
+            }
+          },
+          {
+            "visibleText": "the demo work…",
+            "pixelRectOnOriginal": [
+              351,
+              331,
+              877,
+              394
+            ],
+            "unresampledNativeCropSHA256": "15676b3f77aea1610ca16e44d90786e9a9119a92131a4275724e7f60ce14e0a9",
+            "ink": {
+              "widthPx": 507,
+              "heightPx": 51,
+              "filledPixels": 8711,
+              "filledFraction": 0.3369
+            }
+          }
+        ]
+      },
+      "harmony": {
+        "image": "large-after.png",
+        "imageSHA256": "dcfa823147d47c76bb63aead16179d368471c64d02984cc748ecdc0880884854",
+        "rawAccessibilityTreeSHA256": "df50cdebb487cb0d1fe84ee413af230375955a0b9b0faf1116dc0e00e7b44771",
+        "fullTextInNativeTree": "Prepare\nthe demo workspace",
+        "nativeTitleBounds": [
+          119.0,
+          78.33333333333333,
+          296.0,
+          135.0
+        ],
+        "nativeButtonBounds": {
+          "close": [
+            16.0,
+            78.66666666666667,
+            82.0,
+            134.66666666666666
+          ],
+          "more": [
+            320.0,
+            78.66666666666667,
+            386.0,
+            134.66666666666666
+          ]
+        },
+        "lines": [
+          {
+            "visibleText": "Prepare",
+            "pixelRectOnOriginal": [
+              351,
+              246,
+              894,
+              324
+            ],
+            "unresampledNativeCropSHA256": "d4170de7fc920431203bc2af9947006d075274541f24fa12c811b8e0a4b46559",
+            "ink": {
+              "widthPx": 245,
+              "heightPx": 66,
+              "filledPixels": 4964,
+              "filledFraction": 0.307
+            }
+          },
+          {
+            "visibleText": "the demo wor…",
+            "pixelRectOnOriginal": [
+              351,
+              329,
+              894,
+              394
+            ],
+            "unresampledNativeCropSHA256": "e8451c2c2e03b3ce427b8c3e3d06c516cfa3f896b1d3f5ec070c5e288ef323b4",
+            "ink": {
+              "widthPx": 513,
+              "heightPx": 53,
+              "filledPixels": 8029,
+              "filledFraction": 0.2953
+            }
+          }
+        ]
+      }
+    }
+  },
+  "AX5LogicalWidths": {
+    "iPhone": {
+      "fittedTitleWidth": 171.3,
+      "appliedMaximumWidth": 176.9
+    },
+    "harmony": {
+      "fittedTitleWidth": 177.0,
+      "appliedMaximumWidth": 177.0
+    }
+  },
+  "actualFontFileSHA256": {
+    "SFUI": "c90833e656f07657d970145962608d3f96d8ac69287ca536daab17f38d614e00",
+    "HarmonyOS_Sans": "72d5adb60242fae60686ca94c27e10b89cb7ed2008531390d3f22ac61ad64593"
+  },
+  "fontAdvancesPxAt23pt600": {
+    "iPhone": {
+      "the demo work…": 515.521,
+      "…": 50.33,
+      "...": 53.816,
+      "k": 36.99,
+      "0": 44.42,
+      "W": 66.342
+    },
+    "HarmonyOS": {
+      "the demo work…": 559.263,
+      "…": 69,
+      "...": 52.164,
+      "k": 38.708,
+      "0": 40.71,
+      "W": 68.447
+    }
+  },
+  "commonEngineTruncation": {
+    "iPhone": {
+      "availablePt": 176.9,
+      "advancePt": 171.47957743205188,
+      "visible": "the demo work…"
+    },
+    "HarmonyOS": {
+      "availablePt": 177.0,
+      "advancePt": 173.03512622070312,
+      "visible": "the demo wor…"
+    }
+  },
+  "fontWeightSweep": [
+    {
+      "requestedWeight": 400,
+      "candidateAdvancePx": 545.852,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 500,
+      "candidateAdvancePx": 552.421,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 550,
+      "candidateAdvancePx": 555.981,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 575,
+      "candidateAdvancePx": 557.657,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 600,
+      "candidateAdvancePx": 559.263,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 625,
+      "candidateAdvancePx": 560.942,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 650,
+      "candidateAdvancePx": 562.759,
+      "truncated": "the demo wor…"
+    },
+    {
+      "requestedWeight": 700,
+      "candidateAdvancePx": 566.041,
+      "truncated": "the demo wor…"
+    }
+  ],
+  "minRequiredExtraWidthVp": 9.421
+}
