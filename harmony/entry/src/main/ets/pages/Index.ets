@@ -390,7 +390,12 @@ struct Index {
   }
   @Builder backgroundActivitySheet() {
     if (this.activityRow) {
-      PhoneBackgroundActivity({ model: this.model, row: this.activityRow, onClose: () => { this.activityVisible = false; } })
+      PhoneBackgroundActivity({ model: this.model, row: this.activityRow,
+        onClose: () => { this.activityVisible = false; },
+        onOpen: (row: ResourceRow) => {
+          this.activityVisible = false;
+          this.openLinkedResource(row);
+        } })
     }
   }
   @Builder allChatsSheet() {
@@ -2955,7 +2960,7 @@ struct Index {
     }
     }
     Column().width(0).height(0).bindSheet($$this.activityVisible, this.backgroundActivitySheet(), {
-      height: SheetSize.LARGE, preferType: SheetType.BOTTOM, dragBar: true, showClose: false,
+      height: '93%', preferType: SheetType.BOTTOM, dragBar: false, showClose: false,
       onDisappear: () => { this.activityVisible = false; this.activityRow = undefined; } })
     Column().width(0).height(0).bindSheet(this.chatForward.isChoosing(this.detailModel),this.forwardPickerContent(),{
       height:forwardRestingDetent,detents:[forwardRestingDetent,SheetSize.LARGE],
