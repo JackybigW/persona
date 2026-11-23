@@ -952,7 +952,32 @@ test('a failed start whose finished sibling is filtered out never re-enters Need
     make('open-concern',{kind:'concern',plan_id:'shared'}),make('unrelated',{plan_id:'shared'})];
   assert.equal(ws.sections(now).find(s=>s.key==='other').rows.length,2);
   ws.setDueFilter('today'); assert.equal(ws.hiddenWaiting(now,1),0);
-  assert.deepEqual(ws.sections(now).map(s=>s.key),['just_done']);
+  assert.deepEqual(ws.sections(now).map(s=>s.key),['done']);
+});
+
+test('ordinary completions file immediately while unaccepted work and recent unseen concern reports retain their sections', () => {
+  const workspace = new TodoWorkspace();
+  const now = Date.parse('2026-11-23T10:00:00Z');
+  const recent = '2026-11-23T09:00:00Z', older = '2026-11-19T09:00:00Z';
+  const item = (id, values) => new TodoWorkspaceItem(todo(id, { title:id, created_at:older, updated_at:recent, ...values }), 'work');
+  const closed = item('closed', { done_at:recent, done_by:'auto' });
+  const accepted = item('accepted', { supervision:{state:'accepted',reviews:[{at:recent,verdict:'accepted'}]} });
+  const live = item('live', { seen_at:recent, delivery:{state:'live',at:older} });
+  const reviewed = item('review-needed', { seen_at:recent, supervision:{state:'pending_review',supervisor:'assistant'} });
+  const report = item('reported-concern', { kind:'concern', done_at:recent });
+  const section = id => workspace.sections(now).find(current => current.key === id);
+  workspace.items = [closed, accepted, live, reviewed];
+  assert.deepEqual(section('done').rows.map(row => row.lead.id), ['accepted','closed']);
+  assert.deepEqual(section('just_done').rows.map(row => row.lead.id), ['live','review-needed']);
+  assert.equal(section('just_done').title, 'phone_todo_section_delivered');
+  workspace.items = [...workspace.items, report];
+  assert.equal(section('just_done').title, 'phone_todo_section_recent');
+  assert.ok(section('just_done').rows.some(row => row.lead.id === report.id));
+  workspace.items = [item('read-concern', {kind:'concern',done_at:recent,seen_at:recent}), item('old-concern', {kind:'concern',done_at:older})];
+  assert.deepEqual(workspace.sections(now).map(s => s.key), ['done']);
+  const moved = {progress:{at:recent}};
+  workspace.items = [item('b', {updated_at:recent,supervision:moved}), item('a', {updated_at:older,supervision:moved})];
+  assert.deepEqual(section('other').rows.map(row => row.lead.id), ['a','b']);
 });
 
 

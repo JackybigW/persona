@@ -3,7 +3,7 @@ import { ResourceRow, Wire } from './Wire';
 
 /** The iPhone's ordered list sections. The task detail uses its independent, six-state status. */
 export const TODO_PHONE_SECTIONS:string[]=['needs_you','working','pr','other','just_done','shelved','done'];
-export interface TodoPhonePlacement { section:string; last:number; superseded:boolean; }
+export interface TodoPhonePlacement { section:string; last:number; superseded:boolean; awaitingReview:boolean; }
 
 export class TodoPhoneRowContext {
   lead: ResourceRow | undefined = undefined;
@@ -106,24 +106,24 @@ export class TodoPhoneSections {
       else if (state==='working' || Wire.bool(data,'starting')) working=true;
     }
     const current=(when:number):boolean=>this.now-when<86400000 && !(Number.isFinite(seenAt) && seenAt>=when);
-    const finishedAt=(when:number):string=>current(when) ? 'just_done' : 'done';
     const concern=todo.kind==='concern' && !todo.isDone(),reviewState=Wire.text(sup,'state');
     const openAsk=!!Wire.text(todo.ask,'verdict') && Number.isFinite(askTime),outcome=Wire.text(todo.ask,'outcome');
     const need=reviewState==='needs_user' || reviewState==='user_check' || openAsk && (outcome==='decide' || outcome==='cannot') ||
       Wire.text(todo.delivery,'unblock')==='user' && ['pr','merged','off'].includes(delivery);
     const finished=!todo.isDone() && !limit && unread || reviewState==='pending_review' || openAsk && (!outcome || outcome==='done');
     let section='other';
-    if (todo.startError) section=superseded ? finishedAt(Number.isFinite(doneAt) ? doneAt : last) :
+    if (todo.startError) section=superseded ? 'done' :
       this.now-last<172800000 ? 'needs_you' : concern ? 'other' : 'done';
     else if (!todo.isDone() && (asks || interrupted || need)) section='needs_you';
     else if (!todo.isDone() && !limit && !unread && working) section='working';
-    else if (todo.isDone()) section=finishedAt(doneAt);
-    else if (!concern && reviewState==='accepted' && Wire.text(review,'verdict')==='accepted') section=finishedAt(reviewAt);
-    else if (!concern && delivery==='live') section=finishedAt(Number.isFinite(deliveredAt) ? deliveredAt : last);
-    else if (finished && !(Number.isFinite(seenAt) && seenAt>=last)) section='just_done';
+    else if (todo.isDone()) section=todo.kind==='concern' && current(doneAt) ? 'just_done' : 'done';
+    else if (!concern && reviewState==='accepted' && Wire.text(review,'verdict')==='accepted') section='done';
+    else if (!concern && delivery==='live') section='just_done';
+    else if (finished && reviewState!=='parked' && (!(Number.isFinite(seenAt) && seenAt>=last) ||
+      reviewState==='pending_review' || !!Wire.text(sup,'supervisor'))) section='just_done';
     else if (delivery==='pr' || !!todo.prUrl && (!delivery || delivery==='none')) section='pr';
     else if (finished && !concern) section='done';
     else if (!concern && (todo.agents.length>0 || !!todo.origin) && !(todo.dueBy>=this.now) && this.now-last>=172800000) section='shelved';
-    return {section:section,last:last,superseded:superseded};
+    return {section:section,last:last,superseded:superseded,awaitingReview:section==='just_done' && !todo.isDone()};
   }
 }

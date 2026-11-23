@@ -6397,6 +6397,10 @@
       "value": "Just finished"
     },
     {
+      "name": "phone_todo_section_delivered",
+      "value": "Delivered · awaiting review"
+    },
+    {
       "name": "phone_todo_section_shelved",
       "value": "Shelved"
     },

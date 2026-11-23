@@ -1370,8 +1370,10 @@ export class TodoWorkspace {
       const due=(g:TodoWorkspaceGroup):number => g.members.reduce((earliest:number,item:TodoWorkspaceItem) => Number.isFinite(item.dueBy) ? Math.min(earliest,item.dueBy) : earliest,Number.MAX_SAFE_INTEGER);
       const last=(g:TodoWorkspaceGroup):number=>g.members.reduce((max:number,item:TodoWorkspaceItem)=>Math.max(max,phone?.get(item)?.last ?? Number.NEGATIVE_INFINITY),Number.NEGATIVE_INFINITY);
       rows.sort((left:TodoWorkspaceGroup,right:TodoWorkspaceGroup) => (this.order === 'priority' ? priority(left)-priority(right) : 0) ||
-        (this.order !== 'recent' ? due(left)-due(right) : 0) || (phone ? last(right)-last(left) : 0) || compareTodoRecent(left.lead,right.lead));
-      return new TodoWorkspaceSection(key, titles.get(key) || key, rows);
+        (this.order !== 'recent' ? due(left)-due(right) : 0) || (phone ? last(right)-last(left) || left.lead.id.localeCompare(right.lead.id) : compareTodoRecent(left.lead,right.lead)));
+      const awaitingReview=phone && key==='just_done' && rows.every((group:TodoWorkspaceGroup) =>
+        group.members.every((member:TodoWorkspaceItem) => phone.get(member)?.awaitingReview === true));
+      return new TodoWorkspaceSection(key, awaitingReview ? 'phone_todo_section_delivered' : titles.get(key) || key, rows);
     });
   }
 

@@ -6397,6 +6397,10 @@
       "value": "完了したばかり"
     },
     {
+      "name": "phone_todo_section_delivered",
+      "value": "交付済み・レビュー待ち"
+    },
+    {
       "name": "phone_todo_section_shelved",
       "value": "保留"
     },

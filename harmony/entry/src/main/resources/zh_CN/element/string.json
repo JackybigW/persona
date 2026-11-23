@@ -6397,6 +6397,10 @@
       "value": "刚做完待看"
     },
     {
+      "name": "phone_todo_section_delivered",
+      "value": "已交付·待看"
+    },
+    {
       "name": "phone_todo_section_shelved",
       "value": "搁置"
     },
