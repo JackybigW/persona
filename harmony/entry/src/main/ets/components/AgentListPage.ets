@@ -8,7 +8,7 @@ import { AgentWorkspace, AgentWorkspaceGroup, agentGroupingLabels } from '../mod
 import { ProjectAgent, ProjectCatalog, ProjectWorktree } from '../models/ProjectCatalog';
 import { AgentDirectoryRowContent } from './AgentDirectoryRowContent';
 import { AgentNeedsYouMark } from './AgentNeedsYouMark';
-import { interactionToolName } from '../models/InteractionDecision';
+import { recommendedOptionTitle, interactionToolName } from '../models/InteractionDecision';
 import { agentPaneSource } from '../core/AgentListAdapter';
 import { WorktreeChange } from '../models/WorktreeActions';
 import { AgentRepositoryRows } from './AgentRepositoryRows';
@@ -626,18 +626,49 @@ export struct AgentListPage {
 
   @Computed get decisionButtonHeight():number { return PhoneStyle.formSize(28,35.33,this.environment.fontScale); }
 
+  private choiceLabel(card:AgentDecisionCard, choice:string):string {
+    if (card.request.kind==='permission') return tr(choice==='deny' ? 'phone_agent_deny_choice' : card.namedPermissionAgent ? 'approve' : 'allow');
+    return recommendedOptionTitle(choice) ?? choice;
+  }
+  private choiceRecommended(card:AgentDecisionCard, choice:string):boolean {
+    return card.request.kind==='question' && recommendedOptionTitle(choice)!==undefined;
+  }
+  private choiceHeight(card:AgentDecisionCard,choice:string):number {
+    return this.choiceRecommended(card,choice) ? PhoneStyle.formSize(29.33,36.67,this.environment.fontScale) : this.decisionButtonHeight;
+  }
+  private choiceMaterial(prominent:boolean):LinearGradientOptions | undefined {
+    if (!Colors.systemControls || Colors.styleID!=='glass') return undefined;
+    const fill=prominent ? $r('app.color.phone_agent_allow_fill') : $r('app.color.phone_agent_quick_fill');
+    const light=prominent ? $r('app.color.phone_agent_allow_highlight') : $r('app.color.phone_agent_quick_highlight');
+    const edge=2/this.decisionButtonHeight;
+    return {direction:GradientDirection.Bottom,colors:[[light,0],[fill,edge],[fill,1-edge],[light,1]]};
+  }
+
   @Builder decisionChoices(card:AgentDecisionCard,binding:BoundAgentRow) {
     Scroll() {
       Row({space:8}) {
         ForEach(card.quickOptions(),(choice:string) => {
           Button({type:ButtonType.Capsule}) {
-            Text(card.request.kind==='permission' ? tr(choice) : choice).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
-              .maxLines(1).fontWeight(FontWeight.Medium).fontColor(card.request.kind==='permission' && choice==='allow' ? Colors.onAction :
-                Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_quick_ink') : Colors.link)
-          }.height(this.decisionButtonHeight).padding({left:10.5,right:10.5}).flexShrink(0)
+            Row({space:6}) {
+              Text(this.choiceLabel(card,choice)).fontSize(String(PhoneStyle.formSize(15,20.33,this.environment.fontScale))+'vp')
+                .maxLines(1).fontWeight(FontWeight.Medium).fontColor(card.request.kind==='permission' && choice==='allow' ? Colors.onAction :
+                  Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_quick_ink') : Colors.link)
+              if (this.choiceRecommended(card,choice)) {
+                Text(tr('phone_agent_recommended')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
+                  .lineHeight(PhoneStyle.settingsExampleLineHeight(14.33,21.67,this.environment.fontScale)).maxLines(1)
+                  .fontWeight(FontWeight.Medium).fontColor($r('app.color.phone_agent_recommended_ink'))
+                  .padding({left:8,right:8,top:2.5,bottom:2.5}).backgroundColor($r('app.color.phone_agent_recommended_fill')).borderRadius(Tokens.capsule)
+              }
+            }
+          }.height(this.choiceHeight(card,choice)).padding({left:card.request.kind==='permission'?10:10.5,right:card.request.kind==='permission'?10:10.5}).flexShrink(0)
             .backgroundColor(card.request.kind==='permission' && choice==='allow' ? Colors.action :
               Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_quick_fill') : Colors.surface)
-            .responseRegion({x:0,y:(this.decisionButtonHeight-44)/2,width:'100%',height:44})
+            .linearGradient(this.choiceMaterial(card.request.kind==='permission' && choice==='allow'))
+            .outline({width:Colors.systemControls && Colors.styleID==='glass' && !(card.request.kind==='permission' && choice==='allow') ? 0.5 : 0,
+              color:$r('app.color.phone_agent_quick_edge'),radius:Tokens.capsule})
+            .responseRegion({x:0,y:(this.choiceHeight(card,choice)-44)/2,width:'100%',height:44})
+            .accessibilityText(this.choiceRecommended(card,choice) ?
+              tr('phone_agent_recommended_accessible').replace('{value}',() => this.choiceLabel(card,choice)) : this.choiceLabel(card,choice))
             .enabled(this.active && this.decisions.enabled(this.model,binding.bound.value,card))
             .onClick(() => this.decisions.answer(this.model,binding.bound.value,card,choice,util.generateRandomUUID(),this.workspace.actionTicket(binding.bound.value)))
             .id('agents.answer.'+card.request.id+'.'+choice)
@@ -675,19 +706,37 @@ export struct AgentListPage {
             }.width('100%').alignItems(HorizontalAlign.Start).padding({left:20,right:20,top:index===0?19:20})
           },(card:AgentDecisionCard) => card.key+card.request.raw)
         }.width('100%').padding({bottom:19})
-        if (!binding.last) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:20})
+        if (!this.detachedDecisionRows && !this.endsSurface(binding,'state/needs')) {
+          Divider().strokeWidth(1).color(Colors.systemControls && Colors.styleID==='glass' ?
+            $r('app.color.phone_agent_session_separator') : Colors.divider).margin({left:20,right:20})
+        }
       }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface)
-        .borderRadius({topLeft:binding.first?16:0,topRight:binding.first?16:0,bottomLeft:binding.last?16:0,bottomRight:binding.last?16:0})
-    }.margin({left:this.floatingStatusCards?16:4,right:this.floatingStatusCards?16:4})
+        .borderRadius({topLeft:this.detachedDecisionRows || this.startsSurface(binding,'state/needs') ? 26:0,
+          topRight:this.detachedDecisionRows || this.startsSurface(binding,'state/needs') ? 26:0,
+          bottomLeft:this.detachedDecisionRows || this.endsSurface(binding,'state/needs') ? 26:0,
+          bottomRight:this.detachedDecisionRows || this.endsSurface(binding,'state/needs') ? 26:0})
+    }.margin({left:this.floatingStatusCards?16:4,right:this.floatingStatusCards?16:4,
+      top:this.detachedDecisionRows?4:0,bottom:this.detachedDecisionRows?4:0})
       .onVisibleAreaChange([0,1],(visible:boolean,ratio:number) => this.onVisible(binding.bound.value,visible ? ratio : 0))
       .onDisAppear(() => this.onVisible(binding.bound.value,0)).bindContextMenu(this.rowMenu(binding),ResponseType.LongPress)
       .id('agent.'+binding.bound.value.group+'.'+binding.bound.value.manager+'.'+binding.bound.value.machine+'.'+binding.bound.value.id)
   }
 
-  private displayRows(group:BoundAgentGroup):BoundAgentRow[] {
-    if (!this.compactRoot || this.rail || group.value.id!=='state/needs') return group.rows;
+  @Computed get orderedNeedsRows():BoundAgentRow[] {
+    const group=this.groupBindings.find((item:BoundAgentGroup):boolean=>item.value.id==='state/needs');
+    if (!group) return [];
     return group.rows.slice().sort((a:BoundAgentRow,b:BoundAgentRow) =>
       this.decisions.waitingSince(this.model,a.bound.value)-this.decisions.waitingSince(this.model,b.bound.value));
+  }
+  @Computed get detachedDecisionRows():boolean { return this.floatingStatusCards || this.displayedAgentStyle==='beautiful'; }
+  private displayRows(group:BoundAgentGroup):BoundAgentRow[] {
+    return this.compactRoot && !this.rail && group.value.id==='state/needs' ? this.orderedNeedsRows : group.rows;
+  }
+  private startsSurface(row:BoundAgentRow,id:string):boolean {
+    return this.compactRoot && !this.rail && id==='state/needs' ? this.orderedNeedsRows[0]===row : row.first;
+  }
+  private endsSurface(row:BoundAgentRow,id:string):boolean {
+    return this.compactRoot && !this.rail && id==='state/needs' ? this.orderedNeedsRows[this.orderedNeedsRows.length-1]===row : row.last;
   }
   @Builder groupRow(binding:BoundAgentRow,groupId:string,endOfSurface:boolean=true) {
     if (this.compactRoot && !this.rail && groupId==='state/needs' && this.decisions.forSession(this.model,binding.bound.value).length)
@@ -717,8 +766,8 @@ export struct AgentListPage {
           controlScale:Math.max(1,Math.min(this.environment.fontScale,67/51)),fontScale:this.environment.fontScale,
           tint:this.rowStatusColor(binding.presentation),activityList:true})
       }.width('100%').backgroundColor(this.isRowSelected(binding) ? Colors.selection : this.displayedAgentStyle==='cards'?Colors.grouped:Colors.surface)
-       .borderRadius({topLeft:binding.first && !groupId.includes('/project/') ? 26:0,topRight:binding.first && !groupId.includes('/project/') ? 26:0,
-         bottomLeft:binding.last && endOfSurface ? 26:0,bottomRight:binding.last && endOfSurface ? 26:0})
+       .borderRadius({topLeft:this.startsSurface(binding,groupId) && !groupId.includes('/project/') ? 26:0,topRight:this.startsSurface(binding,groupId) && !groupId.includes('/project/') ? 26:0,
+         bottomLeft:this.endsSurface(binding,groupId) && endOfSurface ? 26:0,bottomRight:this.endsSurface(binding,groupId) && endOfSurface ? 26:0})
     }.margin({left:this.floatingStatusCards?0:4,right:this.floatingStatusCards?0:4}).accessibilityGroup(true)
       .accessibilityText([binding.presentation.provider,this.rowStatus(binding.presentation),binding.bound.value.title,
         this.rowTime(binding.presentation),binding.presentation.recentContent,binding.presentation.activitySource ? tr(binding.presentation.activitySource) : '',
@@ -777,14 +826,14 @@ export struct AgentListPage {
         }.width('100%').alignItems(VerticalAlign.Center).justifyContent(this.rail ? FlexAlign.Center : FlexAlign.Start)
           .padding({ left: this.rail ? 5 : 13, right: this.rail ? 5 : 11,
             top: this.look.density === 'compact' ? 7 : 10, bottom: this.look.density === 'compact' ? 7 : 10 })
-        if (!binding.last && !this.rail) Divider().strokeWidth(0.5).color(Colors.divider).margin({ left: 57 })
+        if (!this.endsSurface(binding,groupId) && !this.rail) Divider().strokeWidth(0.5).color(Colors.divider).margin({ left: 57 })
       }.width('100%')
     }.accessibilityGroup(true).accessibilityText([binding.bound.value.title || tr('agent_untitled'),
       binding.presentation.recentContent, ...binding.presentation.metadata.slice(0, 2), this.rowStatus(binding.presentation)].filter((s: string) => !!s).join(' · '))
       .selectable(true).selected(this.isRowSelected(binding)).padding({left:18*Math.min(3,Math.max(0,depth))})
       .backgroundColor(this.isRowSelected(binding) ? Colors.selection : Colors.surface)
-      .borderRadius({ topLeft: binding.first && !this.rail ? 13 : 0, topRight: binding.first && !this.rail ? 13 : 0,
-        bottomLeft: binding.last && !this.rail ? 13 : 0, bottomRight: binding.last && !this.rail ? 13 : 0 })
+      .borderRadius({ topLeft: this.startsSurface(binding,groupId) && !this.rail ? 13 : 0, topRight: this.startsSurface(binding,groupId) && !this.rail ? 13 : 0,
+        bottomLeft: this.endsSurface(binding,groupId) && !this.rail ? 13 : 0, bottomRight: this.endsSurface(binding,groupId) && !this.rail ? 13 : 0 })
       .onClick(() => this.openRow(binding.bound.value))
       .onVisibleAreaChange([0, 1], (visible: boolean, ratio: number) => this.onVisible(binding.bound.value, visible ? ratio : 0))
       .onDisAppear(() => this.onVisible(binding.bound.value, 0))

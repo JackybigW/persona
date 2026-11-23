@@ -63,6 +63,34 @@
     {
       "name": "phone_prominent_rim",
       "value": "#13A7FF"
+    },
+    {
+      "name": "phone_agent_session_separator",
+      "value": "#38383B"
+    },
+    {
+      "name": "phone_agent_allow_fill",
+      "value": "#0E86FE"
+    },
+    {
+      "name": "phone_agent_allow_highlight",
+      "value": "#1DB8FF"
+    },
+    {
+      "name": "phone_agent_quick_highlight",
+      "value": "#7E7E81"
+    },
+    {
+      "name": "phone_agent_quick_edge",
+      "value": "#6F6F73"
+    },
+    {
+      "name": "phone_agent_recommended_ink",
+      "value": "#9C94FF"
+    },
+    {
+      "name": "phone_agent_recommended_fill",
+      "value": "#474655"
     }
   ]
 }

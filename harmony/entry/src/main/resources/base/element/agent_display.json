@@ -19,6 +19,18 @@
     {
       "name": "phone_agent_display_list",
       "value": "Compact List"
+    },
+    {
+      "name": "phone_agent_recommended",
+      "value": "Recommended"
+    },
+    {
+      "name": "phone_agent_recommended_accessible",
+      "value": "{value}, recommended"
+    },
+    {
+      "name": "phone_agent_deny_choice",
+      "value": "Deny"
     }
   ]
 }
