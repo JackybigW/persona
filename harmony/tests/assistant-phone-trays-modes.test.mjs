@@ -349,6 +349,42 @@ test('task startup answers use the exact manager-bound route and one enumerated 
  }
 });
 
+test('the selected startup answer stays pending until its one confirmed request completes', async () => {
+  const path = new URL('../entry/src/main/ets/components/TaskStartupQuestionCard.ets', import.meta.url);
+  const source = readFileSync(path, 'utf8');
+  const method = source.slice(source.indexOf('  private async pick('), source.indexOf('  private timer:'));
+  const Card = new Function(stripTypeScriptTypes('class Card { ' + method + ' }') + ';return Card')();
+  const card = new Card();
+  const run = await shellCase();
+  card.recovery = run.ctl;
+  card.submitting = '';
+  const attempt = run.ctl.question.attempt;
+  const repo = run.client.repo();
+  const original = repo.call;
+  let count = 0;
+  let resume;
+  let entered;
+  const seen = new Promise(resolve => { entered = resolve; });
+  const waiting = new Promise(resolve => { resume = resolve; });
+  repo.call = async function(path, ...args) {
+    if (path.includes('/start/answer')) { count++; entered(); await waiting; }
+    return original.call(this, path, ...args);
+  };
+  const first = card.pick('q', attempt);
+  try {
+    await seen;
+    assert.equal(card.submitting, JSON.stringify([attempt, 'q']));
+    await card.pick('n', attempt);
+    assert.equal(card.submitting, JSON.stringify([attempt, 'q']));
+    assert.equal(count, 1);
+  } finally {
+    resume();
+    await first;
+  }
+  assert.equal(card.submitting, '');
+  assert.equal(count, 1);
+});
+
 test('only a current owner, target, feature and still-open startup attempt can send; a lost reply never repeats the answer',async()=>{
  for (const change of [v=>v.client.features=[],v=>v.ctx.role=false,v=>v.ctx.active=false,v=>v.ctx.epoch++,
    v=>v.client.profile.manager='other',v=>v.client.profile.id='other',v=>v.ctx.blocked=true,

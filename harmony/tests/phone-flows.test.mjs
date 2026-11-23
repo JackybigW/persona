@@ -68,7 +68,7 @@ test('native phone search sizes the entered text and placeholder together and pr
   assert.match(switcher,/Text\(tr\(create \? 'phone_new_assistant' : 'phone_manage_assistants'\) \+ \(create \? '' : '…'\)\)\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)/);
   assert.match(switcher,/PhoneStyle\.sidebarMetric\(44,this\.environment\.fontScale\)/);
 });
-const {AgentLaunchChoices,providerStartModes,launchModelName,recentLaunchDirectories,LaunchChoice,RecentAgentSetup,rememberAgentSetup,loadAgentSetups}=await import('../entry/src/main/ets/models/AgentLaunchChoices.ets');
+const {AgentLaunchChoices,typedAgentDirectory,providerStartModes,launchModelName,recentLaunchDirectories,LaunchChoice,RecentAgentSetup,rememberAgentSetup,loadAgentSetups}=await import('../entry/src/main/ets/models/AgentLaunchChoices.ets');
 const {ProjectWorktree}=await import('../entry/src/main/ets/models/ProjectCatalog.ets');
 const {ResourceRow,Wire}=await import('../entry/src/main/ets/models/Wire.ets');
 
@@ -148,7 +148,7 @@ function makeOwner(call) {
     scope(){return this.profile.id+':'+this.profile.manager},connectionGeneration(){return this.generation},
     owns(g,s){return g===this.generation&&s===this.scope()},repo(){return{call}}};
 }
-function gate(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}}
+function gate(){let resolve,reject;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return {promise,resolve,reject}}
 test('folder choices retain only resolved directories from the current machine and connection',async()=>{
   const pending=new Map();const owner=makeOwner(p=>{const g=gate();pending.set(p,g);return g.promise});
   const choices=new AgentLaunchChoices();const a=choices.folder(owner,'work/mac','/one'),b=choices.folder(owner,'work/mac','/two');
@@ -158,6 +158,44 @@ test('folder choices retain only resolved directories from the current machine a
   assert.equal(choices.path,'/two');assert.equal(choices.directories[0].detail,'Git');assert.equal(choices.recentDirectories[0].id,'/recent');
   const c=choices.folder(owner,'new','/unknown');owner.generation++;
   [...pending.values()].at(-1).resolve({path:'/old-scope'});await c;assert.equal(choices.path,'');
+});
+test('typed folders resolve under the confirmed machine directory, and a failed read leaves siblings available',async()=>{
+  assert.equal(typedAgentDirectory(' src ','/Users/me/code/weather/'),'/Users/me/code/weather/src');
+  assert.equal(typedAgentDirectory('one/two','/'),'/one/two');
+  assert.equal(typedAgentDirectory('src',''),'~/src');
+  for (const input of ['/srv/repo','~','~/code','C:\\work','\\\\server\\share','']) assert.equal(typedAgentDirectory(input,'/other'),input);
+  assert.equal(typedAgentDirectory('  ','/work'),'');
+  assert.equal(typedAgentDirectory('src','C:\\work'),'C:\\work\\src');
+  const choices=new AgentLaunchChoices(),pending=[];
+  const owner=makeOwner(url=>{const entry=gate();pending.push({path:new URL(url,'http://fixture').searchParams.get('path'),...entry});return entry.promise});
+  const get=path=>choices.folder(owner,'mac',path), response=path=>({path,parent:'/Users/me/code',entries:[{name:'src',path:path+'/src'}]});
+  let call=get('/Users/me/code/weather');pending.at(-1).resolve(response('/Users/me/code/weather'));await call;
+  const denied=Object.assign(new Error('internal'),{status:502});
+  call=get(typedAgentDirectory('nope',choices.path)); assert.equal(choices.path,'/Users/me/code/weather');
+  pending.at(-1).reject(denied);await call;assert.equal(choices.error,'phone_directory_read_failed');assert.equal(choices.directories[0].id,'/Users/me/code/weather/src');
+  const older=get('/slow');const stale=pending.at(-1);
+  const newer=get('/fast');pending.at(-1).resolve(response('/fast'));await newer;stale.reject(denied);await older;
+  assert.deepEqual([choices.path,choices.error],['/fast','']);
+  call=get('/limited');pending.at(-1).reject(Object.assign(new Error('forbidden'),{status:403}));await call;
+  assert.deepEqual([choices.path,choices.directories.length],['',0]);
+});
+test('the initial missing folder falls back once on its own machine and can never replace a newer machine or Hub',async()=>{
+  const choices=new AgentLaunchChoices(),pending=[];
+  const call=url=>{const entry=gate();pending.push({url,...entry});return entry.promise};
+  const owner=makeOwner(call), other=makeOwner(call);
+  const first=choices.folder(owner,'mac','/gone');
+  pending.at(-1).reject(Object.assign(new Error('internal'),{status:502})); await Promise.resolve();
+  assert.match(pending.at(-1).url,/mac\/dirs\?path=$/); const fallback=pending.at(-1);
+  const switched=choices.folder(other,'studio','~');pending.at(-1).resolve({path:'/home/studio',entries:[]});await switched;
+  fallback.resolve({path:'/home/mac',entries:[{name:'private',path:'/home/mac/private'}]});await first;
+  assert.equal(choices.path,'/home/studio');assert.equal(choices.directories.length,0);
+  const offline=choices.folder(owner,'mac','/offline');const calls=pending.length;pending.at(-1).reject(Object.assign(new Error('offline'),{status:0}));await offline;
+  assert.equal(pending.length,calls);assert.equal(choices.path,'');
+  const saved=choices.folder(owner,'mac','/gone');pending.at(-1).reject(Object.assign(new Error('not found'),{status:404}));await Promise.resolve();
+  pending.at(-1).resolve({path:'/home/mac',entries:[{name:'work',path:'/home/mac/work'}]});await saved;
+  assert.equal(choices.path,'/home/mac');assert.equal(choices.error,'phone_directory_read_failed');
+  const late=choices.folder(owner,'mac','child');owner.generation++;pending.at(-1).resolve({path:'/old',entries:[]});await late;
+  assert.equal(choices.path,'');assert.equal(choices.directories.length,0);
 });
 test('model aliases keep the host title while raw GPT model IDs match the iPhone display label', () => {
   assert.equal(launchModelName('gpt-5.5-codex','GPT-5.5-Codex'),'5.5 Codex');

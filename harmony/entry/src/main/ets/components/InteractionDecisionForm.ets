@@ -1,4 +1,6 @@
 import { IconActions } from '../design/IconActions';
+import { composerReadingSize } from '../core/ComposerSize';
+import { agentReplyBodySize } from '../core/Markdown';
 import { PhoneStyle } from '../design/PhoneStyle';
 import { LengthMetrics } from '@kit.ArkUI';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
@@ -36,16 +38,20 @@ export struct InteractionDecisionForm {
   @Computed get dockPlanPreview(): string {
     return this.taskPlanSource().split('\n',31).slice(0,30).join('\n');
   }
-  private dockPlanLines():number {
-    const scale=nativeEnvironment.fontScale;
-    const points=17*(scale<=1 ? scale : 1+(scale-1)*(48/17-1)/(3.2-1));
-    return Math.max(1,points*1.45);
+  private dockPlanLineHeight(lines: number): number {
+    // The fold measures an N-line native body Text. Markdown uses its own reading
+    // face. Only the N - 1 gaps between its lines have extra leading.
+    const scale = nativeEnvironment.fontScale;
+    const body = composerReadingSize(scale);
+    const markdownPoints = agentReplyBodySize(scale);
+    return body.line + markdownPoints * 0.26 * (lines - 1) / lines;
   }
   private dockPlanShownHeight():number {
     const full=this.planNaturalHeight;
     if (!full) return 0;
-    const line=this.dockPlanLines(), cap=this.dockBodyLimit(), toggle=this.agentFontSize(13)*1.2+4;
-    const lines=Math.max(2,Math.min(this.model.style==='beautiful' ? 6 : 8,Math.floor((cap-toggle+0.5)/line)));
+    const maximum = this.model.style === 'beautiful' ? 6 : 8;
+    const line = this.dockPlanLineHeight(maximum), cap=this.dockBodyLimit(), toggle=this.agentFontSize(13)*1.2+4;
+    const lines=Math.max(2,Math.min(maximum,Math.floor((cap-toggle+0.5)/line)));
     const shown=Math.min(full,lines*line);
     return this.dockPlanPreview.length===this.taskPlanSource().length && full-shown<2.5*line ? full : shown;
   }
@@ -642,6 +648,14 @@ export struct InteractionDecisionForm {
   private headerControlSide():number {
     return this.agentCard || this.docked ? 28*Math.max(1,Math.min(nativeEnvironment.fontScale,67/51)) : 28;
   }
+  private dockSkipTarget():number {
+    // The 44-point target grows with the interface, with a fixed eight-point
+    // overlap at each edge of the header, like the two pager arrows.
+    return 44 * this.headerControlSide() / 28;
+  }
+  private dockPlanCaptionLine():string | undefined {
+    return this.taskQueue && this.request.kind==='plan' ? String(this.agentFontSize(13)*1.23)+'vp' : undefined;
+  }
   private agentActionHeight():number {
     return 30 + this.agentFontSize(17)*1.2;
   }
@@ -675,8 +689,9 @@ export struct InteractionDecisionForm {
         .responseRegion({x:0,y:-5,width:'100%',height:Math.max(44,this.headerControlSide())}).backgroundColor(Color.Transparent)
         .onClick(() => { if (this.admission()) this.onViewTask(); }).id('interaction.task.source')
       if (!this.supervisorHeld && this.docked && interactionSkipReason(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
-        .height(this.headerControlSide()).padding({left:5,right:5}).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.tertiary)
-        .responseRegion({x:0,y:-5,width:'100%',height:Math.max(44,this.headerControlSide())}).backgroundColor(Color.Transparent).enabled(false).id('interaction.task.skip_unavailable')
+        .height(this.dockSkipTarget()-16).constraintSize({minWidth:this.dockSkipTarget()}).padding({left:5,right:5})
+        .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.tertiary)
+        .responseRegion({x:0,y:-8,width:'100%',height:this.dockSkipTarget()}).backgroundColor(Color.Transparent).enabled(false).id('interaction.task.skip_unavailable')
       else if (!this.supervisorHeld && (this.docked || this.agentCard) && interactionScreenCanCancel(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
         .height(this.headerControlSide()).padding({left:3,right:3}).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.link)
         .backgroundColor(Color.Transparent).enabled(this.canRespond()).onClick(() => this.submit('cancel')).id('interaction.task.skip')
@@ -1107,9 +1122,10 @@ export struct InteractionDecisionForm {
       if (!this.dockHeadingAway()) Column({space:2}) {
         this.taskHeader()
         if (!this.cardFolded && this.dockSource) Text(this.dockSource).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-          .fontColor(Colors.secondary).maxLines(2).width('100%').id('interaction.task.origin')
+          .lineHeight(this.dockPlanCaptionLine()).fontColor(Colors.secondary).maxLines(2).width('100%').id('interaction.task.origin')
         if (!this.cardFolded && interactionSkipReason(this.request)) Text(tr(interactionSkipReason(this.request)))
-          .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor($r('app.color.persona_dock_warning')).width('100%').id('interaction.task.skip_reason')
+          .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).lineHeight(this.dockPlanCaptionLine())
+          .fontColor($r('app.color.persona_dock_warning')).width('100%').id('interaction.task.skip_reason')
       }.width('100%').alignItems(HorizontalAlign.Start).onAreaChange((_before:Area,area:Area):void => {
         const h=Number(area.height);if (h>0 && Math.abs(h-this.dockTitleHeight)>0.5) this.dockTitleHeight=h;
       })

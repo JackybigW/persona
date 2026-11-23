@@ -1,6 +1,6 @@
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { Tokens } from '../design/Tokens';
-import { AgentLaunchChoices, LaunchChoice } from '../models/AgentLaunchChoices';
+import { AgentLaunchChoices, LaunchChoice, typedAgentDirectory } from '../models/AgentLaunchChoices';
 import { modelIDProblem } from '../models/ModelID';
 import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
@@ -21,11 +21,20 @@ export struct AgentStartPicker {
   @Local typedModel:string = '';
   private confirmedModel:string = '';
   private searchField:SearchController = new SearchController();
+  private folderField:TextInputController = new TextInputController();
   @Event back:() => void = () => {};
   @Event choose:(id:string) => void = () => {};
   @Event browse:(path:string) => void = () => {};
   aboutToAppear():void { this.address = this.choices.path; }
-  @Monitor('choices.path') resolved():void { if (this.choices.path) this.address = this.choices.path; }
+  @Monitor('choices.path','choices.loading') resolved():void {
+    if (!this.choices.loading) this.address = this.choices.path;
+  }
+  private goToTypedFolder():void {
+    const target = typedAgentDirectory(this.address,this.choices.path);
+    if (!target) return;
+    this.folderField.stopEditing();
+    this.browse(target);
+  }
   @Computed get filtered():LaunchChoice[] {
     const term = this.query.trim().toLowerCase();
     return this.options.filter((o:LaunchChoice) => !term || (this.kind !== 'model' || !!o.id) &&
@@ -115,12 +124,13 @@ export struct AgentStartPicker {
   @Builder chooseFolder() {
     Column() {
       Row({space:6}) {
-        TextInput({text:this.address,placeholder:tr('flow_folder_search')}).layoutWeight(1).height(PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)).fontSize(Tokens.interfaceFontVp(13,nativeEnvironment.fontScale))
+        TextInput({text:this.address,placeholder:tr('flow_folder_search'),controller:this.folderField}).layoutWeight(1).height(PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)).fontSize(Tokens.interfaceFontVp(13,nativeEnvironment.fontScale))
           .placeholderFont({size:Tokens.interfaceFontVp(13,nativeEnvironment.fontScale)})
           .fontFamily('monospace').backgroundColor(Color.Transparent).padding(0)
-          .onChange((v:string) => this.address = v).onSubmit(() => this.browse(this.address)).id('agent.folder.address')
-        if (this.address.trim() && this.address.trim() !== this.choices.path) Button(tr('open'),{buttonStyle:ButtonStyleMode.TEXTUAL})
-          .fontSize(15).maxFontScale(Tokens.navigationTextMaxScale).onClick(() => this.browse(this.address)).id('agent.folder.go')
+          .enterKeyType(EnterKeyType.Go).onChange((v:string) => this.address = v)
+          .onSubmit(() => this.goToTypedFolder()).id('agent.folder.address')
+        if (this.address.trim() && typedAgentDirectory(this.address,this.choices.path) !== this.choices.path) Button(tr('open'),{buttonStyle:ButtonStyleMode.TEXTUAL})
+          .fontSize(15).maxFontScale(Tokens.navigationTextMaxScale).onClick(() => this.goToTypedFolder()).id('agent.folder.go')
       }.width('100%').padding({left:20,right:20})
       this.divider(20)
       Button({type:ButtonType.Normal}) {
@@ -130,7 +140,7 @@ export struct AgentStartPicker {
             .fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontWeight(FontWeight.Medium).fontColor(Colors.link).layoutWeight(1).textAlign(TextAlign.Start)
         }.width('100%').constraintSize({minHeight:PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)}).padding({top:7,bottom:7})
       }.width('100%').padding({left:14,right:14}).backgroundColor(Color.Transparent)
-        .enabled(!this.choices.loading && !!this.choices.path && !this.choices.error)
+        .enabled(!this.choices.loading && !!this.choices.path)
         .onClick(() => this.choose(this.choices.path)).id('agent.folder.use')
     }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius).clip(true)
   }
@@ -179,12 +189,12 @@ export struct AgentStartPicker {
         if (this.choices.loading && (this.kind === 'folder' || this.kind === 'model'))
           ListItem() { LoadingProgress().width(25).height(25).margin(12) }
         if (this.choices.error && (this.kind === 'folder' || this.kind === 'model')) ListItem() {
-          Text(trError(this.choices.error)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).padding(12)
+          Text(trError(this.choices.error)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).padding(12).id('agent.picker.error')
         }
         if (this.kind === 'folder') {
           if (this.choices.parent || this.choices.directories.length) ListItem() { this.optionGroup('folder',true) }
-          if (this.choices.error && !this.choices.loading) ListItem() {
-            Button(tr('retry'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(() => this.browse(this.address)).id('agent.folder.retry')
+          if (this.choices.error && !this.choices.loading && !this.choices.path) ListItem() {
+            Button(tr('retry'),{buttonStyle:ButtonStyleMode.TEXTUAL}).onClick(() => this.browse(this.choices.attemptedFolder)).id('agent.folder.retry')
           }
           if (this.choices.path && !this.choices.directories.length) ListItem() { Text(tr('flow_folder_empty')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).padding(14) }
         } else {

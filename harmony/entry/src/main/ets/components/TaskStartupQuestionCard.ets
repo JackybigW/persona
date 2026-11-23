@@ -14,6 +14,14 @@ export struct TaskStartupQuestionCard {
   @Local details:boolean=false;
   @Local expired:boolean=false;
   @Local choiceWidth:number=0;
+  @Local submitting:string='';
+  private async pick(choice:string,attempt:string):Promise<void> {
+    if (!this.recovery.canAnswer(choice,attempt)) return;
+    const request=JSON.stringify([attempt,choice]);
+    this.submitting=request;
+    try { await this.recovery.act('answer',choice,attempt); }
+    finally { if (this.submitting===request) this.submitting=''; }
+  }
   private timer:number=-1;
   aboutToAppear():void { this.watchQuestion(); }
   aboutToDisappear():void { clearTimeout(this.timer); }
@@ -49,12 +57,19 @@ export struct TaskStartupQuestionCard {
   }
   @Builder answer(choice:string, attempt:string) {
     Button({type:ButtonType.Capsule}) {
-      Text(this.label(choice)).fontSize(ReadinessStyle.font(ReadinessStyle.body)).minFontSize(ReadinessStyle.metric(12,16.8)+'vp')
-        .maxFontSize(ReadinessStyle.font(ReadinessStyle.body)).fontWeight(FontWeight.Medium).maxLines(1).fontColor(Colors.link)
+      Stack() {
+        Text(this.label(choice)).fontSize(ReadinessStyle.font(ReadinessStyle.body)).minFontSize(ReadinessStyle.metric(12,16.8)+'vp')
+          .maxFontSize(ReadinessStyle.font(ReadinessStyle.body)).fontWeight(FontWeight.Medium).maxLines(1).fontColor(Colors.link)
+          .opacity(this.submitting===JSON.stringify([attempt,choice]) ? 0 : 1)
+        if (this.submitting===JSON.stringify([attempt,choice])) {
+          LoadingProgress().width(ReadinessStyle.metric(15,20)).height(ReadinessStyle.metric(15,20))
+            .color(Colors.link).accessibilityLevel('no')
+        }
+      }
     }.padding({left:ReadinessStyle.choiceInset,right:ReadinessStyle.choiceInset})
       .constraintSize({minHeight:ReadinessStyle.metric(32,39.3),maxWidth:'100%'}).backgroundColor(Colors.readinessControl)
       .border({width:Tokens.divider,color:Colors.readinessEdge}).accessibilityText(this.label(choice))
-      .enabled(this.recovery.canAnswer(choice,attempt)).onClick(()=>this.recovery.act('answer',choice,attempt))
+      .enabled(this.recovery.canAnswer(choice,attempt)).onClick(()=>this.pick(choice,attempt))
       .id('readiness-choice-'+choice)
   }
   @Builder actions() {
@@ -75,13 +90,14 @@ export struct TaskStartupQuestionCard {
           Button({type:ButtonType.Normal}) {
             Row({space:Tokens.fine}) {
               SymbolGlyph(this.details?Symbols.up:Symbols.down).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor([Colors.secondary])
-              Text(tr(this.details?'collapse':'details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
+              Text(tr('details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
                 .lineHeight(ReadinessStyle.line(14.3,21.7)).fontColor(Colors.secondary).maxLines(1)
             }
           }.height(ReadinessStyle.metric(14.3,21.7)).padding(0).backgroundColor(Color.Transparent)
-            .accessibilityText(tr(this.details?'collapse':'details')).onClick(()=>this.details=!this.details).id('task.start.details')
+            .accessibilityText(tr('details')).accessibilityDescription(tr(this.details?'control_expanded':'control_collapsed'))
+            .onClick(()=>this.details=!this.details).id('task.start.details')
         }.width('100%').justifyContent(FlexAlign.End)
-        if (this.details) Text(this.question.screen).fontSize(ReadinessStyle.font(Tokens.caption)).fontFamily('monospace')
+        if (this.details) Text(this.question.screen).fontSize(ReadinessStyle.font(Tokens.caption)).fontFamily('monospace').copyOption(CopyOptions.LocalDevice)
           .fontColor(Colors.secondary).width('100%').padding(Tokens.gap).backgroundColor(Colors.control).borderRadius(Tokens.gap)
       }
     }.width('100%').alignItems(HorizontalAlign.Start).onAreaChange((_old:Area,next:Area)=>{
