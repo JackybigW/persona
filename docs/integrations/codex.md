@@ -205,6 +205,9 @@ mid-turn too; `config.toml` stays as it is (`node/codex_terminal_modes.go`).
   (a downgrade under a running session) gets `/model` with arguments it does not take: its picker or an error on the screen, then
   `modes_codex_unconfirmed`, nothing typed again. Reading the running Codex's version is #13290. Never on sub-Agents, botmux panes, TRAE CLI, or a
   session whose owner is in doubt.
+- The phone reads the named launcher's catalog when the session reports one. A manually opened Codex pane with no known launcher
+  gets the machine's Codex catalog. A pick changes the running session's model within its current provider. The gateway determines which
+  model IDs it will serve.
 - **Changing it**: one `/model` line per request, after the checks a message gets (a draft in the box or a dialog on the screen refuses, nothing
   typed); the session's typing lock is held only while typing. A model alone keeps the current effort when the new model takes it (Codex would put
   the new model on its default level), as the app-server route does, and a pick equal to what the rollout shows types nothing. The change counts
@@ -225,9 +228,10 @@ mid-turn too; `config.toml` stays as it is (`node/codex_terminal_modes.go`).
   unchanged pick; every refusal, including a dialog on the screen, a botmux pane, a subagent and "still starting" twice; Codex's answers on the
   screen; the rollout's record), `transcript/codex_effort_observe_test.go`
   (`thread_settings_applied` in the parser and the incremental scan). `TestCodexTerminalLive` (`node/codex_terminal_modes_live_test.go`, opt-in
-  with `PERSONA_LIVE_CODEX_TUI=<codex binary>`) runs a real Codex TUI in a private pty on a temporary home and a provider nothing listens to:
-  the lines the node builds are recorded with their values, a model Codex does not have is refused with nothing recorded, and `config.toml` keeps
-  its model and effort.
+  with `PERSONA_LIVE_CODEX_TUI=<codex binary>`) runs a real Codex TUI in a private pty with a temporary home. The base configuration and
+  a named profile point to distinct local test endpoints. Ordinary turns reach the profile's endpoint with the chosen model and effort
+  before and after switching. The test also checks that the settings commands stay out of model input, an unavailable model is refused,
+  and the base and profile keep their configured model and effort. The gateway's supported models depend on its own catalog.
 
 ## Gateway model catalog
 
