@@ -98,7 +98,7 @@ import { seekCall } from "./jump";
 import { navRailTicks, type NavRailSource, type NavRailTick } from "../../lib/nav-rail";
 import { containsInput, indexedNavTicks, userInputRevision, windowUserInputs, USER_INPUT_PAGE_SIZE } from "../../lib/user-input-index";
 import { useRevealedInputSeq, useUserInputs } from "./useUserInputs";
-import { useQuestionMarks } from "./useQuestionMarks";
+import type { QuestionMark } from "../../lib/question-states";
 import { useChatScrollbar } from "./useChatScrollbar";
 import { ChatLineView, closedRecap, closeRecap, dismissedError, dismissError, ErrorBanner, errorKey, OpenRecapLine } from "./Lines";
 import { useTranscript } from "./useTranscript";
@@ -180,6 +180,8 @@ const ShellQuestion = lazy(() => import("../ShellQuestionCard"));
 // only in a conversation that moved between Claude Code and Codex (#5054): its earlier sessions, read above the live one
 const EarlierStretches = lazy(() => import("./EarlierStretches"));
 const NavRail = lazy(() => import("./NavRail").then((m) => ({ default: m.NavRail })));
+// Persona chats' question marks (#13021): their rules and read marks are a chunk of their own (QuestionMarksHost.tsx)
+const QuestionMarksHost = lazy(() => import("./QuestionMarksHost"));
 // Recovery cards are rare: their rendering and words load only when the session actually carries a fallback record.
 const ModelFallbackCard = lazy(() => import("./ModelFallbackCard").then((m) => ({ default: m.ModelFallbackCard })));
 // A message the assistant keeps after it could not go in (#10194) is rare: its status line, Retry and Delete load only in
@@ -1697,11 +1699,13 @@ function ActiveChatView({ mid, sid, assistant, starting: launching, onToggleSide
     [beginNavigation, inputIndex, follow, landRow, loadWithScrollAnchor],
   );
   const questions = useMemo(() => ({ on: questionsOn && !tr.loading, busy: busySegment }), [questionsOn, tr.loading, busySegment]);
-  const { marks: questionMarks, opened: questionOpened } = useQuestionMarks({ mid, sid, on: questions.on, lines, busy: questions.busy, ticks: railTicks, scroller: scrollEl });
+  const [questionMarks, setQuestionMarks] = useState<ReadonlyMap<string, QuestionMark> | undefined>();
+  const questionOpened = useRef<((tickId: string) => void) | undefined>(undefined);
+  const setQuestionOpened = useCallback((f: ((tickId: string) => void) | undefined) => { questionOpened.current = f; }, []);
   const markedJump = useCallback((id: string) => {
-    questionOpened(id); // opening the answer marks it read
+    questionOpened.current?.(id); // opening the answer marks it read
     return railJump(id);
-  }, [questionOpened, railJump]);
+  }, [railJump]);
   const railSource = useMemo<NavRailSource>(() => ({ ticks: railTicks, total: inputIndex?.total, select: questionMarks ? markedJump : railJump }), [railTicks, inputIndex?.total, railJump, questionMarks, markedJump]);
   // the calls with a terminal result: a subagent call without one is one the agent still waits on (the bar's step)
   const callsAnswered = useMemo(() => terminalCalls(tr.items, tasks), [tr.items, tasks]);
@@ -2524,6 +2528,11 @@ function ActiveChatView({ mid, sid, assistant, starting: launching, onToggleSide
           </ChatActionsContext.Provider>
         </div>
         {/* A transient edge overlay; native scrolling and the centered text column keep their existing layout. */}
+        {questionsOn && (
+          <Suspense fallback={null}>
+            <QuestionMarksHost mid={mid} sid={sid} on={questions.on} lines={lines} busy={questions.busy} ticks={railTicks} scroller={scrollEl} onMarks={setQuestionMarks} onOpened={setQuestionOpened} />
+          </Suspense>
+        )}
         {railSource.ticks.length > 0 && (
           <Suspense fallback={null}>
             <NavRail ticks={railSource.ticks} total={railSource.total} scroller={scrollEl} onJump={railSource.select} reset={`${mid}/${sid}`} marks={questionMarks} />
