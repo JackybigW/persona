@@ -900,9 +900,10 @@ export class AgentWorkspace {
 
   // Project search renders the same Agent groups, with its own query, machine and quick filter.
   // The standalone Agents view persists its own filters independently.
-  setProjectSearch(root:ClientModel, rows:ResourceRow[], query:string, quick:string, machine:string, grouping:string): void {
+  setProjectSearch(root:ClientModel, rows:ResourceRow[], query:string, quick:string, machine:string, grouping:string,
+    decisions:AgentDecisionQueue): void {
     if (this.standaloneView || !this.isBoundTo(root)) return;
-    this.projectRows=rows; this.search=query; this.quickFilter=quick;
+    this.projectRows=rows; this.search=query; this.quickFilter=quick; this.supervisorQueue=decisions;
     this.machineFilter=this.machineForShownHub(machine);
     this.preferredGrouping=AGENT_GROUPINGS.includes(grouping) ? grouping : this.defaultGrouping;
     this.groupingMode=this.resolvedGrouping();

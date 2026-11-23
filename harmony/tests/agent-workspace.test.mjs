@@ -47,7 +47,7 @@ registerHooks({
 });
 
 const { AgentWorkspace } = await import('../entry/src/main/ets/models/AgentWorkspace.ets');
-const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
+const { ResourceRow, Wire } = await import('../entry/src/main/ets/models/Wire.ets');
 
 function agent(id, fields = {}) {
   const data = {
@@ -806,12 +806,14 @@ test('a Projects query uses the same real Hub and machine source inventory witho
   assert.deepEqual([workspace.search,workspace.quickFilter,workspace.machineFilter],['other tab','unread','unrelated']);
 });
 
-test('project grouping changes the native result groups and keeps its machine, query and quick filter separate from Agents', async () => {
+function projectSearchMethods(names, schedule=setTimeout) {
   const pageSource = readFileSync(new URL('../entry/src/main/ets/components/ProjectsPage.ets', import.meta.url), 'utf8');
-  const methods = ['selectSearchGrouping', 'syncSearchGroups'].map(name =>
-    pageSource.match(new RegExp('^  private '+name+'\\([\\s\\S]+?^  \\}', 'm'))[0]);
-  const { Wire } = await import('../entry/src/main/ets/models/Wire.ets');
-  const Page = new Function('Wire','return '+stripTypeScriptTypes('class Page {'+methods.join('\n')+'}'))(Wire);
+  const methods = names.map(name=>pageSource.match(new RegExp('^  private '+name+'\\([\\s\\S]+?^  \\}', 'm'))[0]);
+  return new Function('Wire','setTimeout','return '+stripTypeScriptTypes('class Page {'+methods.join('\n')+'}'))(Wire,schedule);
+}
+
+test('project grouping changes the native result groups and keeps its machine, query and quick filter separate from Agents', async () => {
+  const Page=projectSearchMethods(['selectSearchGrouping','syncSearchGroups']);
   const make = (group, id, title, machine, state='working') => {
     const row=agent(id,{title,machine_id:machine,state,status:state,agent:'claude',space_name:'weather team'});row.group=group;return row;
   };
@@ -826,7 +828,8 @@ test('project grouping changes the native result groups and keeps its machine, q
   standalone.setSearch('other tab');standalone.setQuickFilter('unread');await standalone.setMachineFilter('m2');
   const projected=new AgentWorkspace(undefined,'repo',false);await projected.open(own.client);
   const machineKey=JSON.stringify(['one','work','m1']);
-  const page=Object.assign(new Page(),{model:own.client,groupedSearchRows:()=>{},searchMode:true,quick:'working',
+  const {AgentDecisionQueue}=await import('../entry/src/main/ets/models/AgentDecisionQueue.ets');
+  const page=Object.assign(new Page(),{model:own.client,groupedSearchRows:()=>{},spaceDecisions:new AgentDecisionQueue(),searchMode:true,quick:'working',
     searchWorkspace:standalone,searchGroups:projected,searchTasks:{supportsTodos:false,supportsDirections:false},
     directorySearchRows:sources,catalog:{browser:{query:'weather',machine:machineKey,searchGrouping:'repo'}}});
   for(const mode of ['state','machine','repo','recent','state']){
@@ -847,4 +850,73 @@ test('project grouping changes the native result groups and keeps its machine, q
   const saved=JSON.parse(own.state.views.get(own.state.scope+':agent-workspace'));
   assert.deepEqual([saved.search,saved.quick,saved.machine,saved.grouping],['other tab','unread','m2','state']);
   projected.hide();page.syncSearchGroups();assert.equal(projected.isBoundTo(own.client),false);assert.deepEqual(projected.visibleRows(),[]);
+});
+
+test('a Projects search uses one decision snapshot for its query count, grouped rows and quick-answer admission across Hubs', async () => {
+  const {AgentDecisionQueue}=await import('../entry/src/main/ets/models/AgentDecisionQueue.ets');
+  const {projectSearchResult}=await import('../entry/src/main/ets/models/ProjectSearch.ets');
+  const cases=JSON.parse(readFileSync(new URL('../../spec/fixtures/needs-you/cases.json',import.meta.url))).cases;
+  const dataset=name=>cases.find(item=>item.name===name);
+  const terminal=dataset('a_routed_terminal_question_is_held');
+  const mixed=dataset('a_supervisor_held_card_beside_an_open_one_leaves_the_row');
+  function owner(group,fixture){
+    const rows=fixture.input.sessions.map(data=>{const row=agent(data.session_id,{...data,manager:'work'});row.group=group;return row;});
+    const guest=clientFixture({sessions:rows});
+    guest.client.profile.id=group;
+    guest.client.canApproveSession=()=>true;
+    guest.cards=structuredClone(fixture.input.interactions);
+    guest.writes=[];
+    guest.repo.decisions=async()=>structuredClone(guest.cards);
+    guest.repo.resolve=async(card,_option,_values,_op,admit)=>{
+      assert.equal(admit(),true);guest.writes.push(card.id);guest.cards=guest.cards.filter(value=>value.id!==card.id);
+    };
+    guest.client.directoryMachines=[];
+    return guest;
+  }
+  const primary=owner('primary',mixed),peer=owner('peer',terminal),root=primary.client;
+  root.directoryOwners=()=>[root,peer.client];
+  root.directoryOwnerFor=row=>row.group==='peer'?peer.client:row.group==='primary'?root:undefined;
+  const sessions=[...root.sessions,...peer.client.sessions];
+  const queue=new AgentDecisionQueue(),workspace=new AgentWorkspace(undefined,'repo',false),scheduled=[];
+  const Page=projectSearchMethods(['refreshSpaceDecisions','syncSearchGroups'],fn=>{scheduled.push(fn);return -1;});
+  const page=Object.assign(new Page(),{page:'projects',model:root,searchMode:true,groupedSearchRows:()=>{},quick:'needsYou',
+    catalog:{browser:{query:'',machine:'',searchGrouping:'state'}},spaceDecisions:queue,searchGroups:workspace,directorySearchRows:sessions});
+  const reload=async()=>{page.refreshSpaceDecisions();await scheduled.shift()();};
+  // Reading the remote directory can complete before opening the projection workspace.
+  await reload();await workspace.open(root);page.syncSearchGroups();
+  const state=()=>workspace.groups.find(item=>item.id==='state/needs')?.rows.map(row=>row.id).sort() || [];
+  const counted=()=>projectSearchResult(root,sessions,workspace.repositoryQuery(root,sessions,'','needsYou',''),page.searchCards,'','needsYou',
+    row=>[row.group,row.manager,row.machine,row.id].join('|')).counts.needsYou;
+  assert.deepEqual(state(),['p']);assert.equal(workspace.filterCounts.needsYou,1);assert.equal(counted(),1);
+  assert.deepEqual(queue.forSession(root,sessions[0]).map(card=>card.request.id),mixed.expected.rows[0].cards);
+  assert.deepEqual(queue.forSession(root,sessions[1]),[]);
+  const userQuestion=queue.forSession(root,sessions[0])[0];
+  assert.equal(queue.enabled(root,sessions[0],userQuestion),true);assert.deepEqual(userQuestion.quickOptions(),['8080','9090']);
+  // The secondary Hub can escalate while the primary does not change.
+  peer.cards[0]={...peer.cards[0],kind:'permission',delegating:false,tool_name:'Read'};
+  await reload();
+  assert.deepEqual(state(),['p','t']);assert.equal(workspace.filterCounts.needsYou,2);assert.equal(counted(),2);
+  const open=queue.forSession(root,sessions[1])[0];
+  assert.deepEqual(open.quickOptions(),['allow','deny']);
+  peer.cards[0].delegating=true;
+  await queue.answer(root,sessions[1],open,'allow','stale-preview',workspace.actionTicket(sessions[1]));
+  assert.deepEqual(peer.writes,[]);assert.deepEqual(primary.writes,[]);
+  // The answer's own authoritative re-read has to update both presentations even without a push event.
+  assert.deepEqual(state(),['p']);assert.equal(counted(),1);
+  assert.deepEqual(queue.forSession(root,sessions[1]),[]);assert.equal(queue.enabled(root,sessions[1],open),false);
+  peer.cards[0].delegating=false;await reload();
+  const handed=queue.forSession(root,sessions[1])[0];
+  assert.equal(queue.enabled(root,sessions[1],handed),true);
+  await queue.answer(root,sessions[1],handed,'allow','fresh-owner',workspace.actionTicket(sessions[1]));
+  assert.deepEqual(peer.writes,['ix-terminal']);assert.deepEqual(primary.writes,[]);
+  assert.deepEqual(queue.forSession(root,sessions[1]),[]);
+  const listSource=readFileSync(new URL('../entry/src/main/ets/components/AgentListPage.ets',import.meta.url),'utf8');
+  const lifecycle=['reloadDecisions','retireDecisions'].map(name=>listSource.match(new RegExp('^  private '+name+'\\([\\s\\S]+?^  \\}','m'))[0]);
+  const List=new Function('return '+stripTypeScriptTypes('class List {'+lifecycle.join('\n')+'}'))();
+  const rendered=Object.assign(new List(),{active:true,compactRoot:true,externalSearchControls:true,decisions:queue,workspace,model:root});
+  rendered.reloadDecisions();rendered.retireDecisions();
+  assert.equal(queue.forSession(root,sessions[0])[0].request.id,'ix-asked','returning to repository mode leaves the shared snapshot live');
+  const last=page.searchCards;
+  queue.clear();await queue.reload(root);
+  assert.equal(page.searchCards,last,'an owner change or a closed page releases its snapshot subscription');
 });

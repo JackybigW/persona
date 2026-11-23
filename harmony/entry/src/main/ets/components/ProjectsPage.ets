@@ -28,7 +28,7 @@ export struct ProjectsPage {
   @Param agentRepositories: PersonaProject[] | undefined = undefined;
   @Param agentFilterActive: boolean = false;
   @Param searchWorkspace: AgentWorkspace | undefined = undefined;
-  @BuilderParam groupedSearchRows?:(workspace:AgentWorkspace,tasks:AgentTaskGrouping)=>void;
+  @BuilderParam groupedSearchRows?:(workspace:AgentWorkspace,tasks:AgentTaskGrouping,decisions:AgentDecisionQueue)=>void;
   @Local private searchGroups:AgentWorkspace = new AgentWorkspace(undefined,'repo',false);
   @Local private searchTasks:AgentTaskGrouping = new AgentTaskGrouping();
   private groupLoad:number = 0;
@@ -82,7 +82,11 @@ export struct ProjectsPage {
     clearTimeout(this.spaceReadTimer);
     if (this.page === 'projects' && this.searchMode) {
       this.spaceReadTimer = setTimeout(() => this.spaceDecisions.reload(this.model,undefined,
-        (pending:AgentDecisionSnapshot[]) => { if (this.searchMode) this.searchCards = pending; }).catch(() => {}),50);
+        (pending:AgentDecisionSnapshot[]) => {
+          if (!this.searchMode) return;
+          this.searchCards = pending;
+          this.searchGroups.updateSupervisorCards(this.model,this.spaceDecisions);
+        }).catch(() => {}),50);
       return;
     }
     const agent = this.detailTree?.agents[0];
@@ -465,7 +469,7 @@ export struct ProjectsPage {
     if (!this.groupedSearchRows || !this.searchMode || !this.searchGroups.isBoundTo(this.model)) return;
     const rows=this.directorySearchRows.filter((row:ResourceRow) => !Wire.bool(row.data(),'hidden_by_directory'));
     this.searchGroups.setProjectSearch(this.model,rows,this.catalog.browser.query,this.quick || 'all',
-      this.catalog.browser.machine,this.catalog.browser.searchGrouping || 'repo');
+      this.catalog.browser.machine,this.catalog.browser.searchGrouping || 'repo',this.spaceDecisions);
   }
   private selectSearchGrouping(key:string):void {
     if (!this.searchGroups.groupingOptions().includes(key)) return;
@@ -778,7 +782,7 @@ export struct ProjectsPage {
         Column() { this.searchAndFilter() }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page})
       }
       if (this.showGroupedResults && this.groupedSearchRows) {
-        Column() { this.groupedSearchRows(this.searchGroups,this.searchTasks) }.layoutWeight(1).width('100%')
+        Column() { this.groupedSearchRows(this.searchGroups,this.searchTasks,this.spaceDecisions) }.layoutWeight(1).width('100%')
       } else Column() {
         List({scroller:this.scroller}) {
           if (this.compact && this.page === 'projects' && !this.searchMode) ListItem() { this.searchEntry() }

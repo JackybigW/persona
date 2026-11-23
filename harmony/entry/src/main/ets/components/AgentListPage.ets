@@ -125,18 +125,22 @@ export struct AgentListPage {
   @Local mixedMachines: boolean = false;
   @Local listWidth:number=0;
   private narrowRow():boolean { return this.listWidth>0 && this.listWidth<252*Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(15)); }
-  @Local decisions: AgentDecisionQueue = new AgentDecisionQueue();
+  @Param decisions: AgentDecisionQueue = new AgentDecisionQueue();
   private stopDecisionEvents: (()=>void) | undefined;
   private decisionQueued: number = -1;
   private reloadDecisions(): void {
     clearTimeout(this.decisionQueued);
-    if (!this.active || this.rail || !this.compactRoot) return;
+    if (this.externalSearchControls || !this.active || this.rail || !this.compactRoot) return;
     const owner = this.model;
     this.decisionQueued=setTimeout(() => this.decisions.reload(owner).then(() => {
       if (this.active && this.model === owner) this.workspace.updateSupervisorCards(owner,this.decisions);
     }).catch(() => {}),50);
   }
-  private retireDecisions(): void { clearTimeout(this.decisionQueued); this.decisions.clear(); this.workspace.updateSupervisorCards(this.model); }
+  private retireDecisions(): void {
+    clearTimeout(this.decisionQueued);
+    if (this.externalSearchControls) return;
+    this.decisions.clear(); this.workspace.updateSupervisorCards(this.model);
+  }
 
   @Local searchOpen: boolean = false;
   @Local searchEditing: boolean = false;

@@ -73,9 +73,10 @@ export class AgentDecisionQueue {
   private sequence:number=0;
   private current:ClientModel|undefined;
   private singleOwner:ClientModel|undefined;
+  private reportDirectory:((pending:AgentDecisionSnapshot[]) => void)|undefined;
 
   clear():void {
-    this.snapshotComplete = false;
+    this.snapshotComplete = false; this.reportDirectory = undefined;
     this.generation++; this.sequence++; this.current=undefined; this.singleOwner=undefined; this.cards=[]; this.supervisorCards=[]; this.submitted=[]; this.acknowledged.clear(); this.error='';
   }
   private read(owner:ClientModel,rows:Record<string,Object>[]):AgentDecisionCard[] {
@@ -95,6 +96,9 @@ export class AgentDecisionQueue {
   async reload(root:ClientModel, singleOwner?:ClientModel,
     readDirectory?: (pending:AgentDecisionSnapshot[]) => void):Promise<void> {
     if (this.current!==root || this.singleOwner!==singleOwner) { this.clear(); this.current=root; this.singleOwner=singleOwner; }
+    // A quick answer reloads this same queue. Publish its directory counts along with the refreshed cards.
+    if (readDirectory) this.reportDirectory=readDirectory;
+    const report=this.reportDirectory;
     const n=++this.sequence, generation=root.connectionGeneration(), scope=root.scope();
     const owners=singleOwner ? root.directoryOwners().filter((owner:ClientModel) => singleOwner===owner) : root.directoryOwners();
     const pending:AgentDecisionSnapshot[] = [];
@@ -105,7 +109,7 @@ export class AgentDecisionQueue {
       try {
         const data=await owner.repo().decisions();
         if (!owner.owns(ownerGeneration,ownerScope)) { complete = false; return []; }
-        if (readDirectory) pending.push({ owner, generation:ownerGeneration, scope:ownerScope, records:data });
+        if (report) pending.push({ owner, generation:ownerGeneration, scope:ownerScope, records:data });
         const cards=this.read(owner,data);
         return cards.filter((card:AgentDecisionCard) => this.acknowledged.get(card.key)!==card.request.raw);
       } catch (_) { complete = false; return []; }
@@ -114,7 +118,7 @@ export class AgentDecisionQueue {
       this.cards=groups.flat();
       this.supervisorCards=this.cards.filter((card:AgentDecisionCard) => card.supervisorHeld);
       this.snapshotComplete=complete;
-      if (readDirectory) readDirectory(pending);
+      if (report) report(pending);
     }
   }
   forSession(root:ClientModel,row:ResourceRow):AgentDecisionCard[] {
