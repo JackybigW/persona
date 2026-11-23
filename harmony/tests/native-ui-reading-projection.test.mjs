@@ -257,7 +257,9 @@ test('a recording profile retains its standard body and uses the measured mixed-
  assert.equal(p.inlineSpacing(17,0.45,false),48*0.45,'headings, inline code and other block layouts retain their existing reading metrics');
  p.profileReading=false;assert.equal(p.profileDisplayProse,false);assert.equal(p.proseFont(false),undefined);
  assert.match(model,/export struct KnowledgeWorkspacePage\s*\{[^}]*@Local environment:NativeEnvironment=nativeEnvironment/);
- assert.match(model,/@Computed get recordingFactsHeight\(\):number\s*\{\s*return PhoneStyle\.formSize\(52\.3,59\.3,this\.environment\.fontScale\)/);
  assert.match(model,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true,profileReading:true,\s*agentFontScale:this\.environment\.fontScale/);
- assert.match(model,/\.height\(this\.recordingFactsHeight\)[^\n]+id\('knowledge\.facts\.open'\)/);
+ const action=model.slice(model.indexOf("if (this.workspace.supportsExpectedPinned) Button"),model.indexOf(".bindSheet(this.facts.open"));
+ assert.match(action,/\.padding\(\{top:16\.15,bottom:16\.15\}\)/);
+ assert.match(action,/constraintSize\(\{minHeight:this\.recordingMetric\(52\.3,59\.3\)\}\)/);
+ assert.match(action,/\.onClick\(\(\) => this\.openFacts\(\)\)\.id\('knowledge\.facts\.open'\)/);
 });
