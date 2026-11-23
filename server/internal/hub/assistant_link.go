@@ -70,6 +70,10 @@ func (h *Hub) assistantRoutesRelayed(api *http.ServeMux) {
 			api.HandleFunc(pattern, h.forwardAgentAutoname)
 			continue
 		}
+		if pattern == todoRevisionRoute { // the pushed read's cheap validator, merged over every manager
+			api.HandleFunc(pattern, h.mergeTodoRevision)
+			continue
+		}
 		if key, ok := mergedLists[pattern]; ok { // the todos: every manager's
 			api.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { h.mergeList(w, r, key, h.forwardHTTP) })
 			continue
@@ -450,14 +454,25 @@ func init() {
 			return nil, &rpc.Error{Code: bus.CodeInvalidParams, Message: assistantwire.MethodNotify + ": " + err.Error()}
 		}
 		from, id := c.managerID(), p.Notification.ID
-		if id != "" && !h.firstHandOver(ctx, from, id) {
-			return map[string]any{"ok": true}, nil // delivered already: it came again (outbox_relay.go)
+		var release func()
+		if id != "" {
+			first, rel, paused := h.beginHandOver(ctx, from, id)
+			if paused {
+				return nil, &rpc.Error{Code: bus.CodeStoreUnavailable, Message: "hub writes are paused"}
+			}
+			if !first {
+				return map[string]any{"ok": true}, nil // delivered already: it came again (outbox_relay.go)
+			}
+			release = rel
+		}
+		if release != nil {
+			defer release()
 		}
 		// Only about its own machines, sessions and cards (fleet_link.go deliverPushFrom).
 		out, err := h.deliverPushFrom(from, p.Notification)
 		if err != nil {
 			if id != "" {
-				h.forgetHandOver(from, id)
+				h.forgetHandOver(from, id, release != nil)
 			}
 			return nil, busCodedError(err)
 		}

@@ -24,6 +24,13 @@ func automaticCloseout(waiting, artifact string, evidence map[string]any) string
 	return body + "</closeout>"
 }
 
+// parkEvidenceWithoutNextActor is a park line written without evidence.next_actor.
+func parkEvidenceWithoutNextActor(kind string) map[string]any {
+	a := parkEvidenceArgs(kind)
+	delete(a["evidence"].(map[string]any), "next_actor")
+	return a
+}
+
 func automaticFixture(t *testing.T, reply string) (*Service, *fakeHub, Todo, proto.Session, time.Time) {
 	t.Helper()
 	s, f, task, c, _ := mechanicalFixture(t)
@@ -76,10 +83,14 @@ func TestAutomaticCloseoutParkingAdmission(t *testing.T) {
 		{"done turn with external delivery wait", strings.ReplaceAll(automaticCloseout("deployment rollout-42", "build https://example.org/deployments/rollout-42", nil), `status="blocked"`, `status="done"`), true},
 		{"no structured closeout", "Delivery: PR; blocked on deployment; someone else can unblock it", false},
 		{"bad explicit evidence cannot fall back", automaticCloseout("deployment rollout-42", "build https://example.org/deployments/rollout-42", map[string]any{"waiting_on": "external_event"}), false},
+		// Only evidence derived from the closeout gets next_actor; what an Agent or an older receipt states keeps its own.
+		{"explicit evidence without next actor", automaticCloseout("reviewer-a replies in the sent thread", "", parkEvidenceWithoutNextActor("person_reply")), false},
+		{"recorded review without next actor", automaticCloseout("等上游复审", "pr https://github.com/example/project/pull/42", nil), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, _, task, _, at := automaticFixture(t, tc.reply)
-			if tc.name == "ready source-bound review" || tc.name == "reuse recorded review source" || tc.name == "recorded review cannot hide deployment" {
+			if tc.name == "ready source-bound review" || tc.name == "reuse recorded review source" || tc.name == "recorded review cannot hide deployment" ||
+				tc.name == "recorded review without next actor" {
 				s.todos.mu.Lock()
 				cur := s.todos.todos[task.ID]
 				cur.PRURL = "https://github.com/example/project/pull/42"
@@ -88,6 +99,9 @@ func TestAutomaticCloseoutParkingAdmission(t *testing.T) {
 					raw, _ := json.Marshal(parkEvidenceArgs("merge_review")["evidence"])
 					var evidence ParkEvidence
 					_ = json.Unmarshal(raw, &evidence)
+					if tc.name == "recorded review without next actor" {
+						evidence.NextActor = "" // recorded before admission required it
+					}
 					cur.Supervision.Reviews = []TaskReview{{At: at.Add(-time.Hour), Verdict: "parked",
 						WaitingOn: "someone_else", Until: at.Add(24 * time.Hour), Evidence: &evidence}}
 				}
@@ -263,8 +277,15 @@ func TestAutomaticCloseoutSummaryDailyAndDurable(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// Generate through the real watch, not by calling the new summary helper.
-	at := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.UTC)
+	// Generate through the real watch, not by calling the new summary helper. The summary goes out from 09:00 in the
+	// owner's zone, which here is the machine's own: 10:00 UTC was 02:00 on a machine west of UTC, and the test failed
+	// there. Take the next 10:00 in that zone after the fixture's now.
+	loc := s.location(ctx)
+	local := now.In(loc)
+	at := time.Date(local.Year(), local.Month(), local.Day(), 10, 0, 0, 0, loc)
+	if !at.After(now) {
+		at = at.AddDate(0, 0, 1)
+	}
 	s.superviseWatch(ctx, at)
 	s.supervise.mu.Lock()
 	g, ok := s.supervise.pending[task.ID+"|parked_summary"]
