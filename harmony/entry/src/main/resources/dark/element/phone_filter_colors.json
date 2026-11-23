@@ -1,6 +1,18 @@
 {
   "color": [
     {
+      "name": "phone_agent_section_ink",
+      "value": "#8D8D93"
+    },
+    {
+      "name": "phone_agent_count_fill",
+      "value": "#0B0B0C"
+    },
+    {
+      "name": "phone_agent_count_ink",
+      "value": "#409CFF"
+    },
+    {
       "name": "phone_agent_quick_fill",
       "value": "#3B3B3E"
     },

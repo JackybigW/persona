@@ -1,3 +1,4 @@
+import { LengthMetrics } from '@kit.ArkUI';
 import { IconActions } from '../design/IconActions';
 import { util } from '@kit.ArkTS';
 import { ClientModel } from '../models/ClientModel';
@@ -450,6 +451,30 @@ export struct AgentListPage {
     else Text('›_').fontSize('11vp').fontFamily('monospace').fontWeight(FontWeight.Medium).fontColor(Colors.secondary)
       .width(18).height(14).textAlign(TextAlign.Center).border({width:1,color:Colors.secondary,radius:3}).accessibilityLevel('no')
   }
+  @Builder needsYouHeader(binding:BoundAgentGroup) {
+    Button({type:ButtonType.Normal}) {
+      Row({space:6}) {
+        Text(this.groupTitle(binding.value)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontWeight(600)
+          .fontColor(Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_section_ink') : Colors.secondary)
+          .maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+        if (binding.value.totalRowCount>0) {
+          Text(binding.value.totalRowCount>99?'99+':String(binding.value.totalRowCount)).fontSize(13)
+            .maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Bold).textAlign(TextAlign.Center)
+            .fontColor(Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_count_ink') : Colors.needs)
+            .padding({left:6,right:6}).height(PhoneStyle.formSize(18.33,25.67,this.environment.fontScale))
+            .constraintSize({minWidth:PhoneStyle.formSize(20.33,23.67,this.environment.fontScale)})
+            .backgroundColor(Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.phone_agent_count_fill') : Colors.control)
+            .borderRadius(20)
+        }
+        Blank().layoutWeight(1)
+        if (binding.value.folded) SymbolGlyph(Symbols.expand).fontSize(Tokens.interfaceFontVp(12,this.environment.fontScale)).fontColor([Colors.tertiary])
+      }.width('100%').padding({left:20,right:20})
+    }.width('100%').height(PhoneStyle.formSize(40.33,47.67,this.environment.fontScale)).padding(0).backgroundColor(Color.Transparent)
+      .accessibilityText(this.groupTitle(binding.value)+' · '+String(binding.value.totalRowCount)+' · '+tr(binding.value.folded?'agent_expand':'agent_collapse'))
+      .responseRegion([{x:0,y:-2,width:'100%',height:44},{x:0,y:0,width:'100%',height:'100%'}])
+      .onClick(()=>this.workspace.toggleFold(binding.value.id)).id('agents.group.toggle.'+binding.value.id)
+  }
+
   @Builder groupHeader(binding: BoundAgentGroup) {
     if (binding.value.presentation) Column() {
       if (binding.value.presentation === 'recent') Row({space:6}) {
@@ -485,6 +510,9 @@ export struct AgentListPage {
          .filter((part:string)=>!!part).join(' · '))
        .onClick(()=>this.workspace.toggleFold(binding.value.id)).id('agents.group.toggle.'+binding.value.id)
     }.width('100%').padding({left:4,right:4})
+    else if (this.compactRoot && !this.rail && binding.value.id==='state/needs') Column() {
+      this.needsYouHeader(binding)
+    }.width('100%').padding({left:this.floatingStatusCards?16:4,right:this.floatingStatusCards?16:4,top:20})
     else Column({ space: 4 }) {
       if (binding.value.parent === 'quiet') {
         Text(tr('agent_group_quiet_spaces')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontWeight(FontWeight.Medium).fontColor(Colors.ink).width('100%')
@@ -635,6 +663,7 @@ export struct AgentListPage {
                 .responseRegion([{x:0,y:-12,width:'100%',height:44},{x:0,y:0,width:'100%',height:'100%'}])
                 .onClick(() => this.openRow(binding.bound.value)).id('agents.request.'+card.request.id)
               if (card.preview) Text(this.decisionPreview(card)).fontSize(17).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.ink)
+                .lineSpacing(LengthMetrics.vp(PhoneStyle.sidebarMetric(17*(1.45-1.19),this.environment.fontScale)),{onlyBetweenLines:true})
                 .lineHeight(PhoneStyle.settingsExampleLineHeight(20.33,27.67,this.environment.fontScale)).maxLines(3).textAlign(TextAlign.Start)
                 .width('100%').onClick(() => this.openRow(binding.bound.value)).id('agents.preview.'+card.request.id)
               if (card.quickOptions().length) this.decisionChoices(card,binding)
