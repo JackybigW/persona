@@ -269,6 +269,9 @@ func (f *fakeHub) Hello(context.Context) (Hello, error) {
 // Background refreshes can reach the same node independently of the action under test.
 type deviceCallsForTest struct{}
 
+// sessionListOfflineForTest lets a test drop a node read on one request while unrelated background reads proceed.
+type sessionListOfflineForTest struct{}
+
 // afterListCall marks the context of the call a test arms afterList for (listHooked).
 type afterListCall struct{}
 
@@ -286,6 +289,9 @@ func (f *fakeHub) DeviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 		f.mu.Unlock()
 		if check && ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if offline, ok := ctx.Value(sessionListOfflineForTest{}).(func(string) bool); ok && offline(p.Device) {
+			return nil, fmt.Errorf("%s: %w", p.Device, apierr.ErrOffline)
 		}
 	}
 	if p.Method == DeviceSessionGet {
