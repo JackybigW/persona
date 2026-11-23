@@ -1,0 +1,279 @@
+Attributes: Application, 0x10a8575c0, pid: 47803, label: 'Persona'
+Element subtree:
+ →Application, 0x10a8575c0, pid: 47803, label: 'Persona'
+    Window, 0x10a857d40, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10a857700, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10a8561c0, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x10a857e80, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x10a855b80, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x10a856800, {{0.0, 0.0}, {402.0, 874.0}}
+                NavigationBar, 0x10a856d00, {{0.0, 62.0}, {402.0, 54.0}}, identifier: 'Agents'
+                  StaticText, 0x10a857200, {{200.7, 79.0}, {0.7, 10.0}}, label: 'Agents'
+                    Other, 0x10a856f80, {{200.7, 79.0}, {0.7, 10.0}}
+                      Other, 0x10a856e40, {{0.0, 0.0}, {0.0, 0.0}}
+                Other, 0x10a856bc0, {{0.0, 0.0}, {402.0, 874.0}}
+                  Other, 0x10a857340, {{0.0, 0.0}, {402.0, 874.0}}
+                    Other, 0x10a8570c0, {{0.0, 0.0}, {402.0, 874.0}}
+                      Other, 0x10a857480, {{0.0, 0.0}, {402.0, 874.0}}
+                        Other, 0x10a857980, {{0.0, 116.0}, {402.0, 34.0}}
+                        Other, 0x10a857ac0, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x10a855cc0, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x10a856080, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x10a856440, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x1075a12c0, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x1075a3340, {{0.0, 116.0}, {402.0, 724.0}}
+                        Other, 0x1075a3980, {{0.0, 116.0}, {402.0, 724.0}}
+                        CollectionView, 0x1075a1180, {{0.0, 0.0}, {402.0, 874.0}}
+                          Other, 0x1075a30c0, {{0.0, -84.0}, {402.0, 150.7}}
+                          Cell, 0x1075a3480, {{0.0, -20.0}, {402.0, 86.7}}
+                            Other, 0x1075a3700, {{0.0, -20.0}, {402.0, 86.7}}
+                              Other, 0x1075a3ac0, {{0.0, -20.0}, {402.0, 86.7}}
+                                Other, 0x1075a3c00, {{0.0, -20.0}, {402.0, 86.7}}
+                                  Other, 0x1075a3840, {{0.0, -20.0}, {402.0, 86.7}}
+                            Other, 0x10baf4000, {{0.0, -20.0}, {402.0, 86.7}}
+                              Other, 0x10baf4140, {{0.0, -20.0}, {402.0, 86.7}}
+                                Other, 0x10baf4280, {{0.0, -20.0}, {402.0, 86.7}}
+                                  Button, 0x10baf43c0, {{0.0, -20.0}, {402.0, 86.7}}, identifier: 'agents.row', label: 'Claude Code、把周报草稿合成一份、40 分钟前、四份草稿合成了一份，重复的两段删掉了。、完成未看、终端、weekly、opus'
+                                    Other, 0x10baf4500, {{32.0, -4.7}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Claude Code'
+                                      Image, 0x10baf4640, {{32.0, -4.7}, {14.0, 14.0}}, label: 'brand-claude'
+                                    StaticText, 0x10baf4780, {{50.0, -8.0}, {151.7, 20.3}}, label: '把周报草稿合成一份'
+                                    StaticText, 0x10baf48c0, {{319.3, -3.0}, {54.7, 14.3}}, label: '40 分钟前'
+                                    StaticText, 0x10baf4a00, {{32.0, 16.3}, {276.0, 18.0}}, label: '四份草稿合成了一份，重复的两段删掉了。'
+                                    StaticText, 0x10baf4b40, {{32.0, 38.7}, {51.7, 15.7}}, label: '完成未看'
+                                    StaticText, 0x10baf4c80, {{91.7, 38.3}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10baf4dc0, {{131.7, 38.7}, {41.7, 15.7}}, label: 'weekly'
+                                    StaticText, 0x10baf4f00, {{183.3, 39.3}, {28.0, 14.3}}, label: 'opus'
+                          Other, 0x10baf5040, {{0.0, 0.0}, {402.0, 874.0}}
+                            Other, 0x10baf5180, {{0.0, 0.0}, {402.0, 190.0}}
+                          Other, 0x10baf52c0, {{0.0, 0.0}, {402.0, 874.0}}
+                            Other, 0x10baf5400, {{0.0, 0.0}, {402.0, 190.0}}
+                          Cell, 0x10baf5540, {{0.0, 66.7}, {402.0, 64.0}}
+                            Other, 0x10baf5680, {{0.0, 66.7}, {402.0, 64.0}}
+                              Other, 0x10baf57c0, {{0.0, 66.7}, {402.0, 64.0}}
+                                Other, 0x10baf5900, {{0.0, 66.7}, {402.0, 64.0}}
+                                  Other, 0x10baf5a40, {{0.0, 66.7}, {402.0, 64.0}}
+                            Other, 0x10baf5b80, {{0.0, 66.7}, {402.0, 64.0}}
+                              Other, 0x10baf5cc0, {{0.0, 66.7}, {402.0, 64.0}}
+                                Other, 0x10baf5e00, {{0.0, 66.7}, {402.0, 64.0}}
+                                  Button, 0x10baf5f40, {{16.0, 82.7}, {322.0, 44.0}}, identifier: 'agents.space', label: 'shop-api，已展开，1 个工作中'
+                                    StaticText, 0x10baf6080, {{16.0, 96.8}, {56.3, 15.7}}, label: 'shop-api'
+                                    Other, 0x10baf61c0, {{298.0, 97.5}, {18.3, 14.3}}, label: '1 个工作中'
+                                      StaticText, 0x10baf6300, {{308.0, 97.5}, {8.3, 14.3}}, label: '1'
+                                    Image, 0x10baf6440, {{325.7, 101.3}, {11.0, 6.7}}, identifier: 'chevron.down', label: '向下移动'
+                                  Button, 0x10baf6580, {{342.0, 82.7}, {44.0, 44.0}}, label: 'shop-api 的更多操作'
+                                    Button, 0x10baf66c0, {{342.0, 82.7}, {44.0, 44.0}}
+                                      Image, 0x10baf6800, {{342.0, 82.7}, {44.0, 44.0}}, identifier: 'ellipsis.circle', label: '更多'
+                          Other, 0x10baf6940, {{0.0, 66.7}, {402.0, 173.7}}
+                          Cell, 0x10baf6a80, {{0.0, 130.7}, {402.0, 109.7}}
+                            Other, 0x10baf6bc0, {{0.0, 130.7}, {402.0, 109.7}}
+                              Other, 0x10baf6d00, {{0.0, 130.7}, {402.0, 109.7}}
+                                Other, 0x10baf6e40, {{0.0, 130.7}, {402.0, 109.7}}
+                                  Other, 0x10baf6f80, {{0.0, 130.7}, {402.0, 109.7}}
+                            Other, 0x10baf70c0, {{0.0, 130.7}, {402.0, 109.7}}
+                              Other, 0x10baf7200, {{0.0, 130.7}, {402.0, 109.7}}
+                                Other, 0x10baf7340, {{0.0, 130.7}, {402.0, 109.7}}
+                                  Button, 0x10baf7480, {{0.0, 130.7}, {402.0, 109.7}}, identifier: 'agents.row', label: 'Codex、排查 /orders 接口变慢、1 分钟前、慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。、工作中、终端、perf、gpt-5.5、排查 /orders 接口变慢'
+                                    Other, 0x10baf75c0, {{32.0, 146.0}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Codex'
+                                      Image, 0x10baf7700, {{32.0, 146.0}, {14.0, 14.0}}, label: 'brand-openai'
+                                    StaticText, 0x10baf7840, {{50.0, 142.7}, {166.3, 20.3}}, label: '排查 /orders 接口变慢'
+                                    StaticText, 0x10baf7980, {{329.0, 147.7}, {45.0, 14.3}}, label: '1 分钟前'
+                                    StaticText, 0x10baf7ac0, {{32.0, 167.0}, {315.0, 38.0}}, label: '慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。'
+                                    StaticText, 0x10baf7c00, {{32.0, 210.8}, {39.0, 15.7}}, label: '工作中'
+                                    StaticText, 0x10baf7d40, {{79.0, 210.7}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10baf7e80, {{119.0, 210.8}, {25.3, 15.7}}, label: 'perf'
+                                    StaticText, 0x10baec000, {{154.3, 211.5}, {42.3, 14.3}}, label: 'gpt-5.5'
+                                    Image, 0x10baec140, {{216.0, 212.7}, {13.7, 12.3}}, identifier: 'checklist', label: '带勾号的核对清单'
+                                    StaticText, 0x10baec280, {{235.0, 211.5}, {119.7, 14.3}}, label: '排查 /orders 接口变慢'
+                          Other, 0x10baec3c0, {{0.0, 240.3}, {402.0, 48.0}}
+                          Cell, 0x10baec500, {{0.0, 240.3}, {402.0, 48.0}}
+                            Other, 0x10baec640, {{0.0, 240.3}, {402.0, 48.0}}
+                              Other, 0x10baec780, {{0.0, 240.3}, {402.0, 48.0}}
+                                Other, 0x10baec8c0, {{0.0, 240.3}, {402.0, 48.0}}
+                                  Other, 0x10baeca00, {{0.0, 240.3}, {402.0, 48.0}}
+                            Other, 0x10baecb40, {{0.0, 240.3}, {402.0, 48.0}}
+                              Other, 0x10baecc80, {{0.0, 240.3}, {402.0, 48.0}}
+                                Other, 0x10baecdc0, {{0.0, 240.3}, {402.0, 48.0}}
+                                  Button, 0x10baecf00, {{0.0, 240.3}, {402.0, 48.0}}, identifier: 'agents.host', label: 'MacBook，已展开，2 个需要你，3 个工作中，4 个完成未看，12 个空闲'
+                                    Button, 0x10baed040, {{16.0, 240.3}, {370.0, 44.0}}, label: 'MacBook、2 个需要你、3 个工作中、4 个完成未看、12 个空闲'
+                                      Image, 0x10baed180, {{19.0, 264.0}, {22.0, 12.7}}, identifier: 'laptopcomputer', label: '笔记本电脑'
+                                      StaticText, 0x10baed2c0, {{52.0, 260.2}, {74.0, 20.3}}, label: 'MacBook'
+                                      Other, 0x10baed400, {{257.3, 263.2}, {18.3, 14.3}}, label: '2 个需要你'
+                                        StaticText, 0x10baed540, {{267.3, 263.2}, {8.3, 14.3}}, label: '2'
+                                      Other, 0x10baed680, {{281.7, 263.2}, {18.3, 14.3}}, label: '3 个工作中'
+                                        StaticText, 0x10baed7c0, {{291.7, 263.2}, {8.3, 14.3}}, label: '3'
+                                      Other, 0x10baed900, {{306.0, 263.2}, {18.3, 14.3}}, label: '4 个完成未看'
+                                        StaticText, 0x10baeda40, {{316.0, 263.2}, {8.3, 14.3}}, label: '4'
+                                      StaticText, 0x10baedb80, {{330.3, 263.2}, {26.0, 14.3}}, label: '12 个空闲'
+                                      Image, 0x10baedcc0, {{373.7, 267.0}, {11.0, 6.7}}, identifier: 'chevron.down', label: '向下移动'
+                          Cell, 0x10baede00, {{0.0, 288.3}, {402.0, 64.0}}
+                            Other, 0x10baedf40, {{0.0, 288.3}, {402.0, 64.0}}
+                              Other, 0x10baee080, {{0.0, 288.3}, {402.0, 64.0}}
+                                Other, 0x10baee1c0, {{0.0, 288.3}, {402.0, 64.0}}
+                                  Other, 0x10baee300, {{0.0, 288.3}, {402.0, 64.0}}
+                            Other, 0x10baee440, {{0.0, 288.3}, {402.0, 64.0}}
+                              Other, 0x10baee580, {{0.0, 288.3}, {402.0, 64.0}}
+                                Other, 0x10baee6c0, {{0.0, 288.3}, {402.0, 64.0}}
+                                  Button, 0x10baee800, {{16.0, 304.3}, {274.0, 44.0}}, identifier: 'agents.space', label: 'weather，已展开，已置顶，1 个需要你，1 个工作中，2 个完成未看，3 个空闲'
+                                    StaticText, 0x10baee940, {{16.0, 318.5}, {51.3, 15.7}}, label: 'weather'
+                                    Image, 0x10baeea80, {{77.7, 319.7}, {9.3, 13.7}}, identifier: 'pin.fill', label: '已置顶'
+                                    Other, 0x10baeebc0, {{177.3, 319.2}, {18.3, 14.3}}, label: '1 个需要你'
+                                      StaticText, 0x10baeed00, {{187.3, 319.2}, {8.3, 14.3}}, label: '1'
+                                    Other, 0x10baeee40, {{201.7, 319.2}, {18.3, 14.3}}, label: '1 个工作中'
+                                      StaticText, 0x10baeef80, {{211.7, 319.2}, {8.3, 14.3}}, label: '1'
+                                    Other, 0x10baef0c0, {{226.0, 319.2}, {18.3, 14.3}}, label: '2 个完成未看'
+                                      StaticText, 0x10baef200, {{236.0, 319.2}, {8.3, 14.3}}, label: '2'
+                                    StaticText, 0x10baef340, {{250.3, 319.2}, {18.0, 14.3}}, label: '3 个空闲'
+                                    Image, 0x10baef480, {{277.7, 323.0}, {11.0, 6.7}}, identifier: 'chevron.down', label: '向下移动'
+                                  Button, 0x10baef5c0, {{294.0, 304.3}, {44.0, 44.0}}, identifier: 'todo.space.macbook/w1', label: '待办：天气 App 发 1.3 版'
+                                  Button, 0x10baef700, {{342.0, 304.3}, {44.0, 44.0}}, label: 'weather 的更多操作'
+                                    Button, 0x10baef840, {{342.0, 304.3}, {44.0, 44.0}}
+                                      Image, 0x10baef980, {{342.0, 304.3}, {44.0, 44.0}}, identifier: 'ellipsis.circle', label: '更多'
+                          Other, 0x10baefac0, {{0.0, 288.3}, {402.0, 541.7}}
+                          Cell, 0x10baefc00, {{0.0, 352.3}, {402.0, 86.7}}
+                            Other, 0x10baefd40, {{0.0, 352.3}, {402.0, 86.7}}
+                              Other, 0x10baefe80, {{0.0, 352.3}, {402.0, 86.7}}
+                                Other, 0x10bab4000, {{0.0, 352.3}, {402.0, 86.7}}
+                                  Other, 0x10bab4140, {{0.0, 352.3}, {402.0, 86.7}}
+                            Other, 0x10bab4280, {{0.0, 352.3}, {402.0, 86.7}}
+                              Other, 0x10bab43c0, {{0.0, 352.3}, {402.0, 86.7}}
+                                Other, 0x10bab4500, {{0.0, 352.3}, {402.0, 86.7}}
+                                  Button, 0x10bab4640, {{0.0, 352.3}, {402.0, 86.7}}, identifier: 'agents.row', label: 'Claude Code、补齐网络层的单元测试、2 分钟前、开始写测试前想确认一下用哪个测试框架。、需要你、终端、tests、claude-sonnet-5-5、待办：天气 App 发 1.3 版'
+                                    Other, 0x10bab4780, {{32.0, 367.7}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Claude Code'
+                                      Image, 0x10bab48c0, {{32.0, 367.7}, {14.0, 14.0}}, label: 'brand-claude'
+                                    StaticText, 0x10bab4a00, {{50.0, 364.3}, {168.7, 20.3}}, label: '补齐网络层的单元测试'
+                                    StaticText, 0x10bab4b40, {{327.3, 369.3}, {46.7, 14.3}}, label: '2 分钟前'
+                                    StaticText, 0x10bab4c80, {{32.0, 388.7}, {275.7, 18.0}}, label: '开始写测试前想确认一下用哪个测试框架。'
+                                    StaticText, 0x10bab4dc0, {{32.0, 411.0}, {39.0, 15.7}}, label: '需要你'
+                                    StaticText, 0x10bab4f00, {{79.0, 410.7}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10bab5040, {{119.0, 411.0}, {30.0, 15.7}}, label: 'tests'
+                                    StaticText, 0x10bab5180, {{159.0, 411.7}, {108.0, 14.3}}, label: 'claude-sonnet-5-5'
+                                    Image, 0x10bab52c0, {{278.7, 412.3}, {14.3, 13.0}}, identifier: 'checklist', label: '待办：天气 App 发 1.3 版'
+                          Cell, 0x10bab5400, {{0.0, 439.0}, {402.0, 44.0}}
+                            Other, 0x10bab5540, {{0.0, 439.0}, {402.0, 44.0}}
+                              Other, 0x10bab5680, {{0.0, 439.0}, {402.0, 44.0}}
+                                Other, 0x10bab57c0, {{0.0, 439.0}, {402.0, 44.0}}
+                                  Other, 0x10bab5900, {{0.0, 439.0}, {402.0, 44.0}}
+                            Other, 0x10bab5a40, {{0.0, 439.0}, {402.0, 44.0}}
+                              Other, 0x10bab5b80, {{0.0, 439.0}, {402.0, 44.0}}
+                                Other, 0x10bab5cc0, {{0.0, 439.0}, {402.0, 44.0}}
+                                  Button, 0x10bab5e00, {{0.0, 439.0}, {402.0, 44.0}}, identifier: 'agents.tab', label: '标签页 release，2 个 Agent，完成未看，已展开'
+                                    Other, 0x10bab5f40, {{22.0, 460.0}, {8.0, 8.0}}, label: '完成未看'
+                                    StaticText, 0x10bab6080, {{44.0, 455.0}, {51.0, 18.0}}, label: 'release'
+                                    StaticText, 0x10bab61c0, {{101.0, 457.0}, {77.7, 15.7}}, label: '整理发布说明'
+                                    StaticText, 0x10bab6300, {{300.7, 456.2}, {63.7, 15.7}}, label: '2 个 Agent'
+                                    Image, 0x10bab6440, {{373.7, 460.7}, {11.0, 6.7}}, identifier: 'chevron.down', label: '向下移动'
+                          Cell, 0x10bab6580, {{0.0, 483.0}, {402.0, 109.7}}
+                            Other, 0x10bab66c0, {{0.0, 483.0}, {402.0, 109.7}}
+                              Other, 0x10bab6800, {{0.0, 483.0}, {402.0, 109.7}}
+                                Other, 0x10bab6940, {{0.0, 483.0}, {402.0, 109.7}}
+                                  Other, 0x10bab6a80, {{0.0, 483.0}, {402.0, 109.7}}
+                            Other, 0x10bab6bc0, {{0.0, 483.0}, {402.0, 109.7}}
+                              Other, 0x10bab6d00, {{0.0, 483.0}, {402.0, 109.7}}
+                                Other, 0x10bab6e40, {{0.0, 483.0}, {402.0, 109.7}}
+                                  Button, 0x10bab6f80, {{0.0, 483.0}, {402.0, 109.7}}, identifier: 'agents.row', label: 'Claude Code、整理发布说明、3 分钟前、发布说明整理好了，按功能分了三段，中英文各一份。、完成未看、终端、Claude 1、opus、天气 App 发 1.3 版'
+                                    Other, 0x10bab70c0, {{32.0, 498.3}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Claude Code'
+                                      Image, 0x10bab7200, {{32.0, 498.3}, {14.0, 14.0}}, label: 'brand-claude'
+                                    StaticText, 0x10bab7340, {{50.0, 495.0}, {101.3, 20.3}}, label: '整理发布说明'
+                                    StaticText, 0x10bab7480, {{327.3, 500.0}, {46.7, 14.3}}, label: '3 分钟前'
+                                    StaticText, 0x10bab75c0, {{32.0, 519.3}, {298.3, 38.0}}, label: '发布说明整理好了，按功能分了三段，中英文各一份。'
+                                    StaticText, 0x10bab7700, {{32.0, 563.2}, {51.7, 15.7}}, label: '完成未看'
+                                    StaticText, 0x10bab7840, {{91.7, 563.0}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10bab7980, {{131.7, 563.2}, {52.0, 15.7}}, label: 'Claude 1'
+                                    StaticText, 0x10bab7ac0, {{193.7, 563.8}, {28.0, 14.3}}, label: 'opus'
+                                    Image, 0x10bab7c00, {{241.0, 565.0}, {13.7, 12.3}}, identifier: 'checklist', label: '带勾号的核对清单'
+                                    StaticText, 0x10bab7d40, {{260.0, 563.8}, {101.0, 14.3}}, label: '天气 App 发 1.3 版'
+                          Cell, 0x10bab7e80, {{0.0, 592.7}, {402.0, 86.7}}
+                            Other, 0x10bb00000, {{0.0, 592.7}, {402.0, 86.7}}
+                              Other, 0x10bb00140, {{0.0, 592.7}, {402.0, 86.7}}
+                                Other, 0x10bb00280, {{0.0, 592.7}, {402.0, 86.7}}
+                                  Other, 0x10bb003c0, {{0.0, 592.7}, {402.0, 86.7}}
+                            Other, 0x10bb00500, {{0.0, 592.7}, {402.0, 86.7}}
+                              Other, 0x10bb00640, {{0.0, 592.7}, {402.0, 86.7}}
+                                Other, 0x10bb00780, {{0.0, 592.7}, {402.0, 86.7}}
+                                  Button, 0x10bb008c0, {{0.0, 592.7}, {402.0, 86.7}}, identifier: 'agents.row', label: 'Claude Code、整理发布说明、3 分钟前、发布说明写好了，测试有一项没过，已经记下来。、完成未看、终端、Claude 2、opus'
+                                    Other, 0x10bb00a00, {{32.0, 608.0}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Claude Code'
+                                      Image, 0x10bb00b40, {{32.0, 608.0}, {14.0, 14.0}}, label: 'brand-claude'
+                                    StaticText, 0x10bb00c80, {{50.0, 604.7}, {101.3, 20.3}}, label: '整理发布说明'
+                                    StaticText, 0x10bb00dc0, {{327.3, 609.7}, {46.7, 14.3}}, label: '3 分钟前'
+                                    StaticText, 0x10bb00f00, {{32.0, 629.0}, {320.7, 18.0}}, label: '发布说明写好了，测试有一项没过，已经记下来。'
+                                    StaticText, 0x10bb01040, {{32.0, 651.3}, {51.7, 15.7}}, label: '完成未看'
+                                    StaticText, 0x10bb01180, {{91.7, 651.0}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10bb012c0, {{131.7, 651.3}, {53.7, 15.7}}, label: 'Claude 2'
+                                    StaticText, 0x10bb01400, {{195.3, 652.0}, {28.0, 14.3}}, label: 'opus'
+                          Cell, 0x10bb01540, {{0.0, 679.3}, {402.0, 106.7}}
+                            Other, 0x10bb01680, {{0.0, 679.3}, {402.0, 106.7}}
+                              Other, 0x10bb017c0, {{0.0, 679.3}, {402.0, 106.7}}
+                                Other, 0x10bb01900, {{0.0, 679.3}, {402.0, 106.7}}
+                                  Other, 0x10bb01a40, {{0.0, 679.3}, {402.0, 106.7}}
+                            Other, 0x10bb01b80, {{0.0, 679.3}, {402.0, 106.7}}
+                              Other, 0x10bb01cc0, {{0.0, 679.3}, {402.0, 106.7}}
+                                Other, 0x10bb01e00, {{0.0, 679.3}, {402.0, 106.7}}
+                                  Button, 0x10bb01f40, {{0.0, 679.3}, {402.0, 106.7}}, identifier: 'agents.row', label: 'Claude Code、给天气 App 加主屏幕小组件、刚刚、小组件的时间线已经能按小时刷新了，正在跑测试确认降雨概率的格式化没问题。、工作中、终端、widget、claude-opus-5-5、待办：天气 App 发 1.3 版'
+                                    Other, 0x10bb02080, {{32.0, 694.7}, {14.0, 14.0}}, identifier: 'agent.mark', label: 'Claude Code'
+                                      Image, 0x10bb021c0, {{32.0, 694.7}, {14.0, 14.0}}, label: 'brand-claude'
+                                    StaticText, 0x10bb02300, {{50.0, 691.3}, {209.3, 20.3}}, label: '给天气 App 加主屏幕小组件'
+                                    StaticText, 0x10bb02440, {{350.0, 696.3}, {24.0, 14.3}}, label: '刚刚'
+                                    StaticText, 0x10bb02580, {{32.0, 715.7}, {327.7, 38.0}}, label: '小组件的时间线已经能按小时刷新了，正在跑测试确认降雨概率的格式化没问题。'
+                                    StaticText, 0x10bb026c0, {{32.0, 758.0}, {39.0, 15.7}}, label: '工作中'
+                                    StaticText, 0x10bb02800, {{79.0, 757.7}, {36.0, 16.3}}, identifier: 'agents.row.source', label: '终端'
+                                    StaticText, 0x10bb02940, {{119.0, 758.0}, {41.0, 15.7}}, label: 'widget'
+                                    StaticText, 0x10bb02a80, {{170.0, 758.7}, {97.3, 14.3}}, label: 'claude-opus-5-5'
+                                    Image, 0x10bb02bc0, {{279.0, 759.3}, {14.3, 13.0}}, identifier: 'checklist', label: '待办：天气 App 发 1.3 版'
+                          Cell, 0x10bb02d00, {{0.0, 786.0}, {402.0, 44.0}}
+                            Other, 0x10bb02e40, {{0.0, 786.0}, {402.0, 44.0}}
+                              Other, 0x10bb02f80, {{0.0, 786.0}, {402.0, 44.0}}
+                                Other, 0x10bb030c0, {{0.0, 786.0}, {402.0, 44.0}}
+                                  Other, 0x10bb03200, {{0.0, 786.0}, {402.0, 44.0}}
+                            Other, 0x10bb03340, {{0.0, 786.0}, {402.0, 44.0}}
+                              Other, 0x10bb03480, {{0.0, 786.0}, {402.0, 44.0}}
+                                Other, 0x10bb035c0, {{0.0, 786.0}, {402.0, 44.0}}
+                                  Button, 0x10bb03700, {{0.0, 786.0}, {402.0, 44.0}}, identifier: 'agents.idleFold', label: '展开 3 个空闲的 agent'
+                                    Image, 0x10bb03840, {{17.3, 799.7}, {17.0, 17.0}}, identifier: 'chevron.down.circle', label: '向下移动'
+                                    StaticText, 0x10bb03980, {{43.7, 799.0}, {91.7, 18.0}}, label: '还有 3 个空闲'
+                                    ScrollView, 0x10bb03ac0, {{143.3, 798.3}, {242.7, 19.3}}
+                                      Other, 0x10bb03c00, {{143.3, 798.3}, {177.0, 19.3}}
+                          Cell, 0x10bb03d40, {{0.0, 830.0}, {402.0, 64.0}}
+                            Other, 0x10bb03e80, {{0.0, 830.0}, {402.0, 64.0}}
+                              Other, 0x10acc8000, {{0.0, 830.0}, {402.0, 64.0}}
+                                Other, 0x10acc8140, {{0.0, 830.0}, {402.0, 64.0}}
+                                  Other, 0x10acc8280, {{0.0, 830.0}, {402.0, 64.0}}
+                            Other, 0x10acc83c0, {{0.0, 830.0}, {402.0, 64.0}}
+                              Other, 0x10acc8500, {{0.0, 830.0}, {402.0, 64.0}}
+                                Other, 0x10acc8640, {{0.0, 830.0}, {402.0, 64.0}}
+                                  Button, 0x10acc8780, {{16.0, 846.0}, {322.0, 44.0}}, identifier: 'agents.space', label: 'login-form，已展开，1 个需要你'
+                                    StaticText, 0x10acc88c0, {{16.0, 860.2}, {66.7, 15.7}}, label: 'login-form'
+                                    Other, 0x10acc8a00, {{298.0, 860.8}, {18.3, 14.3}}, label: '1 个需要你'
+                                      StaticText, 0x10acc8b40, {{308.0, 860.8}, {8.3, 14.3}}, label: '1'
+                                    Image, 0x10acc8c80, {{325.7, 864.7}, {11.0, 6.7}}, identifier: 'chevron.down', label: '向下移动'
+                                  Button, 0x10acc8dc0, {{342.0, 846.0}, {44.0, 44.0}}, label: 'login-form 的更多操作'
+                                    Button, 0x10acc8f00, {{342.0, 846.0}, {44.0, 44.0}}
+                                      Image, 0x10acc9040, {{342.0, 846.0}, {44.0, 44.0}}, identifier: 'ellipsis.circle', label: '更多'
+                          Other, 0x10acc9180, {{0.0, 830.0}, {402.0, 150.7}}
+                Toolbar, 0x10acc92c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'Toolbar', label: '工具栏'
+                  Other, 0x10acc9400, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x10acc9540, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10acc9680, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10acc97c0, {{0.0, 62.0}, {402.0, 778.0}}
+              Other, 0x10acc9900, {{0.0, 62.0}, {329.7, 812.0}}
+              Other, 0x10acc9a40, {{16.0, 64.0}, {370.0, 48.3}}, identifier: 'agents-top-bar'
+                Button, 0x10acc9b80, {{16.0, 64.0}, {48.3, 48.3}}, identifier: 'work-sidebar-button', label: '历史对话', value: Persona，空闲，收件箱有事等你
+                  Other, 0x10acc9cc0, {{16.0, 64.0}, {48.3, 48.3}}
+                Button, 0x10acc9e00, {{122.0, 68.0}, {79.0, 39.7}}, identifier: 'shell-assistant', label: '助手'
+                Button, 0x10acc9f40, {{201.0, 68.0}, {79.0, 39.7}}, identifier: 'shell-agents', label: 'Agents'
+                  Button, 0x10acca080, {{201.0, 68.0}, {79.0, 39.7}}
+                    StaticText, 0x10acca1c0, {{201.0, 68.0}, {79.0, 39.7}}, label: 'Agents'
+                StaticText, 0x10acca300, {{266.7, 62.0}, {21.3, 21.0}}, label: '3 个需要你'
+                Button, 0x10acca440, {{337.7, 64.0}, {48.3, 48.3}}, identifier: 'agents-new', label: '新建会话'
+                Other, 0x10acca580, {{48.0, 96.0}, {11.0, 11.0}}, identifier: 'work-sidebar-button', label: '历史对话', value: Persona，空闲，收件箱有事等你
+    Window (Main), 0x10acca6c0, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10acca800, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10acca940, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x10accaa80, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x10accabc0, {{0.0, 0.0}, {402.0, 874.0}}
+Path to element:
+ →Application, 0x10a8575c0, pid: 47803, label: 'Persona'
+Query chain:
+ →Find: Target Application 'dev.local.persona.iosreference'
+  Output: {
+    Application, 0x10accad00, pid: 47803, label: 'Persona'
+  }

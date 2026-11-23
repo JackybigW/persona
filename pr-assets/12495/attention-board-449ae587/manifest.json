@@ -1,0 +1,306 @@
+{
+  "sourceBoard": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+  "boardHapSHA256": "6b2f2f6268b5887fdf52cb0ddbede6b194ef71692c89aa5e751a26c688409421",
+  "sourceOrdinaryPlan": "1d03f450d70b0c0d5bef585947ee508354022481",
+  "ordinaryPlanHapSHA256": "91d4b52743237184781f17cd73c9be356a49f0846b9fffa80f4c5e8079e851f3",
+  "iPhone": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "priorBoard": "1370b7f1320042e76e5ac0fb8e2a5ec2e03b66ee",
+  "nativeDisplay": {
+    "widthPtOrVp": 402,
+    "pixels": [
+      1206,
+      2622
+    ]
+  },
+  "modes": [],
+  "fixture": {
+    "standardScenarioFlagCount": 17,
+    "mainBoard": {
+      "needs": 4,
+      "working": 6,
+      "unread": 2,
+      "failed": 1
+    },
+    "completedTaskInHomeTray": 1,
+    "regularConversationUsedSeparateScopedPlanAndApproval": true
+  },
+  "actualReadBeforeAndAfter": {
+    "before": "The inline plan required a manual refresh before its actions could be used.",
+    "after": 1
+  },
+  "rowsVerified": 13,
+  "firstTask": {
+    "originalHarmonyVp": [
+      16.0,
+      137.33,
+      370.0,
+      48.0
+    ],
+    "finalHarmonyVp": [
+      16.0,
+      172.67,
+      370.0,
+      67.67
+    ],
+    "iPhonePt": [
+      16.0,
+      172.3,
+      370.0,
+      68.0
+    ]
+  },
+  "nativePairs": [
+    "board.png",
+    "ordinary.png"
+  ],
+  "frames": [
+    {
+      "case": "main/needs-tray",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/main/needs-tray.png",
+      "pngSHA256": "af0a9014a65dc439f5688f63b9e6e15c84fcca498c7bda9bacd8e6e078d49c5e",
+      "originalNativePNGSHA256": "af0a9014a65dc439f5688f63b9e6e15c84fcca498c7bda9bacd8e6e078d49c5e",
+      "accessibility": "accessibility/iphone/main/needs-tray.json",
+      "accessibilitySHA256": "f801e5e9ec79487ca8021a34abf1d660639d5ba33ac2a8c71035cc4a5d9e22ba",
+      "originalNativeTreeSHA256": "7a835bf792f6f9e758929dbc38ab432c0ec4344d4ef8f6d5e0992ee13a6e7a94",
+      "numberOfControls": 25,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/needs-tray",
+      "platform": "harmony",
+      "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+      "png": "screens/harmony/main/needs-tray.png",
+      "pngSHA256": "26f134ec4fa2f5fd40d541e21c1bd5d0e2a66060cb4a52f2baffa6599c71f257",
+      "originalNativePNGSHA256": "26f134ec4fa2f5fd40d541e21c1bd5d0e2a66060cb4a52f2baffa6599c71f257",
+      "accessibility": "accessibility/harmony/main/needs-tray.json",
+      "accessibilitySHA256": "0f03b143a478c0fa308c7da301853958e9d2bd236a2b61cec2dbc146edb34e6c",
+      "originalNativeTreeSHA256": "1da5aee94711acff3d157b0d323adb8656610ed1a5588c872f1bf01927f25f63",
+      "numberOfControls": 15,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/board-top",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/main/board-top.png",
+      "pngSHA256": "1f635fad219387c5baabcdcfe30e4079f74859a97acdcc2b81e303807b6667dc",
+      "originalNativePNGSHA256": "1f635fad219387c5baabcdcfe30e4079f74859a97acdcc2b81e303807b6667dc",
+      "accessibility": "accessibility/iphone/main/board-top.json",
+      "accessibilitySHA256": "e69ac70bbd92b4387c6975bf5de2e357c3dd5914ad0bd674b80a2a9b72a73523",
+      "originalNativeTreeSHA256": "288167cf02f45093c38a38126ceaf9e9f60bbf80053f875c0f1b49608a19aa59",
+      "numberOfControls": 42,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/board-top",
+      "platform": "harmony",
+      "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+      "png": "screens/harmony/main/board-top.png",
+      "pngSHA256": "c2fce38a7192e76d6a81b2cda7ce214d56d285e71747fd172f22f53d6c506e67",
+      "originalNativePNGSHA256": "c2fce38a7192e76d6a81b2cda7ce214d56d285e71747fd172f22f53d6c506e67",
+      "accessibility": "accessibility/harmony/main/board-top.json",
+      "accessibilitySHA256": "32644459fbd0625240d801e8e89a9259ad2332e1545cbc6a44efc60a23cec87b",
+      "originalNativeTreeSHA256": "c8277345c7d085acbbb461afe022cc83c05032771d47a8aed32e71b5117ad455",
+      "numberOfControls": 20,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/board-bottom",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/main/board-bottom.png",
+      "pngSHA256": "85b09c116656e860ee8db2df6be1eb131bf515cb92495a3187f7512d1199e1b7",
+      "originalNativePNGSHA256": "f07a1865babe4a6775d1ddecea45e1e3c723480dcbc70b8396b7d594ef738373",
+      "accessibility": "accessibility/iphone/main/board-bottom.json",
+      "accessibilitySHA256": "4e5bc6feec52286519048061b27dda4b17041ece74d3f16a254b728e574e6b8d",
+      "originalNativeTreeSHA256": "c4d8c115dfc4daf495ceb480e8ad970e9e1a2464c255a17010f63d89796b7e76",
+      "numberOfControls": 42,
+      "redactedRectanglesPx": [
+        [
+          257,
+          1402,
+          969,
+          1464
+        ]
+      ]
+    },
+    {
+      "case": "main/board-bottom",
+      "platform": "harmony",
+      "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+      "png": "screens/harmony/main/board-bottom.png",
+      "pngSHA256": "548eb4c3d9a82245675fce50198737fb9e73483941e566ce918c18d7f6485003",
+      "originalNativePNGSHA256": "5c351b646b8e044410051770c79b182ebdcda1671155ee3445c32fea1b93660b",
+      "accessibility": "accessibility/harmony/main/board-bottom.json",
+      "accessibilitySHA256": "005f56fd490edf00fbc6dd67b44071d9d17f00579495ff4e65c3d17179dc4883",
+      "originalNativeTreeSHA256": "c3192960d95c4de548e29698f9135b2d4fdd1e36b50a58f3ed7e4f3cc84d0013",
+      "numberOfControls": 18,
+      "redactedRectanglesPx": [
+        [
+          237,
+          1495,
+          1110,
+          1555
+        ]
+      ]
+    },
+    {
+      "case": "main/board-task-detail",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/main/board-task-detail.png",
+      "pngSHA256": "4b777ca5d1c6c37eb1744d938a75cacd7c170042e0159249688eb35d3b7040d5",
+      "originalNativePNGSHA256": "4b777ca5d1c6c37eb1744d938a75cacd7c170042e0159249688eb35d3b7040d5",
+      "accessibility": "accessibility/iphone/main/board-task-detail.json",
+      "accessibilitySHA256": "9188a554d16ad36000e14bd842493c3fe8859a49e85efa047c76d1ed48650ff1",
+      "originalNativeTreeSHA256": "c9cf69a86118040a3dd3c89c185e4ba7f3791882dca7029bdefd586f7820244a",
+      "numberOfControls": 76,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/board-task-detail",
+      "platform": "harmony",
+      "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+      "png": "screens/harmony/main/board-task-detail.png",
+      "pngSHA256": "ff4cf43660a80af4503a90a9f5d7fd9dd7b6f783e7536396707d1fed8706d0e5",
+      "originalNativePNGSHA256": "ff4cf43660a80af4503a90a9f5d7fd9dd7b6f783e7536396707d1fed8706d0e5",
+      "accessibility": "accessibility/harmony/main/board-task-detail.json",
+      "accessibilitySHA256": "d4383c21e27d1e994d41cd0b07a1745f5fd8a41aed185a20af1764dc3ef32153",
+      "originalNativeTreeSHA256": "14bc7a2da42e5d73b8b9a1454c3041f64d5c30d2b77533804a655691b328403b",
+      "numberOfControls": 7,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/done-tray",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/main/done-tray.png",
+      "pngSHA256": "fc9796862b1147ffa06a89baf3a661a2f7a2036045d596124ac667fbc9b2eca0",
+      "originalNativePNGSHA256": "fc9796862b1147ffa06a89baf3a661a2f7a2036045d596124ac667fbc9b2eca0",
+      "accessibility": "accessibility/iphone/main/done-tray.json",
+      "accessibilitySHA256": "21c0c5a2ddc27db85405119a440e446adf0b3c52502a64246dcedef84c020adc",
+      "originalNativeTreeSHA256": "431af87d4b6e95fd735912a0d3b79259faa4e3232a5980db14d2ca17ed105aff",
+      "numberOfControls": 69,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "main/done-tray",
+      "platform": "harmony",
+      "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+      "png": "screens/harmony/main/done-tray.png",
+      "pngSHA256": "e0085a86b63d2f3446e73b54b909b42b80627c5176f5982a0c2ea20d3e206427",
+      "originalNativePNGSHA256": "e0085a86b63d2f3446e73b54b909b42b80627c5176f5982a0c2ea20d3e206427",
+      "accessibility": "accessibility/harmony/main/done-tray.json",
+      "accessibilitySHA256": "bcb5028447eca014f87250a505458353f9deba67600943e204eb153c498746d8",
+      "originalNativeTreeSHA256": "4233e281e4d393d7a9cd0f51cc6ac12e6dc41ae02b1bdf747e8c1a86e33a98ef",
+      "numberOfControls": 5,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "baseline/board-top",
+      "platform": "harmony",
+      "source": "1370b7f1320042e76e5ac0fb8e2a5ec2e03b66ee",
+      "png": "screens/harmony/baseline/board-top.png",
+      "pngSHA256": "1397053d2fbea209bf86eb9707ee6668a6aed26b9d3c1a7c92012bf3ee1220fc",
+      "originalNativePNGSHA256": "1397053d2fbea209bf86eb9707ee6668a6aed26b9d3c1a7c92012bf3ee1220fc",
+      "accessibility": "accessibility/harmony/baseline/board-top.json",
+      "accessibilitySHA256": "1424f3dfc651dfb9edc76212d42c3a3f067cce43ba551a87d59664bd78efd0e9",
+      "originalNativeTreeSHA256": "07047038903e8f6e190e1c7ea783871dd21b218e70817d52b785d495a69a0eff",
+      "numberOfControls": 22,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "ordinary/ordinary-plan-and-decision",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/ordinary/ordinary-plan-and-decision.png",
+      "pngSHA256": "689060438c133737c79af99b8ac3fe33e97c2efa4572049683ca5d2f580c4dcd",
+      "originalNativePNGSHA256": "689060438c133737c79af99b8ac3fe33e97c2efa4572049683ca5d2f580c4dcd",
+      "accessibility": "accessibility/iphone/ordinary/ordinary-plan-and-decision.json",
+      "accessibilitySHA256": "9d20d74008d6264857eb49bbbffa79df6b912dea7fb4d6dfe1a69c52681d613f",
+      "originalNativeTreeSHA256": "3bf3b86bb03ca6f3843a3e32b0147ea670ee03519502c64a660e0c10d5675a6e",
+      "numberOfControls": 14,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "ordinary/ordinary-plan-and-decision",
+      "platform": "harmony",
+      "source": "1d03f450d70b0c0d5bef585947ee508354022481",
+      "png": "screens/harmony/ordinary/ordinary-plan-and-decision.png",
+      "pngSHA256": "ded2b482df8424b04e6ce998f08b5107c36d5504c95189e1cd652ba312630417",
+      "originalNativePNGSHA256": "ded2b482df8424b04e6ce998f08b5107c36d5504c95189e1cd652ba312630417",
+      "accessibility": "accessibility/harmony/ordinary/ordinary-plan-and-decision.json",
+      "accessibilitySHA256": "b37ffbcf659a24ae22f4638a9b037ed7bc88f01c8a95df7f52f87c37e2e90694",
+      "originalNativeTreeSHA256": "60d2bc07fa5ae07e6ca7065f1cf8ab95db7f51f4a86a0abeb7340da075e62eed",
+      "numberOfControls": 7,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "ordinary/ordinary-expanded-plan",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/ordinary/ordinary-expanded-plan.png",
+      "pngSHA256": "d20850c38f7cf0e2b4f9baf540b463d6222edc4ea5002bd05976564544f75239",
+      "originalNativePNGSHA256": "d20850c38f7cf0e2b4f9baf540b463d6222edc4ea5002bd05976564544f75239",
+      "accessibility": "accessibility/iphone/ordinary/ordinary-expanded-plan.json",
+      "accessibilitySHA256": "e8efa4e97b18f928a6b0ea9f08782d4c2b101bb04039c95c48ebbbd6ce2f216c",
+      "originalNativeTreeSHA256": "61b3de2ebb9efd800a149d36457fc9c522adf5092f94f9615fc082f8d183d587",
+      "numberOfControls": 30,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "ordinary/ordinary-expanded-plan",
+      "platform": "harmony",
+      "source": "1d03f450d70b0c0d5bef585947ee508354022481",
+      "png": "screens/harmony/ordinary/ordinary-expanded-plan.png",
+      "pngSHA256": "c15775a900adcc40a5b5049a4013de08c8a36cc163e5ecceb8111afca52639ef",
+      "originalNativePNGSHA256": "b4fc6280f6cd5943372f79418c80d1b0a1c4a99f3108e6cc4fdc09d3412226cb",
+      "accessibility": "accessibility/harmony/ordinary/ordinary-expanded-plan.json",
+      "accessibilitySHA256": "a4ca4f4a27be5735bbc7a3c1dc8fbc332d74d076b65a7b65f42a50209df5eb2a",
+      "originalNativeTreeSHA256": "0b71ac53c3729875f0d748af585257a5b3ad77818fa1b47d806f03ae49de3cba",
+      "numberOfControls": 14,
+      "redactedRectanglesPx": [
+        [
+          278,
+          2139,
+          774,
+          2202
+        ],
+        [
+          73,
+          2142,
+          964,
+          2198
+        ]
+      ]
+    },
+    {
+      "case": "ordinary/ordinary-decision-card",
+      "platform": "iphone",
+      "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "png": "screens/iphone/ordinary/ordinary-decision-card.png",
+      "pngSHA256": "d91899cdf48b6fa741b76c19eb7796154b2eea500c5b6f788a9d7309f0a2d155",
+      "originalNativePNGSHA256": "d91899cdf48b6fa741b76c19eb7796154b2eea500c5b6f788a9d7309f0a2d155",
+      "accessibility": "accessibility/iphone/ordinary/ordinary-decision-card.json",
+      "accessibilitySHA256": "b474626007cddc2aaa5127494c8cc8d3ee6075672ffd26c12eadfa77cf852989",
+      "originalNativeTreeSHA256": "8ee6e19873bdc861a5cc24c5eb65eb16fe0ff8d5ffadb15222919d3b2fd66941",
+      "numberOfControls": 55,
+      "redactedRectanglesPx": []
+    },
+    {
+      "case": "ordinary/ordinary-decision-card",
+      "platform": "harmony",
+      "source": "1d03f450d70b0c0d5bef585947ee508354022481",
+      "png": "screens/harmony/ordinary/ordinary-decision-card.png",
+      "pngSHA256": "a43d78b5c106ef319d72430283005182248fd79020c2d7cf13b4a469b9b4f68c",
+      "originalNativePNGSHA256": "a43d78b5c106ef319d72430283005182248fd79020c2d7cf13b4a469b9b4f68c",
+      "accessibility": "accessibility/harmony/ordinary/ordinary-decision-card.json",
+      "accessibilitySHA256": "1064638890f5adfac7c25812f683ca91ef740b6518966bb4da0104dd4500025b",
+      "originalNativeTreeSHA256": "0e2772821f1633ce8691ba4d2fd3650c7dc38dc887ff47dbea32e1b8ac1b1473",
+      "numberOfControls": 25,
+      "redactedRectanglesPx": []
+    }
+  ]
+}

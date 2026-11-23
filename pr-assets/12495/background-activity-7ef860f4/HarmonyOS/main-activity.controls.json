@@ -1,0 +1,62 @@
+[
+  {
+    "id": "shell.persona",
+    "role": "Button",
+    "text": "助手",
+    "boundsPx": "[366,205][603,324]"
+  },
+  {
+    "id": "background-activity-page",
+    "role": "Column",
+    "text": "",
+    "boundsPx": "[0,182][1206,2622]"
+  },
+  {
+    "id": "activity.close",
+    "role": "Button",
+    "text": "",
+    "boundsPx": "[48,236][180,368]"
+  },
+  {
+    "id": "activity.scroll",
+    "role": "Scroll",
+    "text": "",
+    "boundsPx": "[0,383][1206,2622]"
+  },
+  {
+    "id": "supervision-record",
+    "role": "Button",
+    "text": "",
+    "boundsPx": "[48,1680][1158,1764]"
+  },
+  {
+    "id": "dispatch.task.todo_task_release",
+    "role": "Button",
+    "text": "",
+    "boundsPx": "[48,1812][1158,2006]"
+  },
+  {
+    "id": "exchange.routed",
+    "role": "Column",
+    "text": "",
+    "boundsPx": "[48,2054][1158,2244]"
+  },
+  {
+    "id": "activity.routed.task",
+    "role": "Button",
+    "text": "",
+    "boundsPx": "[48,2054][525,2100]"
+  },
+  {
+    "id": "exchange.text",
+    "role": "Text",
+    "text": "Continue the synthetic checks.",
+    "boundsPx": "[48,2112][1062,2244]"
+  },
+  {
+    "id": "answered-line",
+    "role": "Button",
+    "text": "",
+    "boundsPx": "[48,2292][951,2376]"
+  }
+]

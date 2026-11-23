@@ -1,0 +1,158 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "3bf3b86bb03ca6f3843a3e32b0147ea670ee03519502c64a660e0c10d5675a6e",
+  "originalNativePNGSHA256": "689060438c133737c79af99b8ac3fe33e97c2efa4572049683ca5d2f580c4dcd",
+  "screenPNG": "screens/iphone/ordinary/ordinary-plan-and-decision.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        288.0,
+        585.7,
+        50.0,
+        44.0
+      ],
+      "identifier": "action-tray.board"
+    },
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        346.0,
+        585.7,
+        44.0,
+        44.0
+      ],
+      "identifier": "action-tray.close"
+    },
+    {
+      "role": "StaticText",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        24.0,
+        599.8,
+        51.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "普通对话的独立审批、需要你",
+      "boundsLogicalPoints": [
+        12.0,
+        629.7,
+        378.0,
+        36.3
+      ],
+      "identifier": "action-tray.ask"
+    },
+    {
+      "role": "Image",
+      "label": "阻止",
+      "boundsLogicalPoints": [
+        27.3,
+        641.0,
+        10.3,
+        13.7
+      ],
+      "identifier": "hand.raised"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的独立审批",
+      "boundsLogicalPoints": [
+        48.0,
+        637.7,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        321.7,
+        640.0,
+        39.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        642.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "普通对话的原生计划、计划、MacBook · weather",
+      "boundsLogicalPoints": [
+        12.0,
+        666.0,
+        378.0,
+        54.0
+      ],
+      "identifier": "action-tray.row"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的原生计划",
+      "boundsLogicalPoints": [
+        48.0,
+        674.0,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "计划",
+      "boundsLogicalPoints": [
+        334.7,
+        676.3,
+        26.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "剪贴板上的列表",
+      "boundsLogicalPoints": [
+        27.0,
+        685.3,
+        10.3,
+        15.3
+      ],
+      "identifier": "list.clipboard"
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        687.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather",
+      "boundsLogicalPoints": [
+        48.0,
+        696.3,
+        118.3,
+        15.7
+      ],
+      "identifier": "action-tray.subtitle"
+    }
+  ]
+}

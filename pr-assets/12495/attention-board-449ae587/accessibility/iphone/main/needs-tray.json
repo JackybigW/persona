@@ -1,0 +1,274 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "7a835bf792f6f9e758929dbc38ab432c0ec4344d4ef8f6d5e0992ee13a6e7a94",
+  "originalNativePNGSHA256": "af0a9014a65dc439f5688f63b9e6e15c84fcca498c7bda9bacd8e6e078d49c5e",
+  "screenPNG": "screens/iphone/main/needs-tray.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        288.0,
+        436.3,
+        50.0,
+        44.0
+      ],
+      "identifier": "action-tray.board"
+    },
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        346.0,
+        436.3,
+        44.0,
+        44.0
+      ],
+      "identifier": "action-tray.close"
+    },
+    {
+      "role": "StaticText",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        24.0,
+        450.5,
+        51.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "照片同步脚本支持 HEIC、需要你、支持 HEIC",
+      "boundsLogicalPoints": [
+        12.0,
+        480.3,
+        378.0,
+        54.0
+      ],
+      "identifier": "action-tray.task"
+    },
+    {
+      "role": "StaticText",
+      "label": "照片同步脚本支持 HEIC",
+      "boundsLogicalPoints": [
+        48.0,
+        488.3,
+        177.0,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        321.7,
+        490.7,
+        39.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        502.0,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "支持 HEIC",
+      "boundsLogicalPoints": [
+        48.0,
+        510.7,
+        59.3,
+        15.7
+      ],
+      "identifier": "action-tray.subtitle"
+    },
+    {
+      "role": "Button",
+      "label": "天气 App 发 1.3 版、需要你 · 3 个 Agent、swift test",
+      "boundsLogicalPoints": [
+        12.0,
+        534.3,
+        378.0,
+        54.0
+      ],
+      "identifier": "action-tray.task"
+    },
+    {
+      "role": "StaticText",
+      "label": "天气 App 发 1.3 版",
+      "boundsLogicalPoints": [
+        48.0,
+        542.3,
+        137.3,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你 · 3 个 Agent",
+      "boundsLogicalPoints": [
+        244.7,
+        544.7,
+        116.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        556.0,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "swift test",
+      "boundsLogicalPoints": [
+        48.0,
+        564.7,
+        56.0,
+        15.7
+      ],
+      "identifier": "action-tray.subtitle"
+    },
+    {
+      "role": "Button",
+      "label": "韩梅梅 · 客户端发版群、起草回复、小组件横屏崩溃今天能修好吗？下午想发一版 TestFlight",
+      "boundsLogicalPoints": [
+        12.0,
+        588.3,
+        378.0,
+        54.0
+      ],
+      "identifier": "action-tray.row"
+    },
+    {
+      "role": "StaticText",
+      "label": "韩梅梅 · 客户端发版群",
+      "boundsLogicalPoints": [
+        48.0,
+        596.3,
+        168.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "起草回复",
+      "boundsLogicalPoints": [
+        309.0,
+        598.7,
+        51.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "带对话气泡的三个矩形群组",
+      "boundsLogicalPoints": [
+        25.3,
+        609.0,
+        13.3,
+        12.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        610.0,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "小组件横屏崩溃今天能修好吗？下午想发一版 TestFlight",
+      "boundsLogicalPoints": [
+        48.0,
+        618.7,
+        311.7,
+        15.7
+      ],
+      "identifier": "action-tray.subtitle"
+    },
+    {
+      "role": "StaticText",
+      "label": "其他对话",
+      "boundsLogicalPoints": [
+        24.0,
+        650.3,
+        51.7,
+        15.7
+      ],
+      "identifier": "action-tray.group"
+    },
+    {
+      "role": "Button",
+      "label": "登录页加验证码、需要你、有事等你回答",
+      "boundsLogicalPoints": [
+        12.0,
+        666.0,
+        378.0,
+        54.0
+      ],
+      "identifier": "action-tray.task"
+    },
+    {
+      "role": "StaticText",
+      "label": "登录页加验证码",
+      "boundsLogicalPoints": [
+        48.0,
+        674.0,
+        118.0,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        321.7,
+        676.3,
+        39.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        687.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "有事等你回答",
+      "boundsLogicalPoints": [
+        48.0,
+        696.3,
+        77.7,
+        15.7
+      ],
+      "identifier": "action-tray.subtitle"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "shell-assistant",
+    "role": "Button",
+    "boundsPoints": [
+      122.0,
+      68.0,
+      79.0,
+      39.7
+    ],
+    "label": "助手"
+  },
+  {
+    "id": "shell-composer-field",
+    "role": "TextField",
+    "boundsPoints": [
+      72.3,
+      795.7,
+      257.3,
+      20.3
+    ],
+    "label": "问 助手"
+  }
+]

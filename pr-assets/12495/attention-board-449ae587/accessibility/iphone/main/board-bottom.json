@@ -1,0 +1,445 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "c4d8c115dfc4daf495ceb480e8ad970e9e1a2464c255a17010f63d89796b7e76",
+  "originalNativePNGSHA256": "f07a1865babe4a6775d1ddecea45e1e3c723480dcbc70b8396b7d594ef738373",
+  "screenPNG": "screens/iphone/main/board-bottom.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        24.7,
+        82.0,
+        26.7,
+        36.0
+      ],
+      "identifier": "tasks-board-close"
+    },
+    {
+      "role": "StaticText",
+      "label": "任务",
+      "boundsLogicalPoints": [
+        184.0,
+        89.7,
+        34.0,
+        20.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "工作中 · 6",
+      "boundsLogicalPoints": [
+        16.0,
+        55.3,
+        370.0,
+        40.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "工作中、接入支付回调",
+      "boundsLogicalPoints": [
+        16.0,
+        95.7,
+        370.0,
+        66.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "接入支付回调",
+      "boundsLogicalPoints": [
+        64.0,
+        110.7,
+        101.3,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        123.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "工作中、首页加骨架屏",
+      "boundsLogicalPoints": [
+        16.0,
+        161.7,
+        370.0,
+        66.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "首页加骨架屏",
+      "boundsLogicalPoints": [
+        64.0,
+        176.7,
+        101.3,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        189.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "工作中、排查 /orders 接口变慢、服务器 · shop-api · Codex · 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。",
+      "boundsLogicalPoints": [
+        16.0,
+        228.0,
+        370.0,
+        68.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "排查 /orders 接口变慢",
+      "boundsLogicalPoints": [
+        64.0,
+        243.0,
+        163.7,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        256.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "服务器 · shop-api · Codex · 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。",
+      "boundsLogicalPoints": [
+        64.0,
+        265.3,
+        249.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "工作中、修小组件横屏崩溃、MacBook · weather · Claude · 在跑测试",
+      "boundsLogicalPoints": [
+        16.0,
+        296.0,
+        370.0,
+        68.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "修小组件横屏崩溃",
+      "boundsLogicalPoints": [
+        64.0,
+        311.0,
+        135.0,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        324.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · Claude · 在跑测试",
+      "boundsLogicalPoints": [
+        64.0,
+        333.3,
+        239.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "工作中、会话续期、MacBook · session-refresh · Claude · 在补续期失败的测试。",
+      "boundsLogicalPoints": [
+        16.0,
+        364.0,
+        370.0,
+        68.0
+      ],
+      "identifier": "task-board.agent"
+    },
+    {
+      "role": "StaticText",
+      "label": "会话续期",
+      "boundsLogicalPoints": [
+        64.0,
+        379.0,
+        67.7,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        392.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Image",
+      "label": "嵌入代码",
+      "boundsLogicalPoints": [
+        65.7,
+        403.0,
+        18.0,
+        12.3
+      ],
+      "identifier": "chevron.left.forwardslash.chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · session-refresh · Claude · 在补续期失败的测试。",
+      "boundsLogicalPoints": [
+        89.3,
+        401.3,
+        230.7,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "给天气 App 写 Windows 小组件",
+      "boundsLogicalPoints": [
+        64.0,
+        447.3,
+        236.0,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        461.0,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Image",
+      "label": "嵌入代码",
+      "boundsLogicalPoints": [
+        65.7,
+        471.3,
+        18.0,
+        12.3
+      ],
+      "identifier": "chevron.left.forwardslash.chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "完成未看 · 2",
+      "boundsLogicalPoints": [
+        16.0,
+        517.7,
+        370.0,
+        40.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "完成未看、整理发布说明、MacBook · weather · Claude · 发布说明整理好了，按功能分了三段，中英文各一份。",
+      "boundsLogicalPoints": [
+        16.0,
+        558.0,
+        370.0,
+        68.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "整理发布说明",
+      "boundsLogicalPoints": [
+        64.0,
+        573.0,
+        101.3,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "完成未看",
+      "boundsLogicalPoints": [
+        38.0,
+        586.0,
+        12.3,
+        12.3
+      ],
+      "identifier": "checkmark.circle.fill"
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        586.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · Claude · 发布说明整理好了，按功能分了三段，中英文各一份。",
+      "boundsLogicalPoints": [
+        64.0,
+        595.3,
+        252.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "完成未看、博客迁移到 Astro、Mac Studio · blog · Claude · 迁移完成：32 篇文章都能正常构建，旧链接全部加了 301 跳转，Lighthouse 性能分从 71 提到 98。",
+      "boundsLogicalPoints": [
+        16.0,
+        626.0,
+        370.0,
+        68.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "博客迁移到 Astro",
+      "boundsLogicalPoints": [
+        64.0,
+        641.0,
+        129.0,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "完成未看",
+      "boundsLogicalPoints": [
+        38.0,
+        654.0,
+        12.3,
+        12.3
+      ],
+      "identifier": "checkmark.circle.fill"
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        654.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "Mac Studio · blog · Claude · 迁移完成：32 篇文章都能正常构建，旧链接全部加了 301 跳转，Lighthouse 性能分从 71 提到 98。",
+      "boundsLogicalPoints": [
+        64.0,
+        663.3,
+        260.7,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "没开起来 · 1",
+      "boundsLogicalPoints": [
+        16.0,
+        711.7,
+        370.0,
+        40.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "没开起来、设置页按钮对齐、MacBook · weather · rpc: connection closed",
+      "boundsLogicalPoints": [
+        16.0,
+        752.0,
+        370.0,
+        68.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "设置页按钮对齐",
+      "boundsLogicalPoints": [
+        64.0,
+        767.0,
+        118.0,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "没开起来",
+      "boundsLogicalPoints": [
+        37.7,
+        780.3,
+        12.7,
+        11.3
+      ],
+      "identifier": "exclamationmark.triangle.fill"
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        359.0,
+        780.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook · weather · rpc: connection closed",
+      "boundsLogicalPoints": [
+        64.0,
+        789.3,
+        258.7,
+        15.7
+      ]
+    }
+  ]
+}

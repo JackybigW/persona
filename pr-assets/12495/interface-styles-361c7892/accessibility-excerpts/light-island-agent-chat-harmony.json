@@ -1,0 +1,80 @@
+{
+  "appearance": "light",
+  "style": "island",
+  "scene": "agent-chat",
+  "platform": "harmony",
+  "sourceCommit": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+  "originalPNGSHA256": "e4af0f494d5bed39a03379a04b3e8ee50ba817c7936e6127a96ccd0da37cde23",
+  "originalAccessibilitySHA256": "53d0172a18b924f5f4004f34b96cc9665884f54f394aeed728a75c71302c2cc3",
+  "originalPNGBytes": 464848,
+  "originalPixels": [
+    1206,
+    2622
+  ],
+  "recognizedTextLines": 30,
+  "textOrEXIFChunksSHA256": {},
+  "controls": [
+    {
+      "id": "chat.title",
+      "role": "Column",
+      "boundsPx": [
+        198,
+        192,
+        1008,
+        324
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "检查 PR #42 的改动, weather"
+    },
+    {
+      "id": "chat.recap.open",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        1828,
+        1158,
+        2201
+      ],
+      "enabled": true,
+      "selected": false
+    },
+    {
+      "id": "chat.input",
+      "role": "TextArea",
+      "boundsPx": [
+        217,
+        2363,
+        989,
+        2508
+      ],
+      "enabled": true,
+      "selected": false
+    },
+    {
+      "id": "chat.attach",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        2363,
+        193,
+        2508
+      ],
+      "enabled": true,
+      "selected": false
+    },
+    {
+      "id": "chat.dictation",
+      "role": "Button",
+      "boundsPx": [
+        1013,
+        2363,
+        1158,
+        2508
+      ],
+      "enabled": true,
+      "selected": false
+    }
+  ],
+  "scope": "Application-owned landmarks from the original native hierarchy. Bounds are physical pixels of the reference screenshot."
+}

@@ -1,0 +1,25 @@
+{
+  "productCommit": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+  "gitTree": "5fbb54f4ba318ca97416eee43e0d8654871552c6",
+  "iphoneCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "iphoneAppleTree": "8c901a437c26520cf2cc3bac1f4c2258ac0ca7e5",
+  "visualHapSHA256": "baa945b9aa0499e1a3c8af0fa1b3e5eb32c99db237ea11559b4d22805876b640",
+  "primaryHapSHA256": "5917749981bfa12a1d4b62f0608b8bab9d0d157d9a7ccb3050e74fc951011bea",
+  "sections": {
+    "settings": {
+      "imageCount": 94,
+      "manifestSHA256": "6ee2b55ea7e3d11c7a3ae6afe5d655e5772e1784a4df4ca01aa496735000a63d",
+      "checksumsSHA256": "6c178888c6fd22ee9c8b805c5ae2df9e934f97e78a8de47b3bc8a072ba054323"
+    },
+    "agents": {
+      "imageCount": 35,
+      "manifestSHA256": "75ccff2df59eadc79c776b4e1e94212d41af928f9768ab3494b8159dfbe0ae0a",
+      "checksumsSHA256": "a8e0245703684087671106faff27a2b5ab6739d7b4a3443add88761da61d24ae"
+    },
+    "legacy-hub": {
+      "imageCount": 11,
+      "manifestSHA256": "3fbc7d4d9823826a8c384a5dd69d1975e5ed4c8e174dc742482da52dd701d025",
+      "checksumsSHA256": "ee255065b74ac32dd7d585805d8f1088c718dd9d1681ad546e12c8f2537d63a4"
+    }
+  }
+}

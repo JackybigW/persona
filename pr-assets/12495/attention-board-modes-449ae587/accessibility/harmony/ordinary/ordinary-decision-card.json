@@ -1,0 +1,265 @@
+{
+  "source": "1d03f450d70b0c0d5bef585947ee508354022481",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "0e2772821f1633ce8691ba4d2fd3650c7dc38dc887ff47dbea32e1b8ac1b1473",
+  "originalNativePNGSHA256": "a43d78b5c106ef319d72430283005182248fd79020c2d7cf13b4a469b9b4f68c",
+  "screenPNG": "screens/harmony/ordinary/ordinary-decision-card.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "助手",
+      "boundsLogicalPoints": [
+        122.0,
+        68.33,
+        79.0,
+        39.67
+      ],
+      "identifier": "shell.persona"
+    },
+    {
+      "role": "Button",
+      "label": "Agents",
+      "boundsLogicalPoints": [
+        201.0,
+        68.33,
+        79.0,
+        39.67
+      ],
+      "identifier": "shell.agents"
+    },
+    {
+      "role": "Text",
+      "label": "⏰ 早报",
+      "boundsLogicalPoints": [
+        312.0,
+        289.33,
+        60.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "早上好！今天 2 个会议，3 封邮件需要回复。",
+      "boundsLogicalPoints": [
+        30.0,
+        342.33,
+        342.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "计划",
+      "boundsLogicalPoints": [
+        66.0,
+        399.33,
+        284.67,
+        16.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "普通对话的原生计划",
+      "boundsLogicalPoints": [
+        66.0,
+        419.67,
+        284.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "上下滑动可调整卡片高度。轻点两下切换最高或默认高度。",
+      "boundsLogicalPoints": [
+        28.0,
+        466.67,
+        346.0,
+        16.0
+      ],
+      "identifier": "interaction.grabber"
+    },
+    {
+      "role": "Button",
+      "label": "已展开",
+      "boundsLogicalPoints": [
+        28.0,
+        482.67,
+        235.67,
+        28.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "计划等你审批",
+      "boundsLogicalPoints": [
+        47.33,
+        489.67,
+        72.33,
+        14.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "跳过",
+      "boundsLogicalPoints": [
+        269.67,
+        482.67,
+        36.33,
+        28.0
+      ],
+      "identifier": "interaction.task.skip_unavailable"
+    },
+    {
+      "role": "Button",
+      "label": "已展开",
+      "boundsLogicalPoints": [
+        346.0,
+        482.67,
+        28.0,
+        28.0
+      ],
+      "identifier": "interaction.task.fold"
+    },
+    {
+      "role": "Text",
+      "label": "这是计划审批，不能跳过：不想按这个计划做就打回。",
+      "boundsLogicalPoints": [
+        28.0,
+        512.67,
+        346.0,
+        15.33
+      ],
+      "identifier": "interaction.task.skip_reason"
+    },
+    {
+      "role": "Text",
+      "label": "## 普通对话的独立审批\n\n检查合成样本文字。",
+      "boundsLogicalPoints": [
+        28.0,
+        540.0,
+        346.0,
+        70.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "批准",
+      "boundsLogicalPoints": [
+        40.0,
+        624.0,
+        280.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "拒绝",
+      "boundsLogicalPoints": [
+        40.0,
+        672.0,
+        280.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "待选择",
+      "boundsLogicalPoints": [
+        28.0,
+        816.33,
+        39.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "1",
+      "boundsLogicalPoints": [
+        73.33,
+        816.33,
+        7.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        128.0,
+        816.33,
+        52.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "2",
+      "boundsLogicalPoints": [
+        184.33,
+        816.33,
+        7.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "进行中",
+      "boundsLogicalPoints": [
+        222.0,
+        816.33,
+        39.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "0",
+      "boundsLogicalPoints": [
+        265.33,
+        816.33,
+        7.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "07",
+      "boundsLogicalPoints": [
+        16.0,
+        11.0,
+        18.0,
+        17.67
+      ]
+    },
+    {
+      "role": "Text",
+      "label": ":",
+      "boundsLogicalPoints": [
+        34.0,
+        12.33,
+        4.33,
+        15.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "30",
+      "boundsLogicalPoints": [
+        38.33,
+        11.0,
+        18.0,
+        17.67
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "100",
+      "boundsLogicalPoints": [
+        360.67,
+        13.33,
+        20.0,
+        13.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,906 @@
+{
+  "chat": {
+    "harmony": "e0455e3c2e099d1b31eb75ca483068347cdb3bff",
+    "iPhone": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+    "nativeImage": {
+      "file": "supplemental/chat-message-selection.png",
+      "sha256": "333accc83273d22696ea23e8cb9107eb33aa13d4c04df56e3df5cbbfdaa61fe5",
+      "bytes": 309758,
+      "width": 990,
+      "height": 1499,
+      "title": "Message actions, native text selection and quotation",
+      "titleZH": "消息操作、系统选区与引用",
+      "sourceCommit": "e0455e3c2e099d1b31eb75ca483068347cdb3bff",
+      "visualHapSHA256": "10a4850f08703981470052d7bcf56665f560c50c3fdbbcc8a12b6cf9c34685e3",
+      "iPhoneSourceCommit": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+      "sourcePNG": [
+        {
+          "state": "message-actions",
+          "iPhonePNG_SHA256": "7d3242a3f601bef17f26e60878f9cf9be5f321641ffbbd223e0f378c17e0472e",
+          "iPhoneHierarchySHA256": "5e48fc06afc9857137ac12de5d9c7c882ceafce6d33784c5b27cf47eddde69d7",
+          "iPhoneCropPx": [
+            0,
+            330,
+            1206,
+            1195
+          ],
+          "harmonyPNG_SHA256": "512f0207cf5db03d923992113f6c66b200dd23072bcbf2d2273ffc1783e727e5",
+          "harmonyHierarchySHA256": "23db48732357e0431f0b9e305904d1b308667269c086c32e4812560e9e1dd1aa",
+          "harmonyCropPx": [
+            0,
+            330,
+            1206,
+            1195
+          ]
+        },
+        {
+          "state": "selected-after-type",
+          "iPhonePNG_SHA256": "78a886764700b5355d5a1667fb7519a6fec5405b5babf62eff5590857de2a14e",
+          "iPhoneHierarchySHA256": "dc25ab4e2db334329b2e885d8eb41c76c895b25499016866c7f4520bee98a6aa",
+          "iPhoneCropPx": [
+            0,
+            180,
+            1206,
+            1070
+          ],
+          "harmonyPNG_SHA256": "7e20afe0b303946514bd967064957bc93c68aa4df4536e9cf6ad7221fdd362d9",
+          "harmonyHierarchySHA256": "3d91b6fd9d5f2ff3003817cf59bd09f603a7b39908a7c9268f54d73cedcac5c1",
+          "harmonyCropPx": [
+            0,
+            180,
+            1206,
+            1070
+          ]
+        },
+        {
+          "state": "action-result",
+          "iPhonePNG_SHA256": "79dd1af6790c501185cdf6d3266fa1f97430686d0c23d86f6e46e47063d9b0a7",
+          "iPhoneHierarchySHA256": "9fe82650f048432ee83374b6aa217e1845314e99f6fee3a667969a452b2feabb",
+          "iPhoneCropPx": [
+            0,
+            813,
+            1206,
+            1287
+          ],
+          "harmonyPNG_SHA256": "7ae02782197b253df71ddfdbbc81eddbd4240ff5908713077f58bcc9acfb43e0",
+          "harmonyHierarchySHA256": "89f6c9d3a91e0e120f1456b0f4cc66216d2ad4fd91857b0ceedd3faa28a7695f",
+          "harmonyCropPx": [
+            0,
+            822,
+            1206,
+            1268
+          ]
+        },
+        {
+          "state": "select-text",
+          "iPhonePNG_SHA256": "b6e2d6578fc0a929318e403af8af909e90d48271de609497713bc52381de6bf9",
+          "iPhoneHierarchySHA256": "8d7ca8215d00d4787701e1c7f1770753821bc093569146fb2ce9fb0cafd11791",
+          "iPhoneCropPx": [
+            0,
+            215,
+            1206,
+            1060
+          ],
+          "harmonyPNG_SHA256": "a993641224bb15d3a2fcf23edd49d4df91c00992b7e029cc6f6263c865a7d784",
+          "harmonyHierarchySHA256": "51ea33a6e823570ec7cd2e3f7f81a35f21cccebd647168cf5d7c339fb6c2d241",
+          "harmonyCropPx": [
+            0,
+            215,
+            1206,
+            1060
+          ]
+        }
+      ]
+    },
+    "sameSizePositions": {
+      "aligned-light-quote": {
+        "iPhoneFramePx": [
+          23,
+          451,
+          1183,
+          805
+        ],
+        "harmonyFramePx": [
+          24,
+          456,
+          1182,
+          807
+        ],
+        "harmonyAfterTypePx": [
+          24,
+          456,
+          1182,
+          807
+        ],
+        "edgeDifferencesVp": [
+          0.333,
+          1.667,
+          -0.333,
+          0.667
+        ],
+        "nativeBackdropBlurPx": [
+          "9.00px"
+        ],
+        "titleHighFrequencyRatioAfterToBefore": 0.1539
+      },
+      "aligned-dark-copy": {
+        "iPhoneFramePx": [
+          23,
+          451,
+          1183,
+          805
+        ],
+        "harmonyFramePx": [
+          24,
+          454,
+          1182,
+          805
+        ],
+        "harmonyAfterTypePx": [
+          24,
+          454,
+          1182,
+          805
+        ],
+        "edgeDifferencesVp": [
+          0.333,
+          1.0,
+          -0.333,
+          0.0
+        ],
+        "nativeBackdropBlurPx": [
+          "9.00px"
+        ],
+        "titleHighFrequencyRatioAfterToBefore": 0.1539
+      },
+      "aligned-partial-quote": {
+        "iPhoneFramePx": [
+          23,
+          451,
+          1183,
+          805
+        ],
+        "harmonyFramePx": [
+          24,
+          455,
+          1182,
+          806
+        ],
+        "harmonyAfterTypePx": [
+          24,
+          455,
+          1182,
+          806
+        ],
+        "edgeDifferencesVp": [
+          0.333,
+          1.333,
+          -0.333,
+          0.333
+        ],
+        "nativeBackdropBlurPx": [
+          "9.00px"
+        ],
+        "titleHighFrequencyRatioAfterToBefore": 0.1539
+      },
+      "aligned-services": {
+        "iPhoneFramePx": [
+          23,
+          451,
+          1183,
+          805
+        ],
+        "harmonyFramePx": [
+          24,
+          447,
+          1182,
+          798
+        ],
+        "harmonyAfterTypePx": [
+          24,
+          447,
+          1182,
+          798
+        ],
+        "edgeDifferencesVp": [
+          0.333,
+          -1.333,
+          -0.333,
+          -2.333
+        ],
+        "nativeBackdropBlurPx": [
+          "9.00px"
+        ],
+        "titleHighFrequencyRatioAfterToBefore": 0.1539
+      }
+    },
+    "copyMatchesFullReply": true,
+    "partialQuote": "max",
+    "systemServicesAtLargest": [
+      "分享",
+      "搜索",
+      "翻译"
+    ],
+    "afterWordSelectionAndSizeChange": {
+      "iPhone": "个",
+      "HarmonyOS": "max"
+    }
+  },
+  "recap": {
+    "geometryAndImages": {
+      "harmony": "e0455e3c2e099d1b31eb75ca483068347cdb3bff",
+      "harmonyHap": "10a4850f08703981470052d7bcf56665f560c50c3fdbbcc8a12b6cf9c34685e3",
+      "iPhone": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+      "before": "dc2772d67e9ce2429ae2d169e01162e206e9c3b4",
+      "appearances": {
+        "light": {
+          "iPhone": {
+            "originalPNG": "0818a8bf35a489b62cf0f1a7a0f2786593331ef6fcebe4e887e79810a631cfca",
+            "accessibilitySHA256": "1dedb3e561c9487e32f65648613160c12003ec6acb092ec8bbe45e0f4d04252f",
+            "sheetEdges": [
+              8.0,
+              415.0,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.5,
+              451.5
+            ],
+            "nativeBodyEdges": [
+              23.4,
+              524.2,
+              375.2,
+              613.8
+            ],
+            "firstFourInkBandsVp": [
+              [
+                526.667,
+                541.0
+              ],
+              [
+                550.333,
+                564.333
+              ],
+              [
+                573.667,
+                588.0
+              ],
+              [
+                597.0,
+                611.333
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              526.667,
+              550.333,
+              573.667,
+              597.0
+            ]
+          },
+          "before": {
+            "originalPNG": "ce2273a5f11c46d4b1a224f9fdfca47f140e4067e881a02a69d247508d127230",
+            "accessibilitySHA256": "add8dc12c5d54158769d6d656f08ab645e5efedc60b2e5514660f9cf2df5e7ea",
+            "sheetEdges": [
+              8.0,
+              422.333,
+              394.0,
+              874.0
+            ],
+            "closeCenter": [
+              44.0,
+              450.333
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              525.667,
+              378.0,
+              609.667
+            ],
+            "firstFourInkBandsVp": [
+              [
+                527.0,
+                542.333
+              ],
+              [
+                549.0,
+                564.333
+              ],
+              [
+                570.0,
+                585.333
+              ],
+              [
+                591.333,
+                607.0
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              527.0,
+              549.0,
+              570.0,
+              591.333
+            ]
+          },
+          "after": {
+            "originalPNG": "5dbb8e9135a11b87ffcb5427818608a95eca4a8fb286eaf4b0613378085095d3",
+            "accessibilitySHA256": "705ff3ad72a54545e38009a3119c1bfdca8a606582da3ee3c861015a1b245619",
+            "sheetEdges": [
+              8.0,
+              414.667,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.0,
+              451.667
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              524.0,
+              378.0,
+              614.667
+            ],
+            "firstFourInkBandsVp": [
+              [
+                525.667,
+                540.667
+              ],
+              [
+                549.667,
+                564.667
+              ],
+              [
+                573.0,
+                588.0
+              ],
+              [
+                596.667,
+                612.0
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              525.667,
+              549.667,
+              573.0,
+              596.667
+            ]
+          },
+          "firstFourLineTopErrorsVp": {
+            "before": [
+              0.33,
+              -1.33,
+              -3.67,
+              -5.67
+            ],
+            "after": [
+              -1.0,
+              -0.67,
+              -0.67,
+              -0.33
+            ]
+          },
+          "image": {
+            "file": "recap-light.jpg",
+            "sha256": "5ae6bf77128e69af54d6d6cb147fd2ea3e48f26991911b528c835ba572f9c79e"
+          }
+        },
+        "dark": {
+          "iPhone": {
+            "originalPNG": "e57250d20f5422a8bd81f850e119ae07d9dca9427641bd4cca9b3490a9e2d1eb",
+            "accessibilitySHA256": "ba73e4a33e06e7cc11666fe430299f344ca6fa319c55af1377d4433df8ee187f",
+            "sheetEdges": [
+              8.0,
+              415.0,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.5,
+              451.5
+            ],
+            "nativeBodyEdges": [
+              23.4,
+              524.2,
+              375.2,
+              613.8
+            ],
+            "firstFourInkBandsVp": [
+              [
+                526.667,
+                541.0
+              ],
+              [
+                550.667,
+                564.0
+              ],
+              [
+                573.667,
+                588.0
+              ],
+              [
+                597.0,
+                611.333
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              526.667,
+              550.667,
+              573.667,
+              597.0
+            ]
+          },
+          "before": {
+            "originalPNG": "dd52d9fd818130c34433b18f9d48c5fbcc216c2bb034f03038fc233c353415cb",
+            "accessibilitySHA256": "add8dc12c5d54158769d6d656f08ab645e5efedc60b2e5514660f9cf2df5e7ea",
+            "sheetEdges": [
+              8.0,
+              422.333,
+              394.0,
+              874.0
+            ],
+            "closeCenter": [
+              44.0,
+              450.333
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              525.667,
+              378.0,
+              609.667
+            ],
+            "firstFourInkBandsVp": [
+              [
+                527.0,
+                542.333
+              ],
+              [
+                549.0,
+                564.333
+              ],
+              [
+                570.0,
+                585.333
+              ],
+              [
+                591.333,
+                607.0
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              527.0,
+              549.0,
+              570.0,
+              591.333
+            ]
+          },
+          "after": {
+            "originalPNG": "35caf70e684f995f6d5c0cecbcc1343e31c0e6e69f919e5d33ca9c674d6a9784",
+            "accessibilitySHA256": "bbb0f1a8aefe718dcec83ded40c320effed3a0cddc6b016ba24bd8570b36e26e",
+            "sheetEdges": [
+              8.0,
+              414.667,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.0,
+              451.667
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              524.0,
+              378.0,
+              614.667
+            ],
+            "firstFourInkBandsVp": [
+              [
+                525.667,
+                540.667
+              ],
+              [
+                549.667,
+                564.667
+              ],
+              [
+                573.0,
+                588.0
+              ],
+              [
+                596.667,
+                612.0
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              525.667,
+              549.667,
+              573.0,
+              596.667
+            ]
+          },
+          "firstFourLineTopErrorsVp": {
+            "before": [
+              0.33,
+              -1.67,
+              -3.67,
+              -5.67
+            ],
+            "after": [
+              -1.0,
+              -1.0,
+              -0.67,
+              -0.33
+            ]
+          },
+          "image": {
+            "file": "recap-dark.jpg",
+            "sha256": "fe0deb8290682f1a4f6d2d1befdfb46bf6a08ab87e4411d661c2dafccba1d564"
+          }
+        },
+        "large": {
+          "iPhone": {
+            "originalPNG": "4581a0b4e243b55c6229bc9f27bd821e585f1c994593a64ea94c349ac71a9994",
+            "accessibilitySHA256": "44613a75935242fd296436082de461d90a36a8641e064093d3fdcdc3f68c6c20",
+            "sheetEdges": [
+              8.0,
+              415.0,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.45,
+              451.5
+            ],
+            "nativeBodyEdges": [
+              23.4,
+              531.2,
+              378.7,
+              1185.1
+            ],
+            "firstFourInkBandsVp": [
+              [
+                539.333,
+                579.333
+              ],
+              [
+                606.333,
+                645.667
+              ],
+              [
+                672.667,
+                712.667
+              ],
+              [
+                739.0,
+                779.0
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              539.333,
+              606.333,
+              672.667,
+              739.0
+            ]
+          },
+          "before": {
+            "originalPNG": "3ea4b682bed545449c5e4cd945492845c27876f5af7e34ceebed74deb6bd3f65",
+            "accessibilitySHA256": "0fb5e0739a44efa6ea202c9fb3fb07464ba4647a7e8ce76a09237f3bcb10355f",
+            "sheetEdges": [
+              8.0,
+              422.333,
+              394.0,
+              874.0
+            ],
+            "closeCenter": [
+              44.0,
+              450.333
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              532.667,
+              378.0,
+              874.0
+            ],
+            "firstFourInkBandsVp": [
+              [
+                536.667,
+                580.667
+              ],
+              [
+                597.667,
+                641.0
+              ],
+              [
+                657.667,
+                700.667
+              ],
+              [
+                718.667,
+                762.667
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              536.667,
+              597.667,
+              657.667,
+              718.667
+            ]
+          },
+          "after": {
+            "originalPNG": "b37885421eae5bf403f3d917a83ca27f8af5b9620cc69afedbf3f93bc03741b5",
+            "accessibilitySHA256": "05eb44a9e45ce38bc0fe4a3bf4febfce169713ccea83a8e6a0c21d1baaf6bbc3",
+            "sheetEdges": [
+              8.0,
+              414.667,
+              394.0,
+              866.0
+            ],
+            "closeCenter": [
+              44.0,
+              451.667
+            ],
+            "nativeBodyEdges": [
+              24.0,
+              531.0,
+              378.0,
+              866.0
+            ],
+            "firstFourInkBandsVp": [
+              [
+                540.333,
+                582.0
+              ],
+              [
+                607.333,
+                648.333
+              ],
+              [
+                673.333,
+                714.333
+              ],
+              [
+                740.333,
+                781.667
+              ]
+            ],
+            "firstFourLineTopsVp": [
+              540.333,
+              607.333,
+              673.333,
+              740.333
+            ]
+          },
+          "firstFourLineTopErrorsVp": {
+            "before": [
+              -2.67,
+              -8.67,
+              -15.0,
+              -20.33
+            ],
+            "after": [
+              1.0,
+              1.0,
+              0.67,
+              1.33
+            ]
+          },
+          "image": {
+            "file": "recap-large.jpg",
+            "sha256": "f9ae999e90beb6f78dc6cbd1884f3965d2cd5b144affe0b819f58e0a732a46e4"
+          }
+        }
+      },
+      "scope": "Physical equal-width simulator screen and accessibility coordinates divided by the actual 3x density. The ink bands sample the left portion of the same four mixed-script lines."
+    },
+    "interactionSource": "7071d3fd1756f7de3f3a38caf1e3c1a9521b62e8",
+    "interactionHap": "1311bc618b4ca5d1732d3157009aab9f3b3ad4f41b5dc57c59e5f176f1d2ca10",
+    "mediumBoundsPx": [
+      24,
+      1244,
+      1182,
+      2598
+    ],
+    "largeBoundsPx": [
+      24,
+      141,
+      1182,
+      2598
+    ],
+    "nativeDragRestoredMedium": true,
+    "copiedRecapSHA256": "5f5cac7759a9b3c46b125b374d01e6fa9b699bf4a86142d1b39c1343fa7ffc7d"
+  },
+  "chatPalette": {
+    "harmony": "9b6b7de7967f745715df641b65ccecf46e4f8393",
+    "iPhone": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+    "harmonyHap": "79d557f3eade2f5cb6075fe8118bc8991e4ceaf74513ff9a8a87b85be36f5d82",
+    "pages": {
+      "agent-chat": {
+        "sourceSamples": {
+          "iphone": {
+            "source": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+            "nativePNG": "f0bdbbca55c5c57b134f6f61eb4360f876fa554363c1b419a52e76f1005cccc6",
+            "nativeAX": "29420290cd3e636a9e67d9d01fb9ab3b7f7d09a14ff1abcab16b58412ba61a78",
+            "canvas": "#000000",
+            "outgoing": "#1D3557"
+          },
+          "before": {
+            "source": "dc2772d67e9ce2429ae2d169e01162e206e9c3b4",
+            "nativePNG": "da076854db317571f1dc08028ea96267695fe18a51438cf36d9ac10a0f2b884a",
+            "nativeAX": "1f961d61634ec798ed6bbf6aa6cba412b63ea804cb965d369ace240e9cb89fea",
+            "canvas": "#101012",
+            "outgoing": "#233B57"
+          },
+          "after": {
+            "source": "9b6b7de7967f745715df641b65ccecf46e4f8393",
+            "nativePNG": "3f24f927b941794f7356ca3b0ed0c791a476b79af560b721ae8431e18279956e",
+            "nativeAX": "b1a36c5b651cbbb592633354c8d76cabc1022a1d8539448fed98396561b84f2e",
+            "canvas": "#000000",
+            "outgoing": "#1E3557"
+          }
+        },
+        "board": "agent-chat-dark.png",
+        "boardSHA256": "122f19978d2b7390451e3f566a36f09d64b3a6a46670b5baf3563fb3e46db338"
+      },
+      "reading-history": {
+        "sourceSamples": {
+          "iphone": {
+            "source": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+            "nativePNG": "ac14fa659b4a86542e62a61758aaf5698aae43f3c3d28828c0facf3b440dc49d",
+            "nativeAX": "9d9c0f5d370eb8764d6f9cfb02e8ab82a2439c0f4c52293e8c13d4f365054a17",
+            "canvas": "#000000",
+            "outgoing": "#1D3557"
+          },
+          "before": {
+            "source": "dc2772d67e9ce2429ae2d169e01162e206e9c3b4",
+            "nativePNG": "814d3513214ce38407d06bd308e531d21d602e2f30421223c7bedc3e8ae7b026",
+            "nativeAX": "9723628ef9f272354c478dad5e53584b1421b3bf8505b9cb76c6497b950f40d5",
+            "canvas": "#101012",
+            "outgoing": "#233B57"
+          },
+          "after": {
+            "source": "9b6b7de7967f745715df641b65ccecf46e4f8393",
+            "nativePNG": "afa9347c4e0602f2df6c0259882fd7263d1b9077e4ef0eb9c1367385d5299bab",
+            "nativeAX": "35ffade9d553e3b818e81d1ffa75148c186ed3b26f8795d0e3fee88b597ab8c5",
+            "canvas": "#000000",
+            "outgoing": "#1E3557"
+          }
+        },
+        "board": "reading-history-dark.png",
+        "boardSHA256": "8a91c816d8f5cedca5d2a7431039901730e0f27aa7ac126b6dd9e741b80f0189"
+      },
+      "composer": {
+        "sourceSamples": {
+          "iphone": {
+            "source": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+            "nativePNG": "07a12fec1b0c6a4eedb6f85de9cf932d798523002c6a8cf8de06fd627e724bb0",
+            "nativeAX": "ed1c4484a1704a96ffd41164a75341ab5a15e52ef4b3acbcbff1bb31b6ed8058",
+            "canvas": "#000000",
+            "outgoing": "#1D3557"
+          },
+          "before": {
+            "source": "dc2772d67e9ce2429ae2d169e01162e206e9c3b4",
+            "nativePNG": "27fc022e585dfbacbcf269ca0c091fc57746d0d4fb5f632d8c89fc9883215034",
+            "nativeAX": "35d47f52872a8f16906cd8c93aa14600f7ebd303c586ce0b4c9ebbd7c15d3344",
+            "canvas": "#101012",
+            "outgoing": "#233B57"
+          },
+          "after": {
+            "source": "9b6b7de7967f745715df641b65ccecf46e4f8393",
+            "nativePNG": "0ad17a0a83d334755c78256ce6a76448c5ec13582d1fdb67d44be6f813bf4235",
+            "nativeAX": "c1a447326ff06b81ea5ba15f2c60d603e6315600d6bee85d272d27b80e8b3ebd",
+            "canvas": "#000000",
+            "outgoing": "#1E3557"
+          }
+        },
+        "board": "composer-dark.png",
+        "boardSHA256": "8ccccf4fed51c38a4b5ade55e5ff7f36b14773b05c4328553d1169a8bd40febd"
+      },
+      "persona": {
+        "sourceSamples": {
+          "iphone": {
+            "source": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+            "nativePNG": "f2b0e9b67bbffd05b892e910185c2ee862ef58b12dc0be0157c82bbabd22efd5",
+            "nativeAX": "615792d294cd700a9c4ef41ed16ae284bd4fd6beb9ed6b5754a4ea53c9bd505c",
+            "canvas": "#000000",
+            "outgoing": null
+          },
+          "before": {
+            "source": "dc2772d67e9ce2429ae2d169e01162e206e9c3b4",
+            "nativePNG": "e980674c270b8be0e42d1cf05795b7225e23ce63cdb4a20bb1da7025e5fa3d0b",
+            "nativeAX": "7fa9011461ce7a496695c9e7c408ba282155d7d0dc833400fb9c19cbd9e9ff1c",
+            "canvas": "#101012",
+            "outgoing": null
+          },
+          "after": {
+            "source": "9b6b7de7967f745715df641b65ccecf46e4f8393",
+            "nativePNG": "a21957ef9769a48f95b5a59cc88815c2594cf41fe818352ad9b06a1d85351a1e",
+            "nativeAX": "a89cc04656649f88d9e54fb90100bb9625338718c75c0d17148069420ca91f63",
+            "canvas": "#000000",
+            "outgoing": null
+          }
+        },
+        "board": "persona-dark.png",
+        "boardSHA256": "3fb2218a10eb8447f41cb4220e24753911aedf84d9328ce23e0ee881e2e32633"
+      }
+    },
+    "nominalDarkBubble": "#1D3557",
+    "explicitStyles": {
+      "coral-chat": {
+        "canvas": "#000000",
+        "nativeBubblePixels": "#AF4C28",
+        "sourceToken": "#AF4C28"
+      },
+      "board-chat": {
+        "canvas": "#101012",
+        "nativeBubblePixels": "#283B4D",
+        "sourceToken": "#283A4D"
+      },
+      "restored-chat": {
+        "canvas": "#000000",
+        "nativeBubblePixels": "#1E3557",
+        "sourceToken": "#1D3557"
+      }
+    }
+  },
+  "ssh": {
+    "sourceCommit": "6bc9ed8a6178e2f46bb6448f86a641c7f76dd8af",
+    "iosSource": "a21e4c50893c65a5e6816bfe1c2302f821b960c7",
+    "harmonyProductionHapSHA256": "3b80156848c6eb180542be66918585b77b16a2a86b64ed0035b417406f8ec3fc",
+    "harmonyVisualHapSHA256": "b112b9c17bc99fe0207f7816210364a994a41db40e4c1610f1d7e2e7bd82c957",
+    "sshSourceTree": "c4e03f3b2203815b5df16fcfa38fca2923ba07bd",
+    "packagedArm64LibrarySHA256": "490d12d9980bfe5c305339f1bcdbf8c2f6b30491ea9f61dc3d62054438a3077e",
+    "normalIPhonePairingPaths": {
+      "direct": "direct",
+      "fallback": "ssh",
+      "always": "ssh"
+    },
+    "arkHostChecks": 158,
+    "rustChecks": 18,
+    "nativeCases": 6,
+    "harmonySameLogicalURL": true,
+    "harmonySecondsToFirstDirectTLS": 119.666,
+    "harmonySecondsToSwitchedVerifiedHub": 120.361,
+    "liveSSHHeartbeats": 14,
+    "image": {
+      "name": "ssh-route-settings.png",
+      "width": 786,
+      "height": 1758,
+      "bytes": 410639,
+      "sha256": "5dd2e64bec1e2b7634d70281c693a87b1cbd09df06c94d223b84cc1bc9faa383"
+    },
+    "sourceImages": [
+      {
+        "platform": "iPhone",
+        "state": "隧道目标与连接开关",
+        "sourceWidth": 1206,
+        "sourceHeight": 2622,
+        "pngSHA256": "51751ef02d53d9abfbbb5c0bbe5919f16d6eb86a277bf19061e7fb4ff9b42a88",
+        "accessibilitySHA256": "b934043d1e9ad19fdbb262d01637fbba07651dd3d59197c622aeea32bd8a49a3"
+      },
+      {
+        "platform": "HarmonyOS",
+        "state": "隧道目标与连接开关",
+        "sourceWidth": 1206,
+        "sourceHeight": 2622,
+        "pngSHA256": "440206a7cfa5967462164cee117fd3d8b72405a4b44e4bdda5ef3dd803bed962",
+        "accessibilitySHA256": "0b10aa9e0953b97ead7f25e7d6728ba12bdd7fd6010d4e36c869faa92cb7b6fb"
+      },
+      {
+        "platform": "iPhone",
+        "state": "返回配对页后的直连优先设置",
+        "sourceWidth": 1206,
+        "sourceHeight": 2622,
+        "pngSHA256": "cb097bd1f5f226f19fee95729aa6e16c2685bf1d343592f0eed8101484eb6675",
+        "accessibilitySHA256": "787c33c7755435b22f38e741a04ccfcb54dd0a1d8f705ae65a165e0721f662b7"
+      },
+      {
+        "platform": "HarmonyOS",
+        "state": "返回配对页后的直连优先设置",
+        "sourceWidth": 1206,
+        "sourceHeight": 2622,
+        "pngSHA256": "7de212cf5a1439be7c0a3325b8d39fa5cdffe1b37090a4df2c697b7ff2049a82",
+        "accessibilitySHA256": "24a87edfbc01c6686939907f0ab3b2bea64beb371bc651a6b42ca7532f42a222"
+      }
+    ]
+  }
+}

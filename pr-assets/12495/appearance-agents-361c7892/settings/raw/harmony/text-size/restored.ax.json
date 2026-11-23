@@ -1,0 +1,2360 @@
+[
+  {
+    "id": "",
+    "type": "",
+    "text": "",
+    "bounds": "[0,0][1206,2622]",
+    "enabled": "",
+    "selected": "",
+    "checked": ""
+  },
+  {
+    "id": "",
+    "type": "root",
+    "text": "",
+    "bounds": "[0,117][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[0,117][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[0,117][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[0,186][989,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "shell.spaces.content",
+    "type": "Column",
+    "text": "",
+    "bounds": "[0,186][989,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[0,186][989,372]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[72,213][755,345]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.assistant_switcher",
+    "type": "Button",
+    "text": "",
+    "bounds": "[72,213][450,345]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[72,213][450,345]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[72,219][192,339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Image",
+    "text": "",
+    "bounds": "[72,219][192,339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[162,309][192,339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[222,216][450,342]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[222,216][406,293]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "助手",
+    "bounds": "[222,216][354,293]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[369,237][406,273]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "在线 · server",
+    "bounds": "[222,296][450,342]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.search_toggle",
+    "type": "Button",
+    "text": "",
+    "bounds": "[779,210][917,348]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[818,249][878,309]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "List",
+    "text": "",
+    "bounds": "[0,372][989,2310]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.persona",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,372][965,504]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,372][965,504]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,405][132,471]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "主对话",
+    "bounds": "[180,408][929,468]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,504][965,554]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Divider",
+    "text": "",
+    "bounds": "[60,528][929,530]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.recordings",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,554][965,686]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,554][965,686]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,587][132,653]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "会议",
+    "bounds": "[180,590][929,650]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.inbox",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,686][965,818]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,686][965,818]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,719][132,785]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "收件箱",
+    "bounds": "[180,722][822,782]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.count.inbox",
+    "type": "Text",
+    "text": "4",
+    "bounds": "[870,723][929,781]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.todo",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,818][965,950]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,818][965,950]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,851][132,917]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "待办",
+    "bounds": "[180,854][799,914]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.count.todo",
+    "type": "Text",
+    "text": "16",
+    "bounds": "[847,855][929,913]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.schedules",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,950][965,1082]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,950][965,1082]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,983][132,1049]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "定时任务",
+    "bounds": "[180,986][929,1046]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.knowledge",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1082][965,1214]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1082][965,1214]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,1115][132,1181]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "知识库",
+    "bounds": "[180,1118][929,1178]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.health",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1214][965,1346]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1214][965,1346]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,1247][132,1313]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "健康",
+    "bounds": "[180,1250][929,1310]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.devices",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1346][965,1478]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1346][965,1478]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[60,1379][132,1445]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "机器",
+    "bounds": "[180,1382][929,1442]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1478][965,1528]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Divider",
+    "text": "",
+    "bounds": "[60,1502][929,1504]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1527][965,1634]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.recent",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1527][965,1634]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "最近",
+    "bounds": "[60,1576][892,1622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[892,1581][929,1617]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.recent.b2e4d6f8-0000-4000-8000-000000000003",
+    "type": "ListItem",
+    "text": "帮我约周五和韩梅梅吃饭",
+    "bounds": "[24,1634][965,1766]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1634][965,1766]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "__Common__",
+    "text": "",
+    "bounds": "[60,1670][929,1730]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Flex",
+    "text": "",
+    "bounds": "[60,1670][929,1730]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "drawer.mark.b2e4d6f8-0000-4000-8000-000000000003.title",
+    "type": "Text",
+    "text": "帮我约周五和韩梅梅吃饭",
+    "bounds": "[60,1670][622,1730]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.all_chats",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[24,1766][965,1898]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[24,1766][965,1898]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "全部对话",
+    "bounds": "[60,1804][911,1860]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[911,1814][929,1850]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[0,2310][989,2502]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.new",
+    "type": "Button",
+    "text": "",
+    "bounds": "[72,2346][419,2484]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[144,2389][347,2442]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[144,2392][193,2440]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "新对话",
+    "bounds": "[211,2389][347,2442]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[443,2346][755,2484]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "__Common__",
+    "text": "",
+    "bounds": "[779,2346][917,2484]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.settings",
+    "type": "Button",
+    "text": "",
+    "bounds": "[779,2346][917,2484]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[818,2385][878,2445]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Navigation",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "NavBar",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "NavBarContent",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Refresh",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.list",
+    "type": "List",
+    "text": "",
+    "bounds": "[1036,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,343][1206,487]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,343][1206,487]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.search",
+    "type": "Button",
+    "text": "",
+    "bounds": "[1036,343][1206,463]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1072,377][1206,430]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1072,381][1118,426]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "搜索项目或工作树",
+    "bounds": "[1139,377][1206,430]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,487][1206,631]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,487][1206,631]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.host",
+    "type": "Row",
+    "text": "服务器, 1, 1",
+    "bounds": "[1036,487][1206,631]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1078,531][1165,618]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1096,549][1148,600]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1189,544][1206,604]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.host_name",
+    "type": "Text",
+    "text": "服务器",
+    "bounds": "[1189,544][1206,604]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,631][1206,763]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,631][1206,763]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,631][1206,763]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.project",
+    "type": "Row",
+    "text": "notes",
+    "bounds": "[1036,631][1206,763]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1078,672][1132,723]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "notes",
+    "bounds": "[1156,667][1206,727]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,763][1206,1155]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,763][1206,1119]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.inline_session",
+    "type": "Row",
+    "text": "把周报草稿合成一份, 50分钟前, 四份草稿合成了一份，重复的两段删掉了。, 终端, weekly, opus",
+    "bounds": "[1036,763][1206,1119]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,763][1206,1119]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,820][1206,928]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,820][1206,928]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Image",
+    "text": "",
+    "bounds": "[1191,849][1206,900]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,1155][1206,1287]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,1155][1206,1287]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,1155][1206,1287]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.project",
+    "type": "Row",
+    "text": "shop-api",
+    "bounds": "[1036,1155][1206,1287]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1078,1196][1132,1247]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "shop-api",
+    "bounds": "[1156,1191][1206,1251]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,1287][1206,1643]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,1287][1206,1643]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.inline_session",
+    "type": "Row",
+    "text": "排查 /orders 接口变慢, 11分钟前, 慢在订单列表的 N+1 查询，正在改成一次 JOIN 并补索引。, 终端, perf, gpt-5.5",
+    "bounds": "[1036,1287][1206,1643]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,1287][1206,1643]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,1344][1206,1452]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,1344][1206,1452]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Image",
+    "text": "",
+    "bounds": "[1191,1373][1206,1424]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,1643][1206,1787]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,1643][1206,1787]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.host",
+    "type": "Row",
+    "text": "MacBook, 2, 2, 4, 5",
+    "bounds": "[1036,1643][1206,1787]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1078,1687][1165,1774]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1096,1705][1148,1756]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1189,1700][1206,1760]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.host_name",
+    "type": "Text",
+    "text": "MacBook",
+    "bounds": "[1189,1700][1206,1760]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,1787][1206,1919]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,1787][1206,1919]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,1787][1206,1919]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.project",
+    "type": "Row",
+    "text": "weather",
+    "bounds": "[1036,1787][1206,1919]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1078,1828][1132,1879]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "weather",
+    "bounds": "[1156,1823][1206,1883]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,1919][1206,2051]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,1919][1206,2051]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.tree_owner.macbook..",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,1919][1206,2051]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.worktree",
+    "type": "Row",
+    "text": "weather, 主要, 4 个 Agent",
+    "bounds": "[1036,1919][1206,2051]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1144,1964][1198,2006]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[1150,1964][1193,2006]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,2051][1206,2407]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,2051][1206,2407]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.inline_session",
+    "type": "Row",
+    "text": "补齐网络层的单元测试, 12分钟前, 开始写测试前想确认一下用哪个测试框架。, 需要你, 终端, tests, claude-sonnet-5-5",
+    "bounds": "[1036,2051][1206,2407]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[1036,2051][1206,2407]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,2108][1206,2216]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,2108][1206,2216]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Image",
+    "text": "",
+    "bounds": "[1191,2137][1206,2188]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "ListItem",
+    "text": "",
+    "bounds": "[1036,2407][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[1036,2407][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "projects.tab",
+    "type": "Row",
+    "text": "release, 整理发布说明, 2 个 Agent",
+    "bounds": "[1036,2407][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1162,2466][1206,2487]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[1182,2466][1203,2487]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,346]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[988,186][1206,346]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[988,186][1206,346]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "shell.spaces",
+    "type": "Button",
+    "text": "",
+    "bounds": "[1036,192][1181,337]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Stack",
+    "text": "",
+    "bounds": "[1036,192][1181,337]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Image",
+    "text": "",
+    "bounds": "[1036,192][1181,337]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[1133,289][1169,325]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[1199,192][1206,337]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "spaces.dismiss",
+    "type": "Row",
+    "text": "",
+    "bounds": "[988,186][1206,2538]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SheetWrapper",
+    "text": "",
+    "bounds": "[0,117][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SheetPage",
+    "text": "",
+    "bounds": "[0,186][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[48,185][1158,186]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Scroll",
+    "text": "",
+    "bounds": "[0,186][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.sheet",
+    "type": "Column",
+    "text": "",
+    "bounds": "[0,186][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[0,186][1206,396]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.back",
+    "type": "Button",
+    "text": "",
+    "bounds": "[42,234][174,366]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[94,272][123,329]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "界面风格",
+    "bounds": "[174,269][1032,332]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[1032,234][1164,366]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "__Common__",
+    "text": "",
+    "bounds": "[0,396][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[0,396][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.page.phone_look_style",
+    "type": "Scroll",
+    "text": "",
+    "bounds": "[0,396][1206,2622]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[0,396][1206,2087]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Flex",
+    "text": "",
+    "bounds": "[48,501][1158,1589]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.style.glass",
+    "type": "Column",
+    "text": "液态玻璃, 原生系统界面",
+    "bounds": "[48,501][418,1045]",
+    "enabled": "true",
+    "selected": "true",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[63,519][403,879]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[106,603][360,651]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[106,669][360,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[106,669][240,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[240,669][360,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[106,723][244,747]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[106,765][360,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[106,765][136,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[148,768][360,792]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[131,903][334,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "SymbolGlyph",
+    "text": "",
+    "bounds": "[131,908][168,944]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "液态玻璃",
+    "bounds": "[177,903][334,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "原生系统界面",
+    "bounds": "[124,973][341,1015]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.style.clay",
+    "type": "Column",
+    "text": "黏土, 柔和、圆润",
+    "bounds": "[418,501][788,1045]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[433,519][773,879]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,603][734,651]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,669][734,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[472,669][614,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[614,669][734,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,723][610,747]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,765][734,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[472,765][502,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[514,768][734,792]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[563,903][642,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "黏土",
+    "bounds": "[563,903][642,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "柔和、圆润",
+    "bounds": "[512,973][693,1015]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.style.island",
+    "type": "Column",
+    "text": "Island, 悬浮卡片",
+    "bounds": "[788,501][1158,1045]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[803,519][1143,879]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[842,603][1104,651]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[842,669][1104,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[842,669][984,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[984,669][1104,705]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[842,723][980,747]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[842,765][1104,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[842,765][872,795]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[884,768][1104,792]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[919,903][1026,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "Island",
+    "bounds": "[919,903][1026,949]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "悬浮卡片",
+    "bounds": "[900,973][1045,1015]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.style.lark",
+    "type": "Column",
+    "text": "飞书, 和飞书一致",
+    "bounds": "[48,1045][418,1589]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[63,1063][403,1423]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[102,1147][364,1195]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[102,1213][364,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[102,1213][244,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[244,1213][364,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[102,1267][240,1291]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[102,1309][364,1339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[102,1309][132,1339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[144,1312][364,1336]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[193,1447][272,1493]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "飞书",
+    "bounds": "[193,1447][272,1493]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "和飞书一致",
+    "bounds": "[142,1517][323,1559]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.style.beautiful",
+    "type": "Column",
+    "text": "BeautifulUI, BeautifulUI 的卡片、工具卡片和输入框",
+    "bounds": "[418,1045][788,1589]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Column",
+    "text": "",
+    "bounds": "[433,1063][773,1423]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,1147][734,1195]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,1213][734,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Blank",
+    "text": "",
+    "bounds": "[472,1213][614,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[614,1213][734,1249]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,1267][610,1291]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[472,1309][734,1339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Circle",
+    "text": "",
+    "bounds": "[472,1309][502,1339]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[514,1312][734,1336]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[501,1447][704,1493]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "BeautifulUI",
+    "bounds": "[501,1447][704,1493]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "BeautifulUI 的卡片、工具卡片和输入框",
+    "bounds": "[433,1517][773,1559]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "浮层和卡片的画法、按钮、字体和对话里的组件，整个 App 一起换，包括收件箱里的飞书页面。",
+    "bounds": "[48,1589][1158,1729]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[48,1729][1158,1909]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "字号",
+    "bounds": "[108,1789][672,1849]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Row",
+    "text": "",
+    "bounds": "[696,1765][1098,1873]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.text.small",
+    "type": "Button",
+    "text": "",
+    "bounds": "[702,1771][828,1867]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "小",
+    "bounds": "[744,1795][787,1844]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.text.standard",
+    "type": "Button",
+    "text": "",
+    "bounds": "[834,1771][960,1867]",
+    "enabled": "true",
+    "selected": "true",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "标准",
+    "bounds": "[855,1795][940,1844]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "settings.appearance.text.large",
+    "type": "Button",
+    "text": "",
+    "bounds": "[966,1771][1092,1867]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "大",
+    "bounds": "[1008,1795][1051,1844]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  },
+  {
+    "id": "",
+    "type": "Text",
+    "text": "在系统的「文字大小」之上再调小或调大一档。",
+    "bounds": "[48,1909][1158,2003]",
+    "enabled": "true",
+    "selected": "false",
+    "checked": "false"
+  }
+]

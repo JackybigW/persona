@@ -1,0 +1,1420 @@
+{
+  "source": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+  "iPhoneSourceCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "iPhoneReferenceSHA256": "a95f24f7f08a1916cdb9344bd6543c29527d8fd56292aeddcdbaeaf79bf32d1a",
+  "pagesPerMode": 2,
+  "styles": 5,
+  "modes": [
+    "light",
+    "dark"
+  ],
+  "harmonyNativeScreens": 20,
+  "iPhoneNativeScreens": 20,
+  "sourceImages": [
+    {
+      "file": "supplemental/interface-styles-light.png",
+      "sha256": "c7164a0bbf817652a1a71acfdccdfa92340a4ea94dcb8c10f372e2bc0a3d214d",
+      "bytes": 170134,
+      "width": 1050,
+      "height": 1210,
+      "sourceCommit": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+      "visualHapSHA256": "baa945b9aa0499e1a3c8af0fa1b3e5eb32c99db237ea11559b4d22805876b640",
+      "iPhoneSourceCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "title": "Five interface styles in light appearance",
+      "titleZH": "五种界面风格 · 浅色",
+      "sourcePNG": [
+        {
+          "scene": "agent-chat",
+          "style": "glass",
+          "side": "iPhone",
+          "imageSHA256": "b88d5446f7ebd913824be3a37d62ab47b5ab47ba22b4b5e0efeff9be9d25cd2a",
+          "treeSHA256": "2d4b1b1dab1f4ecfe66e77535a1fefd16b3db1c0b97a562d99fe9c8896383ed8",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "glass",
+          "side": "harmony",
+          "imageSHA256": "c1fbc54f0e3f479680504d63ba75c8bc86d62b0b7bcd28440a605ce0c496ca0f",
+          "treeSHA256": "928f4b2792c3ee806d72d50ba947e026bd7a8c23c2bdcb6846e80bddbe9dd072",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "glass",
+          "side": "iPhone",
+          "imageSHA256": "f9437a7c752b169f30e8df48bf280ae61ae770d95a0a1c4fdbf840d883c4b1e0",
+          "treeSHA256": "b8eb3a3e7889eb1342ddbfcaba5d47dc4c0c4d8acec766f5943b56a5ecc9d1fe",
+          "cropPx": [
+            0,
+            928,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "glass",
+          "side": "harmony",
+          "imageSHA256": "e09e1cf9758314c03cc7c1fd834cf98daafdcee4f3ba92064dbc12bba2c84315",
+          "treeSHA256": "dc0f735f8487a2c53d5d7411e218a83556acd118494ffbb16c985babff6d7fc7",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "clay",
+          "side": "iPhone",
+          "imageSHA256": "4b4f7a3e1c372ff58a272a7bd57a330df57c8f0331a35db8a50fe253e6a284d8",
+          "treeSHA256": "5320e1c60a6fd5e79d329c9934d103a01d7834fcef033696161d406ee37325ff",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "clay",
+          "side": "harmony",
+          "imageSHA256": "67f5a570fd5c8c5207c9f4376473570ffce1b4e00ced880ac3b0899e45cc9d2e",
+          "treeSHA256": "b4672d038a6a3158911e2f39ee17cbbaa4aba1369b0487343274e506a94fe9d8",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "clay",
+          "side": "iPhone",
+          "imageSHA256": "2853852eb019eedf317ac06565248a5ea20d8accc2b0c2ad27ef902af6960f53",
+          "treeSHA256": "336f30656a8c275cdf99fbf4213e4a21224bb1279de99456c14966c042b4ca5c",
+          "cropPx": [
+            0,
+            894,
+            1206,
+            2196
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "clay",
+          "side": "harmony",
+          "imageSHA256": "a51ed587d8bb83cd106d48476edffb033398de1ef1f094aa3496dfced2c8d6c3",
+          "treeSHA256": "af79d18afd3e2ed95064bbba7c51fe809feec0959180e01962e37c2e3818755b",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "island",
+          "side": "iPhone",
+          "imageSHA256": "b46c00c812188d6d3f77d2eeb7113fe1b78f8e6a1148c692463ca74be37913e6",
+          "treeSHA256": "c30a1bc2f7a31e32017b7c275ce1013136c0ce771b5fb44ffbe936211c326d8d",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "island",
+          "side": "harmony",
+          "imageSHA256": "e4af0f494d5bed39a03379a04b3e8ee50ba817c7936e6127a96ccd0da37cde23",
+          "treeSHA256": "53d0172a18b924f5f4004f34b96cc9665884f54f394aeed728a75c71302c2cc3",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "island",
+          "side": "iPhone",
+          "imageSHA256": "e5cc7e9f4e90df147429014ec02a4c3c32e493b8452fd11795f3cde8c46254fb",
+          "treeSHA256": "e2de0beb0b84e68122adf3b617522c946864e8ad34c032bd293dc1d776fadd56",
+          "cropPx": [
+            0,
+            894,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "island",
+          "side": "harmony",
+          "imageSHA256": "5d8b7eb02f3a19ac767e7fabef2be40870499267713447c533a290f7e8c47722",
+          "treeSHA256": "26e03628e7dc8ea9a7b1859149df6fe06ac732555eaddb6ebfcb18d03726c3ab",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "lark",
+          "side": "iPhone",
+          "imageSHA256": "07c5a2ce4d5ce525eb9e0f395bb775922d07cae661da2db6eaf463314ae5a01a",
+          "treeSHA256": "11f031aa05c7cd7efff4350c974fd7aeeb8eda77f67dbc91bed613e0f3052dd2",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "lark",
+          "side": "harmony",
+          "imageSHA256": "7d444dbddfc9316a620c82f1f6d4e89f26c4fc41855bb6960e02b76960b8cbe3",
+          "treeSHA256": "56cf7e90a8c6482fec1186fea134e949cb19217dc75ac94dff7eef1169f00845",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "lark",
+          "side": "iPhone",
+          "imageSHA256": "894979c119240bb3013f0230188959f22d00c87eb6feb130f1657a4fa655df76",
+          "treeSHA256": "af3661c91062eff13318d3676c10fbc4b2b1b574227622f7ad3088389141b09a",
+          "cropPx": [
+            0,
+            904,
+            1206,
+            2195
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "lark",
+          "side": "harmony",
+          "imageSHA256": "62ade9121ebe75d00410d9da709154f413579cd386e9c6054f5ecce703799980",
+          "treeSHA256": "e32971806ed0dc574a2d5b3dc00b415baff26d58841bea135bf902aecc94b6a6",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "beautiful",
+          "side": "iPhone",
+          "imageSHA256": "ea581f46c0914f4a7348a1999d29628e4075cf3f2b1295f617f9ddb32ae07e03",
+          "treeSHA256": "8269011150f3be093faf435470c33f6b3dd0f43cbca1da34f9fe98e0eba9e222",
+          "cropPx": [
+            0,
+            1677,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "beautiful",
+          "side": "harmony",
+          "imageSHA256": "b6a3ab23b974dd78eb58e70e5dc1d1d8209f0d94f0873739667e062d7029b179",
+          "treeSHA256": "3eeaea1e02cd2afb11c0e5ed36d3b2e3ae9414ed85338840ffde67e95dba5bd5",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "beautiful",
+          "side": "iPhone",
+          "imageSHA256": "efaafa56bc0e6345ea35c5d4f9d79c21c72ef74ece66ddfbd2944667328fd8f0",
+          "treeSHA256": "51838fde0153eb18fd06d6d6316a6529c2a74427fb0504e4ca6fae2309fc1049",
+          "cropPx": [
+            0,
+            647,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "beautiful",
+          "side": "harmony",
+          "imageSHA256": "16493996313fe34c8e43673cca2d494e02b9326bdb12300dff0c19019de88a50",
+          "treeSHA256": "c5a6c9cb33239918a5e2a8e5da9452874156869f2d585efe8b41e129a4071b59",
+          "cropPx": [
+            0,
+            602,
+            1206,
+            2193
+          ]
+        }
+      ]
+    },
+    {
+      "file": "supplemental/interface-styles-dark.png",
+      "sha256": "bf8525b6ff84c424f4aad5555ebdfae1d78edddf8654405acf2a42bc5d8d904f",
+      "bytes": 169596,
+      "width": 1050,
+      "height": 1210,
+      "sourceCommit": "361c7892700b3bf63ab83ca16502cede6c7a0d09",
+      "visualHapSHA256": "baa945b9aa0499e1a3c8af0fa1b3e5eb32c99db237ea11559b4d22805876b640",
+      "iPhoneSourceCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+      "title": "Five interface styles in dark appearance",
+      "titleZH": "五种界面风格 · 深色",
+      "sourcePNG": [
+        {
+          "scene": "agent-chat",
+          "style": "glass",
+          "side": "iPhone",
+          "imageSHA256": "d89a9858ef3a6ed2a7377df8f09ecf45185f53ba93f035dd7b056f2c29223d6f",
+          "treeSHA256": "ad862a709affab04962be8a4b3adfe6862e9015d7f970077248c6403e15274e8",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "glass",
+          "side": "harmony",
+          "imageSHA256": "6ed0465c6d9cfab5b42d5e47b061ca66faf2bf2859f8dc1fb71cdcc7f8c929dd",
+          "treeSHA256": "9f62e24ce676991a694f71cb5f182a252df91eb6bb273b49d6cd0771ae3f2a04",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "glass",
+          "side": "iPhone",
+          "imageSHA256": "89a6a6efd5779b30a074196307533de174a54aba36108720994e0cdf75d6461e",
+          "treeSHA256": "eabb3dae85f218539bf748797b15ee9450baef06cbbc8c30c283b082e3a5407c",
+          "cropPx": [
+            0,
+            928,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "glass",
+          "side": "harmony",
+          "imageSHA256": "0965afc34cdf2e16827da19d07eb8b272073703bf02a6310d28147aecad16df2",
+          "treeSHA256": "abcca873cf52674cd27c0bda26b33c2d1a902694faf726d2fb6d2d3f7ccbfbcf",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "clay",
+          "side": "iPhone",
+          "imageSHA256": "8a78d6e5288d7a18e7ef106d4f2bc60cb5ba8d7f35cd159d47c882ceeceba943",
+          "treeSHA256": "a3fadbac5981df074a9552e26af60b9290eb616cb3e045cd0f1cc44034a7d7d6",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "clay",
+          "side": "harmony",
+          "imageSHA256": "fd0f3d3c7064ce98665072ae0f56534f5382a4a11f8569e309c21fc0bee13dd1",
+          "treeSHA256": "225077507c5a9c47d6a03d7f6cfa2c5d28a670f69cd411bf686334b3ec6cd14b",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "clay",
+          "side": "iPhone",
+          "imageSHA256": "2b9bc26987059e0990a6ab803622090a622ad33ed922a786358ccdda9c7b0e1e",
+          "treeSHA256": "13b70fd7dd3dc8fc1b851a595cc04e4b269e7b6b4304756a9264df255971914d",
+          "cropPx": [
+            0,
+            894,
+            1206,
+            2196
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "clay",
+          "side": "harmony",
+          "imageSHA256": "c7b51f6a849ab3f2d70cdfe3a68599cfb583d499161f1053117b4a0218206186",
+          "treeSHA256": "717ad44af4bb030487f3f95fdb83152bff2aeb0648bb4213b52d59ff88682418",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "island",
+          "side": "iPhone",
+          "imageSHA256": "d35fa04b8521bb24187a4e95e414650a922993db9ddb76461834c16748cfcbf3",
+          "treeSHA256": "7fc899fb88afc1c17500cdce7b6e19eee23c59d730102ba5a51ead75dddf2aa4",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "island",
+          "side": "harmony",
+          "imageSHA256": "14ff10efb38bb53e18110d5c05aaac4044d79825d8183af3ff3ac24be5ef8aab",
+          "treeSHA256": "0b098ec917ede9a2ea50a02ee8e6a8c2f7a875f4ed39b6d109787fd5bc9dfde8",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "island",
+          "side": "iPhone",
+          "imageSHA256": "8c255e80031726e6bb3a241482dd6d722a0a3274a1ddb5ec0c9db88eea274a23",
+          "treeSHA256": "b69a07ee9f4f6ac34e8386ac520a38c606d09614898779f641fbf470c1acadea",
+          "cropPx": [
+            0,
+            894,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "island",
+          "side": "harmony",
+          "imageSHA256": "425baf9759d3e1d246926bec39238a31b7dbc46dc5b1aefc6e503ee3ced90a14",
+          "treeSHA256": "339c3a3b276d434a5989d72810c5aaa95c39f1f6573e7bcd4758fc46ca762ed9",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "lark",
+          "side": "iPhone",
+          "imageSHA256": "653e2014802df726e11c43ffa78468c98add40dfed45a1d283337b351118a949",
+          "treeSHA256": "5c3133f5f13133431be8c2f9226770e15e4e7b1126675b852e7772df38b4782b",
+          "cropPx": [
+            0,
+            1678,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "lark",
+          "side": "harmony",
+          "imageSHA256": "ee51d7ba10396225dc0262bd2c70e21ae6192d8b3e573985dd2dd05e86242622",
+          "treeSHA256": "e69c457b9f3fb48b72ef3a230b9ae38babaa4a8527fac4ffec55c7392497a0b1",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "lark",
+          "side": "iPhone",
+          "imageSHA256": "135284aad1078fdff93403dda199e3cae9c7b438ff9d40ec76511f5e3cb58f8a",
+          "treeSHA256": "997587c1887450ee1f19165073bc498f3baff857bb9c83f52b32f7e5173dbb42",
+          "cropPx": [
+            0,
+            904,
+            1206,
+            2195
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "lark",
+          "side": "harmony",
+          "imageSHA256": "8f1a9328eb84f058b85f562ca6f518fdaa410c5882ab857b0a9bfeb07b3c1e58",
+          "treeSHA256": "1e9a1b9e3860b0e880e519ad0033c01eaa4d59200960455f89f6b3145438e468",
+          "cropPx": [
+            0,
+            936,
+            1206,
+            2193
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "beautiful",
+          "side": "iPhone",
+          "imageSHA256": "5161df69ff525055f8989d9feb14bf766af27daeedb4fc0860c5d08360b02063",
+          "treeSHA256": "82bca312fe19592b93ab9a1988626d4ec4430feb9674e30417d918ee68cb9222",
+          "cropPx": [
+            0,
+            1677,
+            1206,
+            2267
+          ]
+        },
+        {
+          "scene": "agent-chat",
+          "style": "beautiful",
+          "side": "harmony",
+          "imageSHA256": "758c41088e88a481393e597e50b656ae205b17ffea2b001a777fba5b04e7e416",
+          "treeSHA256": "a5f27b2adcf0ae8104f42ee5a3aab592243ef37a761426dd1c400c9ea981c08c",
+          "cropPx": [
+            0,
+            1688,
+            1206,
+            2273
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "beautiful",
+          "side": "iPhone",
+          "imageSHA256": "fcfcfff45cc3179b86228a2224d5678b3ddfda84f72d8f60022d99dd1f88e6e2",
+          "treeSHA256": "18b8b21eaaa37527eb07a42df9deefe13d9a31443b6a897187b4ea49f47cf433",
+          "cropPx": [
+            0,
+            647,
+            1206,
+            2194
+          ]
+        },
+        {
+          "scene": "persona",
+          "style": "beautiful",
+          "side": "harmony",
+          "imageSHA256": "e421e67031ef9e0b1401ee1dc9c2c8c5f65ebc90c1b69d2f84c89c70305fca81",
+          "treeSHA256": "cfc31cfbd58b0d9cd6bfee8a8ab459494177a0c361962b91f9ac30375ca617bc",
+          "cropPx": [
+            0,
+            602,
+            1206,
+            2193
+          ]
+        }
+      ]
+    }
+  ],
+  "settingsNavigation": {
+    "receiptSHA256": "c1792c5491a02ae2f7c660724d837f85fda8f4f5d79bee09ee22e889043f7a8a",
+    "boardSHA256": "e8a51594d87c58507a8067af6bdee546689d35f4614d0c5ab20c59ab760e3ebb",
+    "sourceCounts": {
+      "iPhone": 35,
+      "HarmonyOS": 59
+    }
+  },
+  "fixtureScenario": {
+    "flags": {
+      "MOCK_MANAGERS": "1",
+      "MOCK_FILES": "1",
+      "MOCK_GIT_WRITE": "1",
+      "MOCK_RECORDING_MINUTES": "ready",
+      "MOCK_RECORDING_TITLES": "1",
+      "MOCK_TASKS": "1",
+      "MOCK_TASKS_DOCK": "many",
+      "MOCK_ORCA_CHILDREN": "1",
+      "MOCK_WORKTREES": "1",
+      "MOCK_SESSIONS_LIST": "1",
+      "MOCK_SESSIONS_CATALOG": "1",
+      "MOCK_NEW_AGENT_PANEL": "1",
+      "MOCK_MODEL_DEFAULTS": "1",
+      "MOCK_MODEL_PROFILES": "1",
+      "MOCK_ASSISTANT_SEARCH": "1",
+      "MOCK_RECAP_LONG": "1",
+      "MOCK_RECENT_FILES": "1"
+    },
+    "separatelyStartedNativeInstances": true,
+    "signedContexts": [
+      "MacBook/PR42",
+      "main/ix_photos position 1 of 5"
+    ]
+  },
+  "visualHapSHA256": "baa945b9aa0499e1a3c8af0fa1b3e5eb32c99db237ea11559b4d22805876b640",
+  "publicStates": {
+    "light-glass": {
+      "nativeSetting": "settings.appearance.style.glass",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#FFFFFF",
+          "iPhonePageFill": "#FFFFFF",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#EBF4FF",
+          "harmonyRecapFill": "#EBF5FF",
+          "iPhone": {
+            "pngSHA256": "b88d5446f7ebd913824be3a37d62ab47b5ab47ba22b4b5e0efeff9be9d25cd2a",
+            "treeSHA256": "2d4b1b1dab1f4ecfe66e77535a1fefd16b3db1c0b97a562d99fe9c8896383ed8"
+          },
+          "harmony": {
+            "pngSHA256": "c1fbc54f0e3f479680504d63ba75c8bc86d62b0b7bcd28440a605ce0c496ca0f",
+            "treeSHA256": "928f4b2792c3ee806d72d50ba947e026bd7a8c23c2bdcb6846e80bddbe9dd072"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            1016,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "f9437a7c752b169f30e8df48bf280ae61ae770d95a0a1c4fdbf840d883c4b1e0",
+            "treeSHA256": "b8eb3a3e7889eb1342ddbfcaba5d47dc4c0c4d8acec766f5943b56a5ecc9d1fe"
+          },
+          "harmony": {
+            "pngSHA256": "e09e1cf9758314c03cc7c1fd834cf98daafdcee4f3ba92064dbc12bba2c84315",
+            "treeSHA256": "dc0f735f8487a2c53d5d7411e218a83556acd118494ffbb16c985babff6d7fc7"
+          },
+          "live": {
+            "pngSHA256": "d1af579c600bd39c2e36355cead0e7e0e97134a462538a254be254019d9ece64",
+            "treeSHA256": "968c73799050a29a7eb766ed2313ae642a6dd2dd9dc8d7ff03049fd4ba52ce4b"
+          }
+        }
+      }
+    },
+    "light-clay": {
+      "nativeSetting": "settings.appearance.style.clay",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#EFEAF7",
+          "iPhonePageFill": "#EFEAF7",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#E6DEF7",
+          "harmonyRecapFill": "#E6DFF7",
+          "iPhone": {
+            "pngSHA256": "4b4f7a3e1c372ff58a272a7bd57a330df57c8f0331a35db8a50fe253e6a284d8",
+            "treeSHA256": "5320e1c60a6fd5e79d329c9934d103a01d7834fcef033696161d406ee37325ff"
+          },
+          "harmony": {
+            "pngSHA256": "67f5a570fd5c8c5207c9f4376473570ffce1b4e00ced880ac3b0899e45cc9d2e",
+            "treeSHA256": "b4672d038a6a3158911e2f39ee17cbbaa4aba1369b0487343274e506a94fe9d8"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            34,
+            982,
+            1172,
+            2162
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "2853852eb019eedf317ac06565248a5ea20d8accc2b0c2ad27ef902af6960f53",
+            "treeSHA256": "336f30656a8c275cdf99fbf4213e4a21224bb1279de99456c14966c042b4ca5c"
+          },
+          "harmony": {
+            "pngSHA256": "a51ed587d8bb83cd106d48476edffb033398de1ef1f094aa3496dfced2c8d6c3",
+            "treeSHA256": "af79d18afd3e2ed95064bbba7c51fe809feec0959180e01962e37c2e3818755b"
+          },
+          "live": {
+            "pngSHA256": "5489a7309160ad897c48f1fd8d1a60d548652336e62a96bbe7c9531dda760cb2",
+            "treeSHA256": "c3d9d90e8496c2616de73c1ace7076c3fa5310e4f7a2739123546fa94b1b8360"
+          }
+        }
+      }
+    },
+    "light-island": {
+      "nativeSetting": "settings.appearance.style.island",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#E6F1EF",
+          "iPhonePageFill": "#E6F1EF",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#D7E7E6",
+          "harmonyRecapFill": "#D7E7E6",
+          "iPhone": {
+            "pngSHA256": "b46c00c812188d6d3f77d2eeb7113fe1b78f8e6a1148c692463ca74be37913e6",
+            "treeSHA256": "c30a1bc2f7a31e32017b7c275ce1013136c0ce771b5fb44ffbe936211c326d8d"
+          },
+          "harmony": {
+            "pngSHA256": "e4af0f494d5bed39a03379a04b3e8ee50ba817c7936e6127a96ccd0da37cde23",
+            "treeSHA256": "53d0172a18b924f5f4004f34b96cc9665884f54f394aeed728a75c71302c2cc3"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            982,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "e5cc7e9f4e90df147429014ec02a4c3c32e493b8452fd11795f3cde8c46254fb",
+            "treeSHA256": "e2de0beb0b84e68122adf3b617522c946864e8ad34c032bd293dc1d776fadd56"
+          },
+          "harmony": {
+            "pngSHA256": "5d8b7eb02f3a19ac767e7fabef2be40870499267713447c533a290f7e8c47722",
+            "treeSHA256": "26e03628e7dc8ea9a7b1859149df6fe06ac732555eaddb6ebfcb18d03726c3ab"
+          },
+          "live": {
+            "pngSHA256": "5fb7b4ad09a0b191e7dc6360ee1664d37a34414ddf551b3464a70476d05241d8",
+            "treeSHA256": "5dd774b343ef52d492535e419ef98f98f2ec52cfecb8adb1314c1cadac568617"
+          }
+        }
+      }
+    },
+    "light-lark": {
+      "nativeSetting": "settings.appearance.style.lark",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#F5F6F7",
+          "iPhonePageFill": "#F5F6F7",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#E5EBF8",
+          "harmonyRecapFill": "#E6ECF8",
+          "iPhone": {
+            "pngSHA256": "07c5a2ce4d5ce525eb9e0f395bb775922d07cae661da2db6eaf463314ae5a01a",
+            "treeSHA256": "11f031aa05c7cd7efff4350c974fd7aeeb8eda77f67dbc91bed613e0f3052dd2"
+          },
+          "harmony": {
+            "pngSHA256": "7d444dbddfc9316a620c82f1f6d4e89f26c4fc41855bb6960e02b76960b8cbe3",
+            "treeSHA256": "56cf7e90a8c6482fec1186fea134e949cb19217dc75ac94dff7eef1169f00845"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            35,
+            992,
+            1171,
+            2161
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "894979c119240bb3013f0230188959f22d00c87eb6feb130f1657a4fa655df76",
+            "treeSHA256": "af3661c91062eff13318d3676c10fbc4b2b1b574227622f7ad3088389141b09a"
+          },
+          "harmony": {
+            "pngSHA256": "62ade9121ebe75d00410d9da709154f413579cd386e9c6054f5ecce703799980",
+            "treeSHA256": "e32971806ed0dc574a2d5b3dc00b415baff26d58841bea135bf902aecc94b6a6"
+          },
+          "live": {
+            "pngSHA256": "2445ffaf6d361b1a9788351330d9028c792217fe467b6f9ed2e9b0732b8ca12a",
+            "treeSHA256": "308ac328cde26c215d3d8ee4df1b56846402bb92052b99330f077328c9f91980"
+          }
+        }
+      }
+    },
+    "light-beautiful": {
+      "nativeSetting": "settings.appearance.style.beautiful",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1817,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#FFFFFF",
+          "iPhonePageFill": "#FFFFFF",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#EBF4FF",
+          "harmonyRecapFill": "#EBF5FF",
+          "iPhone": {
+            "pngSHA256": "ea581f46c0914f4a7348a1999d29628e4075cf3f2b1295f617f9ddb32ae07e03",
+            "treeSHA256": "8269011150f3be093faf435470c33f6b3dd0f43cbca1da34f9fe98e0eba9e222"
+          },
+          "harmony": {
+            "pngSHA256": "b6a3ab23b974dd78eb58e70e5dc1d1d8209f0d94f0873739667e062d7029b179",
+            "treeSHA256": "3eeaea1e02cd2afb11c0e5ed36d3b2e3ae9414ed85338840ffde67e95dba5bd5"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            735,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            690,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "efaafa56bc0e6345ea35c5d4f9d79c21c72ef74ece66ddfbd2944667328fd8f0",
+            "treeSHA256": "51838fde0153eb18fd06d6d6316a6529c2a74427fb0504e4ca6fae2309fc1049"
+          },
+          "harmony": {
+            "pngSHA256": "16493996313fe34c8e43673cca2d494e02b9326bdb12300dff0c19019de88a50",
+            "treeSHA256": "c5a6c9cb33239918a5e2a8e5da9452874156869f2d585efe8b41e129a4071b59"
+          },
+          "live": {
+            "pngSHA256": "26e906160840357fbc45763a677254f85baf2774b193ccf8e1e7515800a8aa17",
+            "treeSHA256": "2ab200bcf97c1d39b3ba1f19da02c650accbb257ce203f2fe50a82fff461efd0"
+          }
+        }
+      }
+    },
+    "dark-glass": {
+      "nativeSetting": "settings.appearance.style.glass",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#000000",
+          "iPhonePageFill": "#000000",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#010B14",
+          "harmonyRecapFill": "#010A14",
+          "iPhone": {
+            "pngSHA256": "d89a9858ef3a6ed2a7377df8f09ecf45185f53ba93f035dd7b056f2c29223d6f",
+            "treeSHA256": "ad862a709affab04962be8a4b3adfe6862e9015d7f970077248c6403e15274e8"
+          },
+          "harmony": {
+            "pngSHA256": "6ed0465c6d9cfab5b42d5e47b061ca66faf2bf2859f8dc1fb71cdcc7f8c929dd",
+            "treeSHA256": "9f62e24ce676991a694f71cb5f182a252df91eb6bb273b49d6cd0771ae3f2a04"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            1016,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "89a6a6efd5779b30a074196307533de174a54aba36108720994e0cdf75d6461e",
+            "treeSHA256": "eabb3dae85f218539bf748797b15ee9450baef06cbbc8c30c283b082e3a5407c"
+          },
+          "harmony": {
+            "pngSHA256": "0965afc34cdf2e16827da19d07eb8b272073703bf02a6310d28147aecad16df2",
+            "treeSHA256": "abcca873cf52674cd27c0bda26b33c2d1a902694faf726d2fb6d2d3f7ccbfbcf"
+          },
+          "live": {
+            "pngSHA256": "8fd651db2da13e6e9f97e448434b47f6389d276ff833ef3cf669f7a0fc8755e8",
+            "treeSHA256": "e9c4238e56d9895eabd6fa017e93ba0d23beb548e96852c174fa910809117721"
+          }
+        }
+      }
+    },
+    "dark-clay": {
+      "nativeSetting": "settings.appearance.style.clay",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#0A0510",
+          "iPhonePageFill": "#0A0510",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#140E22",
+          "harmonyRecapFill": "#140F21",
+          "iPhone": {
+            "pngSHA256": "8a78d6e5288d7a18e7ef106d4f2bc60cb5ba8d7f35cd159d47c882ceeceba943",
+            "treeSHA256": "a3fadbac5981df074a9552e26af60b9290eb616cb3e045cd0f1cc44034a7d7d6"
+          },
+          "harmony": {
+            "pngSHA256": "fd0f3d3c7064ce98665072ae0f56534f5382a4a11f8569e309c21fc0bee13dd1",
+            "treeSHA256": "225077507c5a9c47d6a03d7f6cfa2c5d28a670f69cd411bf686334b3ec6cd14b"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            34,
+            982,
+            1172,
+            2162
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "2b9bc26987059e0990a6ab803622090a622ad33ed922a786358ccdda9c7b0e1e",
+            "treeSHA256": "13b70fd7dd3dc8fc1b851a595cc04e4b269e7b6b4304756a9264df255971914d"
+          },
+          "harmony": {
+            "pngSHA256": "c7b51f6a849ab3f2d70cdfe3a68599cfb583d499161f1053117b4a0218206186",
+            "treeSHA256": "717ad44af4bb030487f3f95fdb83152bff2aeb0648bb4213b52d59ff88682418"
+          },
+          "live": {
+            "pngSHA256": "113ac7a7faa5d8fd8de2dba41624f41a13bf017497d6ffa3cb562e7a9efd722b",
+            "treeSHA256": "c218ad3678018e064b84930210c62bda23bae81859899319e3ff8e9371e6c644"
+          }
+        }
+      }
+    },
+    "dark-island": {
+      "nativeSetting": "settings.appearance.style.island",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#091110",
+          "iPhonePageFill": "#0A1110",
+          "pagePixelRGBDifference": [
+            -1,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#0D1C1B",
+          "harmonyRecapFill": "#0B1C1B",
+          "iPhone": {
+            "pngSHA256": "d35fa04b8521bb24187a4e95e414650a922993db9ddb76461834c16748cfcbf3",
+            "treeSHA256": "7fc899fb88afc1c17500cdce7b6e19eee23c59d730102ba5a51ead75dddf2aa4"
+          },
+          "harmony": {
+            "pngSHA256": "14ff10efb38bb53e18110d5c05aaac4044d79825d8183af3ff3ac24be5ef8aab",
+            "treeSHA256": "0b098ec917ede9a2ea50a02ee8e6a8c2f7a875f4ed39b6d109787fd5bc9dfde8"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            982,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "8c255e80031726e6bb3a241482dd6d722a0a3274a1ddb5ec0c9db88eea274a23",
+            "treeSHA256": "b69a07ee9f4f6ac34e8386ac520a38c606d09614898779f641fbf470c1acadea"
+          },
+          "harmony": {
+            "pngSHA256": "425baf9759d3e1d246926bec39238a31b7dbc46dc5b1aefc6e503ee3ced90a14",
+            "treeSHA256": "339c3a3b276d434a5989d72810c5aaa95c39f1f6573e7bcd4758fc46ca762ed9"
+          },
+          "live": {
+            "pngSHA256": "e066e5e3247305732c42b08774f6040de83d034a82ba8c8bb33aff052fa125a7",
+            "treeSHA256": "77b7cbde4947423b91f3d9f3d624194d2967571d25ac6852a9f47809edb0622d"
+          }
+        }
+      }
+    },
+    "dark-lark": {
+      "nativeSetting": "settings.appearance.style.lark",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1818,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#141414",
+          "iPhonePageFill": "#141414",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#181D27",
+          "harmonyRecapFill": "#181D26",
+          "iPhone": {
+            "pngSHA256": "653e2014802df726e11c43ffa78468c98add40dfed45a1d283337b351118a949",
+            "treeSHA256": "5c3133f5f13133431be8c2f9226770e15e4e7b1126675b852e7772df38b4782b"
+          },
+          "harmony": {
+            "pngSHA256": "ee51d7ba10396225dc0262bd2c70e21ae6192d8b3e573985dd2dd05e86242622",
+            "treeSHA256": "e69c457b9f3fb48b72ef3a230b9ae38babaa4a8527fac4ffec55c7392497a0b1"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            35,
+            992,
+            1171,
+            2161
+          ],
+          "harmonyControlPx": [
+            36,
+            1024,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "135284aad1078fdff93403dda199e3cae9c7b438ff9d40ec76511f5e3cb58f8a",
+            "treeSHA256": "997587c1887450ee1f19165073bc498f3baff857bb9c83f52b32f7e5173dbb42"
+          },
+          "harmony": {
+            "pngSHA256": "8f1a9328eb84f058b85f562ca6f518fdaa410c5882ab857b0a9bfeb07b3c1e58",
+            "treeSHA256": "1e9a1b9e3860b0e880e519ad0033c01eaa4d59200960455f89f6b3145438e468"
+          },
+          "live": {
+            "pngSHA256": "3252b679be692bba43c7cf2e0f1932b3ddf23202852efe083b8bdb29a7fc4243",
+            "treeSHA256": "afcc3f153ab8f06c4331eef41da3643ffd2b4a6ae96fb2975da3e34a1734fc35"
+          }
+        }
+      }
+    },
+    "dark-beautiful": {
+      "nativeSetting": "settings.appearance.style.beautiful",
+      "coldStartRetained": true,
+      "sameProcessSwitch": true,
+      "scenes": {
+        "agent-chat": {
+          "iPhoneControlPx": [
+            48,
+            1817,
+            1158,
+            2195
+          ],
+          "harmonyControlPx": [
+            48,
+            1828,
+            1158,
+            2201
+          ],
+          "pageFill": "#000000",
+          "iPhonePageFill": "#000000",
+          "pagePixelRGBDifference": [
+            0,
+            0,
+            0
+          ],
+          "iPhoneRecapFill": "#010B14",
+          "harmonyRecapFill": "#010A14",
+          "iPhone": {
+            "pngSHA256": "5161df69ff525055f8989d9feb14bf766af27daeedb4fc0860c5d08360b02063",
+            "treeSHA256": "82bca312fe19592b93ab9a1988626d4ec4430feb9674e30417d918ee68cb9222"
+          },
+          "harmony": {
+            "pngSHA256": "758c41088e88a481393e597e50b656ae205b17ffea2b001a777fba5b04e7e416",
+            "treeSHA256": "a5f27b2adcf0ae8104f42ee5a3aab592243ef37a761426dd1c400c9ea981c08c"
+          }
+        },
+        "persona": {
+          "iPhoneControlPx": [
+            36,
+            735,
+            1170,
+            2160
+          ],
+          "harmonyControlPx": [
+            36,
+            690,
+            1170,
+            2159
+          ],
+          "actualTrayCounts": {
+            "to-decide": {
+              "iPhone": 5,
+              "harmony": 5
+            },
+            "needs-you": {
+              "iPhone": 4,
+              "harmony": 7
+            },
+            "running": {
+              "iPhone": 15,
+              "harmony": 15
+            },
+            "finished": {
+              "iPhone": 1,
+              "harmony": 1
+            }
+          },
+          "iPhone": {
+            "pngSHA256": "fcfcfff45cc3179b86228a2224d5678b3ddfda84f72d8f60022d99dd1f88e6e2",
+            "treeSHA256": "18b8b21eaaa37527eb07a42df9deefe13d9a31443b6a897187b4ea49f47cf433"
+          },
+          "harmony": {
+            "pngSHA256": "e421e67031ef9e0b1401ee1dc9c2c8c5f65ebc90c1b69d2f84c89c70305fca81",
+            "treeSHA256": "cfc31cfbd58b0d9cd6bfee8a8ab459494177a0c361962b91f9ac30375ca617bc"
+          },
+          "live": {
+            "pngSHA256": "f4d5c40075f797b3ca771b23ea762b922a5e8c738488fcb3059c1f861fb3dd3b",
+            "treeSHA256": "fbfc2a7d9e70bd305ca12dc9c4b296c7e0bdfb85bcec2227eb91d7637fedb18b"
+          }
+        }
+      }
+    }
+  }
+}

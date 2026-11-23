@@ -1,0 +1,333 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "61b3de2ebb9efd800a149d36457fc9c522adf5092f94f9615fc082f8d183d587",
+  "originalNativePNGSHA256": "d20850c38f7cf0e2b4f9baf540b463d6222edc4ea5002bd05976564544f75239",
+  "screenPNG": "screens/iphone/ordinary/ordinary-expanded-plan.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        288.0,
+        359.7,
+        50.0,
+        44.0
+      ],
+      "identifier": "action-tray.board"
+    },
+    {
+      "role": "Button",
+      "label": "关闭",
+      "boundsLogicalPoints": [
+        346.0,
+        359.7,
+        44.0,
+        44.0
+      ],
+      "identifier": "action-tray.close"
+    },
+    {
+      "role": "StaticText",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        24.0,
+        373.8,
+        51.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "普通对话的独立审批、需要你",
+      "boundsLogicalPoints": [
+        12.0,
+        403.7,
+        378.0,
+        36.3
+      ],
+      "identifier": "action-tray.ask"
+    },
+    {
+      "role": "Image",
+      "label": "阻止",
+      "boundsLogicalPoints": [
+        27.3,
+        415.0,
+        10.3,
+        13.7
+      ],
+      "identifier": "hand.raised"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的独立审批",
+      "boundsLogicalPoints": [
+        48.0,
+        411.7,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "需要你",
+      "boundsLogicalPoints": [
+        321.7,
+        414.0,
+        39.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "前进",
+      "boundsLogicalPoints": [
+        371.0,
+        416.7,
+        6.3,
+        10.7
+      ],
+      "identifier": "chevron.right"
+    },
+    {
+      "role": "Button",
+      "label": "普通对话的原生计划、计划",
+      "boundsLogicalPoints": [
+        12.0,
+        440.0,
+        378.0,
+        36.3
+      ],
+      "identifier": "action-tray.row.open"
+    },
+    {
+      "role": "Image",
+      "label": "剪贴板上的列表",
+      "boundsLogicalPoints": [
+        27.0,
+        450.7,
+        10.3,
+        15.3
+      ],
+      "identifier": "list.clipboard"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的原生计划",
+      "boundsLogicalPoints": [
+        48.0,
+        448.0,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "计划",
+      "boundsLogicalPoints": [
+        330.7,
+        450.3,
+        26.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "向下移动",
+      "boundsLogicalPoints": [
+        366.0,
+        455.0,
+        10.7,
+        6.3
+      ],
+      "identifier": "chevron.down"
+    },
+    {
+      "role": "Image",
+      "label": "剪贴板上的列表",
+      "boundsLogicalPoints": [
+        37.7,
+        493.3,
+        11.3,
+        16.7
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "这样开",
+      "boundsLogicalPoints": [
+        37.7,
+        493.3,
+        60.0,
+        17.1
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的原生计划",
+      "boundsLogicalPoints": [
+        36.0,
+        523.0,
+        151.7,
+        20.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "Image",
+      "label": "笔记本电脑",
+      "boundsLogicalPoints": [
+        45.3,
+        556.0,
+        17.7,
+        10.0
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook",
+      "boundsLogicalPoints": [
+        68.3,
+        553.8,
+        53.7,
+        14.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "Image",
+      "label": "移动",
+      "boundsLogicalPoints": [
+        143.3,
+        555.3,
+        13.7,
+        11.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "weather",
+      "boundsLogicalPoints": [
+        162.3,
+        553.8,
+        47.0,
+        14.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "Image",
+      "label": "Cpu芯片",
+      "boundsLogicalPoints": [
+        230.7,
+        554.7,
+        12.3,
+        12.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "gpt-5.5",
+      "boundsLogicalPoints": [
+        248.3,
+        553.8,
+        43.3,
+        14.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "允许编辑",
+      "boundsLogicalPoints": [
+        44.0,
+        577.2,
+        48.0,
+        14.3
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "PR #42 在 weather 仓库；review 类的活你常用 Codex。",
+      "boundsLogicalPoints": [
+        36.0,
+        602.0,
+        324.7,
+        15.7
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "Button",
+      "label": "这些目录及子目录以后直接开",
+      "boundsLogicalPoints": [
+        36.0,
+        629.7,
+        191.0,
+        15.7
+      ],
+      "identifier": "action-tray.plan"
+    },
+    {
+      "role": "StaticText",
+      "label": "这些目录及子目录以后直接开",
+      "boundsLogicalPoints": [
+        36.0,
+        629.7,
+        191.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "圆形",
+      "boundsLogicalPoints": [
+        37.0,
+        631.0,
+        13.0,
+        13.0
+      ],
+      "identifier": "circle"
+    },
+    {
+      "role": "Button",
+      "label": "开始",
+      "boundsLogicalPoints": [
+        28.0,
+        681.7,
+        197.3,
+        34.3
+      ],
+      "identifier": "action-tray.plan-actions"
+    },
+    {
+      "role": "Button",
+      "label": "改一下",
+      "boundsLogicalPoints": [
+        233.3,
+        681.7,
+        74.7,
+        34.3
+      ],
+      "identifier": "action-tray.plan-actions"
+    },
+    {
+      "role": "Button",
+      "label": "不开",
+      "boundsLogicalPoints": [
+        316.0,
+        681.7,
+        58.0,
+        34.3
+      ],
+      "identifier": "action-tray.plan-actions"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "source": "449ae5876bd4cfb4b552d0f84d57904cad2e7b86",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "cfa8491783670985fed9d18dc91fb6935cee2660f6a79155ff83d1e59f05cc8a",
+  "originalNativePNGSHA256": "07bb9659e2e2a2bc4c66add6942d0468708b77703cba2534f4a22dca40a06c51",
+  "screenPNG": "screens/harmony/large/done-tray.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "已完成",
+      "boundsLogicalPoints": [
+        24.33,
+        596.33,
+        243.33,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "全部",
+      "boundsLogicalPoints": [
+        275.67,
+        593.33,
+        62.0,
+        28.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "统一连接器 logo 尺寸",
+      "boundsLogicalPoints": [
+        46.33,
+        636.33,
+        240.67,
+        27.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "已完成",
+      "boundsLogicalPoints": [
+        295.0,
+        638.67,
+        57.0,
+        22.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "已合并 PR 并发了 TestFlight",
+      "boundsLogicalPoints": [
+        46.33,
+        665.33,
+        305.67,
+        22.67
+      ]
+    }
+  ]
+}

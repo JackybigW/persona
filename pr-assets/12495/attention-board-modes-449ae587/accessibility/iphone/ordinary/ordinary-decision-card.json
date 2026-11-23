@@ -1,0 +1,585 @@
+{
+  "source": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "platform": "iphone",
+  "originalNativeTreeSHA256": "8ee6e19873bdc861a5cc24c5eb65eb16fe0ff8d5ffadb15222919d3b2fd66941",
+  "originalNativePNGSHA256": "d91899cdf48b6fa741b76c19eb7796154b2eea500c5b6f788a9d7309f0a2d155",
+  "screenPNG": "screens/iphone/ordinary/ordinary-decision-card.png",
+  "controls": [
+    {
+      "role": "Button",
+      "label": "历史对话",
+      "boundsLogicalPoints": [
+        16.0,
+        64.0,
+        48.3,
+        48.3
+      ],
+      "identifier": "assistant-sidebar-button"
+    },
+    {
+      "role": "Button",
+      "label": "助手",
+      "boundsLogicalPoints": [
+        122.0,
+        68.0,
+        79.0,
+        39.7
+      ],
+      "identifier": "shell-assistant"
+    },
+    {
+      "role": "StaticText",
+      "label": "助手",
+      "boundsLogicalPoints": [
+        122.0,
+        68.0,
+        79.0,
+        39.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "Agents",
+      "boundsLogicalPoints": [
+        201.0,
+        68.0,
+        79.0,
+        39.7
+      ],
+      "identifier": "shell-agents"
+    },
+    {
+      "role": "StaticText",
+      "label": "3 个需要你",
+      "boundsLogicalPoints": [
+        266.7,
+        62.0,
+        21.3,
+        21.0
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "新对话",
+      "boundsLogicalPoints": [
+        337.7,
+        64.0,
+        48.3,
+        48.3
+      ],
+      "identifier": "assistant-new"
+    },
+    {
+      "role": "StaticText",
+      "label": "今天 · 11月23日 周一",
+      "boundsLogicalPoints": [
+        139.0,
+        62.7,
+        124.0,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "⏰ 早报",
+      "boundsLogicalPoints": [
+        308.7,
+        110.3,
+        61.3,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "早上好！今天 2 个会议，3 封邮件需要回复。",
+      "boundsLogicalPoints": [
+        16.0,
+        158.7,
+        370.0,
+        44.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "剪贴板上的列表",
+      "boundsLogicalPoints": [
+        33.7,
+        236.0,
+        11.3,
+        16.7
+      ],
+      "identifier": "list.clipboard"
+    },
+    {
+      "role": "StaticText",
+      "label": "这样开",
+      "boundsLogicalPoints": [
+        33.7,
+        236.0,
+        60.0,
+        17.1
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的原生计划",
+      "boundsLogicalPoints": [
+        32.0,
+        265.7,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "笔记本电脑",
+      "boundsLogicalPoints": [
+        41.3,
+        298.7,
+        17.7,
+        10.0
+      ],
+      "identifier": "laptopcomputer"
+    },
+    {
+      "role": "StaticText",
+      "label": "MacBook",
+      "boundsLogicalPoints": [
+        64.3,
+        296.5,
+        53.7,
+        14.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "移动",
+      "boundsLogicalPoints": [
+        139.3,
+        298.0,
+        13.7,
+        11.3
+      ],
+      "identifier": "folder"
+    },
+    {
+      "role": "StaticText",
+      "label": "weather",
+      "boundsLogicalPoints": [
+        158.3,
+        296.5,
+        47.0,
+        14.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "Cpu芯片",
+      "boundsLogicalPoints": [
+        226.7,
+        297.7,
+        12.3,
+        12.3
+      ],
+      "identifier": "cpu"
+    },
+    {
+      "role": "StaticText",
+      "label": "gpt-5.5",
+      "boundsLogicalPoints": [
+        244.3,
+        296.5,
+        43.3,
+        14.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "允许编辑",
+      "boundsLogicalPoints": [
+        307.7,
+        296.5,
+        48.0,
+        14.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "PR #42 在 weather 仓库；review 类的活你常用 Codex。",
+      "boundsLogicalPoints": [
+        32.0,
+        321.3,
+        324.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "这些目录及子目录以后直接开",
+      "boundsLogicalPoints": [
+        32.0,
+        349.0,
+        191.0,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "这些目录及子目录以后直接开",
+      "boundsLogicalPoints": [
+        32.0,
+        349.0,
+        191.0,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "圆形",
+      "boundsLogicalPoints": [
+        33.0,
+        350.3,
+        13.0,
+        13.0
+      ],
+      "identifier": "circle"
+    },
+    {
+      "role": "Button",
+      "label": "开始",
+      "boundsLogicalPoints": [
+        32.0,
+        376.7,
+        189.3,
+        34.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "改一下",
+      "boundsLogicalPoints": [
+        229.3,
+        376.7,
+        74.7,
+        34.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "不开",
+      "boundsLogicalPoints": [
+        312.0,
+        376.7,
+        58.0,
+        34.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "卡片高度",
+      "boundsLogicalPoints": [
+        20.0,
+        467.0,
+        362.0,
+        32.0
+      ],
+      "identifier": "interaction-grabber"
+    },
+    {
+      "role": "Button",
+      "label": "跳过",
+      "boundsLogicalPoints": [
+        228.0,
+        483.0,
+        44.0,
+        44.0
+      ],
+      "identifier": "question-skip-unavailable"
+    },
+    {
+      "role": "Image",
+      "label": "剪贴板上的项目符号列表，实心",
+      "boundsLogicalPoints": [
+        29.3,
+        497.3,
+        10.3,
+        15.3
+      ],
+      "identifier": "list.bullet.clipboard.fill"
+    },
+    {
+      "role": "StaticText",
+      "label": "计划等你审批",
+      "boundsLogicalPoints": [
+        47.0,
+        497.8,
+        71.7,
+        14.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "全屏查看计划",
+      "boundsLogicalPoints": [
+        278.0,
+        491.0,
+        28.0,
+        28.0
+      ],
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "role": "Button",
+      "label": "更多",
+      "boundsLogicalPoints": [
+        312.0,
+        491.0,
+        28.0,
+        28.0
+      ],
+      "identifier": "interaction-menu"
+    },
+    {
+      "role": "Image",
+      "label": "更多",
+      "boundsLogicalPoints": [
+        312.0,
+        491.0,
+        28.0,
+        28.0
+      ],
+      "identifier": "ellipsis"
+    },
+    {
+      "role": "Button",
+      "label": "收起",
+      "boundsLogicalPoints": [
+        346.0,
+        491.0,
+        28.0,
+        28.0
+      ],
+      "identifier": "question-dock.collapse"
+    },
+    {
+      "role": "StaticText",
+      "label": "这是计划审批，不能跳过：不想按这个计划做就打回。",
+      "boundsLogicalPoints": [
+        28.0,
+        521.0,
+        303.7,
+        15.7
+      ],
+      "identifier": "interaction-no-skip"
+    },
+    {
+      "role": "StaticText",
+      "label": "普通对话的独立审批",
+      "boundsLogicalPoints": [
+        28.0,
+        548.7,
+        151.7,
+        20.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "检查合成样本文字。",
+      "boundsLogicalPoints": [
+        28.0,
+        575.0,
+        143.7,
+        20.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "批准并自动执行",
+      "boundsLogicalPoints": [
+        28.0,
+        607.3,
+        346.0,
+        50.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "批准并自动执行",
+      "boundsLogicalPoints": [
+        28.0,
+        607.3,
+        346.0,
+        50.3
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "播放",
+      "boundsLogicalPoints": [
+        132.7,
+        625.7,
+        12.7,
+        14.0
+      ],
+      "identifier": "play.fill"
+    },
+    {
+      "role": "Button",
+      "label": "自动接受编辑",
+      "boundsLogicalPoints": [
+        28.0,
+        669.7,
+        169.0,
+        34.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "打回",
+      "boundsLogicalPoints": [
+        205.0,
+        669.7,
+        169.0,
+        34.3
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "待选择、1",
+      "boundsLogicalPoints": [
+        16.0,
+        740.0,
+        94.7,
+        27.7
+      ],
+      "identifier": "action-bar.to-decide"
+    },
+    {
+      "role": "StaticText",
+      "label": "待选择",
+      "boundsLogicalPoints": [
+        28.0,
+        746.0,
+        39.0,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "1",
+      "boundsLogicalPoints": [
+        71.0,
+        746.0,
+        8.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Image",
+      "label": "向下移动",
+      "boundsLogicalPoints": [
+        85.3,
+        750.7,
+        11.7,
+        6.7
+      ],
+      "identifier": "chevron.down"
+    },
+    {
+      "role": "Button",
+      "label": "要你处理、2",
+      "boundsLogicalPoints": [
+        118.7,
+        740.0,
+        88.3,
+        27.7
+      ],
+      "identifier": "action-bar.needs-you"
+    },
+    {
+      "role": "StaticText",
+      "label": "要你处理",
+      "boundsLogicalPoints": [
+        130.7,
+        746.0,
+        51.7,
+        15.7
+      ]
+    },
+    {
+      "role": "StaticText",
+      "label": "2",
+      "boundsLogicalPoints": [
+        186.3,
+        746.0,
+        8.7,
+        15.7
+      ]
+    },
+    {
+      "role": "Button",
+      "label": "进行中",
+      "boundsLogicalPoints": [
+        215.0,
+        740.0,
+        63.0,
+        27.7
+      ],
+      "identifier": "action-bar.running"
+    },
+    {
+      "role": "Button",
+      "label": "添加照片或文件",
+      "boundsLogicalPoints": [
+        16.0,
+        781.7,
+        48.3,
+        48.3
+      ],
+      "identifier": "shell-composer-add"
+    },
+    {
+      "role": "Image",
+      "label": "添加",
+      "boundsLogicalPoints": [
+        16.0,
+        781.7,
+        48.3,
+        48.3
+      ],
+      "identifier": "plus"
+    },
+    {
+      "role": "Button",
+      "label": "听写",
+      "boundsLogicalPoints": [
+        337.7,
+        781.7,
+        48.3,
+        48.3
+      ],
+      "identifier": "shell-composer-mic"
+    },
+    {
+      "role": "Image",
+      "label": "麦克风",
+      "boundsLogicalPoints": [
+        337.7,
+        781.7,
+        48.3,
+        48.3
+      ],
+      "identifier": "mic"
+    },
+    {
+      "role": "StaticText",
+      "label": "问 Persona",
+      "boundsLogicalPoints": [
+        72.3,
+        794.3,
+        92.3,
+        23.0
+      ]
+    }
+  ]
+}

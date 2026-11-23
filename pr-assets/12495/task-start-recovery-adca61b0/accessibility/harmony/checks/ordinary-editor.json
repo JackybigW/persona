@@ -1,0 +1,230 @@
+{
+  "source": "adca61b014d4a3476255c733504e07c3ec52f747",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "4d929357fec932df2b3e78f0629e2f72e148c5b00d720b94b20e89c02e8f6d8d",
+  "originalNativePNGSHA256": "4a210fd648e2ab197f4eef5d1298a1af50884af2ef02167e1fcf757f496095a9",
+  "screenPNG": "screens/harmony/checks/ordinary-editor.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "设置页按钮对齐",
+      "boundsLogicalPoints": [
+        66.0,
+        77.0,
+        270.0,
+        20.0
+      ]
+    },
+    {
+      "role": "TextInput",
+      "label": "设置页按钮对齐",
+      "boundsLogicalPoints": [
+        36.0,
+        170.0,
+        330.0,
+        28.0
+      ],
+      "identifier": "todo.detail.title"
+    },
+    {
+      "role": "Text",
+      "label": "没开起来",
+      "boundsLogicalPoints": [
+        36.0,
+        204.0,
+        66.33,
+        19.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "·",
+      "boundsLogicalPoints": [
+        108.33,
+        206.0,
+        6.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "0 个 Agent",
+      "boundsLogicalPoints": [
+        121.0,
+        206.0,
+        63.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "·",
+      "boundsLogicalPoints": [
+        190.33,
+        206.0,
+        6.67,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "10 分钟前创建",
+      "boundsLogicalPoints": [
+        203.0,
+        206.0,
+        83.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "rpc: connection closed",
+      "boundsLogicalPoints": [
+        36.0,
+        229.33,
+        144.0,
+        16.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "截止时间",
+      "boundsLogicalPoints": [
+        76.0,
+        311.67,
+        211.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "提醒我",
+      "boundsLogicalPoints": [
+        76.0,
+        364.0,
+        211.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "优先级",
+      "boundsLogicalPoints": [
+        76.0,
+        416.33,
+        220.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "普通",
+      "boundsLogicalPoints": [
+        308.67,
+        416.33,
+        34.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "项目",
+      "boundsLogicalPoints": [
+        76.0,
+        468.67,
+        203.67,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "不归类",
+      "boundsLogicalPoints": [
+        291.67,
+        468.67,
+        51.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "说明",
+      "boundsLogicalPoints": [
+        32.0,
+        546.67,
+        302.0,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "设置页底部两个按钮和上面的列表对齐。",
+      "boundsLogicalPoints": [
+        32.0,
+        578.33,
+        338.0,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "来源会话",
+      "boundsLogicalPoints": [
+        28.0,
+        645.0,
+        64.33,
+        18.67
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "完成",
+      "boundsLogicalPoints": [
+        195.0,
+        799.0,
+        34.33,
+        20.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "08",
+      "boundsLogicalPoints": [
+        16.0,
+        11.0,
+        18.0,
+        17.67
+      ]
+    },
+    {
+      "role": "Text",
+      "label": ":",
+      "boundsLogicalPoints": [
+        34.0,
+        12.33,
+        4.33,
+        15.0
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "06",
+      "boundsLogicalPoints": [
+        38.33,
+        11.0,
+        18.0,
+        17.67
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "100",
+      "boundsLogicalPoints": [
+        360.67,
+        13.33,
+        20.0,
+        13.0
+      ]
+    }
+  ]
+}
