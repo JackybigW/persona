@@ -1,6 +1,6 @@
 // UI version 11's interactive scene, loaded only with the first scene. Canvas draws the extension's geometry; DOM
 // buttons provide accessible pins and design-system controls. Camera state is scoped by extension owner and item key.
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { t } from "../../i18n";
 import { useCloseOnBack } from "../../lib/back-close";
@@ -10,6 +10,7 @@ import { hue } from "../../lib/extension-ui-v6";
 import type { ScenePin } from "../../lib/extension-wire";
 import { cx, IconButton, Spinner } from "../../ui/atoms";
 import { Icon } from "../../ui/icons";
+import { useDark } from "../../ui/use-dark";
 import { useEscapeClose, useModalFocus } from "../../ui/overlay";
 import { glyphOf } from "./ViewBody6";
 import { ROW_ICON } from "./ViewBody";
@@ -51,12 +52,7 @@ interface ViewProps {
 function SceneView({ item, camera, interactive, busy, onPress, canPress, onCamera, onReset, full, onFull, opener }: ViewProps) {
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  // Local to this lazy chunk: importing ui/use-dark would split App's copy into another cold request.
-  const dark = useSyncExternalStore((on) => {
-    const observer = new MutationObserver(on);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, () => document.documentElement.classList.contains("dark"), () => false);
+  const dark = useDark();
   const [size, setSize] = useState({ w: 800, h: interactive ? 450 : 200 });
   const shapes = item.shapes ?? [];
   const shapeKey = JSON.stringify(shapes);
@@ -115,7 +111,7 @@ function SceneView({ item, camera, interactive, busy, onPress, canPress, onCamer
   const placedPins = pins.map((pin) => ({ pin, at: project(pin.at[0], pin.at[1], pin.height ?? 0) }));
   const minPinDepth = Math.min(...placedPins.map(({ at }) => at.depth));
   const controlButtons = interactive && (
-    <div className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-line bg-surface p-1 shadow-card" style={{ zIndex: 100 }}>
+    <div className="absolute right-3 bottom-3 z-[100] flex items-center gap-0.5 rounded-full border border-line bg-surface p-1 shadow-card">
       <IconButton icon="minus" label={t("extensions-viewbody.graph_zoom_out")} size={32} onClick={() => zoom(0.8)} />
       <IconButton icon="plus" label={t("extensions-viewbody.graph_zoom_in")} size={32} onClick={() => zoom(1.25)} />
       <IconButton icon="fit" label={t("extensions-viewbody.scene_reset")} size={32} onClick={onReset} />
@@ -187,8 +183,8 @@ function SceneView({ item, camera, interactive, busy, onPress, canPress, onCamer
           const common = {
             "data-scene-pin": pin.id,
             "aria-label": label,
-            className: "touch-hit absolute z-[2] flex max-w-44 items-center gap-1.5 rounded-full border border-line bg-surface px-2 py-1 text-left text-submeta whitespace-nowrap text-ink shadow-card disabled:opacity-60",
-            style: { left: clamp(at.x, 90, Math.max(90, size.w - 90)), top: clamp(at.y, 44, Math.max(44, size.h - 12)), transform: "translate(-50%, -100%)", zIndex: 2 + Math.round((at.depth - minPinDepth) * 100) },
+            className: "touch-hit absolute z-[2] flex max-w-44 -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-full border border-line bg-surface px-2 py-1 text-left text-submeta whitespace-nowrap text-ink shadow-card disabled:opacity-60",
+            style: { left: clamp(at.x, 90, Math.max(90, size.w - 90)), top: clamp(at.y, 44, Math.max(44, size.h - 12)), zIndex: 2 + Math.round((at.depth - minPinDepth) * 100) },
           } as const;
           return action ? (
             <button key={pin.id} type="button" {...common} aria-busy={busy === action.id || undefined} disabled={(!!busy && busy !== action.id) || (canPress ? !canPress(action) : false)} onClick={() => onPress(action)}>{content}</button>

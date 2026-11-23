@@ -735,7 +735,7 @@ function drawable(it: unknown): it is UIItem {
     case "graph":
       return Array.isArray(it.nodes) && it.nodes.some((n: Record<string, unknown>) => isObject(n) && typeof n.id === "string" && typeof n.title === "string" && !!n.title);
     case "scene":
-      return typeof it.alt === "string" && !!it.alt && Array.isArray(it.shapes) && !!it.shapes.length;
+      return typeof it.alt === "string" && !!it.alt && Array.isArray(it.shapes) && it.shapes.length > 0;
     default:
       return true;
   }

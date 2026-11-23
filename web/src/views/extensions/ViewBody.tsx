@@ -24,7 +24,7 @@ import { Button, cx, EASE, Loading, Spinner } from "../../ui/atoms";
 import { Icon, type IconName } from "../../ui/icons";
 import { Switch } from "../settings/SettingsParts";
 import { ChartFrame, LABEL_H, plotHeight } from "./ChartFrame";
-import { ExtensionChart, SceneCanvas } from "./view-sections-lazy";
+import { ExtensionChart, GraphCanvas, SceneCanvas } from "./view-sections-lazy";
 import { NEW_ICON_GLYPH } from "./icon-map";
 import { SegmentedTrack } from "../../ui/Segmented";
 import { colorOf, hue, hueTint } from "../../lib/extension-ui-v6";
@@ -48,16 +48,8 @@ const DiffView = lazyPage(() => import("./DiffReview").then((m) => m.DiffView));
 // Loading meanwhile; ViewBody8 then draws it through ViewSections again, with its own head for the sections.
 const Sections8 = lazyPage<ViewHandlers & { view: UIView; embedded?: boolean; compact?: boolean }>(() => import("./ViewBody8").then((m) => m.Sections8));
 
-// Graph and scene canvases have separate on-demand chunks. Their shared fallback keeps a compact card's 200 px preview
-// height while the chunk arrives.
-export type CanvasProps = {
-  item: UIItem;
-  compact?: boolean;
-  busy: string;
-  onPress: (a: UIAction, destructive?: boolean) => void;
-  canPress?: (a: UIAction) => boolean;
-};
-const GraphCanvas = lazyPage<CanvasProps>(() => import("./ViewBody10").then((m) => m.GraphCanvas));
+// Graph and scene canvases have separate on-demand chunks, registered in view-sections-lazy.tsx. Their shared fallback
+// keeps a compact card's 200 px preview height while the chunk arrives.
 
 function CodeItem({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
