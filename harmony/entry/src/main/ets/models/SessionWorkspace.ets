@@ -545,7 +545,7 @@ export class SessionWorkspace {
 
   crumbs(): FolderCrumb[] {
     const machine=this.model?.machines.find((row:ResourceRow) => row.id === this.machineId);
-    return folderCrumbs(this.currentPath,machine ? Wire.text(machine.data(),'home') : '');
+    return folderCrumbs(this.currentPath,machine ? Wire.text(machine.data(),'home') : '',this.cwd);
   }
 
   fileGitMark(entry:WorkspaceEntry):string {

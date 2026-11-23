@@ -281,6 +281,20 @@ test('file transfer follows late capabilities of the captured connection and imm
 
 const {folderCrumbs,parentFolder,indexWorkspaceFiles,findWorkspaceFiles,patchLines}=await import('../entry/src/main/ets/models/WorkspaceBrowser.ets');
 
+test('each reachable breadcrumb keeps its own path, including the session directory when browsing deeper',()=>{
+  const root='/Users/me',session=root+'/code/weather';
+  const flags=(list)=>list.map(c=>[c.path,c.home,c.current,c.session]);
+  assert.deepEqual(flags(folderCrumbs(session,root,session)),[
+    [root,true,false,false],[root+'/code',false,false,false],[session,false,true,true]
+  ]);
+  const sub=folderCrumbs(session+'/Sources',root,session+'/');
+  assert.deepEqual(flags(sub).slice(-2),[[session,false,false,true],[session+'/Sources',false,true,false]]);
+  assert.equal(folderCrumbs('/Users/meal/code',root,session).some(c=>c.home||c.session),false);
+  assert.deepEqual(flags(folderCrumbs('C:\\Users\\me\\repo\\src','C:\\Users\\me','c:\\Users\\me\\Repo'))[1],['C:\\Users\\me\\repo',false,false,true]);
+  assert.deepEqual(flags(folderCrumbs('\\\\host\\share\\code','','\\\\host\\share'))[0],['\\\\host\\share',false,false,true]);
+  assert.equal(folderCrumbs('/etc','',session)[0].home,false);
+});
+
 test('folder history traverses above the session folder, clears stale rows and invalidates forward on a new branch',async()=>{
   const {workspace,state}=fixture();
   await waitForTurn();

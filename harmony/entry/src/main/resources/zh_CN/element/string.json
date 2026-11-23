@@ -5881,6 +5881,14 @@
       "value": "下一个文件夹"
     },
     {
+      "name": "file_crumb_home",
+      "value": "个人文件夹"
+    },
+    {
+      "name": "file_crumb_session",
+      "value": "会话"
+    },
+    {
       "name": "session_enter_path",
       "value": "前往路径"
     },

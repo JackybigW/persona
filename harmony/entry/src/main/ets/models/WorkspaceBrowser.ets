@@ -1,11 +1,14 @@
 export class FolderCrumb {
   title: string;
   path: string;
+  home: boolean = false;
+  current: boolean = false;
+  session: boolean = false;
   constructor(title:string, path:string) { this.title=title; this.path=path; }
 }
 
 /** Keep the server's path syntax, including Windows drive roots and UNC shares. */
-export function folderCrumbs(path:string, home:string = ''):FolderCrumb[] {
+export function folderCrumbs(path:string, home:string = '', session:string = ''):FolderCrumb[] {
   if (!path) return [];
   const windows = /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\');
   const separator = windows && path.includes('\\') ? '\\' : '/';
@@ -16,8 +19,8 @@ export function folderCrumbs(path:string, home:string = ''):FolderCrumb[] {
     root=homePath; label='~'; rest=value.slice(root.length);
   } else if (windows && value.startsWith('//')) {
     const parts=value.slice(2).split('/').filter((s:string) => !!s);
-    if (parts.length<2) return [new FolderCrumb(path,path)];
-    root='//'+parts.slice(0,2).join('/'); label=parts[1]; rest=value.slice(root.length);
+    root=parts.length<2 ? value : '//'+parts.slice(0,2).join('/');
+    label=parts.length<2 ? path : parts[1]; rest=value.slice(root.length);
   } else if (windows && /^[A-Za-z]:\//.test(value)) {
     root=value.slice(0,3); label=root; rest=value.slice(3);
   } else if (value.startsWith('/')) {
@@ -30,6 +33,18 @@ export function folderCrumbs(path:string, home:string = ''):FolderCrumb[] {
   for (const component of rest.split('/').filter((s:string) => !!s)) {
     root = root.endsWith('/') || !root ? root+component : root+'/'+component;
     result.push(new FolderCrumb(component,restore(root)));
+  }
+  if (result.length) {
+    result[0].home=label==='~';
+    result[result.length-1].current=true;
+  }
+  const pathKey=(p:string):string => {
+    const value=clean(p).replace(/\/+$/,'');
+    return windows ? value.toLowerCase() : value;
+  };
+  if (session) {
+    const cwd=pathKey(session);
+    result.forEach((part:FolderCrumb) => { part.session=pathKey(part.path)===cwd; });
   }
   return result;
 }

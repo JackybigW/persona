@@ -276,6 +276,10 @@ export struct SessionTools {
   }
 
   @Computed get pathCrumbs():FolderCrumb[] { return this.workspace.crumbs(); }
+  @Computed get filePathIdentity():string {
+    return JSON.stringify([this.model.scope(),this.workspace.currentTarget(),this.workspace.currentPath,this.workspace.cwd]);
+  }
+  @Computed get fileNavigationHeight():number { return PhoneStyle.formSize(44,53.3,nativeEnvironment.fontScale); }
   @Computed get shownFileRows():BoundRow<WorkspaceEntry>[] {
     return this.fileRowBindings.filter((binding:BoundRow<WorkspaceEntry>) => this.showHidden || !binding.value.name.startsWith('.'));
   }
@@ -677,6 +681,7 @@ export struct SessionTools {
   @Builder fileMenu() {
     Menu() {
       MenuItem({content:tr('session_enter_path')}).onClick(() => this.editFolder())
+      MenuItem({content:tr('project_copy_path')}).onClick(() => this.copyText(this.workspace.currentPath))
       MenuItem({content:tr('session_project_folder')}).onClick(() => this.goFolder(this.workspace.cwd))
       MenuItem({content:tr('session_show_hidden')}).selected(this.showHidden).selectIcon(true).onClick(() => this.showHidden=!this.showHidden)
       MenuItem({ content: tr('refresh') }).onClick(() => this.refreshFolder())
@@ -785,32 +790,65 @@ export struct SessionTools {
       },(crumb:FolderCrumb) => crumb.path)
       MenuItem({content:tr('session_project_folder')}).onClick(() => this.goFolder(this.workspace.cwd))
       MenuItem({content:tr('session_enter_path')}).onClick(() => this.editFolder())
+      MenuItem({content:tr('project_copy_path')}).onClick(() => this.copyText(this.workspace.currentPath))
     }
+  }
+  @Builder folderBreadcrumb(crumb:FolderCrumb, owner:string) {
+    Button({type:ButtonType.Normal}) {
+      Row({space:4}) {
+        if (crumb.home) {
+          SymbolGlyph($r('sys.symbol.house')).fontSize(Tokens.interfaceFontVp(15,nativeEnvironment.fontScale))
+            .fontColor([crumb.current ? Colors.ink : Colors.secondary])
+        } else {
+          Text(crumb.title).fontSize(Tokens.interfaceFontVp(13,nativeEnvironment.fontScale))
+            .fontWeight(crumb.current ? FontWeight.Bold : FontWeight.Regular)
+            .fontColor(crumb.current ? Colors.ink : Colors.secondary).maxLines(1)
+        }
+        if (crumb.session) {
+          Text(tr('file_crumb_session')).fontSize(Tokens.interfaceFontVp(11,nativeEnvironment.fontScale))
+            .fontWeight(FontWeight.Medium).fontColor(Colors.link).padding({left:5,right:5})
+            .backgroundColor(Colors.accentWell).borderRadius(Tokens.capsule).maxLines(1)
+        }
+      }.padding({left:crumb.current ? 8 : 2,right:crumb.current ? 8 : 2,top:4,bottom:4})
+    }.padding(0).backgroundColor(crumb.current ? Colors.control : Color.Transparent).borderRadius(Tokens.capsule)
+      .accessibilityText((crumb.home ? tr('file_crumb_home') : crumb.title) + (crumb.session ? ', '+tr('file_crumb_session') : ''))
+      .accessibilitySelected(crumb.current)
+      .onClick(() => {
+        if (!crumb.current && owner===this.filePathIdentity && this.workspace.isCurrent()) this.goFolder(crumb.path);
+      }).id(crumb.home ? 'session.files.home' : 'session.files.crumb.'+crumb.path)
+  }
+  @Builder folderBreadcrumbs() {
+    // A changed path starts at its trailing segment, including when the user moves between equally deep siblings.
+    ForEach([this.filePathIdentity],(owner:string) => {
+      List({initialIndex:Math.max(0,this.pathCrumbs.length-1)}) {
+        ForEach(this.pathCrumbs,(crumb:FolderCrumb,index:number) => {
+          ListItem() {
+            Row({space:3}) {
+              if (index>0) {
+                SymbolGlyph(Symbols.expand).fontSize('9vp').fontColor([Colors.tertiary]).accessibilityLevel('no')
+              }
+              this.folderBreadcrumb(crumb,owner)
+            }
+          }
+        },(crumb:FolderCrumb) => crumb.path)
+      }.listDirection(Axis.Horizontal).scrollBar(BarState.Off).layoutWeight(1).height(this.fileNavigationHeight)
+        .bindContextMenu(this.pathMenu,ResponseType.LongPress).id('session.files.path')
+    },(owner:string) => owner)
   }
   @Builder folderBar() {
     Column({space:5}) {
       Row({space:Tokens.gap}) {
         Button({type:ButtonType.Circle}) { SymbolGlyph(Symbols.collapse).fontSize('16vp').fontColor([Colors.ink]) }
-          .width(44).height(44).padding(0).backgroundColor(Colors.control).enabled(this.workspace.folderBack.length>0)
+          .width(this.fileNavigationHeight+10).height(this.fileNavigationHeight).padding(0).backgroundColor(Colors.control).enabled(this.workspace.folderBack.length>0)
           .accessibilityText(tr('session_folder_back')).onClick(() => this.folderHistory(false)).id('session.files.back')
         Button({type:ButtonType.Circle}) { SymbolGlyph(Symbols.expand).fontSize('16vp').fontColor([Colors.ink]) }
-          .width(44).height(44).padding(0).backgroundColor(Colors.control).enabled(this.workspace.folderForward.length>0)
+          .width(this.fileNavigationHeight+10).height(this.fileNavigationHeight).padding(0).backgroundColor(Colors.control).enabled(this.workspace.folderForward.length>0)
           .accessibilityText(tr('session_folder_forward')).onClick(() => this.folderHistory(true)).id('session.files.forward')
         Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.arrow_up')).fontSize('16vp').fontColor([Colors.link]).id('session.files.parent') }
-          .width(44).height(44).padding(0).backgroundColor(Colors.control)
+          .width(this.fileNavigationHeight+10).height(this.fileNavigationHeight).padding(0).backgroundColor(Colors.control)
           .enabled(parentFolder(this.workspace.currentPath) !== this.workspace.currentPath && !!parentFolder(this.workspace.currentPath))
           .accessibilityText(parentFolder(this.workspace.currentPath)).onClick(() => this.goFolder(parentFolder(this.workspace.currentPath))).id('session.files.up')
-        Row({space:5}) {
-          if (this.pathCrumbs.length > 1) {
-            Text(this.pathCrumbs.slice(-3,-1).map((crumb:FolderCrumb) => crumb.title).join(' › ')+' ›')
-              .fontSize(12).maxFontScale(Tokens.navigationTextMaxScale).fontColor(Colors.secondary)
-              .constraintSize({maxWidth:'34%'}).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
-          } else SymbolGlyph(Symbols.folder).fontSize('16vp').fontColor([Colors.link])
-          Text(this.pathCrumbs[this.pathCrumbs.length-1]?.title || this.workspace.currentPath || tr('directory')).fontSize(16).maxFontScale(Tokens.navigationTextMaxScale)
-            .fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1)
-          SymbolGlyph(Symbols.down).fontSize('11vp').fontColor([Colors.secondary])
-        }.layoutWeight(1).constraintSize({minHeight:44}).padding({left:9,right:8}).backgroundColor(Colors.control).borderRadius(20)
-          .accessibilityGroup(true).accessibilityText(this.workspace.currentPath).bindMenu(this.pathMenu).id('session.files.path')
+        this.folderBreadcrumbs()
       }.width('100%')
       if (this.editingPath) Row({space:5}) {
         TextInput({text:this.pathDraft,placeholder:tr('path')}).layoutWeight(1).height(Math.max(44,20*nativeEnvironment.fontScale+12)).fontSize(15)
@@ -1295,11 +1333,11 @@ export struct SessionTools {
   @Builder gitSheetMenu() {
     Menu() {
       if (this.gitSheetMode==='diff' && this.workspace.gitDiff)
-        MenuItem({content:tr('copy')}).onClick(() => this.copyPatch(this.workspace.gitDiff)).id('session.git.diff.copy')
+        MenuItem({content:tr('copy')}).onClick(() => this.copyText(this.workspace.gitDiff)).id('session.git.diff.copy')
       if (this.gitSheetMode==='history' && !this.commitFilePath && !this.showCommitPatch && Wire.text(this.workspace.gitShow,'diff'))
         MenuItem({content:tr('session_git_patch')}).onClick(() => this.showCommitPatch=true).id('session.git.commit.toggle_patch')
       if (this.gitSheetMode==='history' && (this.commitFilePath || this.showCommitPatch))
-        MenuItem({content:tr('copy')}).onClick(() => this.copyPatch(this.commitFilePath ? this.selectedCommitPatch : Wire.text(this.workspace.gitShow,'diff'))).id('session.git.commit.patch.copy')
+        MenuItem({content:tr('copy')}).onClick(() => this.copyText(this.commitFilePath ? this.selectedCommitPatch : Wire.text(this.workspace.gitShow,'diff'))).id('session.git.commit.patch.copy')
     }
   }
 
@@ -1561,7 +1599,7 @@ export struct SessionTools {
     }.alignItems(HorizontalAlign.Start).padding(Tokens.page).width('100%')
   }
 
-  private async copyPatch(value:string):Promise<void> {
+  private async copyText(value:string):Promise<void> {
     if (!value) return;
     const target=this.workspace.currentTarget(), revision=this.workspace.currentRevision();
     try {
@@ -1632,7 +1670,7 @@ export struct SessionTools {
             .maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).ellipsisMode(EllipsisMode.CENTER).layoutWeight(1)
         }.width('100%')
       }.width('100%').height(this.hashTapHeight).margin({top:this.hashLineInset,bottom:this.hashLineInset}).padding(0).backgroundColor(Color.Transparent)
-        .accessibilityText(tr('copy')+' '+this.workspace.gitCommitHash).onClick(() => this.copyPatch(this.workspace.gitCommitHash)).id('session.git.commit.copy')
+        .accessibilityText(tr('copy')+' '+this.workspace.gitCommitHash).onClick(() => this.copyText(this.workspace.gitCommitHash)).id('session.git.commit.copy')
     }.width('100%').padding(this.phoneGitReader ? {left:20,right:20,top:17,bottom:17} : 14)
       .alignItems(HorizontalAlign.Start).backgroundColor(Colors.card(this.phoneGitReader)).borderRadius(Tokens.card)
       .bindContextMenu(this.gitSheetMenu,ResponseType.LongPress)

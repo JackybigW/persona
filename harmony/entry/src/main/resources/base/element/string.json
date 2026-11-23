@@ -5881,6 +5881,14 @@
       "value": "Next folder"
     },
     {
+      "name": "file_crumb_home",
+      "value": "Home Folder"
+    },
+    {
+      "name": "file_crumb_session",
+      "value": "Session"
+    },
+    {
       "name": "session_enter_path",
       "value": "Go to path"
     },

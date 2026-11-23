@@ -5881,6 +5881,14 @@
       "value": "次のフォルダ"
     },
     {
+      "name": "file_crumb_home",
+      "value": "ホームフォルダ"
+    },
+    {
+      "name": "file_crumb_session",
+      "value": "セッション"
+    },
+    {
       "name": "session_enter_path",
       "value": "パスへ移動"
     },
