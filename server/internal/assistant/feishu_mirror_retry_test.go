@@ -73,13 +73,14 @@ func TestFeishuMirrorRetryKeepsItsKey(t *testing.T) {
 		return nil
 	})
 	w.s.feishuMirror(context.Background(), "server", "m1")
-	waitFor(t, "sent on the next try", func() bool { return len(w.tried()) == 2 })
+	want := botTarget{Kind: targetPersona, MachineID: "server", SessionID: "m1"}
+	// The transport records an attempt before returning the message ID needed to bind its thread.
+	waitFor(t, "retried card bound to its original conversation", func() bool {
+		return w.s.botTargetFor("om_card", "") == want
+	})
 	keys := w.tried()
-	if keys[0] == "" || keys[0] != keys[1] {
+	if len(keys) != 2 || keys[0] == "" || keys[0] != keys[1] {
 		t.Fatalf("keys %q", keys)
-	}
-	if got := w.s.botTargetFor("om_card", ""); got.SessionID != "m1" {
-		t.Fatalf("thread %+v", got)
 	}
 }
 
