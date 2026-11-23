@@ -55,6 +55,8 @@ type BusOptions struct {
 	// Outbox keeps the pushes and the apps' live updates made while the hub is away, for when it is back
 	// (outbox.go); nil: they are lost then (tests).
 	Outbox OutboxStore
+	// Features is the built-in modules' wire feature flags to announce in manager.hello; nil: no module features.
+	Features func() []string
 	// ConfigFile is the manager's manager.json: its sections go over the hub's hello (ownconfig.go); "": the
 	// hello as it is (tests).
 	ConfigFile string
@@ -160,8 +162,14 @@ func NewBusHub(o BusOptions) *BusHub {
 			if reviewEnabled {
 				capabilities = append(capabilities, assistantwire.CapabilityProjectReview)
 			}
-			return map[string]any{"id": id, "host": host, "os": runtime.GOOS, "arch": runtime.GOARCH,
+			params := map[string]any{"id": id, "host": host, "os": runtime.GOOS, "arch": runtime.GOARCH,
 				"deploy": o.Deploy, "version": o.Version, "capabilities": capabilities, "project_review_app_inputs": reviewAppInputs}
+			if o.Features != nil {
+				if features := o.Features(); len(features) > 0 {
+					params["features"] = features
+				}
+			}
+			return params
 		},
 		OnHello: b.onHello,
 		// A node's tool call that its caller stopped waiting for ends at the hub too (fleet_tools.go).
