@@ -1184,8 +1184,7 @@ func TestWorkerAutomaticSignalsGoToLeader(t *testing.T) {
 				if !strings.Contains(due, "not an overdue judgment") {
 					t.Fatalf("leader's estimate_due lacks its fact: %s", due)
 				}
-				// The Hub can expose the delivered message before the sender records its acknowledgement.
-				waitFor(t, "the delivered estimate recorded on the worker's brief", func() bool {
+				waitFor(t, "leader delivery to persist estimate_due", func() bool {
 					b, ok := s.briefOfTodo(w.ID)
 					return ok && b.EstimateDueToldAt != nil
 				})
