@@ -38,7 +38,7 @@ def run_probe(image, name, directory, apparmor, profile_check):
     run(create, 30)
     details = json.loads(run(["docker", "inspect", name], 15, capture_output=True, text=True).stdout)[0]
     host = details["HostConfig"]
-    if apparmor and host.get("AppArmorProfile") != apparmor[0].split("=", 1)[1]:
+    if apparmor and host.get("AppArmorProfile") != apparmor[0].rsplit("=", 1)[1]:
         raise RuntimeError("container did not use the required AppArmor profile")
     for option in host.get("SecurityOpt") or []:
         if "unconfined" in option:
@@ -96,7 +96,7 @@ def main():
                 binary.chmod(0o755)
             profile_check = ""
             if apparmor:
-                profile_name = apparmor[0].split("=", 1)[1]
+                profile_name = apparmor[0].rsplit("=", 1)[1]
                 profile_check = 'grep -qx "' + profile_name + ' (enforce)" /proc/self/attr/current; '
             stock = subprocess.run(["docker", "run", "--rm", "--name", container + "-stock", "--network=none", "--cap-drop=ALL",
                                     "--user=1000:1000", "--security-opt=no-new-privileges:true",
