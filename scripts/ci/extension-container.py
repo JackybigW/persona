@@ -38,8 +38,12 @@ def run_probe(image, name, directory, apparmor, profile_check):
     run(create, 30)
     details = json.loads(run(["docker", "inspect", name], 15, capture_output=True, text=True).stdout)[0]
     host = details["HostConfig"]
-    if apparmor and host.get("AppArmorProfile") != apparmor[0].rsplit("=", 1)[1]:
-        raise RuntimeError("container did not use the required AppArmor profile")
+    if apparmor:
+        expected_profile = apparmor[0].rsplit("=", 1)[1]
+        actual_profile = host.get("AppArmorProfile")
+        print("AppArmor inspect: expected=%r actual=%r" % (expected_profile, actual_profile), flush=True)
+        if actual_profile != expected_profile:
+            raise RuntimeError("container did not use the required AppArmor profile")
     for option in host.get("SecurityOpt") or []:
         if "unconfined" in option:
             raise RuntimeError("an unconfined override is not a supported isolation result")
