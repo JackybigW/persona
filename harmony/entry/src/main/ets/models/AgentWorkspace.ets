@@ -821,7 +821,7 @@ export class AgentWorkspace {
     const visible = (id:string):boolean => !ids.has(id);
     const quick = this.quickFilter === 'needsYou';
     const affected = matches.filter((id:string) => ids.has(id)).length;
-    this.filterCounts = { ...this.filterCounts, 'needsYou':Math.max(0,Wire.number(this.filterCounts,'needsYou')-affected) };
+    this.filterCounts['needsYou'] = Math.max(0,Wire.number(this.filterCounts,'needsYou') - affected);
     if (quick) this.unpinnedRows = this.unpinnedRows.filter((row:ResourceRow) => visible(coreRowId(row)));
     this.groups = this.groups.filter((group:AgentWorkspaceGroup):boolean => {
       if (!quick && group.id !== 'state/needs') return true;
