@@ -1,7 +1,6 @@
 package voice
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1145,23 +1144,53 @@ func TestSayWaitsForTheUserToStop(t *testing.T) {
 	hub.add("a1", proto.Item{Role: "user", Kind: proto.KindText, Text: "跑一下全部测试", ClientMsgID: id},
 		proto.Item{Role: "assistant", Kind: proto.KindText, Text: "全部测试都过了。"})
 	hub.end("a1")
+	// A resumed answer may go before the microphone has sent anything. Let this transcript read finish during speech.
+	firstVoice := make(chan struct{})
+	var reading atomic.Bool
+	hub.onRead = func() {
+		reading.Store(true)
+		select {
+		case <-firstVoice:
+		case <-t.Context().Done():
+		}
+	}
 	up := boundUpstream(t, false)
 	pl := testPlugin(t, liveProvider(up), hub.server(t))
 	a := dialApp(t, pl, boundStart("a1", map[string]any{"resume": map[string]any{"runs": []map[string]any{
 		{"id": id, "msg_ids": []string{id}, "task": "跑一下全部测试", "base_seq": 0, "started_at": stamp(time.Now().Add(-time.Minute)), "state": runSent},
 	}}}))
 	a.until(ofType("ready"))
-	for range 25 { // 2.5 s of talking: the answer is read meanwhile (the first look is within a second)
-		_ = a.c.Write(context.Background(), websocket.MessageBinary, tone(1600, 3000))
-		time.Sleep(100 * time.Millisecond)
+	waitFor(t, "the pending resumed transcript read", reading.Load)
+	pcm := tone(1600, 3000)
+	encoded := b64(pcm)
+	voiceFrame := func(f map[string]any) bool { return f["type"] == "session.input_audio.append" && f["audio"] == encoded }
+	var lastFrame time.Time
+	frames := time.NewTicker(100 * time.Millisecond)
+	defer frames.Stop()
+	for i := range 25 { // 2.5 seconds of PCM16 at 16 kHz
+		if i != 0 {
+			<-frames.C
+		}
+		lastFrame = time.Now()
+		if err := a.c.Write(t.Context(), websocket.MessageBinary, pcm); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			waitFor(t, "the first voiced frame at the upstream", func() bool { return up.count(voiceFrame) == 1 })
+			close(firstVoice)
+		}
 	}
 	if n := up.count(said); n != 0 {
 		t.Fatal("said while the user talked")
 	}
-	stopped := time.Now()
-	up.nextMatch("the answer, said", said)
-	if took := time.Since(stopped); took < 250*time.Millisecond {
+	if got := content(up.nextMatch("the answer, said", said)); !strings.Contains(got, "全部测试都过了") {
+		t.Fatalf("wrong resumed answer: %s", got)
+	}
+	if took := time.Since(lastFrame); took < userQuiet {
 		t.Fatalf("said %v after the user stopped", took)
+	}
+	if n := up.count(voiceFrame); n != 25 {
+		t.Fatalf("the upstream received %d voiced frames, want 25", n)
 	}
 }
 
