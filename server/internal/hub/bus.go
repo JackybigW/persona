@@ -436,11 +436,16 @@ func (h *Hub) managerHello(ctx context.Context, c *busConn, params json.RawMessa
 	return reply, nil
 }
 
-// capabilityList is a hello's capabilities, bounded: at most 32 names of at most 64 bytes.
+// maxManagerCapabilities bounds how many capabilities the hub keeps from a manager's hello. A capability past it is
+// dropped without a word, so the feature it gates never starts; the built-in manager alone says 32 (2026-11-23), and
+// TestManagerHelloCapabilitiesFit keeps room above that.
+const maxManagerCapabilities = 64
+
+// capabilityList is a hello's capabilities, bounded: at most maxManagerCapabilities names of at most 64 bytes.
 func capabilityList(in []string) []string {
 	var out []string
 	for _, c := range in {
-		if c = strings.TrimSpace(c); c != "" && len(c) <= 64 && len(out) < 32 && !slices.Contains(out, c) {
+		if c = strings.TrimSpace(c); c != "" && len(c) <= 64 && len(out) < maxManagerCapabilities && !slices.Contains(out, c) {
 			out = append(out, c)
 		}
 	}
