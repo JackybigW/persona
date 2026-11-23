@@ -139,6 +139,18 @@
     {
       "name": "chat_forward_remove",
       "value": "Remove Forward"
+    },
+    {
+      "name": "chat_context_only_note",
+      "value": "See the context above."
+    },
+    {
+      "name": "chat_context_image_note",
+      "value": "Please look at the image"
+    },
+    {
+      "name": "chat_context_files_note",
+      "value": "Please look at the attached files"
     }
   ]
 }

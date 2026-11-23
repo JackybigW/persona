@@ -139,6 +139,18 @@
     {
       "name": "chat_forward_remove",
       "value": "取消转发"
+    },
+    {
+      "name": "chat_context_only_note",
+      "value": "参考上面的内容。"
+    },
+    {
+      "name": "chat_context_image_note",
+      "value": "请看图片"
+    },
+    {
+      "name": "chat_context_files_note",
+      "value": "请看附件"
     }
   ]
 }

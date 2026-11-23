@@ -139,6 +139,18 @@
     {
       "name": "chat_forward_remove",
       "value": "転送を解除"
+    },
+    {
+      "name": "chat_context_only_note",
+      "value": "上の内容を参照してください。"
+    },
+    {
+      "name": "chat_context_image_note",
+      "value": "画像を見てください"
+    },
+    {
+      "name": "chat_context_files_note",
+      "value": "添付ファイルを見てください"
     }
   ]
 }

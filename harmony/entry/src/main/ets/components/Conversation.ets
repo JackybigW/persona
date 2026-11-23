@@ -785,7 +785,7 @@ export struct Conversation {
   private inlineKeyboardAction(): boolean { return this.fieldFocused || this.environment.keyboardHeightPx > 0; }
   private leftActionWidth(size: number): number { return !this.model.demo || this.showContextMenu ? size : 0; }
   private hasComposerAction(): boolean {
-    return this.primaryStop() || this.sending || !!this.model.draft.trim() || this.attachments.attachments.length > 0 || !!this.model.sourceContext;
+    return this.primaryStop() || this.sending || !!this.model.draft.trim() || this.attachments.attachments.length > 0 || this.model.hasSendableContext();
   }
   private trailingActionWidth(size: number): number { return size + (this.hasComposerAction() ? Tokens.touch : 0); }
   private expandedComposer(): boolean {
@@ -870,7 +870,7 @@ export struct Conversation {
       leading + (leading ? Tokens.gap : 0);
     return Math.ceil(width * this.composerColumns() / this.composerWidth);
   }
-  private primaryStop(): boolean { return this.composerAvailable() && this.model.canStop() && !this.model.draft.trim() && !this.model.hasForwardContext() && !this.attachments.attachments.length; }
+  private primaryStop(): boolean { return this.composerAvailable() && this.model.canStop() && !this.model.draft.trim() && !this.model.hasSendableContext() && !this.attachments.attachments.length; }
   @Monitor('active', 'model.selected', 'model.sessions', 'model.connected', 'model.draft', 'model.decision', 'attachments.attachments', 'model.interruptPendingKey')
   primaryStopChanged(): void { this.onPrimaryStop(this.active && this.primaryStop()); }
   private maxControlsHeight(): number {
@@ -1242,7 +1242,7 @@ export struct Conversation {
   }
   private primaryEnabled(): boolean {
     return this.sendCurrent() && (this.primaryStop() || this.model.canSend() && !this.model.stopPending() && !this.sending &&
-      !this.attachments.busy && !this.model.draftLoading && (this.model.draft.trim().length > 0 || this.attachments.attachments.length > 0 || this.model.hasForwardContext()) &&
+      !this.attachments.busy && !this.model.draftLoading && (this.model.draft.trim().length > 0 || this.attachments.attachments.length > 0 || this.model.hasSendableContext()) &&
       this.model.operationState !== 'pending' && this.model.operationState !== 'unknown');
   }
   private dictationOwner(): string { return JSON.stringify([this.model.connectionGeneration(), this.model.scope(), this.model.target()]); }
@@ -1254,7 +1254,9 @@ export struct Conversation {
     if (!this.attachments.attachments.length) { await owner.send(current); return; }
     this.sending = true;
     try {
-      const prepared = await this.attachments.prepareSend(owner.prepareMessageText(draft), current);
+      const hasImage=this.attachments.attachments.some((item:ChatAttachment)=>item.kind==='image');
+      const attachmentNote=tr(hasImage ? 'chat_context_image_note' : 'chat_context_files_note');
+      const prepared = await this.attachments.prepareSend(owner.prepareMessageText(draft,attachmentNote), current);
       await owner.sendPrepared(prepared, draft, context, current);
     } catch (error) { if (current()) this.attachments.errorKey = error instanceof Error && error.message.startsWith('chat_attachment_') ? error.message : 'chat_attachment_send_failed'; }
     finally { this.sending = false; }

@@ -1263,9 +1263,21 @@ export class ClientModel {
   forwardDraftGroups():Record<string,Object>[][] {return forwardGroups(this.draftContexts(this.sourceContext));}
   hasForwardContext():boolean { return this.sourceContext.includes('"forward"') && draftForwardRows(this.sourceContext).length>0; }
   forwardContexts():Record<string,Object>[] { return draftForwardRows(this.sourceContext); }
-  prepareMessageText(text:string=this.draft):string {
-    if (!text.trim() && this.hasForwardContext()) text=tr(this.forwardContexts().length===1 ? 'chat_forward_single_note' : 'chat_forward_several_note');
-    return withSourceContext(text,this.sourceContext,this.features);
+  hasSendableContext():boolean {
+    if (!this.sourceContext) return false;
+    try {
+      return this.draftContexts(this.sourceContext).some((ref:Record<string,Object>) =>
+        !!Wire.text(ref,'kind') && !!(Wire.text(ref,'text') || Wire.text(ref,'id') || Wire.text(ref,'msg') || Wire.text(ref,'item_id') || Wire.text(ref,'title')));
+    } catch (_) { return false; }
+  }
+  prepareMessageText(text:string=this.draft,attachmentNote:string=''):string {
+    const hasContext=this.hasSendableContext();
+    if (!text.trim() && attachmentNote) text=attachmentNote;
+    else if (!text.trim() && hasContext) {
+      const forwards=this.forwardContexts().length;
+      text=tr(forwards>1 ? 'chat_forward_several_note' : forwards===1 ? 'chat_forward_single_note' : 'chat_context_only_note');
+    }
+    return hasContext ? withSourceContext(text,this.sourceContext,this.features) : text;
   }
   /** Target lists use only the directory captured for the originating Hub. */
   forwardDirectory():ClientModel {
@@ -1322,7 +1334,7 @@ export class ClientModel {
     if (admit && !admit()) return false;
     const text = this.draft;
     if (utf8Bytes(text) > 100000) { this.error = 'chat_attachment_text_too_large'; return false; }
-    if (this.draftLoading || !this.canSend() || (!text.trim() && !this.hasForwardContext()) || ['pending', 'unknown'].includes(this.operationState)) return false;
+    if (this.draftLoading || !this.canSend() || (!text.trim() && !this.hasSendableContext()) || ['pending', 'unknown'].includes(this.operationState)) return false;
     if (this.demo && this.demoRepository) {
       const prepared = this.prepareMessageText(text); if (utf8Bytes(prepared) > 100000) { this.error = 'chat_attachment_request_too_large'; return false; }
       try { this.demoRepository.sendLocal(this.selected, prepared); this.sourceContext = ''; this.updateDraft(''); await this.loadChat(this.selected); return true; }

@@ -1577,3 +1577,19 @@ test('an exact old rename lookup queries only the current owner, machine and sou
   model.local.keys=async()=>{model.generation++;return [key];};
   await assert.rejects(model.savedRenameTargets(group,model.profile.manager,'Test %_ host','herdr',id),/request_updated/);
 });
+
+test('the composer can send a quote without an extra note and keeps attachments ahead of the context-only note', async () => {
+  const {model,writes}=fixture();
+  model.features=['persona_contracts_v1'];model.draft='   ';
+  model.sourceContext=JSON.stringify({contexts:[{kind:'quote',title:'Claude',msg:'reply-42',part:'selection',text:'one selected line'}]});
+  assert.equal(model.hasSendableContext(),true);
+  const prepared=model.prepareMessageText();
+  assert.match(prepared,/<persona-context kind="quote"[^>]*msg="reply-42" part="selection">\none selected line\n<\/persona-context>\n\nchat_context_only_note$/);
+  assert.match(model.prepareMessageText('', 'image stand-in'),/\n\nimage stand-in$/);
+  assert.equal(await model.send(),true);
+  assert.equal(writes.length,1);assert.equal(writes[0][1],prepared);
+  for(const context of ['', '{}', '{"contexts":[]}', '{broken']) {
+    model.sourceContext=context;model.draft='';assert.equal(model.hasSendableContext(),false);assert.equal(await model.send(),false);
+  }
+  assert.equal(writes.length,1);
+});
