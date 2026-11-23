@@ -53,14 +53,14 @@
   "mcp_tools.assistant#inbox_post": 1266,
   "mcp_tools.assistant#inbox_suggest": 4194,
   "mcp_tools.assistant#interaction_answer": 1597,
-  "mcp_tools.assistant#kb_get": 1056,
+  "mcp_tools.assistant#kb_get": 928,
   "mcp_tools.assistant#kb_history_plan": 2417,
   "mcp_tools.assistant#kb_history_resume": 720,
   "mcp_tools.assistant#kb_history_status": 564,
   "mcp_tools.assistant#kb_history_stop": 429,
   "mcp_tools.assistant#kb_list": 1092,
   "mcp_tools.assistant#kb_search": 1438,
-  "mcp_tools.assistant#kb_update": 2545,
+  "mcp_tools.assistant#kb_update": 2717,
   "mcp_tools.assistant#leader_progress": 1396,
   "mcp_tools.assistant#list_followups": 245,
   "mcp_tools.assistant#list_places": 452,
@@ -98,7 +98,7 @@
   "mcp_tools.assistant#task_plan_withdraw": 941,
   "mcp_tools.assistant#task_retry": 878,
   "mcp_tools.assistant#task_review": 9328,
-  "mcp_tools.assistant#task_scope": 1993,
+  "mcp_tools.assistant#task_scope": 1956,
   "mcp_tools.assistant#task_start_keys": 1071,
   "mcp_tools.assistant#task_start_screen": 676,
   "mcp_tools.assistant#todo_complete": 577,
@@ -133,5 +133,5 @@
   "supervise.review_rework": 555,
   "supervise.rework": 396,
   "supervise.task_goal": 111,
-  "supervision_instructions": 15612
+  "supervision_instructions": 15603
 }
