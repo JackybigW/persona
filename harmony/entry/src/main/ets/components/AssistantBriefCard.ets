@@ -5,6 +5,8 @@ import { PhoneStyle } from '../design/PhoneStyle';
 import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
+import { AssistantFeedModel } from '../models/AssistantFeed';
+import { BriefOpenButton, BriefRowActions } from './BriefRowActions';
 import { ClientModel } from '../models/ClientModel';
 import { ResourceRow, Wire } from '../models/Wire';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
@@ -14,6 +16,7 @@ const STAGES: string[] = ['plan', 'develop', 'review', 'merge', 'deploy', 'verif
 @ComponentV2
 export struct AssistantBriefCard {
   @Require @Param model: ClientModel;
+  @Require @Param feed: AssistantFeedModel;
   @Require @Param item: Record<string, Object>;
   @Param active: boolean = false;
   @Event onOpen: (row: ResourceRow) => void = () => {};
@@ -174,26 +177,42 @@ export struct AssistantBriefCard {
       .id('assistant.brief.stage.' + stage)
   }
 
-  private buttonHeight(): number { return PhoneStyle.formSize(30, 37, nativeEnvironment.fontScale); }
+  private openRow(section: string, row: Record<string, Object>): void {
+    const target = this.destination(section, row);
+    if (target) this.onOpen(target);
+  }
 
-  @Builder openButton(section: string, row: Record<string, Object>) {
-    Button(tr('open'), { type: ButtonType.Capsule })
-      .height(this.buttonHeight())
-      .responseRegion({x: 0, y: (this.buttonHeight() - 44) / 2, width: '100%', height: 44})
-      .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(600)
-      .padding({left: 12, right: 12}).backgroundColor(Colors.control).fontColor(Colors.link)
-      .accessibilityText(tr('session_brief_open_named').replace('{title}', Wire.text(row, 'title')))
-      .onClick(() => { const to = this.destination(section, row); if (to) this.onOpen(to); })
+  @Builder title(row: Record<string, Object>) {
+    Text(Wire.text(row, 'title') || Wire.text(row, 'why')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
+      .fontWeight(FontWeight.Medium).lineHeight(PhoneStyle.settingsExampleLineHeight(18, 25.33, nativeEnvironment.fontScale))
+      .fontColor(Colors.ink).wordBreak(WordBreak.BREAK_WORD)
+  }
+
+  @Builder pastRow(section: string, row: Record<string, Object>) {
+    Row({space: 8}) {
+      SymbolGlyph(section === 'done' ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.exclamationmark_circle_fill'))
+        .fontSize(Tokens.interfaceFontVp(14, nativeEnvironment.fontScale)).fontColor([section === 'done' ? Colors.positive : Colors.danger])
+      Column({space: 2}) {
+        this.title(row)
+        if (this.pastDetail(section, row)) this.note(this.pastDetail(section, row))
+      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+      if (this.destination(section, row)) SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.tertiary])
+    }.width('100%').padding({top: 2, bottom: 2}).accessibilityGroup(true)
+      .onClick(this.destination(section, row) ? () => { this.openRow(section, row); } : undefined)
       .id('assistant.brief.' + section + '.' + Wire.text(row, 'id'))
   }
 
   @Builder itemRow(section: string, row: Record<string, Object>) {
     Column({ space: 4 }) {
       Row({ space: 12 }) {
-        Text(Wire.text(row, 'title') || Wire.text(row, 'why')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
-          .fontWeight(FontWeight.Medium).lineHeight(PhoneStyle.settingsExampleLineHeight(18, 25.33, nativeEnvironment.fontScale))
-          .fontColor(Colors.ink).wordBreak(WordBreak.BREAK_WORD).layoutWeight(1)
-        if (this.destination(section, row)) this.openButton(section, row)
+        Column({space: 2}) {
+          this.title(row)
+          if (section === 'waiting') this.note(this.meta(row))
+        }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+        if ((section === 'waiting' || section === 'progress') && this.destination(section, row)) {
+          BriefOpenButton({title: Wire.text(row, 'title'), identity: 'assistant.brief.' + section + '.' + Wire.text(row, 'id'),
+            onOpen: () => this.openRow(section, row)})
+        }
       }.width('100%')
       if (section === 'accept' && Wire.text(row, 'verdict')) {
         Text(Wire.text(row, 'verdict')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.ink)
@@ -202,8 +221,11 @@ export struct AssistantBriefCard {
       if (section === 'accept' && Wire.text(row, 'recommend')) {
         this.note(tr('session_brief_recommended').replace('{value}', Wire.text(row, 'recommend')))
       }
-      if (['waiting', 'later', 'accept'].includes(section)) this.note(this.meta(row))
-      if ((section === 'done' || section === 'failed') && this.pastDetail(section, row)) this.note(this.pastDetail(section, row))
+      if (section === 'later' || section === 'accept') {
+        this.note(this.meta(row))
+        BriefRowActions({feed: this.feed, item: this.item, row: row, section: section, active: this.owned(),
+          showsOpen: !!this.destination(section, row), onOpen: () => this.openRow(section, row)})
+      }
       if (section === 'progress' && STAGES.includes(this.shownStage(row))) this.stages(this.shownStage(row))
       else if (section === 'progress' && this.shownStage(row)) this.note(this.shownStage(row))
     }.width('100%').alignItems(HorizontalAlign.Start).padding({top: 4, bottom: 4})
@@ -213,7 +235,9 @@ export struct AssistantBriefCard {
     Column({ space: 4 }) {
       this.heading(tr('session_brief_' + section + '_count').replace('{count}', String(this.count(section))), icon, tint)
       if (!this.rows(section).length && (section === 'waiting' || section === 'accept')) this.note(tr('session_brief_empty'))
-      ForEach(this.rows(section), (row: Record<string, Object>) => { this.itemRow(section, row) },
+      ForEach(this.rows(section), (row: Record<string, Object>) => {
+        if (section !== 'accept' || this.feed.briefOutcome(section, row) !== 'completed') this.itemRow(section, row)
+      },
         (row: Record<string, Object>, index: number) => JSON.stringify([section, index, row]))
       this.more(this.count(section) - this.rows(section).length)
     }.width('100%').alignItems(HorizontalAlign.Start).id('assistant.brief.' + section)
@@ -234,9 +258,9 @@ export struct AssistantBriefCard {
         this.note(tr('session_brief_empty'))
       }
       if (!this.hasPastRows || this.pastOpen) {
-        ForEach(this.rows('failed'), (row: Record<string, Object>) => { this.itemRow('failed', row) },
+        ForEach(this.rows('failed'), (row: Record<string, Object>) => { this.pastRow('failed', row) },
           (row: Record<string, Object>, index: number) => JSON.stringify([index, row]))
-        ForEach(this.rows('done'), (row: Record<string, Object>) => { this.itemRow('done', row) },
+        ForEach(this.rows('done'), (row: Record<string, Object>) => { this.pastRow('done', row) },
           (row: Record<string, Object>, index: number) => JSON.stringify([index, row]))
         this.more(this.count('failed') + this.count('done') - this.rows('failed').length - this.rows('done').length)
       }
