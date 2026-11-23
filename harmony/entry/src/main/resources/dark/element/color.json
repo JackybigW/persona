@@ -203,6 +203,26 @@
     {
       "name": "persona_list_background",
       "value": "#000000"
+    },
+    {
+      "name": "settings_search_highlight",
+      "value": "#717173"
+    },
+    {
+      "name": "settings_search_center",
+      "value": "#3B3B3D"
+    },
+    {
+      "name": "settings_search_lower_rim",
+      "value": "#535357"
+    },
+    {
+      "name": "settings_search_outline",
+      "value": "#0E0E0F"
+    },
+    {
+      "name": "settings_search_shadow",
+      "value": "#00000000"
     }
   ]
 }

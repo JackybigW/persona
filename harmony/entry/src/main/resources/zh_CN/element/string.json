@@ -5354,7 +5354,11 @@
     },
     {
       "name": "phone_settings_hub",
-      "value": "Hub 与运行环境"
+      "value": "Hub"
+    },
+    {
+      "name": "phone_settings_common_groups_footer",
+      "value": "这两组和当前是哪个助手无关。"
     },
     {
       "name": "phone_machines",

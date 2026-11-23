@@ -5354,7 +5354,11 @@
     },
     {
       "name": "phone_settings_hub",
-      "value": "Hub and runtime"
+      "value": "Hub"
+    },
+    {
+      "name": "phone_settings_common_groups_footer",
+      "value": "These two groups are the same whichever assistant is current."
     },
     {
       "name": "phone_machines",

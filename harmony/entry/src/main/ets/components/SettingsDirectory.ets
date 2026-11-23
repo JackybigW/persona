@@ -236,10 +236,22 @@ export struct SettingsDirectory {
       }.width('100%').constraintSize({minHeight:PhoneStyle.formSize(64,78,nativeEnvironment.fontScale)}).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('settings_this_assistant')+' · '+this.account())
       .bindMenu(this.managerMenu(this.model.scope())).id('settings.assistant_switch')
   }
-  @Builder section(title:string, entries?:string[]) {
+  @Builder directoryFootnote(text:string, id:string, beforeNextCard:number=0) {
+    ListItem() {
+      Text(text).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+        .lineHeight(PhoneStyle.settingsExampleLineHeight(15.67,22,this.environment.fontScale))
+        .width('100%').padding({left:20,right:18,top:this.searchSize(9,10),bottom:5})
+        .id(id)
+    }.margin({bottom:beforeNextCard})
+  }
+  @Builder section(title:string, entries?:string[], homeScope:string='') {
     ListItem() {
       Column() {
-        if (title) PhoneSectionTitle({text:title})
+        if (homeScope) {
+          Text(title).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(600).fontColor(Colors.secondary)
+            .width('100%').constraintSize({minHeight:this.searchSize(40.33,47.67)}).textAlign(TextAlign.Start)
+            .padding({left:20,right:20,top:6,bottom:6}).id('settings.group.'+homeScope)
+        } else if (title) PhoneSectionTitle({text:title})
         Column() {
           ForEach(entries ?? this.results,(id:string,ix:number) => {
             PhoneSettingsRow({elevated:this.elevated,label:settingLabel(id,this.label),detail:this.subtitle(id),symbol:settingIcon(id),artwork:settingArtwork(id),tint:Colors.iconAccent,
@@ -248,7 +260,19 @@ export struct SettingsDirectory {
           if (!(entries ?? this.results).length) Text(tr('no_results')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.secondary).width('100%').padding(15).id('settings.no_results')
         }.width('100%').clip(true).backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius)
       }.width('100%')
-    }
+    }.margin({top:homeScope === 'hub' ? 17.5 : 0})
+  }
+
+  private systemSearchMaterial():boolean {
+    return this.elevated && Colors.systemControls && Colors.styleID === 'glass';
+  }
+  private searchGradient():LinearGradientOptions | undefined {
+    if (!this.systemSearchMaterial()) return undefined;
+    const height = this.searchSize(44,58);
+    const highlight = $r('app.color.settings_search_highlight');
+    const center = $r('app.color.settings_search_center');
+    return {direction:GradientDirection.Bottom,colors:[[highlight,0],[Colors.sheetControl,10/height],
+      [center,23/height],[center,1-4/height],[$r('app.color.settings_search_lower_rim'),1]]};
   }
   @Builder clearSearchButton() {
     Button({type:ButtonType.Circle}) {
@@ -279,6 +303,9 @@ export struct SettingsDirectory {
           if (this.showDismissSearch && this.query.length) this.clearSearchButton()
         }.padding({left:this.showDismissSearch ? 12.33 : 12,right:this.showDismissSearch && this.query.length ? this.searchSize(2.33,5.67) : 8})
           .layoutWeight(1).borderRadius(32).backgroundColor(this.elevated ? Colors.sheetControl : Colors.control)
+          .linearGradient(this.searchGradient())
+          .outlineWidth(this.systemSearchMaterial() ? 0.33 : 0).outlineColor($r('app.color.settings_search_outline')).outlineRadius(32)
+          .shadow({radius:this.systemSearchMaterial() ? 4 : 0,color:$r('app.color.settings_search_shadow'),offsetY:2})
           if (this.showDismissSearch && this.query.trim()) Button({type:ButtonType.Circle}) {
             PhoneOutlineIcon({name:'navigationClose',color:Colors.ink,iconScale:this.searchSize(1.02,23.33/17)})
           }.width(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).height(PhoneStyle.formSize(44,58,nativeEnvironment.fontScale)).padding(0).backgroundColor(Colors.card(this.elevated)).accessibilityText(tr('close'))
@@ -290,16 +317,17 @@ export struct SettingsDirectory {
       } else {
         if (!this.advanced) ListItem() { this.identity() }
         if (this.rows('assistant').length) this.section(this.advanced ? this.account() : '',this.rows('assistant'))
-        if (!this.advanced) ListItem() {
-          Text(tr('phone_settings_owner_note').replace('{name}',this.account())).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-            .fontColor(Colors.secondary).width('100%').padding({left:13,right:12,top:6,bottom:5})
+        if (!this.advanced && this.currentManager()) {
+          this.directoryFootnote(tr('phone_settings_owner_note').replace('{name}',this.account()),'settings.assistant.footer')
         }
-        if (this.rows('device').length) this.section(tr('phone_settings_device'),this.rows('device'))
-        if (this.rows('hub').length) this.section(tr('phone_settings_hub'),this.rows('hub'))
+        if (this.rows('device').length) this.section(tr('phone_settings_device'),this.rows('device'),this.advanced ? '' : 'device')
+        if (this.rows('hub').length) {
+          this.section(tr('phone_settings_hub'),this.rows('hub'),this.advanced ? '' : 'hub')
+          if (!this.advanced) this.directoryFootnote(tr('phone_settings_common_groups_footer'),'settings.hub.footer',17.5)
+        }
         if (!this.advanced) {
           this.section('',['phone_settings_advanced'])
-          ListItem() { Text(tr('phone_advanced_footer')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
-            .fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:5,bottom:12}) }
+          this.directoryFootnote(tr('phone_advanced_footer'),'settings.advanced.footer')
         }
       }
     }.width('100%').height('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:this.advanced ? 12 : this.showDismissSearch && this.query.trim() ? 16 : 0,bottom:24})

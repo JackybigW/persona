@@ -5354,7 +5354,11 @@
     },
     {
       "name": "phone_settings_hub",
-      "value": "Hub とランタイム"
+      "value": "Hub"
+    },
+    {
+      "name": "phone_settings_common_groups_footer",
+      "value": "この 2 つのグループは、どのアシスタントを選んでいても同じです。"
     },
     {
       "name": "phone_machines",

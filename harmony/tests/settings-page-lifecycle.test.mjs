@@ -81,3 +81,20 @@ test('a late removal ACK cannot pop a reentered native detail page', async () =>
   f.page.confirmExtensionRemove(); f.confirm(); f.page.machineRevision++;
   finish(true); await Promise.resolve(); assert.equal(f.backs(), 0);
 });
+
+
+test('core Hub owns its explanatory footer before the separate Advanced card in each published language',()=>{
+  const build=directory.slice(directory.indexOf('  build() {'),directory.indexOf('export struct PhoneSettingsOptions'));
+  const hub=build.indexOf("this.section(tr('phone_settings_hub')");
+  const common=build.indexOf("'phone_settings_common_groups_footer'");
+  const advanced=build.indexOf("this.section('',['phone_settings_advanced'])");
+  const advancedFooter=build.indexOf("'phone_advanced_footer'");
+  assert.ok(hub>=0 && common>hub && advanced>common && advancedFooter>advanced);
+  const published={'base':'These two groups are the same whichever assistant is current.','en_US':'These two groups are the same whichever assistant is current.',
+    'zh_CN':'这两组和当前是哪个助手无关。','ja_JP':'この 2 つのグループは、どのアシスタントを選んでいても同じです。'};
+  for(const [locale,expected] of Object.entries(published)){
+    const strings=JSON.parse(readFileSync(new URL('../entry/src/main/resources/'+locale+'/element/string.json',import.meta.url),'utf8')).string;
+    assert.equal(strings.find(s=>s.name==='phone_settings_hub')?.value,'Hub');
+    assert.equal(strings.find(s=>s.name==='phone_settings_common_groups_footer')?.value,expected);
+  }
+});
