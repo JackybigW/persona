@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lookupUnavailable, normalizeEntry, normalizeState, textLookupApi, withWordSaved } from "./client";
+import { lookupKey, lookupUnavailable, normalizeEntry, normalizeState, textLookupApi, withWordSaved } from "./client";
 import type { api } from "../lib/api";
 
 describe("text lookup responses", () => {
@@ -40,6 +40,12 @@ describe("text lookup responses", () => {
     const state = { available: true, underline_saved: true, words: ["hello"] };
     expect(withWordSaved(state, "Hello", true).words).toEqual(["Hello"]);
     expect(withWordSaved(state, "hello", false).words).toEqual([]);
+  });
+
+  it("normalizes lookup keys by lemma when present and falls back to word", () => {
+    expect(lookupKey({ word: "Deployed", lemma: "Deploy" })).toBe("deploy");
+    expect(lookupKey({ word: "Don\u2019t", lemma: "  " })).toBe("don't");
+    expect(lookupKey({ word: "Hello" })).toBe("hello");
   });
 
   it("recognizes the provider going away", () => {

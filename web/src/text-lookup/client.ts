@@ -88,8 +88,8 @@ export function lookupKey(entry: Pick<LookupEntry, "word" | "lemma">): string {
 }
 
 export function withWordSaved(state: LookupState, word: string, saved: boolean): LookupState {
-  const key = word.toLowerCase();
-  const words = state.words.filter((item) => item.toLowerCase() !== key);
+  const key = lookupKey({ word });
+  const words = state.words.filter((item) => lookupKey({ word: item }) !== key);
   return { ...state, words: saved ? [...words, word] : words };
 }
 

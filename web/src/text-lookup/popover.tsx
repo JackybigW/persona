@@ -37,7 +37,11 @@ export default function LookupPopover({ hit, onClose }: { hit: LookupOpen; onClo
         if (!live) return;
         setEntry(next);
         const key = lookupKey(next);
-        setSaved(next.saved || lookupSnapshot()?.words.some((word) => word.toLowerCase() === key) === true);
+        const surface = lookupKey({ word: next.word });
+        setSaved(next.saved || lookupSnapshot()?.words.some((word) => {
+          const item = lookupKey({ word });
+          return item === key || item === surface;
+        }) === true);
         setPhase("ready");
       },
       (err: unknown) => {

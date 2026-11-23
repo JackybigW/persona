@@ -155,6 +155,7 @@ private nonisolated struct TextLookupRequest: Encodable, Sendable {
     /// answers for the new one, which is then read from scratch.
     func reset() {
         stopReading()
+        lastRead = nil
         clearCache()
         apply(.unavailable)
         refresh()
@@ -223,17 +224,21 @@ private nonisolated struct TextLookupRequest: Encodable, Sendable {
             return hit
         }
         guard active, let api = deps.api() else { throw Failure(message: Self.unavailableText) }
+        let current = generation
+        let provider = (state.extensionID, state.contribution)
         do {
             var entry = try await api.post(Self.path + "/lookup", body: TextLookupRequest(word: word, context: context.flatMap { $0.isEmpty ? nil : $0 }),
                                            timeout: 15, as: TextLookupEntry.self)
             if entry.word.isEmpty { entry.word = word }
-            remember(key, entry)
-            // The extension's word on whether it is saved wins over this copy.
-            if entry.saved != (saved.contains(entry.key) || saved.contains(key)) { mark(entry.key, saved: entry.saved) }
+            if sameTarget(generation: current, provider: provider) {
+                remember(key, entry)
+                // The extension's word on whether it is saved wins over this copy.
+                if entry.saved != (saved.contains(entry.key) || saved.contains(key)) { mark(entry.key, saved: entry.saved) }
+            }
             return entry
         } catch let e as APIError where e.code == "text_lookup_unavailable" {
             // Turned off since the last read: the words go back to being only words.
-            refresh()
+            if sameTarget(generation: current, provider: provider) { refresh() }
             throw Failure(message: Self.unavailableText)
         }
     }
@@ -241,14 +246,16 @@ private nonisolated struct TextLookupRequest: Encodable, Sendable {
     /// Saves the word (`entry.key`) to the extension's list; the state shows it at once and goes back on failure.
     func save(_ entry: TextLookupEntry, context: String?, source: String?) async throws {
         guard let api = deps.api() else { throw Failure(message: Self.unavailableText) }
+        let current = generation
+        let provider = (state.extensionID, state.contribution)
         mark(entry.key, saved: true)
         do {
             let answer = try await api.post(Self.path + "/words",
                                             body: TextLookupRequest(word: entry.key, context: context.flatMap { $0.isEmpty ? nil : $0 }, source: source),
                                             as: TextLookupSaved.self)
-            mark(entry.key, saved: answer.saved)
+            if sameTarget(generation: current, provider: provider) { mark(entry.key, saved: answer.saved) }
         } catch {
-            mark(entry.key, saved: false)
+            if sameTarget(generation: current, provider: provider) { mark(entry.key, saved: false) }
             throw error
         }
     }
@@ -256,15 +263,21 @@ private nonisolated struct TextLookupRequest: Encodable, Sendable {
     /// Removes the word from the extension's list; it comes back on failure.
     func remove(_ entry: TextLookupEntry) async throws {
         guard let api = deps.api() else { throw Failure(message: Self.unavailableText) }
+        let current = generation
+        let provider = (state.extensionID, state.contribution)
         mark(entry.key, saved: false)
         do {
             let escaped = entry.key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? entry.key
             _ = try await api.request("DELETE", Self.path + "/words/" + escaped)
-            mark(entry.key, saved: false)
+            if sameTarget(generation: current, provider: provider) { mark(entry.key, saved: false) }
         } catch {
-            mark(entry.key, saved: true)
+            if sameTarget(generation: current, provider: provider) { mark(entry.key, saved: true) }
             throw error
         }
+    }
+
+    private func sameTarget(generation: Int, provider: (String?, String?)) -> Bool {
+        generation == self.generation && state.available && state.extensionID == provider.0 && state.contribution == provider.1
     }
 
     func isSaved(_ entry: TextLookupEntry) -> Bool { saved.contains(entry.key) || saved.contains(Self.normalized(entry.word)) }

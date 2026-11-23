@@ -216,6 +216,53 @@ import PersonaWire
         #expect(new.sent("POST", TextLookupModel.path + "/lookup").count == 1)
         #expect(old.sent("POST", TextLookupModel.path + "/lookup").isEmpty)
     }
+
+    @Test func anotherHubWithSameProviderDropsCachedEntriesAndLateLookups() async throws {
+        let old = FakeHub(), new = FakeHub()
+        let oldEntry = #"{"found":true,"word":"deployed","lemma":"deploy","senses":[{"pos":"v.","text":"old hub meaning"}],"saved":false}"#
+        let newEntry = #"{"found":true,"word":"deployed","lemma":"deploy","senses":[{"pos":"v.","text":"new hub meaning"}],"saved":false}"#
+        let slowGate = AsyncStream<Void>.makeStream()
+        old.on("GET", TextLookupModel.path, json: Self.state)
+        old.onAsync("POST", TextLookupModel.path + "/lookup") { req in
+            let text = req.body.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            if text.contains("pending") {
+                for await _ in slowGate.stream { break }
+                return Data(#"{"found":true,"word":"pending","senses":[{"text":"old pending"}],"saved":true}"#.utf8)
+            }
+            return Data(oldEntry.utf8)
+        }
+        new.on("GET", TextLookupModel.path, json: Self.state)
+        new.on("POST", TextLookupModel.path + "/lookup") { req in
+            let text = req.body.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            if text.contains("pending") {
+                return Data(#"{"found":true,"word":"pending","senses":[{"text":"new pending"}],"saved":false}"#.utf8)
+            }
+            return Data(newEntry.utf8)
+        }
+        var hub = old
+        let m = TextLookupModel(deps: .init(api: { hub.client }, features: { [TextLookupModel.feature] }))
+        m.refresh()
+        await m.settle()
+        let fromOld = try await m.lookup("deployed", context: nil)
+        #expect(fromOld.senses.first?.text == "old hub meaning")
+
+        // Start a slow lookup on the old hub, then switch to another hub that also has the same provider available.
+        let inFlight = Task { try await m.lookup("pending", context: nil) }
+        for _ in 0..<1000 where old.sent("POST", TextLookupModel.path + "/lookup").count < 2 { await Task.yield() }
+        hub = new
+        m.reset()
+        await m.settle()
+        slowGate.continuation.yield()
+        _ = try await inFlight.value
+
+        // Neither the previously cached entry nor the late in-flight lookup from the old hub leaks into the new hub.
+        let fromNew = try await m.lookup("deployed", context: nil)
+        #expect(fromNew.senses.first?.text == "new hub meaning")
+        let pendingNew = try await m.lookup("pending", context: nil)
+        #expect(pendingNew.senses.first?.text == "new pending")
+        #expect(!m.saved.contains("pending"))
+        #expect(new.sent("POST", TextLookupModel.path + "/lookup").count == 2)
+    }
 }
 
 struct TextLookupWordsTests {
