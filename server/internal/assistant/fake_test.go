@@ -64,6 +64,7 @@ type fakeHub struct {
 	rcFiles             map[string]string                  // a machine's launchers.list rc_file (its shell follows: bash or zsh)
 	slowLaunchers       map[string]bool                    // a machine whose launchers.list answers only when the call gives up
 	launcherGate        chan struct{}                      // when set, every launchers.list answer waits for this gate
+	onLauncherModels    func(context.Context, string)      // before the requested launcher returns its models, under mu
 	failLauncherRefresh bool                               // launchers.list with refresh:true fails, ordinary reads still answer
 	launcherListParams  []map[string]any                   // launchers.list params in order
 	agentModels         map[string][]proto.AgentModel      // the nodes' launchers.models, by launcher
@@ -601,6 +602,12 @@ func (f *fakeHub) deviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 		return json.Marshal(map[string]any{"launchers": f.launcherList})
 	case assistantwire.DeviceLaunchersModels:
 		name, _ := a["name"].(string)
+		if f.onLauncherModels != nil {
+			f.onLauncherModels(ctx, name)
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
 		models := f.agentModels[name]
 		if models == nil {
 			models = []proto.AgentModel{}
