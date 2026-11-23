@@ -72,6 +72,7 @@ DOMAINS = [
     "meeting_finishing_mock",  # a meeting's final pass in progress for shots of the minutes line (#13461), MOCK_MEETING_FINISHING
     "extension_scene_mock",  # UI version 11's scene on a made-up Home page (#12544), MOCK_EXTENSION_SCENE
     "spaces_mock",  # domain spaces: tracks, kinds, SPACE.md, categories, extension trust (#13500), MOCK_SPACES
+    "todo_sort_mock",  # sorting to-dos into projects (/api/v1/todo-sort/…), MOCK_TODO_SORT
 ]
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
