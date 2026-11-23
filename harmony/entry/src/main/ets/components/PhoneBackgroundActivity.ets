@@ -1,6 +1,11 @@
 import type { BackgroundRound } from '../core/BackgroundActivity';
 import { activityFeedRound, splitBackgroundRounds } from '../core/BackgroundActivity';
 import type { TranscriptItem } from '../core/Domain';
+import { i18n } from '@kit.LocalizationKit';
+import { relativeActivityDate } from '../core/PhoneDate';
+import { nativeEnvironment } from '../platform/NativeEnvironment';
+import { PhoneStyle } from '../design/PhoneStyle';
+import { TodoWorkspacePage } from './TodoWorkspacePage';
 import { Colors } from '../design/Colors';
 import { tr, trError } from '../design/Strings';
 import { Symbols } from '../design/Symbols';
@@ -18,6 +23,12 @@ export struct PhoneBackgroundActivity {
   @Event onClose: () => void = () => {};
 
   @Event onOpen: (row: ResourceRow) => void = (_row: ResourceRow) => {};
+
+  @Event onLink: (address: string) => void = (_address: string) => {};
+  @Event onCreateAgent: (todo: ResourceRow) => void = (_todo: ResourceRow) => {};
+  @Local taskSheet: boolean = false;
+  @Local detailTask: ResourceRow | undefined = undefined;
+  @Local detailTitle: string = '';
 
   @Local taskRows: ResourceRow[] = [];
   @Local viewport: number = 0;
@@ -100,7 +111,21 @@ export struct PhoneBackgroundActivity {
   }
 
   private toggle(key: string): void {
-    this.opened = this.opened.includes(key) ? this.opened.filter((id: string) => id !== key) : this.opened.concat([key]);
+    const opening = !this.opened.includes(key);
+    this.opened = opening ? this.opened.concat([key]) : this.opened.filter((id: string) => id !== key);
+    if (opening && key.startsWith('work:')) {
+      const round = this.rounds.find((value: BackgroundRound) => 'work:' + value.id === key);
+      if (round) this.readFoldedWork(round, key, this.ticket);
+    }
+  }
+
+  private async readFoldedWork(round: BackgroundRound, key: string, ticket: number): Promise<void> {
+    try {
+      for (const item of round.items) {
+        if (!this.current(ticket) || !this.opened.includes(key)) return;
+        if (item.kind === 'fold') await this.transcript?.unfold(item.id);
+      }
+    } catch (error) { if (this.current(ticket)) this.error = (error as Error).message; }
   }
 
   private roundFeed(round: BackgroundRound): Record<string, Object>[] {
@@ -154,7 +179,10 @@ export struct PhoneBackgroundActivity {
   private follow(item: Record<string, Object>, agent?: TodoWorkspaceAgent): void {
     const task = this.task(item);
     if (!this.current(this.ticket) || !task) return;
-    if (!agent) { this.onOpen(task); return; }
+    if (!agent) {
+      this.detailTask = task; this.detailTitle = task.title; this.taskSheet = true;
+      return;
+    }
     const current = this.agents(item).find((row: TodoWorkspaceAgent) =>
       row.machineId === agent.machineId && row.sessionId === agent.sessionId);
     if (!current) return;
@@ -189,8 +217,10 @@ export struct PhoneBackgroundActivity {
 
   private activityTime(agent: TodoWorkspaceAgent): string {
     const row = this.listed(agent);
-    const at = row ? Date.parse(Wire.text(row.data(), 'updated_at')) : NaN;
-    return Number.isFinite(at) ? new Date(at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : tr('activity_no_motion');
+    const data = row?.data() || {};
+    const at = Date.parse(Wire.text(data, 'activity_at') || Wire.text(data, 'updated_at'));
+    const locale = this.model.language && this.model.language !== 'default' ? this.model.language : i18n.getSystemLanguage();
+    return relativeActivityDate(at, Date.now(), locale, tr('agent_time_just_now'), tr('kb_minutes_ago'), tr('kb_yesterday')) || tr('activity_no_motion');
   }
 
   @Builder disclosure(label: string, key: string, identity: string) {
@@ -206,8 +236,8 @@ export struct PhoneBackgroundActivity {
   @Builder dispatch(item: Record<string, Object>, agent?: TodoWorkspaceAgent, disambiguate: boolean = false) {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
-        Text('↳').width(32).height(32).fontSize(19).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
-          .backgroundColor(Colors.control).borderRadius(16).textAlign(TextAlign.Center).accessibilityLevel('no')
+        Text('↪').width(32).height(32).fontSize(19).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
+          .backgroundColor($r('app.color.activity_icon_well')).borderRadius(16).textAlign(TextAlign.Center).accessibilityLevel('no')
         Column({ space: 4 }) {
           Row({ space: 6 }) {
             Text(this.titleFor(item, agent)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
@@ -227,7 +257,7 @@ export struct PhoneBackgroundActivity {
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         if (this.task(item)) { Text('↗').fontSize(14).fontColor(Colors.secondary).accessibilityLevel('no') }
       }.width('100%').padding(12).constraintSize({ minHeight: 64 })
-    }.width('100%').padding(0).backgroundColor(Colors.surface).border({ width: 0.5, color: Colors.divider, radius: 15 })
+    }.width('100%').padding(0).backgroundColor(Colors.styleCard || $r('app.color.activity_task_card')).border({ width: 0.5, color: $r('app.color.activity_card_edge'), radius: 15 })
       .enabled(!!this.task(item)).onClick(() => this.follow(item, agent))
       .id('dispatch.task.' + Wire.text(item, 'ref') + (disambiguate && agent ? '.' + agent.sessionId : ''))
   }
@@ -242,7 +272,7 @@ export struct PhoneBackgroundActivity {
             .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).flexShrink(1)
           SymbolGlyph(this.opened.includes(Wire.text(item,'id')) ? Symbols.down : Symbols.expand).fontSize(10).fontColor([Colors.secondary])
         }.padding({ left: 11, right: 11, top: 5, bottom: 5 }).constraintSize({ minHeight: 28 })
-      }.padding(0).backgroundColor(Colors.control).constraintSize({ maxWidth: '100%' })
+      }.padding(0).backgroundColor($r('app.color.activity_answer_chip')).constraintSize({ maxWidth: '100%' })
         .accessibilitySelected(this.opened.includes(Wire.text(item,'id'))).onClick(() => this.toggle(Wire.text(item, 'id'))).id('answered-line')
       if (this.opened.includes(Wire.text(item, 'id'))) {
         Column({ space: 6 }) {
@@ -251,7 +281,7 @@ export struct PhoneBackgroundActivity {
           if (Wire.text(Wire.object(item, 'body'), 'reason')) {
             Text(Wire.text(Wire.object(item, 'body'), 'reason')).fontColor(Colors.secondary).fontSize(13)
           }
-        }.width('100%').padding(12).alignItems(HorizontalAlign.Start).backgroundColor(Colors.control).borderRadius(14).id('answered-detail')
+        }.width('100%').padding(12).alignItems(HorizontalAlign.Start).backgroundColor($r('app.color.activity_answer_chip')).borderRadius(14).id('answered-detail')
       }
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
@@ -267,7 +297,7 @@ export struct PhoneBackgroundActivity {
         }
       }.padding(0).backgroundColor(Color.Transparent).enabled(!!this.task(item)).onClick(() => this.follow(item)).id('activity.routed.task')
       Text(Wire.text(Wire.object(item, 'body'), 'text')).width('100%').textAlign(TextAlign.Start)
-        .fontSize(17).fontColor(Colors.ink).padding({ left: 16, right: 16, top: 12, bottom: 12 }).backgroundColor(Colors.control).borderRadius(17)
+        .fontSize(17).fontColor(Colors.ink).padding({ left: 16, right: 16, top: 12, bottom: 12 }).backgroundColor($r('app.color.activity_exchange_fill')).borderRadius(17)
         .id('exchange.text')
     }.width('100%').padding({ right: 32 }).alignItems(HorizontalAlign.Start).id('exchange.routed')
   }
@@ -291,7 +321,7 @@ export struct PhoneBackgroundActivity {
         Column({ space: 6 }) {
           Text(tr('activity_input')).fontSize(13).fontColor(Colors.secondary)
           Text(round.items[0].text || '').width('100%').fontSize(16).fontColor(Colors.ink)
-        }.width('100%').padding(12).alignItems(HorizontalAlign.Start).backgroundColor(Colors.control).borderRadius(14).id('supervision-input')
+        }.width('100%').padding(12).alignItems(HorizontalAlign.Start).backgroundColor($r('app.color.activity_answer_chip')).borderRadius(14).id('supervision-input')
         this.disclosure(tr('work_summary'), 'work:' + round.id, 'work-head')
         if (this.opened.includes('work:' + round.id)) {
           ForEach(round.items.slice(1), (item: TranscriptItem) => {
@@ -307,15 +337,38 @@ export struct PhoneBackgroundActivity {
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
+  @Builder taskDetail() {
+    if (this.detailTask) {
+      Column() {
+        Stack({ alignContent: Alignment.Center }) {
+          Text(this.detailTitle).fontSize(17).fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis }).padding({ left: 58, right: 58 })
+          Row() {
+            Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(21).fontColor([Colors.ink]) }
+              .width(44).height(44).backgroundColor(Colors.sheetControl).onClick(() => { this.taskSheet = false; })
+              .accessibilityText(tr('close')).id('activity.task.close')
+            Blank()
+          }.width('100%')
+        }.width('100%').height(54).padding({ left: 16, right: 16 })
+        TodoWorkspacePage({ model: this.model, row: this.detailTask, list: false, visible: this.taskSheet,
+          onTitle: (title: string) => { this.detailTitle = title; },
+          onOpen: (row: ResourceRow) => { this.taskSheet = false; this.onOpen(row); },
+          onOpenResource: (row: ResourceRow) => { this.taskSheet = false; this.onOpen(row); },
+          onLink: (address: string) => this.onLink(address),
+          onCreateAgent: (row: ResourceRow) => { this.taskSheet = false; this.onCreateAgent(row); } })
+      }.width('100%').height('100%').backgroundColor(Colors.sheetBackground).id('activity.task.page')
+    }
+  }
+
   build() {
     Column() {
-      Row().width(60).height(4).borderRadius(2).backgroundColor(Colors.divider).margin({ top: 5, bottom: 4 }).accessibilityLevel('no')
+      Row().width(60).height(4).borderRadius(2).backgroundColor($r('app.color.activity_grabber')).margin({ top: 5, bottom: 4 }).accessibilityLevel('no')
       Stack({ alignContent: Alignment.Center }) {
         Text(tr('background_activity')).fontSize(17).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
         Row() {
           Button({ type: ButtonType.Circle }) {
-            SymbolGlyph($r('sys.symbol.xmark')).fontSize(20).fontColor([Colors.ink])
-          }.width(44).height(44).backgroundColor(Colors.surface).border({ width: 0.5, color: Colors.divider, radius: 22 }).accessibilityText(tr('close')).onClick(() => this.onClose()).id('activity.close')
+            SymbolGlyph($r('sys.symbol.xmark')).fontSize(PhoneStyle.recapCloseGlyph(nativeEnvironment.fontScale)).fontColor([Colors.ink])
+          }.width(44).height(44).backgroundColor($r('app.color.activity_close_fill')).border({ width: 0.5, color: $r('app.color.activity_card_edge'), radius: 22 }).accessibilityText(tr('close')).onClick(() => this.onClose()).id('activity.close')
           Blank()
         }.width('100%')
       }.width('100%').height(54).padding({ left: 16, right: 16 })
@@ -343,6 +396,8 @@ export struct PhoneBackgroundActivity {
         }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
           .onAreaChange((_old: Area, area: Area) => { this.viewport = Number(area.height); }).id('activity.scroll')
       }
-    }.width('100%').height('100%').backgroundColor(Colors.canvas).id('background-activity-page')
+    }.width('100%').height('100%').backgroundColor(Colors.stylePage || $r('app.color.activity_sheet_fill')).id('background-activity-page')
+      .bindSheet($$this.taskSheet, this.taskDetail(), { height: SheetSize.LARGE, dragBar: true, showClose: false,
+        onDisappear: () => { this.taskSheet = false; this.detailTask = undefined; } })
   }
 }

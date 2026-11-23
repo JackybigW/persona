@@ -393,9 +393,11 @@ struct Index {
       PhoneBackgroundActivity({ model: this.model, row: this.activityRow,
         onClose: () => { this.activityVisible = false; },
         onOpen: (row: ResourceRow) => {
-          this.activityVisible = false;
+          if (row.kind === 'session' && this.model.section !== 0) this.changeSection(0);
           this.openLinkedResource(row);
-        } })
+        },
+        onLink: (address: string) => this.openReader(address),
+        onCreateAgent: (row: ResourceRow) => { this.activityVisible = false; this.prepareAgent(row); } })
     }
   }
   @Builder allChatsSheet() {
@@ -2960,7 +2962,7 @@ struct Index {
     }
     }
     Column().width(0).height(0).bindSheet($$this.activityVisible, this.backgroundActivitySheet(), {
-      height: '93%', preferType: SheetType.BOTTOM, dragBar: false, showClose: false,
+      height: '97.4%', preferType: SheetType.BOTTOM, dragBar: false, showClose: false,
       onDisappear: () => { this.activityVisible = false; this.activityRow = undefined; } })
     Column().width(0).height(0).bindSheet(this.chatForward.isChoosing(this.detailModel),this.forwardPickerContent(),{
       height:forwardRestingDetent,detents:[forwardRestingDetent,SheetSize.LARGE],
