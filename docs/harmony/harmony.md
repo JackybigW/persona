@@ -237,6 +237,12 @@ The selected Assistant menu and the Inbox menu both open Background Activity for
 
 The main conversation's Needs You tray shows questions, elicitation requests, owner-proposal permissions and decisions that reach the user. A plan and ordinary Agent permissions remain accessible from their own conversations. All opens the current conversation's task board, including finished tasks.
 
+A briefing’s In Progress and To Verify rows open the task. Waiting for You and Can Wait can open the Agent conversation named by the card. A recommendation or acceptance acts on the review round shown in that briefing. Handled acknowledges the queued question. When the workflow’s stage names exceed the available width, the dots stay visible and a line gives the current stage and its position.
+
+Project search keeps the selected machine and includes terminal sessions. Needs You counts each session once even when that Agent has several pending cards. Changing the grouping in Agents preserves the active search.
+
+A failed task can be opened from its task list, the main conversation or its task board. When the Hub supplies a current startup question, choose one of its offered responses to continue the original attempt. The retry and remove actions reflect whether the task already had an Agent. On the to-do list, Got It files an eligible result and Undo returns it to the list.
+
 Assistant serves everyday conversation and tasks; Agents retains specialist controls. Both use the shared semantic roles from iOS through ArkUI resources. The sidebar and content share the canvas, selected native rows identify the current context, and AI/Knowledge and Health have distinct module icon colors. Color supplements a symbol or visible state; it never creates an execution result.
 
 `IconActions` defines known action symbols and progress states. `ButtonStyles.icon` and `iconPrimary` use actual 48 × 48 vp native Circle buttons, 22 vp symbols and shared foreground/background roles. Existing title tools retain their 40 vp visual and 48 vp response region. Start is Play, Send is Up, Save is Check, and Retry is Refresh. Body editing uses the functional size. Labels remain for content, real choices, file names, keyboard keys, Git diff scope and system confirmations; these are not wide action slabs. Avoid descriptive subtitles and duplicate View/Details actions when the content row already opens the destination.
