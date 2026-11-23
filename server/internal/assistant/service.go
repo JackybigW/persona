@@ -338,6 +338,9 @@ type Service struct {
 	// deadlineDefaultHook, when set, runs in the deadline sweep after it found no owner choice on its way for decision
 	// id and before it takes the default or marks the reminder (tests: the choice arrives in between).
 	deadlineDefaultHook func(id string)
+	// supervisorSettleHook, when set, runs as a delivered owner choice of decision id is about to be settled: it is
+	// claimed in the book, and the card's action lock is not taken yet (tests: the deadline sweep runs in between).
+	supervisorSettleHook func(id string)
 	// sendsSettleHook, when set, runs in sendsSettle once the task is opened again, before the turn held for it is
 	// taken up (tests).
 	sendsSettleHook func()

@@ -553,7 +553,7 @@ func (s *Service) undeliveredSend(ctx context.Context, id string) {
 		switch {
 		case err == nil:
 			s.dropKeptLocked(id, k.ID)
-			settle, settles = s.takeKeptSupervisorSettleLocked(k)
+			settle, settles = s.claimKeptSupervisorSettleLocked(k)
 			s.logf("undelivered: sent a kept message to %s after %d tries", short(id), k.Attempts)
 		case errors.Is(err, errKeptSignedOut):
 			b.recordRevocationLocked(k.CredentialID)
@@ -593,7 +593,7 @@ func (s *Service) undeliveredSend(ctx context.Context, id string) {
 			s.logf("undelivered: %s still does not take a kept message (try %d): %v", short(id), k.Attempts+1, err)
 		}
 		b.mu.Unlock()
-		s.settleKeptSupervisorChoice(ctx, settle, settles)
+		s.settleKeptSupervisorChoice(ctx, k, settle, settles)
 		if saveErr != nil {
 			// The saved mark of the try stays, in memory too: the next pass only looks for it.
 			s.logf("undelivered: the outcome of a try to %s is not saved: %v", short(id), saveErr)
@@ -627,10 +627,10 @@ func (s *Service) undeliveredLook(ctx context.Context, id string, k keptMessage)
 	b.mu.Lock()
 	if landed {
 		s.dropKeptLocked(id, k.ID)
-		settle, settles := s.takeKeptSupervisorSettleLocked(k)
+		settle, settles := s.claimKeptSupervisorSettleLocked(k)
 		b.mu.Unlock()
 		s.logf("undelivered: a kept message to %s whose try was in doubt is in the conversation, taken as delivered", short(id))
-		s.settleKeptSupervisorChoice(ctx, settle, settles)
+		s.settleKeptSupervisorChoice(ctx, k, settle, settles)
 		return true
 	}
 	defer b.mu.Unlock()

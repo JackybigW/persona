@@ -660,3 +660,243 @@ func TestSupervisorChoiceOfAnEarlierRoundDoesNotHoldTheNextRound(t *testing.T) {
 		})
 	}
 }
+
+// Third review on #13189: a delivered choice used to leave the book before its settlement held the card's action
+// lock, so a deadline sweep in between found nothing on its way and acted. supervisorSettleHook runs in exactly that
+// window: the choice is claimed, the lock not yet taken.
+
+// settlingNow runs during is, once, in the window between a delivered choice of to-do id being claimed and its
+// settlement taking the card's action lock, and reports how often the window was reached.
+func settlingNow(t *testing.T, s *Service, id string, during func()) *int {
+	t.Helper()
+	reached := new(int)
+	s.supervisorSettleHook = func(got string) {
+		if got != id {
+			return
+		}
+		if *reached++; *reached == 1 {
+			during()
+		}
+	}
+	t.Cleanup(func() { s.supervisorSettleHook = nil })
+	return reached
+}
+
+// bookSize is how many choices wait in the book.
+func bookSize(s *Service) int {
+	s.supervisorSettles.mu.Lock()
+	defer s.supervisorSettles.mu.Unlock()
+	return len(s.supervisorSettles.pending)
+}
+
+// A deadline sweep that runs after the delivered notice claimed the choice and before its settlement holds the card's
+// action lock still finds the choice. Reversible: the recommendation is not taken; one that cannot be undone: its
+// deadline is not marked handled and no reminder goes out. The owner's option then settles.
+func TestSupervisorChoiceBeingSettledBeatsTheDefault(t *testing.T) {
+	irreversible := dropTableDecision()
+	irreversible["deadline"], irreversible["reversible"] = "1h", false
+	for name, review := range map[string]map[string]any{"reversible": rolloutDecision(), "irreversible": irreversible} {
+		t.Run(name, func(t *testing.T) {
+			s, f, todo := newSupervisedService(t)
+			presenceTimes(t, 0, 0)
+			ownerTurnTimes(t, 0, 0)
+			waitsForReview(t, s, f, todo.ID, "The agent needs a choice between two options.")
+			if _, err := reviewErr(s, todo.ID, review); err != nil {
+				t.Fatal(err)
+			}
+			a := askOf(s, todo.ID)
+			want := a.Options[1].Label
+			if want == a.Recommend || a.Reversible != (name == "reversible") {
+				t.Fatalf("fixture: %+v", a)
+			}
+			sent, pushes := len(workerSends(f)), deadlinePushes(f, todo.ID)
+			spokeOnBus(t, s, supervisorRef(), want, "msg-settling")
+			pastDeadline(t, s, todo.ID)
+			var during acceptAsk
+			var held bool
+			reached := settlingNow(t, s, todo.ID, func() {
+				s.sweepDecisionDeadlines(time.Now())
+				during = *askOf(s, todo.ID)
+				p, ok := settleEntry(s, "msg-settling")
+				held = ok && p.settling
+			})
+			sentNotice(s, supervisorRef(), "msg-settling", assistantwire.ConversationDelivered)
+			if *reached != 1 {
+				t.Fatalf("the settlement reached its window %d times, want 1", *reached)
+			}
+			if !held {
+				t.Fatal("the delivered choice left the book before it was settled")
+			}
+			if !during.AcceptedAt.IsZero() || during.ByDefault || !during.DueAt.IsZero() {
+				t.Fatalf("the sweep acted over a delivered choice about to settle: %+v", during)
+			}
+			if n := deadlinePushes(f, todo.ID); n != pushes {
+				t.Fatalf("%d overdue reminders over a delivered choice about to settle", n-pushes)
+			}
+			settledTo(t, s, f, todo.ID, want, sent)
+			if n := bookSize(s); n != 0 {
+				t.Fatalf("%d entries left in the book after the settlement", n)
+			}
+		})
+	}
+}
+
+// The same window on the kept-message paths: the manager sent the kept message, or found it in the conversation, and
+// dropped it from the undelivered list; the choice is claimed and its settlement has not taken the card's action lock.
+// The sweep, and the reap it runs (the kept message is gone, which otherwise ends a kept choice), leave it alone.
+func TestSupervisorChoiceOfAKeptMessageBeingSettledBeatsTheDefault(t *testing.T) {
+	cases := map[string]struct {
+		keep func(t *testing.T, s *Service, f *fakeHub, todo Todo, want string)
+		in   func(s *Service)
+	}{
+		"sent by the manager": {
+			keep: func(t *testing.T, s *Service, f *fakeHub, todo Todo, want string) {
+				keptChoice(t, s, todo, "msg-kept")
+			},
+			in: func(s *Service) { s.undeliveredSend(context.Background(), "conv1") },
+		},
+		"found in the conversation": {
+			keep: func(t *testing.T, s *Service, f *fakeHub, todo Todo, want string) {
+				spokeOnBus(t, s, supervisorRef(), want, "msg-kept")
+				sentNotice(s, supervisorRef(), "msg-kept", assistantwire.ConversationUnknown)
+				keepUnknown(t, s, "msg-kept", want, time.Now().Add(-time.Minute))
+				f.mu.Lock()
+				f.items = []proto.Item{{ID: "u1", Seq: 1, Role: "user", Kind: proto.KindText, Text: want, ClientMsgID: "msg-kept", TS: time.Now()}}
+				f.mu.Unlock()
+			},
+			in: func(s *Service) { s.undeliveredPass(context.Background(), time.Now().Add(time.Hour)) },
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			s, f, todo := decisionAgentReplyService(t)
+			sent := len(workerSends(f))
+			want := askOf(s, todo.ID).Options[1].Label
+			c.keep(t, s, f, todo, want)
+			pastDeadline(t, s, todo.ID)
+			var during acceptAsk
+			var held bool
+			var left int
+			reached := settlingNow(t, s, todo.ID, func() {
+				left = s.undeliveredCount("conv1")
+				s.reapSupervisorSettles(time.Now())
+				s.sweepDecisionDeadlines(time.Now())
+				during = *askOf(s, todo.ID)
+				p, ok := settleEntry(s, "msg-kept")
+				held = ok && p.settling
+			})
+			c.in(s)
+			if *reached != 1 {
+				t.Fatalf("the settlement reached its window %d times, want 1", *reached)
+			}
+			if left != 0 {
+				t.Fatalf("fixture: %d kept messages still listed in the window", left)
+			}
+			if !held {
+				t.Fatal("the choice of a kept message that went in left the book before it was settled")
+			}
+			if !during.AcceptedAt.IsZero() || during.ByDefault || !during.DueAt.IsZero() {
+				t.Fatalf("the sweep acted over a delivered choice about to settle: %+v", during)
+			}
+			settledTo(t, s, f, todo.ID, want, sent)
+			if n := bookSize(s); n != 0 {
+				t.Fatalf("%d entries left in the book after the settlement", n)
+			}
+		})
+	}
+}
+
+// A choice being settled is its settler's alone. While the settlement waits, the entry outlives its time and a full
+// book (it is neither expired nor evicted), and the same message told again or reported delivered again starts no
+// second settlement: the owner's option is recorded and relayed once.
+func TestSupervisorChoiceBeingSettledIsNotDroppedOrSettledTwice(t *testing.T) {
+	s, f, todo := decisionAgentReplyService(t)
+	sent := len(workerSends(f))
+	want := askOf(s, todo.ID).Options[1].Label
+	spokeOnBus(t, s, supervisorRef(), want, "msg-once")
+	pastDeadline(t, s, todo.ID)
+	var during acceptAsk
+	var held bool
+	reached := settlingNow(t, s, todo.ID, func() {
+		settlesAged(s, supervisorSettleTTL+time.Minute) // its time passes while the settlement waits
+		for i := range supervisorSettleMax + 10 {       // and the book fills
+			s.deferSupervisorSettle(context.Background(), supervisorRef(), fmt.Sprintf("flood-%d", i), "todo_other", time.Now(), time.Now(), "x")
+		}
+		spokeOnBus(t, s, supervisorRef(), want, "msg-once") // a retry of the same message
+		s.supervisorSettleOutcome(context.Background(), ConversationSent{MachineID: supervisorRef().MachineID,
+			SessionID: supervisorRef().SessionID, Outcome: assistantwire.ConversationDelivered, ClientMsgID: "msg-once"})
+		s.sweepDecisionDeadlines(time.Now())
+		during = *askOf(s, todo.ID)
+		p, ok := settleEntry(s, "msg-once")
+		held = ok && p.settling
+	})
+	sentNotice(s, supervisorRef(), "msg-once", assistantwire.ConversationDelivered)
+	if *reached != 1 {
+		t.Fatalf("the settlement reached its window %d times, want 1", *reached)
+	}
+	if !held {
+		t.Fatal("a choice being settled was expired, evicted or replaced")
+	}
+	if !during.AcceptedAt.IsZero() || during.ByDefault || !during.DueAt.IsZero() {
+		t.Fatalf("the sweep acted over a delivered choice about to settle: %+v", during)
+	}
+	settledTo(t, s, f, todo.ID, want, sent)
+	if _, ok := settleEntry(s, "msg-once"); ok {
+		t.Fatal("the settled choice is still in the book")
+	}
+	if n := bookSize(s); n > supervisorSettleMax {
+		t.Fatalf("the book grew to %d entries", n)
+	}
+}
+
+// The entry ends with its settlement whatever the outcome, so it never keeps holding a default it can no longer
+// settle. Answered on the card while the settlement waited: the card's answer stands and nothing more is relayed. Not
+// taken by the Agent: the card keeps waiting, and the owner's own option has already marked the deadline answered, so
+// no default follows.
+func TestSupervisorChoiceBeingSettledEndsWhateverTheOutcome(t *testing.T) {
+	t.Run("answered on the card meanwhile", func(t *testing.T) {
+		s, f, todo := decisionAgentReplyService(t)
+		a := askOf(s, todo.ID)
+		want := a.Options[1].Label
+		spokeOnBus(t, s, supervisorRef(), want, "msg-late")
+		var sent int
+		reached := settlingNow(t, s, todo.ID, func() {
+			if result, err := s.chooseOption(context.Background(), todo.ID, "", a.Recommend); err != nil || !result.taken {
+				t.Errorf("the card's own answer was refused while a choice waited to settle: %+v %v", result, err)
+			}
+			sent = len(workerSends(f))
+		})
+		sentNotice(s, supervisorRef(), "msg-late", assistantwire.ConversationDelivered)
+		if *reached != 1 {
+			t.Fatalf("the settlement reached its window %d times, want 1", *reached)
+		}
+		if got := askOf(s, todo.ID); got == nil || got.AcceptedAt.IsZero() || got.ByDefault || got.Chosen == want {
+			t.Fatalf("the card's answer did not stand: %+v", got)
+		}
+		if got := workerSends(f)[sent:]; len(got) != 0 {
+			t.Fatalf("the choice was relayed after the card was answered: %q", got)
+		}
+		if n := bookSize(s); n != 0 || s.supervisorSettlePending(todo.ID, time.Now()) {
+			t.Fatalf("%d entries left in the book of an answered round", n)
+		}
+	})
+	t.Run("not taken by the Agent", func(t *testing.T) {
+		s, f, todo := decisionAgentReplyService(t)
+		want := askOf(s, todo.ID).Options[1].Label
+		spokeOnBus(t, s, supervisorRef(), want, "msg-refused")
+		failSends(f, &rpc.Error{Code: "internal", Message: "the node is restarting"})
+		sent := len(workerSends(f))
+		sentNotice(s, supervisorRef(), "msg-refused", assistantwire.ConversationDelivered)
+		failSends(f, nil)
+		stillWaiting(t, s, f, todo.ID, sent, "a choice the Agent did not take")
+		if n := bookSize(s); n != 0 || s.supervisorSettlePending(todo.ID, time.Now()) {
+			t.Fatalf("%d entries left in the book after a settlement that failed", n)
+		}
+		if got := askOf(s, todo.ID); got.DueAt.IsZero() {
+			t.Fatalf("the owner's own answer did not mark the deadline answered: %+v", got)
+		}
+		pastDeadline(t, s, todo.ID)
+		s.sweepDecisionDeadlines(time.Now())
+		stillWaiting(t, s, f, todo.ID, sent, "the deadline after the owner's own answer failed to reach the Agent")
+	})
+}

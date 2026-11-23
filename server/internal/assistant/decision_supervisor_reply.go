@@ -130,33 +130,49 @@ func supervisorOptionLabel(text string, options []DecisionOption) string {
 	return matchDecisionOption(text, options, false)
 }
 
-// settleSupervisorChoice records a unique exact option label typed in the supervisor
-// conversation, once its send was delivered, and delivers it to the worker Agent. chooseOption is the same delivery path the
-// card and task_decided (told_agent=false) use: it relays the choice to the task's Agent before
-// recording it, and askRound revalidates the whole round under the lock (acceptAskEnded, the
-// latest review's staleness, RecheckAt and ownerDecisionReturned), so neither an undelivered
-// record-only close nor a superseded round can settle. The action lock here only fences a
-// concurrent deadline/sweep; chooseOption takes the same per-card lock itself, so it runs after
-// this one is released (the locks are not reentrant). asked is the round the owner answered: a round asked since is
-// another question, which their words never settle (chooseOption checks it again under the lock).
-func (s *Service) settleSupervisorChoice(ctx context.Context, id string, asked, at time.Time, text string) {
+// settleSupervisorChoice records the waiting choice p (the book's entry key, claimed by the caller: its message was
+// delivered) and delivers it to the worker Agent, then ends the entry. chooseOptionLocked is the delivery path the
+// card and task_decided (told_agent=false) use: it relays the choice to the task's Agent before recording it, and
+// askRound revalidates the whole round (acceptAskEnded, the latest review's staleness, RecheckAt and
+// ownerDecisionReturned), so neither an undelivered record-only close nor a superseded round can settle. p.asked is
+// the round the owner answered: a round asked since is another question, which their words never settle.
+//
+// The card's action lock is held from the look at the round until the entry is gone, and the entry stays in the book,
+// marked settling, until then: the deadline default and the overdue reminder look for a waiting choice under the same
+// lock (acceptDefault, deadlineHandled), so while this waits for the lock they still find the choice, and once it
+// lets go the round is answered.
+//
+// The entry ends here whatever chooseOptionLocked says, since nothing would settle it later (the delivered notice,
+// or the kept message going in, comes once), and one left behind would only hold the default:
+//   - recorded: the round is answered.
+//   - the round is over or replaced (a zero result), or the words name no option any more: the card was answered
+//     another way, or asks something else; the choice no longer applies.
+//   - the choice did not reach the Agent, or could not be saved: the card keeps waiting, as chooseOption leaves it for
+//     the card and task_decided. Their own option has marked the deadline answered before the send
+//     (deadlineAnswered), so no default follows; the recommended one failing leaves the default to take that same
+//     option at the deadline.
+func (s *Service) settleSupervisorChoice(ctx context.Context, key [3]string, p supervisorSettle) {
+	if f := s.supervisorSettleHook; f != nil {
+		f(p.todo)
+	}
+	id := p.todo
 	s.reviewDismissals.actions.acquire(id)
+	defer s.reviewDismissals.actions.release(id)
+	defer s.endSupervisorSettle(key) // runs first: the entry goes under the action lock
 	cur, ok := s.todoNow(id)
 	if !ok || cur.DoneAt != nil || cur.Supervision == nil || cur.Supervision.State != reviewNeedsUser {
-		s.reviewDismissals.actions.release(id)
 		return
 	}
 	a, ok := s.askCopy(id)
-	s.reviewDismissals.actions.release(id)
 	if !ok || !decisionOpen(&a, cur) || !a.RecheckAt.IsZero() || ownerDecisionReturned(cur.Supervision) ||
-		!at.After(a.AskedAt) || !a.AskedAt.Equal(asked) {
+		!p.at.After(a.AskedAt) || !a.AskedAt.Equal(p.asked) {
 		return
 	}
-	label := supervisorOptionLabel(text, a.Options)
+	label := supervisorOptionLabel(p.text, a.Options)
 	if label == "" {
 		return
 	}
-	if _, err := s.chooseOption(ctx, id, asked.UTC().Format(timeKeyLayout), label); err != nil {
+	if _, err := s.chooseOptionLocked(ctx, id, p.asked.UTC().Format(timeKeyLayout), label); err != nil {
 		s.logf("task %s: decision: deliver supervisor choice: %v", id, err)
 	}
 }
@@ -220,7 +236,7 @@ func (s *Service) handBackOneSupervisorReply(ctx context.Context, r SessionRef, 
 // (busy, a 5xx) or one whose outcome is unknown, the hub hands the same message to keepUndelivered right after the
 // notice, and the manager sends it later (undeliveredSend → deliverKept) or finds it in the conversation
 // (undeliveredLook). Neither tells session.assistant_sent again, so the entry stays, marked kept: it holds the default
-// while the kept message waits and settles where that message goes in (takeKeptSupervisorSettleLocked). It is
+// while the kept message waits and settles where that message goes in (claimKeptSupervisorSettleLocked). It is
 // dropped when the kept message fails (given up, the conversation gone, the device signed out, not found after a try
 // in doubt), the owner deletes it, or the hub never keeps it (supervisorKeepGrace after the notice).
 //
@@ -229,6 +245,18 @@ func (s *Service) handBackOneSupervisorReply(ctx context.Context, r SessionRef, 
 // it together with the other two. A choice is registered under its card's action lock (holdSupervisorChoice), the
 // lock the deadline default holds while it checks the book once more and takes the recommendation (acceptDefault):
 // a choice either is in the book before the default looks, or finds the round answered and is not registered.
+//
+// A choice whose message went in stays in the book until it is recorded. Whoever learns of the delivery claims the
+// entry (claimSupervisorSettle marks it settling; a kept message's is claimed under s.undelivered.mu with that
+// message's drop), then takes the action lock, records the choice and only then removes the entry, still under that
+// lock (settleSupervisorChoice). So the default never finds the book empty between a delivery and its record. A
+// settling entry belongs to its settler alone: it does not expire, is not evicted when the book is full, is not
+// reaped for a kept message that is gone (it went in), and a second notice for it claims nothing.
+//
+// Every other way an entry leaves the book ends the choice unsettled, and none of them decides anything on the card:
+// expiry and the full book's eviction (pruneLocked), a kept message that failed, was deleted or never came
+// (reapSupervisorSettles), a round that was replaced (supervisorSettlePending). They need no action lock: a claim
+// that comes after one of them finds no entry and settles nothing, and the default then applies as the ledger has it.
 const (
 	// supervisorSettleTTL outlives the hub's longest wait for a send (five minutes to a session still starting, plus
 	// the manager's preparation): an entry whose notice never comes (a send the manager refused, a hub restart)
@@ -253,6 +281,9 @@ type supervisorSettle struct {
 	kept     bool
 	keptSeen bool
 	keepBy   time.Time
+	// settling: the message went in and its settler has claimed the entry (claimSupervisorSettle); it stays, holding
+	// the default, until the choice is recorded under the card's action lock, and only its settler removes it.
+	settling bool
 }
 
 type supervisorSettleBook struct {
@@ -264,10 +295,12 @@ func supervisorSettleKey(r SessionRef, clientMsgID string) [3]string {
 	return [3]string{r.MachineID, r.SessionID, clientMsgID}
 }
 
-// pruneLocked drops expired entries and, when the book is full, the ones closest to expiring.
+// pruneLocked drops expired entries and, when the book is full, the ones closest to expiring. One being settled is
+// neither: its message went in, and it leaves when its choice is recorded (they are as few as the settlements under
+// way, so the book stays bounded).
 func (b *supervisorSettleBook) pruneLocked(now time.Time, room int) {
 	for k, p := range b.pending {
-		if !now.Before(p.expires) {
+		if !p.settling && !now.Before(p.expires) {
 			delete(b.pending, k)
 		}
 	}
@@ -275,9 +308,12 @@ func (b *supervisorSettleBook) pruneLocked(now time.Time, room int) {
 		var oldest [3]string
 		var at time.Time
 		for k, p := range b.pending {
-			if at.IsZero() || p.expires.Before(at) {
+			if !p.settling && (at.IsZero() || p.expires.Before(at)) {
 				oldest, at = k, p.expires
 			}
+		}
+		if at.IsZero() {
+			return // only entries being settled are left
 		}
 		delete(b.pending, oldest)
 	}
@@ -314,7 +350,7 @@ func (s *Service) holdSupervisorChoice(ctx context.Context, r SessionRef, client
 func (s *Service) deferSupervisorSettle(ctx context.Context, r SessionRef, clientMsgID, todo string, asked, at time.Time, text string) {
 	key := supervisorSettleKey(r, clientMsgID)
 	// s.undelivered.mu stays held over the registration: the kept message cannot go in between the look and the entry
-	// (it takes the entry under this lock, takeKeptSupervisorSettleLocked).
+	// (it claims the entry under this lock, claimKeptSupervisorSettleLocked).
 	u := &s.undelivered
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -343,8 +379,9 @@ func (s *Service) deferSupervisorSettle(ctx context.Context, r SessionRef, clien
 }
 
 // supervisorSettlePending says whether an exact choice of the round to-do id's decision asks now still waits for its
-// send's outcome. A choice of an earlier round answers a question that is no longer asked: it is dropped here, and
-// never holds the default of the round that replaced it.
+// send's outcome, or is being settled now that its message went in (its settler waits for the card's action lock or
+// holds it). A choice of an earlier round answers a question that is no longer asked: it is dropped here (one being
+// settled is left to its settler), and never holds the default of the round that replaced it.
 func (s *Service) supervisorSettlePending(id string, now time.Time) bool {
 	s.reapSupervisorSettles(now)
 	cur, asking := s.askCopy(id) // before the book's lock: s.accept.mu and the book are never held together
@@ -353,12 +390,14 @@ func (s *Service) supervisorSettlePending(id string, now time.Time) bool {
 	defer b.mu.Unlock()
 	pending := false
 	for k, p := range b.pending {
-		if p.todo != id || !now.Before(p.expires) {
+		if p.todo != id || !p.settling && !now.Before(p.expires) {
 			continue
 		}
 		// Rounds only move on: an entry of a round asked after the one read here is the current one's.
 		if asking && p.asked.Before(cur.AskedAt) {
-			delete(b.pending, k)
+			if !p.settling {
+				delete(b.pending, k)
+			}
 			continue
 		}
 		pending = true
@@ -379,7 +418,7 @@ func (s *Service) markSupervisorSettleKept(r SessionRef, clientMsgID string, kee
 	key := supervisorSettleKey(r, clientMsgID)
 	p, ok := b.pending[key]
 	now := time.Now()
-	if !ok || !now.Before(p.expires) {
+	if !ok || p.settling || !now.Before(p.expires) {
 		return
 	}
 	p.kept = true
@@ -396,9 +435,10 @@ func (s *Service) markSupervisorSettleKept(r SessionRef, clientMsgID string, kee
 }
 
 // reapSupervisorSettles drops expired entries and kept ones whose kept message no longer waits: it failed, the owner
-// deleted it, or the hub never kept it. One that went in was taken when it went in. This book's mutex is never held
-// while taking the undelivered side's (that side takes this book under its own lock), so each is read on its own; a
-// kept message that goes in between the two reads was taken with its drop, so nothing it settles is lost here.
+// deleted it, or the hub never kept it. One that went in was claimed when it went in (settling) and is left to its
+// settler. This book's mutex is never held while taking the undelivered side's (that side takes this book under its
+// own lock), so each is read on its own; a kept message that goes in between the two reads had its entry claimed with
+// its drop, under s.undelivered.mu, so the entry is settling by the time it is looked at again and stays.
 func (s *Service) reapSupervisorSettles(now time.Time) {
 	b := &s.supervisorSettles
 	b.mu.Lock()
@@ -409,7 +449,7 @@ func (s *Service) reapSupervisorSettles(now time.Time) {
 	}
 	var kept []keptEntry
 	for k, p := range b.pending {
-		if p.kept {
+		if p.kept && !p.settling {
 			kept = append(kept, keptEntry{k, !p.keptSeen && now.Before(p.keepBy)})
 		}
 	}
@@ -437,7 +477,7 @@ func (s *Service) reapSupervisorSettles(now time.Time) {
 	}
 	b.mu.Lock()
 	for _, k := range gone {
-		if p, ok := b.pending[k]; ok {
+		if p, ok := b.pending[k]; ok && p.kept && !p.settling {
 			delete(b.pending, k)
 			s.logf("task %s: decision: supervisor choice not settled, its kept message did not go in", p.todo)
 		}
@@ -445,26 +485,53 @@ func (s *Service) reapSupervisorSettles(now time.Time) {
 	b.mu.Unlock()
 }
 
-// takeSupervisorSettle removes and returns the live entry for key.
-func (s *Service) takeSupervisorSettle(key [3]string) (supervisorSettle, bool) {
+// claimSupervisorSettle claims the live entry for key for the caller to settle, now that its message went in: the
+// entry stays in the book, marked settling, and still holds its round's default until settleSupervisorChoice has
+// recorded the choice and removed it under the card's action lock. False when nothing waits under key, the entry has
+// expired (it goes), or another delivery already claimed it.
+func (s *Service) claimSupervisorSettle(key [3]string) (supervisorSettle, bool) {
 	b := &s.supervisorSettles
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	p, ok := b.pending[key]
-	delete(b.pending, key)
-	return p, ok && time.Now().Before(p.expires)
+	if !ok || p.settling {
+		return supervisorSettle{}, false
+	}
+	if !time.Now().Before(p.expires) {
+		delete(b.pending, key)
+		return supervisorSettle{}, false
+	}
+	p.settling = true
+	b.pending[key] = p
+	return p, true
 }
 
-// takeKeptSupervisorSettleLocked takes the choice waiting on kept message k, which just went in (sent, or found in
-// the conversation); s.undelivered.mu is held, so the take and the kept message's drop are one step for the reap.
-func (s *Service) takeKeptSupervisorSettleLocked(k keptMessage) (supervisorSettle, bool) {
-	return s.takeSupervisorSettle(supervisorSettleKey(SessionRef{MachineID: k.Machine, SessionID: k.Session}, k.ID))
+// endSupervisorSettle removes the entry its settler claimed; the card's action lock is held.
+func (s *Service) endSupervisorSettle(key [3]string) {
+	b := &s.supervisorSettles
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if p, ok := b.pending[key]; ok && p.settling {
+		delete(b.pending, key)
+	}
 }
 
-// settleKeptSupervisorChoice settles a choice taken from a kept message that went in.
-func (s *Service) settleKeptSupervisorChoice(ctx context.Context, p supervisorSettle, ok bool) {
+func keptSupervisorSettleKey(k keptMessage) [3]string {
+	return supervisorSettleKey(SessionRef{MachineID: k.Machine, SessionID: k.Session}, k.ID)
+}
+
+// claimKeptSupervisorSettleLocked claims the choice waiting on kept message k, which just went in (sent, or found in
+// the conversation); s.undelivered.mu is held, so the claim and the kept message's drop are one step for the reap:
+// it never finds a kept entry that is not being settled without its kept message.
+func (s *Service) claimKeptSupervisorSettleLocked(k keptMessage) (supervisorSettle, bool) {
+	return s.claimSupervisorSettle(keptSupervisorSettleKey(k))
+}
+
+// settleKeptSupervisorChoice settles a choice claimed for kept message k, which went in; s.undelivered.mu is no
+// longer held (the card's action lock comes before it).
+func (s *Service) settleKeptSupervisorChoice(ctx context.Context, k keptMessage, p supervisorSettle, ok bool) {
 	if ok {
-		s.settleSupervisorChoice(context.WithoutCancel(ctx), p.todo, p.asked, p.at, p.text)
+		s.settleSupervisorChoice(context.WithoutCancel(ctx), keptSupervisorSettleKey(k), p)
 	}
 }
 
@@ -480,7 +547,8 @@ func (s *Service) supervisorSettleOutcome(ctx context.Context, r ConversationSen
 		s.markSupervisorSettleKept(ref, r.ClientMsgID, time.Now().Add(supervisorKeepGrace))
 		return
 	}
-	if p, ok := s.takeSupervisorSettle(supervisorSettleKey(ref, r.ClientMsgID)); ok {
-		s.settleSupervisorChoice(ctx, p.todo, p.asked, p.at, p.text)
+	key := supervisorSettleKey(ref, r.ClientMsgID)
+	if p, ok := s.claimSupervisorSettle(key); ok {
+		s.settleSupervisorChoice(ctx, key, p)
 	}
 }
