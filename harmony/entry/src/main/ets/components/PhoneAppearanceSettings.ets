@@ -281,12 +281,13 @@ export struct PhoneAppearanceSettings {
   @Builder agentSample(key: string) {
     Column() {
       Column({space:8}) {
-        ForEach([true,false], (waiting: boolean) => {
-          AgentDirectoryRowContent({agent:this.sampleAgent(waiting),display:key,previewRow:true,activityList:true,
-            place:waiting ? 'weather › tests' : 'weather › widget',age:waiting ? '2'+tr('agent_time_minute_suffix') : tr('agent_time_just_now'),
+        ForEach([this.sampleAgent(true),this.sampleAgent(false)], (agent: ProjectAgent) => {
+          AgentDirectoryRowContent({agent:agent,display:key,previewRow:true,activityList:true,
+            place:agent.tab,showsSource:true,sourceTitle:tr('terminal'),
+            age:agent.state==='needs_you' ? '2'+tr('agent_time_minute_suffix') : tr('agent_time_just_now'),
             fontScale:this.environment.fontScale,controlScale:Math.min(this.environment.fontScale,Tokens.interfaceFontMaxScale),
-            tint:waiting ? Colors.needsMark : Colors.workingMark})
-        }, (waiting:boolean) => String(waiting))
+            tint:agent.state==='needs_you' ? Colors.needsMark : Colors.workingMark})
+        }, (agent:ProjectAgent) => agent.row.id)
       }.width('100%').padding(key==='cards' ? 0 : 12)
         .backgroundColor(key==='cards' ? Color.Transparent : Colors.card(true)).borderRadius(12)
     }.width('100%').padding(8).backgroundColor(Colors.sheetBackground).borderRadius(12).accessibilityLevel('no-hide-descendants')
