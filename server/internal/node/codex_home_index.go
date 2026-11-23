@@ -55,11 +55,16 @@ func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
 		n.mu.Unlock()
 		return path != ""
 	}
-	if !n.indexCodexHome(src.home, deadline) {
-		return false
-	}
 	c := rolloutCacheFor(src.home)
 	if !c.mu.TryLock() {
+		return false
+	}
+	fresh := src.path != "" && time.Since(c.at) < rolloutScanInterval
+	c.mu.Unlock()
+	if fresh {
+		return true // the pane lookup just read this home; unrelated history work cannot take its slot
+	}
+	if !n.indexCodexHome(src.home, deadline) || !c.mu.TryLock() {
 		return false
 	}
 	c.mu.Unlock()

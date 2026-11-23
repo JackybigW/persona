@@ -161,3 +161,39 @@ func TestHerdrRefreshIsolatesBlockedRolloutFromOtherAgents(t *testing.T) {
 	release()
 	waitFor(t, "slow pane recovered", func() bool { n.setAgentsAt([]host.Agent{a, b}, 0, nil); _, ok := n.agent(slowID); return ok })
 }
+
+func TestVerifiedHerdrPaneDoesNotNeedAHistoryScanSlot(t *testing.T) {
+	n := remoteTestNode(t)
+	root := t.TempDir()
+	writeThread(t, root, remoteRaw, n.home, "active pane")
+	home := canonicalCodexHome(filepath.Join(root, ".codex"), n.home)
+	n.configureCodex(proto.CodexConfig{Homes: []string{home}})
+	a := host.Agent{Agent: "codex", PaneID: "w1:p1", Cwd: n.home, AgentStatus: proto.StatusIdle,
+		AgentSession: &host.AgentSession{Kind: "id", Value: remoteRaw}}
+	n.codices.byPane = map[string]string{a.PaneID: home}
+	// The catalog's filesystem slots can all be waiting on unrelated homes. Live
+	// pane lookup has its own small bound and just verified the active rollout.
+	count := 0
+	defer func() {
+		for range count {
+			<-codexHomeScanSlots
+		}
+	}()
+fill:
+	for {
+		select {
+		case codexHomeScanSlots <- struct{}{}:
+			count++
+		default:
+			break fill
+		}
+	}
+	n.setAgentsAt([]host.Agent{a}, 0, nil)
+	id := codexSourceID(home, remoteRaw, n.codexInventory().LegacyHome)
+	for _, row := range n.sessionList(context.Background(), false) {
+		if row.SessionID == id && row.PaneID == a.PaneID && row.Status != proto.StatusUnknown {
+			return
+		}
+	}
+	t.Fatal("the healthy pane lost its live row when unrelated history scans exhausted the slots")
+}
