@@ -79,6 +79,7 @@ describe("groups from the hub's catalog", () => {
     expect(parentFolder("C:\\code\\App")).toBe("C:\\code");
     expect(parentFolder("C:\\App\\")).toBe("C:\\");
     expect(parentFolder("\\\\server\\share\\app")).toBe("\\\\server\\share");
+    expect(parentFolder("//server/share/app")).toBe("//server/share");
     expect(parentFolder("/home/me/back\\slash")).toBe("/home/me"); // a backslash is part of a name outside Windows
     expect(parentFolder("app")).toBe("");
     expect(parentFolder("/")).toBe("");
