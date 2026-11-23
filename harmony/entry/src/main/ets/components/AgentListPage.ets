@@ -847,7 +847,7 @@ export struct AgentListPage {
     Menu() {
       ForEach(this.availableGroupings,(key:string,index:number) => {
         MenuItem({content:tr(GROUP_LABELS[key])}).selected(key===this.workspace.groupingMode).selectIcon(true)
-          .onClick(() => { this.selectGrouping(index); this.resetSearchReveal(); this.agentScroller.scrollToIndex(0); }).id('agents.grouping.'+key)
+          .onClick(() => this.selectGrouping(index)).id('agents.grouping.'+key)
       },(key:string)=>key)
       MenuItem({content:tr('phone_agent_display_title'),builder:()=>{this.displayChoices();}}).id('agents.display')
       MenuItem({content:tr('search_sessions')}).onClick(()=>this.activateSearch()).id('agents.search_reveal')

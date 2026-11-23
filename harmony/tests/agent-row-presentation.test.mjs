@@ -283,6 +283,29 @@ test('phone search starts folded, reveals only from a downward top pull, and a s
  assert.match(source,/MenuItem\(\{content:tr\('search_sessions'\)\}\).*id\('agents.search_reveal'\)/);
 });
 
+test('choosing an Agents group keeps the resting header, active query, and list position', () => {
+  const groupRows = source.slice(source.indexOf('@Builder groupingMenu()'), source.indexOf(".id('agents.grouping.'+key)"));
+  const action = groupRows.slice(groupRows.indexOf('.onClick(') + '.onClick('.length).trim().slice(0, -1);
+  const pick = new Function('index', 'return (' + action + ')');
+  const Menu = new Function('return (' + stripTypeScriptTypes('class Menu {' + methodCode('selectGrouping') + '}') + ')')();
+  for (const [revealed, editing, query] of [[false,false,''], [true,false,''], [true,true,'weather']]) {
+    const page = new Menu();
+    page.availableGroupings = ['repo','state'];
+    page.searchOpen = revealed;
+    page.searchEditing = editing;
+    page.workspace = { groupingMode: 'repo', search: query, setGroupingMode(key) { this.groupingMode = key; } };
+    const scrollRequests = [];
+    page.agentScroller = { scrollToIndex(index) { scrollRequests.push(index); } };
+    page.resetSearchReveal = () => { page.searchOpen = false; page.searchEditing = false; };
+    for (const index of [0,1,1]) {
+      pick.call(page,index)();
+      assert.equal(page.workspace.groupingMode,page.availableGroupings[index]);
+      assert.deepEqual([page.searchOpen,page.searchEditing,page.workspace.search],[revealed,editing,query]);
+      assert.deepEqual(scrollRequests,[]);
+    }
+  }
+});
+
 test('visible selection can clear on Home without changing the cached selected Agent',()=>{
  const Page=pageClass({},key=>key),page=new Page(),binding={presentation:{selectionKey:'agent'}};page.workspace={selectedKey:'agent'};page.selectionVisible=true;assert.equal(page.isRowSelected(binding),true);page.selectionVisible=false;assert.equal(page.isRowSelected(binding),false);assert.equal(page.workspace.selectedKey,'agent');page.selectionVisible=true;assert.equal(page.isRowSelected(binding),true);
 });
