@@ -207,6 +207,8 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 	slices.SortStableFunc(members, func(x, y *InboxItem) int { return x.UpdatedAt.Compare(y.UpdatedAt) })
 	roundStart := map[*InboxItem]time.Time{}
 	for _, it := range members {
+		advanced := it.receivedInCollection
+		it.receivedInCollection = false
 		if it.MergedInto == "" {
 			continue
 		}
@@ -220,13 +222,16 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 			baseline = sv.UpdatedAt
 			roundStart[sv] = baseline
 		}
-		// applyConnector already admitted every member in changed as a real member update. When the survivor advanced in
-		// the same round, its newer timestamp must not hide an older-but-still-new member update from authorization.
-		if !containsItem(changed, sv) && !it.UpdatedAt.After(baseline) {
+		// noteReceived proves that this member advanced in this collection. The timestamp fallback preserves the direct
+		// followMerged callers' behavior for older/manual updates, but must not suppress a genuinely new, older member event.
+		if !advanced && !containsItem(changed, sv) && !it.UpdatedAt.After(baseline) {
 			continue
 		}
 		b.roundWrite(sv)
-		sv.UpdatedAt, sv.Preview, sv.Sender, sv.Read = it.UpdatedAt, it.Preview, it.Sender, false
+		if it.UpdatedAt.After(sv.UpdatedAt) {
+			sv.UpdatedAt, sv.Preview, sv.Sender = it.UpdatedAt, it.Preview, it.Sender
+		}
+		sv.Read = false
 		sv.Count++
 		sv.DoneAt, sv.DoneBy = nil, ""
 		if tierRank(it.Tier) > tierRank(sv.Tier) {

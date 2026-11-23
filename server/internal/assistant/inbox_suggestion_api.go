@@ -212,7 +212,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	case in.Action == suggestReject:
 		it.ReplyInstruction = nil
 		if g.OnDemand {
-			it.RejectedReplyDraft = g.Text
+			it.RejectedReplyDraft = g.Text // legacy single-value field; keep it for stored-row compatibility
+			it.RejectedReplyDrafts = append(it.RejectedReplyDrafts, g.Text)
 		}
 		b.chainAdd(it, rejectedEntry(l, g.Text, now))
 		b.flushInboxWakes(it, now)

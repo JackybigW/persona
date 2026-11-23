@@ -339,6 +339,9 @@ func strictReplyPolicyCategory(raw string) (string, error) {
 		if !ok || seen[key] {
 			return "", errors.New("ambiguous duplicate reply policy key")
 		}
+		if key != "category" {
+			return "", errors.New("unexpected reply policy key")
+		}
 		seen[key] = true
 		var value json.RawMessage
 		if err := dec.Decode(&value); err != nil {

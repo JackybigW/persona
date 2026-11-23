@@ -158,11 +158,13 @@ type InboxItem struct {
 	ReplyContentSources   []string `json:"reply_content_sources,omitempty"`
 	ReplyContextTruncated bool     `json:"reply_context_truncated,omitempty"`
 	// ReplyInstruction preserves an outstanding owner rewrite instruction even when merge resequences and trims the
-	// display chain. RejectedReplyDraft retains exact rejected on-demand model text so old /reply cannot relabel it as
-	// owner-authored after another device removed its mirror. Both are internal authorization state, never listed.
-	ReplyInstruction    *InboxChainEntry `json:"reply_instruction,omitempty"`
-	RejectedReplyDraft  string           `json:"rejected_reply_draft,omitempty"`
-	replyClassifySerial uint64
+	// display chain. RejectedReplyDraft is the legacy last-rejected value; RejectedReplyDrafts retains every exact
+	// rejected on-demand text so rejecting a replacement cannot make an older card sendable. None is listed.
+	ReplyInstruction     *InboxChainEntry `json:"reply_instruction,omitempty"`
+	RejectedReplyDraft   string           `json:"rejected_reply_draft,omitempty"`
+	RejectedReplyDrafts  []string         `json:"rejected_reply_drafts,omitempty"`
+	replyClassifySerial  uint64
+	receivedInCollection bool
 	// RuleOf is Last when the item's tier came from the rules because the model failed on it (an error or too slow,
 	// not a held connection or no model): TriagedAt stays behind, and later passes ask the model again, a few at a
 	// time and less often while it keeps failing, until it answers (inbox_triage.go retryRuled, #8298).
@@ -258,6 +260,7 @@ func (it *InboxItem) listed() InboxItem {
 	c.TriageRev, c.SettledOf, c.RuleOf, c.RepliedOf = 0, "", "", ""
 	c.ReplyContentSources, c.ReplyContextTruncated = nil, false
 	c.ReplyInstruction, c.RejectedReplyDraft = nil, ""
+	c.RejectedReplyDrafts = nil
 	c.ArrivedAt = time.Time{}
 	c.Meta, c.Group = nil, nil
 	c.ChainSeq, c.SuggestSeq = 0, 0

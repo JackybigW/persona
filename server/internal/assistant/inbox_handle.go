@@ -393,13 +393,15 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	mu := v.(*sync.Mutex)
 	mu.Lock()
 	defer mu.Unlock()
+	hello := s.hello(ctx)
+	// Hello is a blocking hub RPC. Authorize only after it returns; the live session and pending batch are then read
+	// under b.mu, so neither a policy activated during preparation nor a replaced session can reuse the old snapshot.
 	fullCfg, configErr := s.inboxConfigFresh(ctx)
 	if configErr != nil {
 		return
 	}
 	enabled := fullCfg.Agent.Enabled
 	replyPolicy := fullCfg.ReplyPolicy
-	hello := s.hello(ctx)
 	owner, language := inboxPromptOwner(hello), answerLanguage(hello.Locale)
 	b.mu.Lock()
 	if cur := b.items[it.ID]; cur != it {

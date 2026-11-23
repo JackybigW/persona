@@ -82,6 +82,7 @@ var listedDropsOpenPRs = map[string]string{
 	"reply_context_truncated":              "#11901: internal incomplete-classification-input marker, not client content",
 	"reply_instruction":                    "#11901: durable owner rewrite provenance, not another client-visible chain entry",
 	"rejected_reply_draft":                 "#11901: rejected on-demand exact-text provenance, not a client draft",
+	"rejected_reply_drafts":                "#11901: every rejected on-demand exact text, not client drafts",
 	"suggestion.on_demand":                 "#11901: distinguishes an on-demand generated draft from owner-authored text",
 	"suggestion.reply_publication_pending": "#11901: internal two-phase durable-publication marker",
 	"suggestion.reply_instruction":         "#11901: binds authorization to the exact instructed generated text",

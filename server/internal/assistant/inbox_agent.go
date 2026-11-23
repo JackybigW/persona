@@ -367,6 +367,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		carried int // the agent's told count when the first message was made: it carries the notes queued up to it
 		// Reservation fields let a per-start policy veto return this item to queued without consuming an outward start.
 		turn, previousTurn, previousState string
+		contentVersion                    string
 		previousStarted, previousRetry    *time.Time
 		previousAttempts                  int
 	}
@@ -461,6 +462,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 				turn := j.turn
 				j.chat = b.kbChatOf(j.it)
 				j.carried = a.told
+				j.contentVersion = replyPolicyContentVersion(j.it)
 				j.prompt = func(kbc *prompts.KBContext) string {
 					promptAgent.KB = kbc
 					return inboxProcessingPrompt(turn, prompts.RenderInboxAgent(promptAgent))
@@ -483,7 +485,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 			kbc = s.kbChatContext(ctx, j.chat)
 		}
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)
-		machineID, sessionID, err := s.startInboxAgent(cctx, cfg, j.it, j.prompt(kbc))
+		machineID, sessionID, err := s.startInboxAgentAuthorized(cctx, cfg, j.it, j.prompt(kbc), j.contentVersion, j.turn)
 		cancel()
 		if errors.Is(err, errInboxStartAuthorization) {
 			// No outward session was created. Return the reservation to queued without consuming its attempt budget.
@@ -559,6 +561,13 @@ func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it 
 		turn = it.Agent.ProcessingTurn
 	}
 	b.mu.Unlock()
+	return s.startInboxAgentAuthorized(ctx, cfg, it, prompt, contentVersion, turn)
+}
+
+// startInboxAgentAuthorized receives the exact authorization tuple captured under the same lock as the prompt. Device
+// and KB preparation may block; the final fence must compare the live row with that tuple, never with a newer snapshot
+// captured after the wait.
+func (s *Service) startInboxAgentAuthorized(ctx context.Context, cfg InboxAgentConfig, it *InboxItem, prompt, contentVersion, turn string) (machineID, sessionID string, err error) {
 	machine := s.settings(ctx).MachineID
 	if _, ok := s.device(ctx, cfg.Machine); ok && cfg.Machine != "" {
 		machine = cfg.Machine
@@ -575,6 +584,7 @@ func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it 
 	if configErr != nil {
 		return "", "", errInboxStartAuthorization
 	}
+	b := &s.inbox
 	b.mu.Lock()
 	a := it.Agent
 	authorized := b.items[it.ID] == it && it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" &&

@@ -225,7 +225,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		return "", nil, nil, false, errReportedFiled
 	}
 	instructionID := ""
-	if in.Kind == SuggestReply && replyPolicyItemApplies(replyPolicy, it) {
+	if (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
 		if instruction, needsClassification := replyInstructionForSuggestion(it, in.Text, replyPolicy); instruction != nil {
 			instructionID = instruction.ID
 			if needsClassification {

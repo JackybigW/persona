@@ -616,9 +616,11 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 		// commit makes the model text confirmable. A restart between them therefore retains a fail-closed marker.
 		b.mu.Lock()
 		stillCurrent := b.items[id] == it && currentSuggestion(it) == g && mirroredLegacyReply(it) == g
+		var committedState []byte
 		if stillCurrent {
 			g.ReplyPublicationPending = false
 			b.touched(it.ID)
+			committedState = itemState(it)
 		}
 		b.mu.Unlock()
 		if !stillCurrent {
@@ -632,6 +634,15 @@ func (s *Service) finishOnDemandDraft(ctx context.Context, id, text string, auth
 			}
 			b.mu.Unlock()
 			return "", errInboxNotPersisted
+		}
+		b.mu.Lock()
+		committed := b.items[id] == it && currentSuggestion(it) == g && mirroredLegacyReply(it) == g &&
+			!g.ReplyPublicationPending && bytes.Equal(itemState(it), committedState)
+		b.mu.Unlock()
+		if !committed {
+			// The second save may have persisted a concurrent replacement. Never return this request's superseded text as
+			// though the exact suggestion it published were still the live, confirmable mirror.
+			return "", errSuggestionStale
 		}
 	}
 	if publishedVersion != nil {
@@ -800,7 +811,7 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	var sources []string
 	var uncertain *InboxSuggestionAttempt
 	var completed *InboxSuggestionAttempt
-	rejectedDraft := ""
+	var rejectedDrafts []string
 	var out InboxItem
 	if it != nil {
 		g = mirroredLegacyReply(it)
@@ -821,7 +832,10 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 			if completed != nil {
 				out = it.listed()
 			}
-			rejectedDraft = it.RejectedReplyDraft
+			rejectedDrafts = append([]string(nil), it.RejectedReplyDrafts...)
+			if it.RejectedReplyDraft != "" {
+				rejectedDrafts = append(rejectedDrafts, it.RejectedReplyDraft)
+			}
 		}
 	}
 	if g != nil {
@@ -834,13 +848,24 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	if uncertain != nil {
 		return out, true, unknownSuggestionReply()
 	}
-	if completed != nil && mailUID == nil && mailVersion == nil {
-		// The successful response may have been lost after its mirror was cleared. The durable sent receipt is the reply;
-		// repeating the old request must not mint a fresh direct-send identity.
+	if completed != nil {
+		if mailUID == nil && mailVersion == nil {
+			// The successful response may have been lost after its mirror was cleared. The durable sent receipt is the reply;
+			// repeating the old request must not mint a fresh direct-send identity.
+			return out, true, nil
+		}
+		var target *inboxMailTarget
+		if actual := actualReply(completed); actual != nil {
+			target = actual.MailTarget
+		}
+		if target == nil || mailUID != nil && *mailUID != target.UID || mailVersion != nil && *mailVersion != target.Version {
+			return out, true, errMailReplyTargetChanged
+		}
+		// A checked retry is the same completed operation only when its expectations match the original proposal.
 		return out, true, nil
 	}
 	workbench := fromCard && strings.HasPrefix(clientID, "feishu-workbench-")
-	if g == nil && !workbench && rejectedDraft == "" {
+	if g == nil && !workbench && len(rejectedDrafts) == 0 {
 		return InboxItem{}, false, nil
 	}
 	if g != nil && (g.ReplyPublicationFailed || g.ReplyPublicationPending) {
@@ -856,9 +881,9 @@ func (s *Service) routeLegacyReplyConfirmation(ctx context.Context, id, text, cl
 	if !replyPolicySourcesApply(cfg.ReplyPolicy, sources) {
 		return InboxItem{}, false, nil
 	}
-	if g == nil && rejectedDraft != "" && strings.TrimSpace(text) == rejectedDraft {
+	if g == nil && slices.Contains(rejectedDrafts, strings.TrimSpace(text)) {
 		// Rejection on another device removed the mirror, not its model provenance. Only different owner-authored text
-		// may use the direct legacy path; the exact rejected on-demand draft cannot be revived as one.
+		// may use the direct legacy path; no exact rejected on-demand draft can be revived as one.
 		return InboxItem{}, true, errReplyPolicyDenied
 	}
 	if g != nil && (mailUID != nil || mailVersion != nil) {
