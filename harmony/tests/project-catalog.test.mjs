@@ -827,3 +827,65 @@ test('an open worktree form adopts its same live name and retries only a fresh r
   editor.unknown=false;page.retryEditor();assert.deepEqual(calls,[[fresh,'clean']]);
   canonical={...fresh,cwd:'/different/checkpoint'};page.retryEditor();assert.equal(editor.error,'request_updated');assert.equal(calls.length,1);
 });
+
+test('project search counts scoped pending sessions once across the search; terminal and unread admit only their real query matches', async () => {
+  const {projectSearchResult}=await import('../entry/src/main/ets/models/ProjectSearch.ets');
+  const owns=(id)=>({profile:{id,manager:'assistant'},owns:(generation,scope)=>generation===1 && scope===id});
+  const local=owns('local'), other=owns('other'), removed=owns('removed');
+  const root={directoryOwners:()=>[local,other]};
+  const row=(name,state,owner='local',extra={})=>{
+    const result=ResourceRow.from({session_id:name,machine_id:'mac',manager:'assistant',state,...extra},'session');
+    result.group=owner;return result;
+  };
+  const wait=row('parent','needs_you'), outside=row('outside','idle'), cross=row('outside','idle','other'),
+    done=row('done','unread'), masked=row('mask','needs_you','local',{hidden_by_directory:true}),
+    persona=row('persona','needs_you','local',{assistant:true});
+  const rows=[wait,outside,cross,done,masked,persona];
+  const ask=(id,session_id,extra={})=>({id,session_id,machine_id:'mac',...extra});
+  const snapshot=(owner,records,generation=1)=>({owner,scope:owner.profile.id,generation,records});
+  const pending=[snapshot(local,[ask('1','parent'),ask('2','child',{folded_under:'parent'}),ask('3','outside'),
+    ask('4','outside'),ask('5','mask'),ask('6','persona'),ask('7','stale',{status:'resolved'}),
+    ask('8','unlisted'),ask('9',''),ask('9',''),ask('10','hidden',{manager:'other'})]),
+    snapshot(other,[ask('11','outside')]),snapshot(local,[ask('old-owner-generation','old')],0),
+    snapshot(removed,[ask('lost-owner','lost')])];
+  const search=(quick,machine,filtered)=>projectSearchResult(root,rows,{queryMatches:[wait.key(),done.key()],
+    filtered:filtered.map(r=>r.key()),filter_counts:{needsYou:1,unread:1,working:0,terminal:1}},
+    pending,machine,quick,row=>row.key());
+  const general=search('all','',[wait,done]);
+  assert.deepEqual(general.counts,{needsYou:5,unread:1,working:0,terminal:1});
+  assert.deepEqual(general.rows,new Set([wait.key(),done.key()]));
+  const localMachine=JSON.stringify(['local','assistant','mac']);
+  const needs=search('needsYou',localMachine,[wait]);
+  assert.equal(needs.counts.needsYou,4);
+  assert.deepEqual(needs.rows,new Set([wait.key(),outside.key()]));
+  assert.deepEqual(search('terminal',localMachine,[done]).rows,new Set([done.key()]));
+  assert.deepEqual(search('unread',localMachine,[done]).rows,new Set([done.key()]));
+});
+
+test('the repository tree keeps matching workspace paths with no sessions and projects only the selected source rows', () => {
+  const weather=workspace('weather',{title:'weather',cwd:'/repo/weather',is_main:true});
+  const terminal=session('herdr',{cwd:'/repo/weather',space_kind:'orca',workspace_id:'weather',pane_id:'w1:p1'});
+  const native=session('native',{cwd:'/repo/weather',space_kind:'orca',workspace_id:'weather',pane_id:'orca:p2'});
+  const state=new ProjectBrowserState();state.query='weather';
+  const projects=projectDirectory([weather],[terminal,native],[machine]);
+  const shown=(quick,keys)=>projectOutline(projects,state,'','',quick,()=>false,false,false,new Set(keys));
+  assert.ok(shown('' ,[]).some(line=>line.kind==='tree' && line.tree.sourceId==='weather'));
+  assert.ok(!shown('',[]).some(line=>line.kind==='session'));
+  const selected=shown('terminal',[terminal.key()]);
+  assert.deepEqual(selected.filter(line=>line.kind==='session').map(line=>line.agent.row.key()),[terminal.key()]);
+  assert.equal(shown('terminal',[]).length,0);
+  assert.equal(state.query,'weather');
+});
+
+test('active project search follows the same fixed navigation field and separate scalable filter controls as compact Agents', () => {
+  const source=readFileSync(new URL('../entry/src/main/ets/components/ProjectsPage.ets',import.meta.url),'utf8');
+  const search=source.split('@Builder searchAndFilter()')[1].split('@Builder projectMenu(')[0];
+  assert.match(search,/\.height\(this\.compact \? 44 :/);
+  assert.match(search,/\.margin\(this\.compact \? 0 :/);
+  assert.match(search,/Row\(\{space:this\.searchMode \? 11 : 8\}\)/);
+  assert.match(search,/\.width\(44\)\.height\(44\).*\n[^\n]*\.accessibilityText\(tr\('cancel'\)\)/);
+  assert.match(search,/Column\(\{space:this\.searchMode \? 20 : 6\}\)/);
+  assert.match(search,/\.textFont\(\{size:this\.compact \? Tokens\.interfaceFontVp\(17,/);
+  assert.match(source,/quickHeight\(\):number \{ return PhoneStyle\.formSize\(44,57\.7,/);
+  assert.match(search,/\.align\(Alignment\.Start\)\.scrollable\(ScrollDirection\.Horizontal\)/);
+});

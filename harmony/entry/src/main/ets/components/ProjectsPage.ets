@@ -5,12 +5,14 @@ import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
 import { PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
 import { tr } from '../design/Strings';
-import { AgentDecisionQueue } from '../models/AgentDecisionQueue';
+import { AgentDecisionQueue, AgentDecisionSnapshot } from '../models/AgentDecisionQueue';
 import { ClientModel } from '../models/ClientModel';
+import { AgentWorkspace, coreRowId } from '../models/AgentWorkspace';
+import { ProjectSearchResult, projectQuickFilters, projectQuickLabels, projectSearchResult } from '../models/ProjectSearch';
 import { machineAgents } from '../models/MachineDashboard';
 import { ProjectCatalog, PersonaProject, ProjectAgent, ProjectWorktree, ProjectBrowserState } from '../models/ProjectCatalog';
 import { ResourceRow, Wire } from '../models/Wire';
-import { ProjectLine, ProjectHost, projectOutline, projectHosts, projectQuickKind, projectSearchAgents, worktreeSpaceCards } from '../models/ProjectOutline';
+import { ProjectLine, ProjectHost, projectOutline, projectHosts, projectSearchAgents, worktreeSpaceCards } from '../models/ProjectOutline';
 import { WorktreeActions, WorktreeChange } from '../models/WorktreeActions';
 import { WorktreeSheet } from './WorktreeSheet';
 import { AgentDirectoryRowContent } from './AgentDirectoryRowContent';
@@ -23,6 +25,7 @@ export struct ProjectsPage {
   @Require @Param catalog: ProjectCatalog;
   @Param agentRepositories: PersonaProject[] | undefined = undefined;
   @Param agentFilterActive: boolean = false;
+  @Param searchWorkspace: AgentWorkspace | undefined = undefined;
   private get outlineBrowser(): ProjectBrowserState {
     return this.agentRepositories ? this.catalog.agentBrowser : this.catalog.browser;
   }
@@ -49,8 +52,31 @@ export struct ProjectsPage {
   @Local private spaceDecisions: AgentDecisionQueue = new AgentDecisionQueue();
   private stopSpaceEvents: (() => void) | undefined;
   private spaceReadTimer: number = -1;
+  @Local private searchCards:AgentDecisionSnapshot[] = [];
+  private searchOwners:ClientModel[] = [];
+  private stopSearchEvents:(() => void)[] = [];
+  private retireSearchEvents():void {
+    this.stopSearchEvents.forEach((stop:() => void) => stop());
+    this.stopSearchEvents = []; this.searchOwners = []; this.searchCards = [];
+  }
+  @Monitor('model.directoryMachines') watchSearchOwners():void {
+    if (this.page !== 'projects' || !this.searchMode) return;
+    const owners = this.model.directoryOwners();
+    if (owners.length === this.searchOwners.length && owners.every((owner:ClientModel) => this.searchOwners.includes(owner))) return;
+    this.retireSearchEvents();
+    this.searchOwners = owners.slice();
+    this.stopSearchEvents = owners.map((owner:ClientModel) => owner.observeEvents((_raw:string,type:string) => {
+      if (['hello','interaction','interactions','interaction_resolved'].includes(type)) this.refreshSpaceDecisions();
+    }));
+    this.refreshSpaceDecisions();
+  }
   private refreshSpaceDecisions(): void {
     clearTimeout(this.spaceReadTimer);
+    if (this.page === 'projects' && this.searchMode) {
+      this.spaceReadTimer = setTimeout(() => this.spaceDecisions.reload(this.model,undefined,
+        (pending:AgentDecisionSnapshot[]) => { if (this.searchMode) this.searchCards = pending; }).catch(() => {}),50);
+      return;
+    }
     const agent = this.detailTree?.agents[0];
     const owner = agent ? this.model.directoryOwnerFor(agent.row) : undefined;
     if (owner) this.spaceReadTimer = setTimeout(() => this.spaceDecisions.reload(this.model,owner).catch(() => {}),50);
@@ -60,7 +86,7 @@ export struct ProjectsPage {
     return count ? tr('project_pending_count').replace('{count}',String(count)) : '';
   }
   @Monitor('catalog.loading') finishedRefresh(): void { if (!this.catalog.loading) { this.refreshing = false; this.refreshSpaceDecisions(); } }
-  @Monitor('model.profile') ownerChanged(): void { clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear(); this.editor.close(); this.editorShown = false; this.restoredRoute = ''; this.quick = ''; this.searchMode = false; this.onSearchMode(false); }
+  @Monitor('model.profile') ownerChanged(): void { this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear(); this.editor.close(); this.editorShown = false; this.restoredRoute = ''; this.quick = ''; this.searchMode = false; this.onSearchMode(false); }
   aboutToAppear(): void {
     if (this.page === 'project_tree') {
       this.stopSpaceEvents = this.model.observeEvents((_payload:string, type:string) => {
@@ -69,11 +95,11 @@ export struct ProjectsPage {
       this.refreshSpaceDecisions();
     }
     if (this.page === 'projects' && this.compact && this.catalog.browser.query) {
-      this.searchMode = true; this.onSearchMode(true);
+      this.searchMode = true; this.onSearchMode(true); this.watchSearchOwners();
     }
   }
   aboutToDisappear(): void {
-    clearTimeout(this.spaceReadTimer); this.stopSpaceEvents?.(); this.spaceDecisions.clear();
+    this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.stopSpaceEvents?.(); this.spaceDecisions.clear();
     this.editor.close(); if (this.searchMode) this.onSearchMode(false);
   }
   @Event onProject: (key: string) => void = () => {};
@@ -155,7 +181,8 @@ export struct ProjectsPage {
   @Computed get lines(): ProjectLine[] {
     return projectOutline(this.outlineProjects,this.outlineBrowser,this.page === 'project' ? this.target : '',
       this.page === 'machine_projects' ? this.target : '',this.page === 'projects' ? this.quick : '',(agent:ProjectAgent) => this.isMuted(agent.row),
-      !!this.agentRepositories,this.agentFilterActive);
+      !!this.agentRepositories,this.agentFilterActive,
+      this.page === 'projects' && this.searchMode && this.filteringText() ? this.queryResult.rows : undefined);
   }
   @Computed get tabRows(): Map<string, ProjectLine> {
     const result = new Map<string, ProjectLine>();
@@ -375,26 +402,41 @@ export struct ProjectsPage {
   private setSearchMode(active:boolean): void {
     if (!this.compact || this.searchMode === active) return;
     this.searchMode = active; this.onSearchMode(active);
-    if (!active) {
+    if (active) this.watchSearchOwners();
+    else {
+      this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.spaceDecisions.clear();
       this.searchField.stopEditing(); this.quick = ''; this.search('');
     }
   }
-  @Computed get quickCounts(): Map<string,number> {
-    const result = new Map<string,number>();
-    for (const host of this.hosts) {
-      if (this.catalog.browser.machine && this.catalog.browser.machine !== host.key) continue;
-      for (const project of host.projects) for (const agent of projectSearchAgents(project,this.catalog.browser.query)) {
-        const key = projectQuickKind(agent,this.isMuted(agent.row));
-        if (key) result.set(key,(result.get(key)||0)+1);
-      }
+  @Computed get queryResult(): ProjectSearchResult {
+    if (this.page !== 'projects' || !this.searchMode || !this.searchWorkspace) return new ProjectSearchResult();
+    const source = new Map<string,ResourceRow>();
+    // The live directory can include sessions with no workspace. Keep offline directory rows for the same owners.
+    for (const project of this.catalog.projects) for (const tree of project.trees) for (const agent of tree.agents) {
+      if (this.model.directoryOwnerFor(agent.row)) source.set(agent.row.key(),agent.row);
     }
-    return result;
+    for (const row of this.model.directorySessions) if (row.kind === 'session') source.set(row.key(),row);
+    const rows = Array.from(source.values());
+    const visible = rows.filter((row:ResourceRow) => {
+      const data = row.data();
+      return !Wire.bool(data,'archived') && !Wire.bool(data,'hidden_by_directory') && !Wire.bool(data,'assistant');
+    });
+    const quick = this.quick || 'all', machine = this.catalog.browser.machine;
+    const projection = this.searchWorkspace.repositoryQuery(this.model,visible,this.catalog.browser.query,quick,machine);
+    return projectSearchResult(this.model,rows,projection,this.searchCards,machine,quick,coreRowId);
+  }
+  private quickHeight():number { return PhoneStyle.formSize(44,57.7,nativeEnvironment.fontScale); }
+  private selectQuick(key:string):void {
+    if ((this.quick || 'all') === key) return;
+    this.quick = key === 'all' ? '' : key;
+    this.catalog.browser.resetSearchFolds(); this.catalog.browser.remember(this.route(),'');
+    if (this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
   }
   @Builder machineFilter() {
     Button({type:ButtonType.Circle}) {
       SymbolGlyph(Symbols.filter).fontSize('17vp').fontColor([this.catalog.browser.machine ? Colors.link : Colors.ink])
-    }.width(36).height(36).padding(0).backgroundColor(Color.Transparent)
-      .responseRegion({x:-4,y:-4,width:44,height:44}).accessibilityText(tr('agent_filter_machine'))
+    }.width(this.searchMode ? this.quickHeight() : 36).height(this.searchMode ? this.quickHeight() : 36).padding(0).backgroundColor(Color.Transparent)
+      .responseRegion(this.searchMode ? {x:0,y:0,width:'100%',height:'100%'} : {x:-4,y:-4,width:44,height:44}).accessibilityText(tr('agent_filter_machine'))
       .accessibilityDescription(this.hosts.find((host:ProjectHost) => host.key === this.catalog.browser.machine)?.name || tr('project_all_machines'))
       .bindMenu(this.machineMenu).id('projects.machine')
   }
@@ -414,40 +456,47 @@ export struct ProjectsPage {
     }.width('100%').padding({bottom:8})
   }
   @Builder searchAndFilter() {
-    Column({space:6}) {
-      Row({space:8}) {
-        Search({value:this.catalog.browser.query,placeholder:tr('project_search'),controller:this.searchField})
-          .searchIcon({size:'16vp'}).height(Math.max(40,21*nativeEnvironment.fontScale+12)).layoutWeight(1)
+    Column({space:this.searchMode ? 20 : 6}) {
+      Row({space:this.searchMode ? 11 : 8}) {
+        Search({value:this.catalog.browser.query,placeholder:tr(this.compact ? 'agents_search_prompt' : 'project_search'),controller:this.searchField})
+          .height(this.compact ? 44 : Math.max(40,21*nativeEnvironment.fontScale+12)).margin(this.compact ? 0 : {top:8,bottom:8}).layoutWeight(1)
+          .textFont({size:this.compact ? Tokens.interfaceFontVp(17,nativeEnvironment.fontScale) : '16fp'})
+          .placeholderFont({size:this.compact ? Tokens.interfaceFontVp(17,nativeEnvironment.fontScale) : '16fp'})
           .searchButton('').borderRadius(22).fontColor(Colors.ink).backgroundColor(Colors.surface)
-          .onFocus(() => this.setSearchMode(true)).onClick(() => this.setSearchMode(true)).onChange((value:string) => this.search(value)).id('projects.search')
+          .onFocus(() => this.setSearchMode(true)).onClick(() => this.setSearchMode(true)).onChange((value:string) => this.search(value))
+          .onSubmit(() => this.searchField.stopEditing()).id('projects.search')
         if (this.searchMode) {
-          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('18vp').fontColor([Colors.ink]) }
-            .width(40).height(40).padding(0).backgroundColor(Colors.surface).responseRegion({x:-2,y:-2,width:44,height:44})
+          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('16vp').fontColor([Colors.ink]) }
+            .width(44).height(44).padding(0).backgroundColor(Colors.control)
             .accessibilityText(tr('cancel')).onClick(() => this.setSearchMode(false)).id('projects.search_cancel')
         } else if (this.hosts.length > 1 || this.catalog.browser.machine) this.machineFilter()
       }.width('100%')
-      if (this.searchMode) Row({space:4}) {
+      if (this.searchMode) Row() {
         Scroll() {
-          Row({space:3}) {
-            ForEach(['','needs_you','agent_group_unread','working','agent_group_background'].filter((key:string) =>
-              !key || !!this.quickCounts.get(key) || this.quick === key),(key:string) => {
+          Row({space:4}) {
+            ForEach(projectQuickFilters.filter((key:string) => key === 'all' || key === this.quick ||
+              Wire.number(this.queryResult.counts,key) > 0),(key:string) => {
               Button({type:ButtonType.Capsule}) {
-                Row({space:3}) {
-                  if (key) Circle().width(6).height(6).fill(this.activityTint(key))
-                  Text(tr(key || 'all')).fontSize(14).maxFontScale(Tokens.navigationTextMaxScale)
-                    .fontWeight(this.quick === key ? FontWeight.Bold : FontWeight.Medium).fontColor(this.quick === key ? Colors.link : Colors.ink)
-                  if (key) Text(String(this.quickCounts.get(key)||0)).fontSize(12).maxFontScale(Tokens.navigationTextMaxScale).fontColor(Colors.secondary)
-                }
-              }.height(32).padding({left:7,right:7}).backgroundColor(this.quick === key ? Colors.selection : Color.Transparent)
-                .accessibilitySelected(this.quick === key).onClick(() => {
-                  this.quick = key; this.catalog.browser.resetSearchFolds(); this.catalog.browser.remember(this.route(),'');
-                  if (this.lines.length) this.scroller.scrollToIndex(0,false,ScrollAlign.START);
-                }).id('projects.quick.'+(key||'all'))
-            },(key:string) => key || 'all')
-          }
-        }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).layoutWeight(1)
+                Row({space:4}) {
+                  if (key !== 'all' && key !== 'feishu' && key !== 'terminal') Circle().width(5).height(5).fill(this.activityTint(projectQuickLabels[key]))
+                  Text(tr(projectQuickLabels[key])).fontSize(Tokens.interfaceFontVp(15,nativeEnvironment.fontScale))
+                    .fontWeight((this.quick || 'all') === key ? FontWeight.Bold : FontWeight.Normal)
+                    .fontColor((this.quick || 'all') === key ? Colors.link : Colors.ink).maxLines(1)
+                  if (key !== 'all') Text(String(Wire.number(this.queryResult.counts,key)))
+                    .fontSize(Tokens.interfaceFontVp(15,nativeEnvironment.fontScale)).fontWeight(FontWeight.Medium).fontColor(Colors.secondary)
+                }.padding({left:8,right:8,top:4,bottom:4}).borderRadius(40)
+                  .backgroundColor((this.quick || 'all') === key ? Colors.selection : Color.Transparent)
+              }.height(this.quickHeight()).constraintSize({minWidth:this.quickHeight()}).padding(0).backgroundColor(Color.Transparent)
+                .accessibilitySelected((this.quick || 'all') === key).accessibilityText(tr(projectQuickLabels[key]) +
+                  (key === 'all' ? '' : ' ' + String(Wire.number(this.queryResult.counts,key))))
+                .onClick(() => this.selectQuick(key)).id('projects.quick.'+projectQuickLabels[key])
+            },(key:string) => key)
+          }.padding({left:4,right:4})
+        }.layoutWeight(1).height(this.quickHeight()).align(Alignment.Start).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).id('projects.quick')
+        Divider().vertical(true).strokeWidth(0.5).height(22*this.quickHeight()/44).color(Colors.divider)
         this.machineFilter()
-      }.width('100%').padding({left:4,right:4}).backgroundColor(Colors.subtle).borderRadius(22)
+      }.width('100%').height(this.quickHeight()).backgroundColor(Colors.grouped).borderRadius(44).clip(true)
+        .outlineWidth(0.5).outlineColor(Colors.divider).outlineRadius(44)
     }.width('100%').padding({bottom:8})
   }
   @Builder projectMenu(key: string) {

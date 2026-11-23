@@ -42,6 +42,7 @@ export class CoreAgentListAdapter implements AgentListAdapter {
         .groups.find((group) => group.id === 'state/needs');
       if (attention) shown.groups = [attention, ...shown.groups];
     }
+    shown.queryMatches = base.filtered;
     shown.filter_counts = counts;
     return shown;
   }

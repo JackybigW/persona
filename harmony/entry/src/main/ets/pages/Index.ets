@@ -1996,7 +1996,7 @@ struct Index {
     return '';
   }
   @Builder projectPage(name: string, param: string) {
-    ProjectsPage({ model: this.model, catalog: this.projectCatalog, page: name, target: param as string,
+    ProjectsPage({ model: this.model, catalog: this.projectCatalog, searchWorkspace: this.agentWorkspace, page: name, target: param as string,
           compact: !this.wide(), adjacentItem: this.adjacentProjectItem, onBack: () => this.phoneBack(), onSearchMode: (active: boolean) => { this.projectSearching = active; },
           isMuted: (row: ResourceRow): boolean => this.agentWorkspace.isMuted(row),
           topContentInset: name === 'projects' && this.floatingProjectHeader ? Math.max(this.peerActionSize(), this.peerSegmentHeight()+8) + 4 : 0,

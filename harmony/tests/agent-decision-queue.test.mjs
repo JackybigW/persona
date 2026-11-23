@@ -189,3 +189,18 @@ test('view in chat lands on the words before the named tool, with a bounded late
   assert.equal(decisionSourceItem(items,'missing'),'');
   assert.equal(decisionSourceItem([...items,...Array.from({length:400},(_,i)=>({id:String(i),kind:'status'}))],'one'),'');
 });
+
+test('the optional project search readback retains sessionless cards and their generation; a cleared page cannot receive the old snapshot', async () => {
+  const a=pair('one'), b=pair('two'), root=rootFor([a,b]), queue=new AgentDecisionQueue();
+  a.state.rows.push({id:'without-session',machine_id:'machine',kind:'permission',status:'open'});
+  const results=[];
+  await queue.reload(root,undefined,value=>results.push(value));
+  assert.equal(results.length,1);
+  const local=results[0].find(part=>part.owner===a.owner);
+  assert.deepEqual([local.scope,local.generation,local.records.length],['one',1,2]);
+  assert.equal(queue.forSession(root,a.row).length,1);
+  const gate=Promise.withResolvers(); a.repo.decisions=()=>gate.promise;
+  const change=queue.reload(root,a.owner,value=>results.push(value)); queue.clear(); gate.resolve(a.state.rows);
+  await change;
+  assert.equal(results.length,1); assert.deepEqual(a.state.writes,[]); assert.deepEqual(b.state.writes,[]);
+});

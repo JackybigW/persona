@@ -49,6 +49,13 @@ export class AgentDecisionCard {
   }
 }
 
+export interface AgentDecisionSnapshot {
+  owner: ClientModel;
+  generation: number;
+  scope: string;
+  records: Record<string,Object>[];
+}
+
 @ObservedV2
 export class AgentDecisionQueue {
   @Trace cards: AgentDecisionCard[]=[];
@@ -79,10 +86,12 @@ export class AgentDecisionQueue {
     }
     return found.sort((a:AgentDecisionCard,b:AgentDecisionCard) => a.since-b.since);
   }
-  async reload(root:ClientModel, singleOwner?:ClientModel):Promise<void> {
+  async reload(root:ClientModel, singleOwner?:ClientModel,
+    readDirectory?: (pending:AgentDecisionSnapshot[]) => void):Promise<void> {
     if (this.current!==root || this.singleOwner!==singleOwner) { this.clear(); this.current=root; this.singleOwner=singleOwner; }
     const n=++this.sequence, generation=root.connectionGeneration(), scope=root.scope();
     const owners=singleOwner ? root.directoryOwners().filter((owner:ClientModel) => singleOwner===owner) : root.directoryOwners();
+    const pending:AgentDecisionSnapshot[] = [];
     let complete = owners.length > 0;
     const groups=await Promise.all(owners.map(async (owner:ClientModel):Promise<AgentDecisionCard[]> => {
       const ownerGeneration=owner.connectionGeneration(), ownerScope=owner.scope();
@@ -90,6 +99,7 @@ export class AgentDecisionQueue {
       try {
         const data=await owner.repo().decisions();
         if (!owner.owns(ownerGeneration,ownerScope)) { complete = false; return []; }
+        if (readDirectory) pending.push({ owner, generation:ownerGeneration, scope:ownerScope, records:data });
         const cards=this.read(owner,data);
         return cards.filter((card:AgentDecisionCard) => this.acknowledged.get(card.key)!==card.request.raw);
       } catch (_) { complete = false; return []; }
@@ -97,6 +107,7 @@ export class AgentDecisionQueue {
     if (this.current===root && this.sequence===n && root.owns(generation,scope)) {
       this.cards=groups.flat();
       this.snapshotComplete=complete;
+      if (readDirectory) readDirectory(pending);
     }
   }
   forSession(root:ClientModel,row:ResourceRow):AgentDecisionCard[] {

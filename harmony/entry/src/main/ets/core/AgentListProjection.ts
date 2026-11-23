@@ -49,6 +49,8 @@ export interface CoreAgentListProjection {
   groups: CoreAgentListGroup[];
   unread_shown: string[];
   filtered?: string[];
+  /** The query and machine matches before a phone quick filter is applied. */
+  queryMatches?: string[];
   unpinned?: string[];
   quiet_title?: string | null;
 }

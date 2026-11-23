@@ -49,9 +49,9 @@ class ProjectMatch {
   own: Set<string> = new Set();
   visible: Set<string> = new Set();
   agents: Map<string,ProjectAgent[]> = new Map();
-  constructor(p:PersonaProject,query:string,quick:string,muted:(agent:ProjectAgent) => boolean) {
+  constructor(p:PersonaProject,query:string,quick:string,muted:(agent:ProjectAgent) => boolean, selected?:Set<string>) {
     const projectMatches = !query || [p.title,p.machine].join(' ').toLocaleLowerCase().includes(query);
-    this.all = projectMatches && !quick;
+    this.all = projectMatches && !quick && !selected;
     if (this.all) return;
     const byKey = new Map<string,ProjectWorktree>(), ownText = new Set<string>();
     for (const tree of p.trees) {
@@ -62,8 +62,9 @@ class ProjectMatch {
       let parent: ProjectWorktree | undefined = t;
       let own = false;
       while (parent && !own) { own = ownText.has(parent.key); parent = byKey.get(parent.parentKey); }
-      if (own && !quick) this.own.add(t.key);
-      const matching = t.agents.filter((a:ProjectAgent) => (own || a.search.includes(query)) && (!quick || projectQuickKind(a,muted(a)) === quick));
+      if (own && !quick && !selected) this.own.add(t.key);
+      const matching = t.agents.filter((a:ProjectAgent) => selected ? selected.has(a.row.key()) :
+        (own || a.search.includes(query)) && (!quick || projectQuickKind(a,muted(a)) === quick));
       this.agents.set(t.key,matching);
       if (own && !quick || matching.length) {
         let current: ProjectWorktree | undefined = t;
@@ -93,7 +94,7 @@ export function projectSearchAgents(project:PersonaProject,query:string): Projec
 }
 
 export function projectOutline(projects:PersonaProject[], state:ProjectBrowserState, focus:string = '', hostKey:string = '',
-  quick:string = '', muted:(agent:ProjectAgent) => boolean = () => false, admittedRows: boolean = false, reveal: boolean = false): ProjectLine[] {
+  quick:string = '', muted:(agent:ProjectAgent) => boolean = () => false, admittedRows: boolean = false, reveal: boolean = false, selected?:Set<string>): ProjectLine[] {
   const result:ProjectLine[] = [];
   const query = focus || hostKey ? '' : state.query.trim().toLocaleLowerCase();
   const filtering = !!query || !!quick || reveal;
@@ -106,7 +107,7 @@ export function projectOutline(projects:PersonaProject[], state:ProjectBrowserSt
       // their directories for explicit searches and management, and enter the tree through a session.
       if (!focus && !hostKey && !filtering && !p.sessionCount &&
         !p.trees.some((tree:ProjectWorktree) => tree.source === 'orca' || tree.source === 'paseo')) return false;
-      const match = new ProjectMatch(p,admittedRows ? '' : query,admittedRows ? '' : quick,muted); matches.set(p.key,match);
+      const match = new ProjectMatch(p,admittedRows ? '' : query,admittedRows ? '' : quick,muted,selected); matches.set(p.key,match);
       return match.all || !!match.visible.size;
     });
     if (!visible.length) continue;

@@ -1,7 +1,7 @@
 import type { ClientModel } from './ClientModel';
 import { ResourceRow, Wire } from './Wire';
 import type { AgentListAdapter } from '../core/AgentListAdapter';
-import type { AgentListInput, AgentListRow, AgentListPreferences, CoreAgentListGroup } from '../core/AgentListProjection';
+import type { AgentListInput, AgentListRow, AgentListPreferences, CoreAgentListGroup, CoreAgentListProjection } from '../core/AgentListProjection';
 import { CoreAgentListAdapter } from '../core/AgentListAdapter';
 import { phoneAgentGroups } from './AgentActivityGroups';
 
@@ -70,7 +70,7 @@ function rowSpaceKey(row: ResourceRow, space?: string): string {
   const name = space ?? Wire.text(row.data(), 'space_name');
   return name ? rowMachine(row) + '/' + name : '';
 }
-function coreRowId(row: ResourceRow): string {
+export function coreRowId(row: ResourceRow): string {
   return (row.group ? row.group + '|' : '') + (row.manager ? row.manager + '|' : '') + rowMachine(row) + '|' + rowSession(row);
 }
 function cloneRow(row: ResourceRow): ResourceRow {
@@ -853,13 +853,31 @@ export class AgentWorkspace {
     if (this.readingDetail && this.sourceReady() && !this.freezeSuppressed && !this.frozenGroups) this.frozenGroups = this.copyGroups(this.groups);
   }
 
-  private makeListInput(): AgentListInput {
-    const rows: AgentListRow[] = this.latestSourceRows.map((row: ResourceRow): AgentListRow => {
+  // Projects shares the Agents search and pane-source projection, with its own machine, query and reading position.
+  repositoryQuery(root:ClientModel, sessions:ResourceRow[], query:string, quick:string, machine:string):CoreAgentListProjection {
+    const bound = this.isBoundTo(root);
+    const machines = root.directoryMachines.map((row:ResourceRow):Record<string,Object> =>
+      ({ 'id':row.id, 'name':row.title, 'group':row.group, 'manager':row.manager }));
+    return this.adapter.project({
+      rows:this.listRows(sessions), includeSourceFilters:true, grouping:'repo', quick, query, machineFilter:machine,
+      kept:[], history:false, reading:false, machines, coreSettings:{ 'sort':'state', 'include_filter_counts':true },
+      preferencesFor:(row:AgentListRow):AgentListPreferences => bound ? this.preferencesFor(row.source as ResourceRow) : new AgentPreferences(),
+      machineIdentity:(row:AgentListRow):string => rowMachine(row.source as ResourceRow),
+      machineName:(row:AgentListRow):string => root.machineName(rowMachine(row.source as ResourceRow))
+    });
+  }
+
+  private listRows(source:ResourceRow[]):AgentListRow[] {
+    return source.map((row:ResourceRow):AgentListRow => {
       const raw = row.data();
       raw['machine_id'] = rowMachine(row); raw['session_id'] = rowSession(row); raw['title'] = row.title;
       raw['cwd'] = row.path; raw['state'] = row.state; raw['manager'] = row.manager; raw['app_hub_group'] = row.group;
-      return {id: coreRowId(row), raw, source: row};
+      return {id:coreRowId(row), raw, source:row};
     });
+  }
+
+  private makeListInput(): AgentListInput {
+    const rows = this.listRows(this.latestSourceRows);
     return {rows, includeSourceFilters:true, history: this.history, grouping: this.groupingMode, quick: this.quickFilter,
       machineFilter: this.machineFilter, query: this.search, reading: this.readingDetail,
       kept: this.frozenGroups?.flatMap((group) => group.memberIds) || [],

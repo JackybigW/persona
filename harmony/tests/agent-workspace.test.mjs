@@ -760,3 +760,23 @@ test('a retired pin completion cannot release the busy lock of a new list operat
  releases[0]();assert.equal(await old,false);assert.equal(workspace.busy,true,'old finally must not release new operation');
  releases[1]();assert.equal(await fresh,true);assert.equal(workspace.busy,false);assert.equal(state.calls.filter(c=>c.method==='PUT').length,1);
 });
+
+test('a Projects query uses the same real Hub and machine source inventory without changing the current Agents view', async () => {
+  const input=(group,id,pane,title)=>{const row=agent(id,{title,pane_id:pane,manager:'work',cwd:'/other',state:'idle'});row.group=group;return row;};
+  const one=input('one','shared','w:p1','weather'), two=input('two','shared','botmux:p1','weather');
+  const other=input('one','outside','w:p3','other'), native=input('one','orca','orca:p1','weather');
+  const masked=input('two','else','w:p2','weather');
+  const {client}=clientFixture();client.directoryMachines=[];
+  const workspace=new AgentWorkspace(undefined,'repo');
+  workspace.search='other tab';workspace.quickFilter='unread';workspace.machineFilter='unrelated';
+  const inventory=[one,two,other,native,masked], filter=JSON.stringify(['one','work',one.machine]);
+  const query=(quick,machineFilter='')=>workspace.repositoryQuery(client,inventory,'weather',quick,machineFilter);
+  const terminal=query('terminal',filter);
+  assert.deepEqual(terminal.filtered,['one|work|'+one.machine+'|shared']);
+  assert.equal(terminal.filter_counts.terminal,1);assert.equal(terminal.filter_counts.feishu,0);
+  assert.deepEqual(new Set(terminal.queryMatches),new Set(['one|work|'+one.machine+'|shared','one|work|'+native.machine+'|orca']));
+  const lark=query('feishu');
+  assert.deepEqual(lark.filtered,['two|work|'+two.machine+'|shared']);
+  assert.equal(lark.filter_counts.terminal,2);assert.equal(lark.filter_counts.feishu,1);
+  assert.deepEqual([workspace.search,workspace.quickFilter,workspace.machineFilter],['other tab','unread','unrelated']);
+});
