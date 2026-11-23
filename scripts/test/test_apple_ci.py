@@ -44,6 +44,12 @@ class AppleOfflineUnitSchemeTests(unittest.TestCase):
         self.assertEqual(default['test']['targets'], ['PersonaTests', 'PersonaUITests'])
         self.assertEqual((default['test']['language'], default['test']['region']), ('zh-Hans', 'CN'))
 
+    def test_permission_screenshot_scheme_excludes_the_unit_test_bundle(self):
+        shots = self.schemes['PersonaPermissionUITests']
+        self.assertEqual(shots['build']['targets'], {'Persona': 'all', 'PersonaUITests': ['test']})
+        self.assertEqual(shots['test']['targets'], ['PersonaUITests'])
+        self.assertNotIn('PersonaTests', str(shots))
+
     def test_offline_build_and_execution_share_the_unit_only_scheme(self):
         common = self.script.split('  IOS_COMMON=(', 1)[1].split('\n', 3)[:3]
         self.assertEqual(common[0], 'xcodebuild -project "$OFFLINE_PROJECT" -configuration Debug \\')

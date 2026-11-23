@@ -74,13 +74,13 @@ ci_run 'Create stock permission screenshot simulator' 100 bash -c \
 SIM=$(python3 -I -c 'import re,sys; value=open(sys.argv[1]).read().strip(); assert re.fullmatch(r"[0-9A-Fa-f-]{36}", value), value; print(value)' "$OUTPUT/simulator.log")
 
 PROJECT="$SOURCE/apple/Persona.xcodeproj"
-XCODE=(xcodebuild -project "$PROJECT" -scheme Persona -configuration Debug
+XCODE=(xcodebuild -project "$PROJECT" -scheme PersonaPermissionUITests -configuration Debug
   -destination "platform=iOS Simulator,id=$SIM" -destination-timeout 120 -derivedDataPath "$DERIVED" -parallel-testing-enabled NO
   -clonedSourcePackagesDirPath "$SPM/SourcePackages"
   CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
 # Match apple.sh's minimal resolve invocation after staging the Meta-disabled variant above.
 ci_run 'Resolve permission UI-test packages' 900 xcodebuild -project "$PROJECT" -configuration Debug \
-  -clonedSourcePackagesDirPath "$SPM/SourcePackages" -scheme Persona -resolvePackageDependencies
+  -clonedSourcePackagesDirPath "$SPM/SourcePackages" -scheme PersonaPermissionUITests -resolvePackageDependencies
 ci_run 'Build permission UI tests' 2400 "${XCODE[@]}" -disableAutomaticPackageResolution build-for-testing
 
 free_port() {

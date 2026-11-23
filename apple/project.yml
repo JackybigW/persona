@@ -767,6 +767,18 @@ schemes:
       # The tests' expectations and the pixel / layout baselines are the Chinese UI (docs/apple/ios.md「Interface language」).
       language: zh-Hans
       region: CN
+  # The screenshot lane builds only the UI-test bundle it executes, not PersonaTests (#11828's inverse build expansion).
+  PersonaPermissionUITests:
+    build:
+      targets:
+        Persona: all
+        PersonaUITests: [test]
+    run:
+      config: Debug
+    test:
+      targets: [PersonaUITests]
+      language: zh-Hans
+      region: CN
   # Offline unit-test builds and runs share one graph without the unused UI-test bundle (#12474).
   PersonaOfflineUnitTests:
     build:
