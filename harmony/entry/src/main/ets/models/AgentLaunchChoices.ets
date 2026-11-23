@@ -17,6 +17,7 @@ export function providerStartModes(launcher: Record<string, Object>): boolean {
 }
 
 export class LaunchChoice {
+  aliases: string[] = [];
   id: string;
   title: string;
   detail: string;
@@ -121,7 +122,9 @@ export class AgentLaunchChoices {
           const id = Wire.text(v,'id'), title = launchModelName(id,Wire.text(v,'name')), resolved = Wire.text(v,'resolved');
           const detail = [launcher, title !== id ? id : '', resolved && resolved !== id && resolved !== title ? '→ '+resolved : '']
             .filter((part:string) => !!part).join(' · ');
-          return new LaunchChoice(id,title,detail,false,Wire.text(v,'description'));
+          const choice = new LaunchChoice(id,title,detail,false,Wire.text(v,'description'));
+          choice.aliases = Wire.strings(v,'aliases');
+          return choice;
         });
       this.updateEfforts('');
     } catch (_) { if (valid()) this.error = 'flow_models_offline'; }
@@ -130,6 +133,12 @@ export class AgentLaunchChoices {
   selectedModelId(id:string): string {
     const selected = this.modelData.find((m:Record<string,Object>) => Wire.text(m,'id') === id);
     return selected && (Wire.bool(selected,'is_default') || Wire.bool(selected,'default')) ? '' : id;
+  }
+  listsModel(id:string):boolean {
+    return this.modelData.some((m:Record<string,Object>) => Wire.text(m,'id') === id || Wire.strings(m,'aliases').includes(id));
+  }
+  hasCatalogModel():boolean {
+    return this.modelData.some((m:Record<string,Object>) => !Wire.bool(m,'is_default') && !Wire.bool(m,'default') && !Wire.bool(m,'custom'));
   }
   modelPresentation(picked: string, configured: string, launcher: Record<string,Object>, explicitlyChosen: boolean,
     word: (key:string) => string): LaunchChoice {

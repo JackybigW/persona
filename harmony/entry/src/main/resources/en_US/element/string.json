@@ -6365,6 +6365,58 @@
       "value": "Use “{name}”"
     },
     {
+      "name": "flow_model_id_empty",
+      "value": "Enter a model ID"
+    },
+    {
+      "name": "flow_model_id_start",
+      "value": "Start with a letter or digit (or ~ and then one)"
+    },
+    {
+      "name": "flow_model_id_space",
+      "value": "A model ID can't contain spaces"
+    },
+    {
+      "name": "flow_model_id_control",
+      "value": "A model ID can't contain line breaks or control characters"
+    },
+    {
+      "name": "flow_model_id_character",
+      "value": "“{character}” can't be in a model ID. Use letters, digits and . _ - / : @ [ ]"
+    },
+    {
+      "name": "flow_model_id_length",
+      "value": "Too long: at most 256 bytes"
+    },
+    {
+      "name": "flow_model_id_rule",
+      "value": "Letters, digits and . _ - / : @ [ ], starting with a letter or digit; a gateway's latest alias can start with ~."
+    },
+    {
+      "name": "flow_model_id_note",
+      "value": "Used for this start only. Once it runs, it's listed under Typed Before."
+    },
+    {
+      "name": "flow_typed_model_title",
+      "value": "Other Model"
+    },
+    {
+      "name": "flow_typed_model_use",
+      "value": "Use"
+    },
+    {
+      "name": "flow_enter_model_id",
+      "value": "Enter Model ID…"
+    },
+    {
+      "name": "flow_use_model_id",
+      "value": "Use “{id}”"
+    },
+    {
+      "name": "flow_unlisted_model_start",
+      "value": "Not in the list; this start uses the ID as typed"
+    },
+    {
       "name": "flow_other_model",
       "value": "Other model…"
     },

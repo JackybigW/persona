@@ -238,6 +238,34 @@ const nativeFormDependencies = { Wire, LaunchChoice, RecentAgentSetup, rememberA
 const NativeAgentForm = new Function(...Object.keys(nativeFormDependencies), 'return ' + stripTypeScriptTypes(
   'class NativeAgentForm {\n' + [...required].map(name => formMethods.get(name)).join('\n') + '\n}'))(...Object.values(nativeFormDependencies));
 
+test('Other Model keeps an unlisted ID on cancel and confirms one valid model to the current form after dismissal', async () => {
+  const {modelIDProblem}=await import('../entry/src/main/ets/models/ModelID.ets');
+  const word=key=>key==='flow_model_id_character' ? 'unsupported {character}' : key;
+  for (const [id,expected] of [['','flow_model_id_empty'],['.bad','flow_model_id_start'],['a b','flow_model_id_space'],
+    ['a\nb','flow_model_id_control'],['vendor/模型','unsupported 模'],['a'.repeat(257),'flow_model_id_length'],
+    ['~gateway/latest',''],['vendor/code:beta@1[1m]',''],['a'.repeat(256),'']]) assert.equal(modelIDProblem(id,word),expected,id);
+  const choices=new AgentLaunchChoices();
+  await choices.loadModels(makeOwner(async()=>({agent:'codex',models:[{id:'native',name:'Native',aliases:['short']}]})),'mac','codex');
+  assert.equal(choices.listsModel('short'),true); assert.equal(choices.listsModel('SHORT'),false);
+  assert.deepEqual(choices.models[0].aliases,['short']); assert.equal(choices.hasCatalogModel(),true);
+  const source=readFileSync(new URL('../entry/src/main/ets/components/AgentStartPicker.ets',import.meta.url),'utf8');
+  const methods=['canTypeModel','openTypedModel','confirmTypedModel','finishTypedModel'].map(name=>{
+    const start=source.indexOf('  private '+name+'('), line=source.indexOf('\n',start);
+    assert.ok(start>=0,name);
+    return source.slice(start,source.slice(start,line).trimEnd().endsWith('}') ? line : source.indexOf('\n  }',line)+4);
+  });
+  const Picker=new Function('modelIDProblem','tr','return '+stripTypeScriptTypes('class Picker {\n'+methods.join('\n')+'\n}'))(modelIDProblem,word);
+  const used=[];
+  const picker=Object.assign(new Picker(),{choices,kind:'model',manual:true,selected:'vendor/prior',choose:id=>used.push(id)});
+  picker.openTypedModel(); assert.equal(picker.typedModel,'vendor/prior');
+  picker.typedModel='a b';picker.confirmTypedModel(); assert.equal(picker.typingModel,true);assert.deepEqual(used,[]);
+  picker.typingModel=false;picker.finishTypedModel();assert.deepEqual(used,[]);
+  picker.openTypedModel();picker.typedModel='  vendor/new  ';picker.confirmTypedModel();assert.equal(picker.typingModel,false);assert.deepEqual(used,[]);
+  picker.finishTypedModel();picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+  picker.selected='short';picker.openTypedModel();assert.equal(picker.typedModel,'');picker.typedModel='second';picker.confirmTypedModel();
+  choices.locked='launcher supplies its own model';picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+});
+
 
 test('the focused New Agent draft follows the settled keyboard, content and text-size layout, and never a closed form', () => {
   const callbacks = [], moves = [];

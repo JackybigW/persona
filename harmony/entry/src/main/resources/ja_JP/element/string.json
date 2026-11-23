@@ -6365,6 +6365,58 @@
       "value": "「{name}」を使用"
     },
     {
+      "name": "flow_model_id_empty",
+      "value": "モデルIDを入力してください"
+    },
+    {
+      "name": "flow_model_id_start",
+      "value": "英字か数字で始めてください（または ~ の後に英字か数字）"
+    },
+    {
+      "name": "flow_model_id_space",
+      "value": "モデルIDにスペースは使えません"
+    },
+    {
+      "name": "flow_model_id_control",
+      "value": "モデルIDに改行や制御文字は使えません"
+    },
+    {
+      "name": "flow_model_id_character",
+      "value": "モデルIDに「{character}」は使えません。英数字と . _ - / : @ [ ] を使ってください"
+    },
+    {
+      "name": "flow_model_id_length",
+      "value": "長すぎます：256 バイトまで"
+    },
+    {
+      "name": "flow_model_id_rule",
+      "value": "英数字と . _ - / : @ [ ] が使え、英字か数字で始めます。ゲートウェイの latest エイリアスは ~ で始められます。"
+    },
+    {
+      "name": "flow_model_id_note",
+      "value": "今回の開始にだけ使います。実行されると「以前入力したもの」に表示されます。"
+    },
+    {
+      "name": "flow_typed_model_title",
+      "value": "その他のモデル"
+    },
+    {
+      "name": "flow_typed_model_use",
+      "value": "使用"
+    },
+    {
+      "name": "flow_enter_model_id",
+      "value": "モデルIDを入力…"
+    },
+    {
+      "name": "flow_use_model_id",
+      "value": "「{id}」を使用"
+    },
+    {
+      "name": "flow_unlisted_model_start",
+      "value": "リストにありません。今回の開始は入力どおりのIDを使います"
+    },
+    {
       "name": "flow_other_model",
       "value": "その他のモデル…"
     },

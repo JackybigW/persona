@@ -6365,6 +6365,58 @@
       "value": "使用「{name}」"
     },
     {
+      "name": "flow_model_id_empty",
+      "value": "请输入模型 ID"
+    },
+    {
+      "name": "flow_model_id_start",
+      "value": "要以字母或数字开头（或 ~ 后接字母或数字）"
+    },
+    {
+      "name": "flow_model_id_space",
+      "value": "模型 ID 里不能有空格"
+    },
+    {
+      "name": "flow_model_id_control",
+      "value": "模型 ID 里不能有换行或控制字符"
+    },
+    {
+      "name": "flow_model_id_character",
+      "value": "模型 ID 里不能有「{character}」，只能用字母、数字和 . _ - / : @ [ ]"
+    },
+    {
+      "name": "flow_model_id_length",
+      "value": "太长了：最多 256 字节"
+    },
+    {
+      "name": "flow_model_id_rule",
+      "value": "字母、数字和 . _ - / : @ [ ]，以字母或数字开头；网关的 latest 别名可以用 ~ 开头。"
+    },
+    {
+      "name": "flow_model_id_note",
+      "value": "只用于这次新建。跑起来后会列在「输入过的」里。"
+    },
+    {
+      "name": "flow_typed_model_title",
+      "value": "其他模型"
+    },
+    {
+      "name": "flow_typed_model_use",
+      "value": "使用"
+    },
+    {
+      "name": "flow_enter_model_id",
+      "value": "输入模型 ID…"
+    },
+    {
+      "name": "flow_use_model_id",
+      "value": "使用「{id}」"
+    },
+    {
+      "name": "flow_unlisted_model_start",
+      "value": "列表里没有，这次新建按输入的 ID 用"
+    },
+    {
       "name": "flow_other_model",
       "value": "其他模型…"
     },
