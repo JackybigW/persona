@@ -782,13 +782,16 @@ func (n *Node) agyPaneSessionInfo(id, pane string) map[string]any {
 		if st.Model != "" {
 			info["model"] = st.Model
 		}
+		if st.AppMode != "" {
+			info["permission_mode"] = st.AppMode
+		}
 	}
 	if conversation := n.agyConversation(id, pane); conversation != "" {
 		if runtimeRow, _, ok := n.runtimes.rowOf(agyAgent + "-" + conversation); ok {
 			if runtimeRow.Model != "" {
 				info["model"] = runtimeRow.Model
 			}
-			if runtimeRow.PermissionMode != "" {
+			if _, hasMode := info["permission_mode"]; !hasMode && runtimeRow.PermissionMode != "" {
 				info["permission_mode"] = runtimeRow.PermissionMode
 			}
 			if runtimeRow.Effort != "" {

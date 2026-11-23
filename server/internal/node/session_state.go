@@ -70,8 +70,8 @@ type sessionState struct {
 	// compaction with no process running (assistant_compact.go).
 	MainCompactWindow int `json:"main_compact_window,omitempty"`
 	// AppMode / AppEffort: the permission mode and effort set on an assistant conversation (modes.go). AppMode
-	// also retains a terminal Codex start constraint for later resumes. They
-	// win over what its transcript recorded and outlive the node: an old "default" there no longer locks it in.
+	// also retains a terminal Codex start constraint and an agy start's permission mode for later resumes and restarts.
+	// They win over what its transcript recorded and outlive the node: an old "default" there no longer locks it in.
 	// PlanThen: the mode this session, started in plan mode, goes on in once its plan is approved (planthen.go).
 	PlanThen  string `json:"plan_then,omitempty"`
 	AppMode   string `json:"app_mode,omitempty"`
