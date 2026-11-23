@@ -308,9 +308,8 @@ func (s *Service) retireAgent(ctx context.Context, refused taskCloseRefused, who
 	if cctx.Err() != nil {
 		return false
 	}
-	// A done task ends its Agent's session: with the owner's close-on-end setting its terminal goes too (#10355,
-	// agent_terminal_close.go), but never by bypassing the activity guard. An idle stop keeps its terminal either way.
-	closeIt := cause == proto.StopTaskCompleted && !agentCloseBusy(c) && s.closeEndedTerminals(ctx)
+	// Both task and long-idle retirement honor close-on-end (#10355) through the guarded stop RPC.
+	closeIt := !agentCloseBusy(c) && s.closeEndedTerminals(ctx)
 	params := map[string]any{"session_id": c.SessionID, "retire": true, "stop_cause": cause}
 	if closeIt {
 		params["close_terminal"] = true

@@ -19,10 +19,16 @@ func TestAutomaticRetirementRechecksRunningAgent(t *testing.T) {
 	for _, tc := range []struct {
 		closeTerminal bool
 		afterKey      int32
+		cause         proto.StopCause
 	}{
-		{true, 0}, {true, 1}, {true, 2}, {false, 1},
+		{true, 0, proto.StopTaskCompleted},
+		{true, 1, proto.StopTaskCompleted},
+		{true, 2, proto.StopTaskCompleted},
+		{false, 1, proto.StopTaskCompleted},
+		{true, 0, proto.StopIdle},
+		{true, 1, proto.StopIdle},
 	} {
-		t.Run(fmt.Sprintf("close_terminal=%t/input_after_key=%d", tc.closeTerminal, tc.afterKey), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s/close_terminal=%t/input_after_key=%d", tc.cause, tc.closeTerminal, tc.afterKey), func(t *testing.T) {
 			n, f, home := herdrNode(t)
 			cwd := mkdir(t, filepath.Join(home, "project"))
 			n.state.put(sidA, sessionState{Launcher: "cc", Cwd: cwd, Pane: "w1:p1"})
@@ -58,7 +64,7 @@ func TestAutomaticRetirementRechecksRunningAgent(t *testing.T) {
 				close(inspected)
 			})
 			out, err := request(t, n, nodeproto.StopIfIdle, map[string]any{
-				"session_id": sidA, "retire": true, "stop_cause": "task_completed", "close_terminal": tc.closeTerminal,
+				"session_id": sidA, "retire": true, "stop_cause": tc.cause, "close_terminal": tc.closeTerminal,
 			})
 			if tc.afterKey == 0 {
 				if err != nil || out["closed"] != true || len(f.trace("tab.close")) != 1 {
