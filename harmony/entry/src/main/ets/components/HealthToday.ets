@@ -56,6 +56,9 @@ export struct HealthToday {
     return tr('intake_ratio').replace('{today}',this.words(value.today)).replace('{goal}',this.words(value.goal)).replace('{unit}',this.unit(kind));
   }
   private tint(kind:string): string { return kind==='water' ? (this.env.dark?'#719BFF':'#2457D6') : (this.env.dark?'#F6B650':'#9A5900'); }
+  private primaryNumberInk(): ResourceColor {
+    return Colors.systemControls && Colors.styleID==='glass' ? (this.env.dark ? '#FFFFFF' : '#000000') : Colors.ink;
+  }
   private openRing(kind:string): void {
     const client=this.intake.currentClient();if (!client || this.intake.busy) return;
     this.detailClient=client;this.kind=kind;this.detail=true;
@@ -112,7 +115,7 @@ export struct HealthToday {
             .width(this.metric(105,135.3)).height(this.metric(105,135.3)).color(this.tint(kind))
             .backgroundColor('#24'+this.tint(kind).slice(1)).style({strokeWidth:9,enableSmoothEffect:!this.env.reduceMotion}).accessibilityLevel('no')
           Column() {
-            Text(this.words(value.today)).fontSize(22).maxFontScale(Tokens.interfaceScaleFor(22)).fontWeight(600).fontColor(Colors.ink)
+            Text(this.words(value.today)).fontSize(22).maxFontScale(Tokens.interfaceScaleFor(22)).fontWeight(600).fontColor(this.primaryNumberInk())
               .maxLines(1).minFontSize('13vp').maxFontSize(Tokens.interfaceFontVp(22,this.env.fontScale)).textAlign(TextAlign.Center)
             Text(this.unit(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor($r('sys.color.font_tertiary')).maxLines(1)
           }.width(this.metric(69.1,91)).alignItems(HorizontalAlign.Center)
