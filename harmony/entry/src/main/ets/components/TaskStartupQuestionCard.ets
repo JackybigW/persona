@@ -90,13 +90,14 @@ export struct TaskStartupQuestionCard {
           Button({type:ButtonType.Normal}) {
             Row({space:Tokens.fine}) {
               SymbolGlyph(this.details?Symbols.up:Symbols.down).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor([Colors.secondary])
-              Text(tr(this.details?'collapse':'details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
+              Text(tr('details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
                 .lineHeight(ReadinessStyle.line(14.3,21.7)).fontColor(Colors.secondary).maxLines(1)
             }
           }.height(ReadinessStyle.metric(14.3,21.7)).padding(0).backgroundColor(Color.Transparent)
-            .accessibilityText(tr(this.details?'collapse':'details')).onClick(()=>this.details=!this.details).id('task.start.details')
+            .accessibilityText(tr('details')).accessibilityDescription(tr(this.details?'control_expanded':'control_collapsed'))
+            .onClick(()=>this.details=!this.details).id('task.start.details')
         }.width('100%').justifyContent(FlexAlign.End)
-        if (this.details) Text(this.question.screen).fontSize(ReadinessStyle.font(Tokens.caption)).fontFamily('monospace')
+        if (this.details) Text(this.question.screen).fontSize(ReadinessStyle.font(Tokens.caption)).fontFamily('monospace').copyOption(CopyOptions.LocalDevice)
           .fontColor(Colors.secondary).width('100%').padding(Tokens.gap).backgroundColor(Colors.control).borderRadius(Tokens.gap)
       }
     }.width('100%').alignItems(HorizontalAlign.Start).onAreaChange((_old:Area,next:Area)=>{
