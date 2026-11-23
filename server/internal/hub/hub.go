@@ -353,6 +353,7 @@ func runHub(ctx context.Context, b update.Build, cfg *Config, budget *shutdownBu
 	h.push.hubID = h.hubID
 	h.push.userLang = h.userLang
 	h.push.userLoc = h.userLocation
+	h.push.attention = h.attentionMode
 	h.push.devicesChanged = func() { go h.fleetClientsChanged() } // a phone that takes MCP forms by push (fleet_link.go)
 	go h.projectReviewOwnerLoop(ctx)
 	go h.push.maintenanceLoop(ctx)
