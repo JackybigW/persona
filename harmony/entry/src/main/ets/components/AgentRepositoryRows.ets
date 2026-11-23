@@ -11,6 +11,7 @@ export struct AgentRepositoryRows {
   @Require @Param workspace: AgentWorkspace;
   @Require @Param catalog: ProjectCatalog;
   @Require @Param rows: ResourceRow[];
+  @BuilderParam rowActions:(row:ResourceRow,spaceName:string)=>void;
   @Event onOpen: (row: ResourceRow) => void = () => {};
   @Event onRoute: (kind: string, key: string) => void = () => {};
   @Event onChanged: (tree: ProjectWorktree, change: WorktreeChange) => void = () => {};
@@ -47,6 +48,7 @@ export struct AgentRepositoryRows {
   @Builder repositoryList() {
     ProjectsPage({ model:this.model, catalog:this.catalog, page:'agent_repositories', agentRepositories:this.visible,
       agentFilterActive:this.workspace.quickFilter !== 'all' || !!this.workspace.search.trim(),
+      agentActions:(row:ResourceRow,spaceName:string)=>{if(this.rows.some((r:ResourceRow)=>r.key()===row.key()))this.rowActions(row,spaceName);},
       isMuted:(row:ResourceRow):boolean => this.workspace.isMuted(row),
       onSession:(row:ResourceRow) => {
         if (this.rows.some((current:ResourceRow) => current.key() === row.key())) this.onOpen(row);

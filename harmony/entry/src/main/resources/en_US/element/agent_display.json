@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "phone_agent_display_title",
+      "value": "Display"
+    },
+    {
+      "name": "phone_agent_display_avatar",
+      "value": "Avatar"
+    },
+    {
+      "name": "phone_agent_display_compact",
+      "value": "Two Lines"
+    },
+    {
+      "name": "phone_agent_display_cards",
+      "value": "State Cards"
+    },
+    {
+      "name": "phone_agent_display_list",
+      "value": "Compact List"
+    }
+  ]
+}

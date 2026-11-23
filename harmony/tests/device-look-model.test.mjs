@@ -330,3 +330,29 @@ test('compact navigation layout survives relaunch and composes with simultaneous
  await restored.setPhoneNavigation('separate');
  const again=new DeviceLook();await again.initialize({filesDir:'/private/app'});assert.equal(again.phoneNavigation,'separate');
 });
+
+test('Agents row style and Compact List survive relaunch alongside existing density, accent, and navigation',async()=>{
+  deviceLookBoundary.reset();
+  deviceLookBoundary.saved.set('device-look',JSON.stringify({version:1,avatarId:'builtin',accentId:'coral',density:'compact',phoneNavigation:'merged'}));
+  const client=makeClient(),look=await openModel(client);
+  assert.equal(look.agentDisplay,'avatar');assert.equal(look.density,'compact');
+  assert.equal(await look.setAgentDisplay('compact'),true);assert.equal(look.agentDisplay,'compact');
+  assert.equal(await look.setAgentDisplay('list'),true);
+  const value=JSON.parse(deviceLookBoundary.saved.get('device-look'));
+  assert.equal(value['agents.rowStyle'],'compact');assert.equal(value['dev.compact'],true);
+  assert.equal(value.density,'compact');assert.equal(value.accentId,'coral');assert.equal(value.phoneNavigation,'merged');
+  const next=await openModel(client);assert.equal(next.agentDisplay,'list');
+  assert.equal(await next.setAgentDisplay('cards'),true);
+  assert.equal((await openModel(client)).agentDisplay,'cards');
+  assert.equal(await next.setAgentDisplay('unknown'),false);assert.equal(next.agentDisplay,'cards');
+  deviceLookBoundary.putError=true;
+  assert.equal(await next.setAgentDisplay('avatar'),false);assert.equal(next.agentDisplay,'cards');
+});
+
+test('concurrent Agents layout and other device settings commit without overwriting each other',async()=>{
+  deviceLookBoundary.reset();const look=await openModel(makeClient());
+  await Promise.all([look.setAgentDisplay('cards'),look.setDensity('compact'),look.setPhoneNavigation('merged'),look.setAgentDisplay('list')]);
+  const record=JSON.parse(deviceLookBoundary.saved.get('device-look'));
+  assert.equal(record['agents.rowStyle'],'cards');assert.equal(record['dev.compact'],true);
+  assert.equal(record.density,'compact');assert.equal(record.phoneNavigation,'merged');
+});

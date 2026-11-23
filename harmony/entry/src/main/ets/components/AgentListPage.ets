@@ -112,6 +112,13 @@ export struct AgentListPage {
   @Local taskGrouping: AgentTaskGrouping = new AgentTaskGrouping();
   @Local taskRowsByKey: Map<string,BoundAgentRow> = new Map();
   @Local look: DeviceLook = deviceLook;
+  @Computed get displayedAgentStyle():string {
+    if(this.look.agentDisplay==='list')return 'list';
+    return this.model.style==='beautiful'?'beautiful':this.look.agentDisplay;
+  }
+  @Monitor('displayedAgentStyle') displayChanged():void {
+    this.workspace.setCompactDisplay(this.displayedAgentStyle==='list');
+  }
   @Local groupBindings: BoundAgentGroup[] = [];
   @Local mixedMachines: boolean = false;
   @Local listWidth:number=0;
@@ -156,6 +163,7 @@ export struct AgentListPage {
   }
 
   aboutToAppear(): void {
+    this.workspace.setCompactDisplay(this.displayedAgentStyle==='list');
     this.stopDecisionEvents=this.model.observeEvents((payload:string) => {
       const type=Wire.text(Wire.parse(payload),'type');
       if (['interaction','interactions','interaction_resolved'].includes(type)) this.reloadDecisions();
@@ -287,7 +295,7 @@ export struct AgentListPage {
       presentation.sessionId = Wire.text(data, 'session_id');
       presentation.spaceName = Wire.text(data, 'space_name');
     }
-    if (this.workspace?.groupingMode === 'app' || this.workspace?.groupingMode === 'recent') presentation.prepareActivity(row);
+    if (this.compactRoot && !this.rail || this.workspace?.groupingMode === 'app' || this.workspace?.groupingMode === 'recent') presentation.prepareActivity(row);
     const state = row.state || presentation.rawStatus;
     const content = presentation.lastText || row.detail;
     const machineId = row.machine || presentation.machineId;
@@ -388,30 +396,31 @@ export struct AgentListPage {
       } } });
   }
 
-  @Builder rowMenu(binding: BoundAgentRow) {
+  @Builder rowMenu(binding:BoundAgentRow) { this.sessionMenu(binding.bound.value,binding.presentation.spaceName) }
+  @Builder sessionMenu(row:ResourceRow,spaceName:string) {
     Menu() {
-      MenuItem({ content: tr(this.workspace.isPinned(binding.bound.value) ? 'agent_unpin' : 'agent_pin') })
-        .enabled(this.workspace.rowOnline(binding.bound.value) && !this.workspace.busy)
-        .onClick(() => this.workspace.togglePin(binding.bound.value).catch(() => undefined))
-      MenuItem({ content: tr(this.workspace.isMuted(binding.bound.value) ? 'unmute' : 'mute') })
-        .enabled(this.workspace.rowOnline(binding.bound.value) && !this.workspace.busy)
-        .onClick(() => this.workspace.toggleMute(binding.bound.value).catch(() => undefined))
-      if (this.workspace.isSpacePinned(binding.bound.value) || binding.presentation.spaceName) {
-        MenuItem({ content: tr(this.workspace.isSpacePinned(binding.bound.value) ? 'agent_unpin_space' : 'agent_pin_space') })
-          .enabled(this.workspace.rowOnline(binding.bound.value) && !this.workspace.busy)
-          .onClick(() => this.workspace.togglePin(binding.bound.value, true).catch(() => undefined))
-        MenuItem({ content: tr(this.workspace.isSpaceMuted(binding.bound.value) ? 'agent_unmute_space' : 'agent_mute_space') })
-          .enabled(this.workspace.rowOnline(binding.bound.value) && !this.workspace.busy)
-          .onClick(() => this.workspace.toggleMute(binding.bound.value, true).catch(() => undefined))
+      MenuItem({ content: tr(this.workspace.isPinned(row) ? 'agent_unpin' : 'agent_pin') })
+        .enabled(this.workspace.rowOnline(row) && !this.workspace.busy)
+        .onClick(() => this.workspace.togglePin(row).catch(() => undefined))
+      MenuItem({ content: tr(this.workspace.isMuted(row) ? 'unmute' : 'mute') })
+        .enabled(this.workspace.rowOnline(row) && !this.workspace.busy)
+        .onClick(() => this.workspace.toggleMute(row).catch(() => undefined))
+      if (this.workspace.isSpacePinned(row) || spaceName) {
+        MenuItem({ content: tr(this.workspace.isSpacePinned(row) ? 'agent_unpin_space' : 'agent_pin_space') })
+          .enabled(this.workspace.rowOnline(row) && !this.workspace.busy)
+          .onClick(() => this.workspace.togglePin(row, true).catch(() => undefined))
+        MenuItem({ content: tr(this.workspace.isSpaceMuted(row) ? 'agent_unmute_space' : 'agent_mute_space') })
+          .enabled(this.workspace.rowOnline(row) && !this.workspace.busy)
+          .onClick(() => this.workspace.toggleMute(row, true).catch(() => undefined))
       }
-      if (this.workspace.canMarkSeen(binding.bound.value)) MenuItem({ content: tr('agent_mark_seen') })
-        .enabled(!this.workspace.busy).onClick(() => this.workspace.markSeen(binding.bound.value).catch(() => undefined))
-      if (this.workspace.canRename(binding.bound.value)) MenuItem({ content: tr('rename') }).enabled(!this.workspace.busy)
-        .onClick(() => this.openRename(binding.bound.value))
-      if (this.workspace.canClose(binding.bound.value)) MenuItem({ content: tr('close') }).enabled(!this.workspace.busy)
-        .onClick(() => this.confirmClose(binding.bound.value))
-      if (this.workspace.canDelete(binding.bound.value)) MenuItem({ content: tr('delete') }).enabled(!this.workspace.busy)
-        .onClick(() => this.confirmDelete(binding.bound.value))
+      if (this.workspace.canMarkSeen(row)) MenuItem({ content: tr('agent_mark_seen') })
+        .enabled(!this.workspace.busy).onClick(() => this.workspace.markSeen(row).catch(() => undefined))
+      if (this.workspace.canRename(row)) MenuItem({ content: tr('rename') }).enabled(!this.workspace.busy)
+        .onClick(() => this.openRename(row))
+      if (this.workspace.canClose(row)) MenuItem({ content: tr('close') }).enabled(!this.workspace.busy)
+        .onClick(() => this.confirmClose(row))
+      if (this.workspace.canDelete(row)) MenuItem({ content: tr('delete') }).enabled(!this.workspace.busy)
+        .onClick(() => this.confirmDelete(row))
     }
   }
 
@@ -620,29 +629,34 @@ export struct AgentListPage {
   @Builder groupRow(binding:BoundAgentRow,groupId:string,endOfSurface:boolean=true) {
     if (this.compactRoot && !this.rail && groupId==='state/needs' && this.decisions.forSession(this.model,binding.bound.value).length)
       this.needsYouCards(binding)
-    else if (this.compactRoot && binding.presentation.activity && (groupId==='recent' || groupId.startsWith('app/')))
+    else if (this.compactRoot && !this.rail && binding.presentation.activity)
       this.activityRow(binding,groupId,endOfSurface)
     else this.agentRow(binding,groupId)
+  }
+  @Computed get floatingStatusCards():boolean {
+    return this.compactRoot && !this.rail && this.displayedAgentStyle==='cards';
   }
   private activityPlace(binding:BoundAgentRow,groupId:string):string {
     const value=binding.presentation, agent=value.activity;
     if (!agent) return '';
-    if (groupId.includes('/project/') && !groupId.endsWith('/other#')) return agent.tab;
+    if ((this.workspace.groupingMode==='space' && agent.spaceId && groupId.endsWith('/'+agent.spaceId)) ||
+      (groupId.includes('/project/') && !groupId.endsWith('/other#'))) return agent.tab;
     const place=[value.spaceName,agent.tab !== value.spaceName ? agent.tab : ''].filter((part:string)=>!!part).join(' › ');
     return [place,this.mixedMachines ? value.metadata[1] : ''].filter((part:string)=>!!part).join(' · ');
   }
-  @Builder activityRow(binding:BoundAgentRow,groupId:string,endOfSurface:boolean) {
+  @Builder activityRow(binding:BoundAgentRow,groupId:string,endOfSurface:boolean,depth:number=0) {
     ListItem() {
       Column() {
-        AgentDirectoryRowContent({agent:binding.presentation.activity!,age:this.rowTime(binding.presentation),place:this.activityPlace(binding,groupId),
+        AgentDirectoryRowContent({agent:binding.presentation.activity!,display:this.displayedAgentStyle,muted:this.workspace.isMuted(binding.bound.value),
+          hideState:groupId.startsWith('state/') && groupId!=='state/muted',age:this.rowTime(binding.presentation),place:this.activityPlace(binding,groupId),
           showsSource:!!binding.presentation.activitySource,sourceTitle:binding.presentation.activitySource ? tr(binding.presentation.activitySource) : '',
-          narrow:this.listWidth>0 && this.listWidth<296,leftInset:groupId.includes('/project/') ? 36 : 20,
+          narrow:this.listWidth>0 && this.listWidth<296,leftInset:(groupId.includes('/project/') ? 36 : 20)+16*depth,
           controlScale:Math.max(1,Math.min(this.environment.fontScale,67/51)),fontScale:this.environment.fontScale,
           tint:this.rowStatusColor(binding.presentation),activityList:true})
-      }.width('100%').backgroundColor(this.isRowSelected(binding) ? Colors.selection : Colors.surface)
+      }.width('100%').backgroundColor(this.isRowSelected(binding) ? Colors.selection : this.displayedAgentStyle==='cards'?Colors.grouped:Colors.surface)
        .borderRadius({topLeft:binding.first && !groupId.includes('/project/') ? 26:0,topRight:binding.first && !groupId.includes('/project/') ? 26:0,
          bottomLeft:binding.last && endOfSurface ? 26:0,bottomRight:binding.last && endOfSurface ? 26:0})
-    }.margin({left:4,right:4}).accessibilityGroup(true)
+    }.margin({left:this.floatingStatusCards?0:4,right:this.floatingStatusCards?0:4}).accessibilityGroup(true)
       .accessibilityText([binding.presentation.provider,this.rowStatus(binding.presentation),binding.bound.value.title,
         this.rowTime(binding.presentation),binding.presentation.recentContent,binding.presentation.activitySource ? tr(binding.presentation.activitySource) : '',
         this.activityPlace(binding,groupId),binding.presentation.activity?.model || '',binding.presentation.activity?.todoTitle || ''].filter((part:string)=>!!part).join(' · '))
@@ -653,7 +667,11 @@ export struct AgentListPage {
   }
 
   @Builder taskRow(row:ResourceRow,depth:number) {
-    if (this.taskRowsByKey.has(row.key())) this.agentRow(this.taskRowsByKey.get(row.key())!,this.workspace.groupingMode,depth)
+    if (this.taskRowsByKey.has(row.key())) {
+      if(this.compactRoot && !this.rail && this.taskRowsByKey.get(row.key())!.presentation.activity)
+        this.activityRow(this.taskRowsByKey.get(row.key())!,this.workspace.groupingMode,true,depth)
+      else this.agentRow(this.taskRowsByKey.get(row.key())!,this.workspace.groupingMode,depth)
+    }
   }
   @Builder agentRow(binding: BoundAgentRow, groupId: string, depth:number=0) {
     ListItem() {
@@ -818,12 +836,21 @@ export struct AgentListPage {
       .onChange((value: string) => { if (this.compactRoot) this.searchOpen = true; this.workspace.setSearch(value); })
       .onAppear(() => this.focusMountedSearch()).id('agents.search')
   }
+  @Builder displayChoices() {
+    Menu(){
+      ForEach(['avatar','compact','cards','list'],(style:string)=>{
+        MenuItem({content:tr('phone_agent_display_'+style)}).selected(this.look.agentDisplay===style).selectIcon(true)
+          .onClick(()=>{this.look.setAgentDisplay(style);}).id('agents.display.'+style)
+      },(style:string)=>style)
+    }
+  }
   @Builder groupingMenu() {
     Menu() {
       ForEach(this.availableGroupings,(key:string,index:number) => {
         MenuItem({content:tr(GROUP_LABELS[key])}).selected(key===this.workspace.groupingMode).selectIcon(true)
           .onClick(() => { this.selectGrouping(index); this.resetSearchReveal(); this.agentScroller.scrollToIndex(0); }).id('agents.grouping.'+key)
       },(key:string)=>key)
+      MenuItem({content:tr('phone_agent_display_title'),builder:()=>{this.displayChoices();}}).id('agents.display')
       MenuItem({content:tr('search_sessions')}).onClick(()=>this.activateSearch()).id('agents.search_reveal')
       MenuItem({content:tr('agent_filters_title')}).onClick(()=>this.filterSheetOpen=true).id('agents.grouping.filters')
     }
@@ -950,6 +977,7 @@ export struct AgentListPage {
           }, (binding: BoundAgentGroup) => binding.key)
         if (this.workspace.groupingMode === 'repo') {
           AgentRepositoryRows({model:this.model,workspace:this.workspace,catalog:this.projectCatalog,rows:this.workspace.unpinnedRows,
+            rowActions:(row:ResourceRow,spaceName:string)=>{this.sessionMenu(row,spaceName);},
             onOpen:(row:ResourceRow)=>this.openRow(row),onRoute:(kind:string,key:string)=>this.onRepositoryOpen(kind,key),
             onChanged:(tree:ProjectWorktree,change:WorktreeChange)=>this.onRepositoryChanged(tree,change)})
         } else if (this.workspace.groupingMode === 'todo' || this.workspace.groupingMode === 'direction') {
@@ -961,7 +989,7 @@ export struct AgentListPage {
         } else if (!this.workspace.hasRows() && !this.workspace.loading) ListItem() {
           Text(tr(this.workspace.search ? 'no_results' : 'empty')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).padding(Tokens.page).width('100%')
         }.id('agents.empty')
-      }.width('100%').height('100%').onAreaChange((_:Area,area:Area)=>{this.listWidth=Number(area.width);}).padding({ left: this.rail ? 0 : 12, right: this.rail ? 0 : 12, bottom: Tokens.listTail }).backgroundColor(Colors.grouped)
+      }.width('100%').height('100%').onAreaChange((_:Area,area:Area)=>{this.listWidth=Number(area.width);}).padding({ left: this.rail || this.floatingStatusCards ? 0 : 12, right: this.rail || this.floatingStatusCards ? 0 : 12, bottom: Tokens.listTail }).backgroundColor(Colors.grouped)
         .onTouch((event: TouchEvent) => this.trackPull(event)).id('agents.list.'+this.workspace.groupingMode)
       }.width('100%').layoutWeight(1).onRefreshing(() => this.refreshAgents())
       .bindSheet($$this.filterSheetOpen, this.filterSheet(), {

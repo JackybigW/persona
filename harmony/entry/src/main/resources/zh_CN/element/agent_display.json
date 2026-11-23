@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "phone_agent_display_title",
+      "value": "显示"
+    },
+    {
+      "name": "phone_agent_display_avatar",
+      "value": "头像"
+    },
+    {
+      "name": "phone_agent_display_compact",
+      "value": "紧凑两行"
+    },
+    {
+      "name": "phone_agent_display_cards",
+      "value": "色条卡片"
+    },
+    {
+      "name": "phone_agent_display_list",
+      "value": "细列表"
+    }
+  ]
+}

@@ -31,6 +31,7 @@ export class ProjectAgent {
   preview: string;
   tab: string;
   spaceId: string;
+  spaceName:string;
   spaceKind: string;
   archived: boolean;
   pending: number;
@@ -67,6 +68,7 @@ export class ProjectAgent {
     this.model = Wire.text(data,'model');
     this.preview = (Wire.text(data,'last_text') || row.detail).trim();
     this.tab = Wire.text(data,'slot_name') || Wire.text(data,'space_name');
+    this.spaceName = Wire.text(data,'space_name');
     this.spaceId = Wire.text(data,'space_id'); this.spaceKind = Wire.text(data,'space_kind');
     this.archived = Wire.bool(data,'archived'); this.pending = Wire.number(data,'pending_interactions');
     const todo = Wire.object(data,'todo');

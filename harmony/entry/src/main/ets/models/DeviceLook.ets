@@ -52,6 +52,8 @@ export class DeviceLook {
   @Trace selectedAvatar: DeviceLookAvatar = new DeviceLookAvatar(BUILTIN_ID, 'Mochi');
   @Trace accentId: string = 'style';
   @Trace density: string = 'standard';
+  @Trace private agentRowStyle:string='avatar';
+  @Trace private agentCompactList:boolean=false;
   @Trace phoneNavigation: string = 'separate';
   @Trace avatars: DeviceLookAvatar[] = [new DeviceLookAvatar(BUILTIN_ID, 'Mochi')];
   @Trace busy: boolean = false;
@@ -242,6 +244,13 @@ export class DeviceLook {
     return this.commitSelection(undefined, undefined, value);
   }
 
+  get agentDisplay():string { return this.agentCompactList ? 'list' : this.agentRowStyle; }
+
+  async setAgentDisplay(display:string):Promise<boolean> {
+    if(!this.ready || !['avatar','compact','cards','list'].includes(display))return false;
+    return this.commitSelection(undefined,undefined,undefined,undefined,display);
+  }
+
   async setPhoneNavigation(value:string):Promise<boolean> {
     if (!this.ready || !['separate','merged'].includes(value)) return false;
     return this.commitSelection(undefined,undefined,undefined,value);
@@ -385,6 +394,9 @@ export class DeviceLook {
       const accent = Wire.text(saved, 'accentId', 'style');
       this.accentId = validAccentId(accent) ? accent : 'style';
       this.phoneNavigation = Wire.text(saved,'phoneNavigation') === 'merged' ? 'merged' : 'separate';
+      const rowStyle=Wire.text(saved,'agents.rowStyle','avatar');
+      this.agentRowStyle=['compact','cards'].includes(rowStyle)?rowStyle:'avatar';
+      this.agentCompactList=Wire.bool(saved,'dev.compact');
       const density = Wire.text(saved, 'density', 'standard');
       this.density = density === 'compact' ? 'compact' : 'standard';
       const id = Wire.text(saved, 'avatarId', BUILTIN_ID);
@@ -402,14 +414,17 @@ export class DeviceLook {
     } catch (_) { this.selectedAvatar = new DeviceLookAvatar(BUILTIN_ID, 'Mochi'); }
   }
 
-  private selectionJSON(selected: DeviceLookAvatar, accent: string, density: string, navigation: string = this.phoneNavigation): string {
+  private selectionJSON(selected: DeviceLookAvatar, accent: string, density: string, navigation: string = this.phoneNavigation,
+    agentRowStyle:string=this.agentRowStyle,agentCompactList:boolean=this.agentCompactList): string {
     const data = Wire.payload(['version', 'avatarId', 'accentId', 'density', 'profileId', 'hubId', 'rev', 'file', 'infoJSON', 'ownerName'],
       [1, selected.id, accent, density, selected.profileId, selected.hubId, selected.rev, selected.file, selected.infoJSON, selected.ownerName]);
     if (navigation === 'merged') data['phoneNavigation'] = navigation;
+    if(agentRowStyle!=='avatar')data['agents.rowStyle']=agentRowStyle;
+    if(agentCompactList)data['dev.compact']=true;
     return JSON.stringify(data);
   }
 
-  private async commitSelection(avatar: DeviceLookAvatar | undefined, accent: string | undefined, density: string | undefined, navigation?:string): Promise<boolean> {
+  private async commitSelection(avatar: DeviceLookAvatar | undefined, accent: string | undefined, density: string | undefined, navigation?:string,display?:string): Promise<boolean> {
     if (!this.ready) return false;
     const ownerKey = avatar && !avatar.isBuiltin() ? JSON.stringify([avatar.profileId, avatar.hubId]) : '';
     const epoch = this.forgetEpochs.get(ownerKey) || 0;
@@ -420,15 +435,18 @@ export class DeviceLook {
       const next = avatar || this.selectedAvatar, color = accent === undefined ? this.accentId : accent;
       const nextDensity = density === undefined ? this.density : density;
       const nextNavigation = navigation || this.phoneNavigation;
+      const nextRowStyle=!display||display==='list'?this.agentRowStyle:display;
+      const nextList=display===undefined?this.agentCompactList:display==='list';
       const current = (): boolean => !avatar || avatar.isBuiltin() || (this.forgetEpochs.get(ownerKey) || 0) === epoch && this.cachedSize(avatar.imagePath) > 0;
       if (!current()) return;
-      if (next.optionKey() === this.avatarKey && color === this.accentId && nextDensity === this.density && nextNavigation === this.phoneNavigation) { committed = true; return; }
+      if (next.optionKey() === this.avatarKey && color === this.accentId && nextDensity === this.density && nextNavigation === this.phoneNavigation && nextRowStyle===this.agentRowStyle && nextList===this.agentCompactList) { committed = true; return; }
       if (color === 'avatar' && !next.packageInfo?.colors && this.accentId !== 'avatar') return;
       const previous = this.selectionJSON(this.selectedAvatar, this.accentId, this.density);
       try {
-        await store.put(STORAGE_KEY, this.selectionJSON(next, color, nextDensity,nextNavigation));
+        await store.put(STORAGE_KEY, this.selectionJSON(next, color, nextDensity,nextNavigation,nextRowStyle,nextList));
         if (!current()) { await store.put(STORAGE_KEY, previous); return; }
-        this.selectedAvatar = next; this.accentId = color; this.density = nextDensity; this.phoneNavigation = nextNavigation; this.error = ''; committed = true;
+        this.selectedAvatar = next; this.accentId = color; this.density = nextDensity; this.phoneNavigation = nextNavigation;
+        this.agentRowStyle=nextRowStyle;this.agentCompactList=nextList;this.error = ''; committed = true;
         this.avatars = this.withSelected(this.avatars); this.changed();
       } catch (_) { this.error = 'device_look_storage_failed'; this.changed(); }
     });

@@ -14,6 +14,7 @@ import { ProjectLine, ProjectHost, projectOutline, projectHosts, projectQuickKin
 import { WorktreeActions, WorktreeChange } from '../models/WorktreeActions';
 import { WorktreeSheet } from './WorktreeSheet';
 import { AgentDirectoryRowContent } from './AgentDirectoryRowContent';
+import { deviceLook } from '../models/DeviceLook';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 
 @ComponentV2
@@ -31,6 +32,7 @@ export struct ProjectsPage {
   @Param topContentInset: number = 0;
   @Event onSearchMode: (active:boolean) => void = () => {};
   @Event isMuted: (row:ResourceRow) => boolean = () => false;
+  @BuilderParam agentActions?:(row:ResourceRow,spaceName:string)=>void;
   @Local searchMode: boolean = false;
   @Local quick: string = '';
   private searchField: SearchController = new SearchController();
@@ -465,15 +467,26 @@ export struct ProjectsPage {
     return [special ? tr(agent.stateLabel) : '', paneName || agent.tab, starter ? tr('session_space_starter') : '', agent.model || agent.runtime]
       .filter((value: string) => !!value).join(' · ');
   }
+  @Computed get floatingAgentCards():boolean {
+    return !!this.agentRepositories && deviceLook.agentDisplay==='cards' && this.model.style!=='beautiful';
+  }
+  @Builder cellActions(agent:ProjectAgent,treeKey:string) {
+    if(this.agentRepositories && this.agentActions){this.agentActions(agent.row,agent.spaceName)}
+    else {this.actionMenu(treeKey)}
+  }
   @Builder agentCell(agent:ProjectAgent, treeKey:string, level:number, paneName:string = '', starter:boolean = false) {
     Row() {
-      AgentDirectoryRowContent({agent:agent, age:this.age(agent), place:paneName || agent.tab, showsSource:!!(agent.tab || agent.runtime),
-        starter:starter,narrow:this.narrowOutline(),leftInset:this.treeInset(level)+6,controlScale:this.outlineControlScale(),
+      AgentDirectoryRowContent({agent:agent,display:this.agentRepositories?
+        (deviceLook.agentDisplay==='list'?'list':this.model.style==='beautiful'?'beautiful':deviceLook.agentDisplay):'avatar',
+        activityList:!!this.agentRepositories,muted:this.agentRepositories?this.isMuted(agent.row):false, age:this.age(agent), place:paneName || agent.tab, showsSource:!!(agent.tab || agent.runtime),
+        starter:starter,narrow:this.narrowOutline(),
+        leftInset:this.agentRepositories && deviceLook.agentDisplay==='list' ? PhoneStyle.inset+6+18*this.outlineControlScale()*Math.min(level,3) : this.treeInset(level)+6,
+        controlScale:this.outlineControlScale(),
         fontScale:nativeEnvironment.fontScale,tint:this.tint(agent)})
     }.width('100%')
       .accessibilityGroup(true).accessibilityText([agent.row.title,agent.preview,tr(agent.stateLabel),this.agentContext(agent,paneName,starter),agent.todoTitle,this.age(agent)].filter((v:string) => !!v).join(' · '))
       .accessibilitySelected(this.adjacentItem === 'session:' + agent.row.key())
-      .onClick(() => this.chooseAgent(agent)).bindContextMenu(this.actionMenu(treeKey),ResponseType.LongPress).id(this.agentRepositories ? 'agents.repo.session' : 'projects.inline_session')
+      .onClick(() => this.chooseAgent(agent)).bindContextMenu(this.cellActions(agent,treeKey),ResponseType.LongPress).id(this.agentRepositories ? 'agents.repo.session' : 'projects.inline_session')
   }
   @Builder foldChevron(open:boolean) {
     SymbolGlyph(open ? Symbols.down : Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
@@ -620,7 +633,8 @@ export struct ProjectsPage {
       ListItem() {
         Column() {
           this.lineContent(entry.item)
-        }.width('100%').alignItems(HorizontalAlign.Start)
+        }.width('100%').padding({left:this.floatingAgentCards && entry.item.kind!=='session'?16:0,
+          right:this.floatingAgentCards && entry.item.kind!=='session'?16:0}).alignItems(HorizontalAlign.Start)
           .backgroundColor(entry.item.kind === 'host' || entry.item.kind === 'idle-projects' ? Color.Transparent :
             entry.item.agent && this.adjacentItem === 'session:' + entry.item.agent!.row.key() ||
             entry.item.kind === 'tree' && this.adjacentItem === 'tree:' + entry.item.tree!.key ? Colors.selection : Colors.surface)
@@ -839,7 +853,7 @@ export struct ProjectsPage {
           if (this.catalog.loading) LoadingProgress().width(28).height(28).margin(12)
           else this.message(tr(this.agentFilterActive ? 'no_results' : this.catalog.partial ? 'project_catalog_unavailable' : 'project_empty'))
         }
-      }.width('100%').padding({left:4,right:4}).id('agents.repositories')
+      }.width('100%').padding({left:this.floatingAgentCards?0:4,right:this.floatingAgentCards?0:4}).id('agents.repositories')
         .bindSheet($$this.editorShown,this.editorSheet(),{height:SheetSize.LARGE,showClose:false,dragBar:false,
           onWillDismiss:(dismiss:DismissSheetAction) => { if (!this.editor.busy) dismiss.dismiss(); },
           onDisappear:() => { this.editor.close();this.editedTree=undefined; }})
