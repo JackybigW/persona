@@ -194,7 +194,7 @@ func (s *Service) sortRules(ctx context.Context, e *kb.Engine, byslug map[string
 		if a.Cwd == "" {
 			continue
 		}
-		for _, p := range e.ProjectsForWork(a.MachineID, a.Cwd) {
+		for _, p := range projectsForWork(e, a.MachineID, a.Cwd) {
 			if byslug[p.Slug] != nil && !slices.Contains(dirs, p.Slug) {
 				dirs = append(dirs, p.Slug)
 				dir = cmp.Or(dir, shortHome(a.Cwd))
@@ -224,7 +224,7 @@ func titleNames(title string, byslug map[string]*kb.Project, among []string) str
 		for _, name := range append([]string{p.Name}, p.Aliases...) {
 			name = strings.ToLower(strings.TrimSpace(name))
 			n := utf8.RuneCountInString(name)
-			if n < sortTitleNameMin || !strings.Contains(low, name) {
+			if n < sortTitleNameMin || !wholeWord(low, name) {
 				continue
 			}
 			switch {
