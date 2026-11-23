@@ -5,7 +5,7 @@ import { bundleManager } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { i18n } from '@kit.LocalizationKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AGENT_MESSAGE_HOLD, isAgentMessagePost, heldReceipt202, writeResultUnknown } from '../core/TransportPolicy';
+import { AGENT_MESSAGE_HOLD, isAgentMessagePost, heldReceipt202, publicMutationError, writeResultUnknown } from '../core/TransportPolicy';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { cert } from '@kit.DeviceCertificateKit';
 import { connection, socket } from '@kit.NetworkKit';
@@ -436,21 +436,14 @@ export class HubTransport {
         if (state !== 'held') throw new HttpFailure(202, state === 'unknown' ? 'result_unknown' : 'pending', true, state === 'pending');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        let userMessage='';
-        if (verb==='PUT' && /^\/api\/v1\/assistant\/sessions\/[^/]+\/[^/]+\/direction$/.test(path) &&
-            response.statusCode>=400 && response.statusCode<500 && text.length<65536) {
-          try {
-            const publicError=(JSON.parse(text) as Record<string,Object>)['error'];
-            if (typeof publicError==='string') userMessage=publicError.trim().slice(0,512);
-          } catch (_) {}
-        }
+        const userMessage=publicMutationError(verb,path,response.statusCode,text);
         throw new HttpFailure(response.statusCode,errorCode(text,path,verb,response.statusCode),
           !['GET','HEAD'].includes(verb) && writeResultUnknown(response.statusCode,text,pullRequest),false,userMessage);
       }
       const responseType = response.headers['content-type'] || response.headers['Content-Type'];
       return { data: toArrayBuffer(bytes), contentType: typeof responseType === 'string' ? responseType : '' };
     } catch (error) {
-      if (error instanceof HttpFailure) throw new HttpFailure(error.status, error.code, error.resultUnknown || (dispatched && !['GET', 'HEAD'].includes(verb) && (error.status === 0 || error.status >= 300 && error.status < 400)), error.resultPending);
+      if (error instanceof HttpFailure) throw new HttpFailure(error.status, error.code, error.resultUnknown || (dispatched && !['GET', 'HEAD'].includes(verb) && (error.status === 0 || error.status >= 300 && error.status < 400)), error.resultPending, error.userMessage);
       const fields = error as Object as Record<string, Object>, code = fields ? fields['code'] : undefined;
       const diagnostic = overLimit ? 'response_too_large' : (code === 2300060 || code === 1007900060) && this.pin ? 'tls_' + this.pinValidation : typeof code === 'number' ? 'transport_failed_' + code : 'transport_failed';
       throw new HttpFailure(0, diagnostic, dispatched && !['GET', 'HEAD'].includes(verb));

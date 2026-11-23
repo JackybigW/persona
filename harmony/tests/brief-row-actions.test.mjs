@@ -87,7 +87,7 @@ test('direct completion verifies a current writable decision and writes only don
   assert.equal(s.feed.canBriefAction(s.item,'accept',s.row,'accept'),false);
   assert.equal(await s.act('complete'),true);assert.deepEqual(s.calls.map(c=>[c.method,c.path,c.body]),[['GET','/api/v1/todos/todo%2Fa?manager=work',{}],['PATCH','/api/v1/todos/todo%2Fa?manager=work',{done:true}]]);
   assert.equal(s.feed.briefOutcome('accept',s.row),'completed');
-  for(const changed of [{id:'wrong'},{manager:'other'},{can_write:false},{done_at:round},{ask:{outcome:'decide',asked_at:'new'}},{ask:{outcome:'done',asked_at:round}}]){
+  for(const changed of [{id:'wrong'},{manager:'other'},{can_write:false},{done_at:round},{done:true},{ask:{outcome:'decide',asked_at:'new'}},{ask:{outcome:'done',asked_at:round}}]){
     const x=await scenario(()=>({todo:{...todo,...changed}}),{row:{outcome:'decide'}});assert.equal(await x.act('complete'),false);
     assert.equal(x.calls.length,1);assert.equal(x.calls[0].method,'GET');
   }
@@ -115,4 +115,26 @@ test('a known task on the same Hub uses its real manager repository; an unverifi
   s.client.viewFor=async row=>{assert.equal(row.manager,'other');return foreign};
   assert.equal(await s.act('accept'),true);assert.equal(written[0][0],'/api/v1/todos/todo%2Fa/accept?manager=other');
   const hostile=await scenario(()=>({ok:true}),{row:{manager:'foreign'}});assert.equal(await hostile.act('accept'),false);assert.equal(hostile.calls.length,0);
+});
+
+test('a typed backend refusal exposes its public reason and permits a deliberate retry',async()=>{
+  let allowed=false;
+  const s=await scenario(()=>{if(!allowed)throw Object.assign(new Error('dialog_open'),{status:423,code:'dialog_open',userMessage:'Close the fixture approval dialog first.'});return {ok:true}});
+  assert.equal(await s.act('accept'),false);
+  assert.equal(s.feed.briefFailureDetail('accept',s.row),'Close the fixture approval dialog first.');
+  allowed=true;assert.equal(await s.act('accept'),true);assert.equal(s.feed.briefFailureDetail('accept',s.row),'');
+});
+
+test('a receipt belongs to the task owner even when two managers use the same id and round',async()=>{
+  const s=await scenario(()=>({ok:true}));const first=resource(s.row.id,'todo',s.group,'first'),second=resource(s.row.id,'todo',s.group,'second');
+  const written=[];
+  s.client.viewFor=async target=>({profile:{id:s.group,manager:target.manager},connected:true,connectionGeneration:()=>1,
+    scope:()=>s.group+'/'+target.manager,owns:()=>true,repo:()=>repos[target.manager],operationBlocked:()=>false});
+  const repoFor=manager=>({async call(path){written.push([manager,path]);return {ok:true}}});
+  const repos={first:repoFor('first'),second:repoFor('second')};
+  s.client.todos=[first];assert.equal(await s.act('accept'),true);
+  s.client.todos=[first,second];assert.equal(await s.act('accept'),false);
+  s.client.todos=[second];assert.equal(s.feed.briefOutcome('accept',s.row),'');assert.equal(await s.act('accept'),true);
+  s.client.todos=[first];assert.equal(s.feed.briefOutcome('accept',s.row),'accepted');assert.equal(await s.act('accept'),false);
+  assert.deepEqual(written.map(x=>x[0]),['first','second']);
 });

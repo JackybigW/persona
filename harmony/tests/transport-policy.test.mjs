@@ -38,3 +38,24 @@ test('only a typed refusal before a Git pull is definitive on a gateway error',(
   assert.equal(writeResultUnknown(502,'{"code":"pull_failed"}',true),true);
   assert.equal(writeResultUnknown(502,'{"error":"upstream timeout"}',true),true);
 });
+
+test('only the known mutation routes expose bounded public Hub feedback',()=>{
+  const message='Close the approval dialog first.';
+  const body=JSON.stringify({error:' '+message+' ',code:'dialog_open',delivered:'none'});
+  for(const path of ['/api/v1/todos/a%2Fb/accept','/api/v1/later/a%2Fb/handled?manager=work%2Fa']) {
+    assert.equal(transport.publicMutationError('POST',path,423,body),message);
+    assert.equal(transport.publicMutationError('GET',path,423,body),'');
+    assert.equal(transport.publicMutationError('POST',path,500,body),'');
+  }
+  for(const path of ['/api/v1/todos/a/accept/extra','/api/v1/later/a/handled?manager=x&other=y','/api/v1/todos/',
+    '/api/v1/sessions/m/s/messages','/api/v1/later/a/handled?manager=x#other']) {
+    assert.equal(transport.publicMutationError('POST',path,423,body),'');
+  }
+  const direction='/api/v1/assistant/sessions/m/s/direction';
+  assert.equal(transport.publicMutationError('PUT',direction,409,body),message);
+  assert.equal(transport.publicMutationError('PUT',direction,502,body),'');
+  for(const invalid of ['null','{}','invalid JSON','{"error":{}}',' '.repeat(65536)]) {
+    assert.equal(transport.publicMutationError('PUT',direction,409,invalid),'');
+  }
+  assert.equal(transport.publicMutationError('PUT',direction,409,JSON.stringify({error:'a'.repeat(800)})).length,512);
+});

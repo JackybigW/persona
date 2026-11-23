@@ -45,12 +45,17 @@ function replacing(entries: Record<string,string>, key: string, value: string): 
 export class BriefRowLedger {
   @Trace private outcomes: Record<string,string> = {};
   @Trace private errors: Record<string,string> = {};
+  @Trace private details: Record<string,string> = {};
 
   outcome(scope: string, section: string, row: Record<string,Object>): string {
     return this.outcomes[rowKey(scope,section,row)] || '';
   }
   error(scope: string, section: string, row: Record<string,Object>): string {
     return this.errors[rowKey(scope,section,row)] || '';
+  }
+
+  detail(scope: string, section: string, row: Record<string,Object>): string {
+    return this.details[rowKey(scope,section,row)] || '';
   }
 
   async perform(route: BriefRoute, section: string, row: Record<string,Object>, action: BriefAction): Promise<boolean> {
@@ -62,7 +67,8 @@ export class BriefRowLedger {
     if (this.outcomes[key] || route.blocked(path)) return false;
     this.outcomes=replacing(this.outcomes,key,'busy');
     this.errors=replacing(this.errors,key,'');
-    let outcome = '', error = '';
+    this.details=replacing(this.details,key,'');
+    let outcome = '', error = '', detail = '';
     try {
       const repository=await route.loadRepository();
       if (!route.current() || route.blocked(path)) return false;
@@ -75,7 +81,7 @@ export class BriefRowLedger {
         }
         if (!briefWritable(live)) { error='permission_denied'; return false; }
         const ask=Wire.object(live,'ask');
-        if (Wire.text(live,'done_at') || Wire.text(ask,'asked_at')!==round || Wire.text(ask,'outcome').trim()!=='decide') {
+        if (Wire.text(live,'done_at') || Wire.bool(live,'done') || Wire.text(ask,'asked_at')!==round || Wire.text(ask,'outcome').trim()!=='decide') {
           outcome='already'; return false;
         }
       }
@@ -100,13 +106,15 @@ export class BriefRowLedger {
       else if (action!=='complete' && status===409) outcome='already';
       else if (action!=='complete' && status===404) outcome='unsupported';
       else if (status===401 || status===403) error='permission_denied';
-      else if (Wire.text(failure,'code')==='request_updated') error='request_updated';
+      else if (Wire.text(failure,'code')==='request_updated' || Wire.text(failure,'message')==='request_updated') error='request_updated';
       else error=action==='handled'?'brief_row_handle_failed':action==='complete'?'brief_row_complete_failed':'brief_row_accept_failed';
+      if (error || outcome==='unknown') detail=Wire.text(failure,'userMessage').trim().slice(0,512);
       return false;
     } finally {
       // This key names the original account and round even if navigation changed while the Hub was responding.
       this.outcomes=replacing(this.outcomes,key,outcome);
       this.errors=replacing(this.errors,key,error);
+      this.details=replacing(this.details,key,detail);
     }
   }
 }

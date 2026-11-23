@@ -37,6 +37,11 @@ function draftPlaceholder(value: string): string {
   return match ? match[0] : '';
 }
 
+interface BriefRowOwner {
+  manager: string;
+  target?: ResourceRow;
+}
+
 interface AssistantRouteSnapshot {
   revision: number;
   admit: (() => boolean) | undefined;
@@ -250,11 +255,37 @@ export class AssistantFeedModel {
     return conversationFeedPath(this.conversationId, this.owner, cursor, since);
   }
 
+  private briefOwner(section: string, id: string): BriefRowOwner | undefined {
+    const client=this.client;
+    if (!client) return undefined;
+    if (section==='later') return {manager:this.owner};
+    if (section!=='accept') return undefined;
+    const known=client.todos.filter((task:ResourceRow) => task.id===id && (!task.group || task.group===client.profile.id));
+    const own=known.find((task:ResourceRow) => (task.manager || this.owner)===this.owner);
+    const local=this.directoryTodos.some((task:Record<string,Object>) => Wire.text(task,'id')===id);
+    if (!own && !local && known.length>1) return undefined;
+    // Only a task from a scoped directory can direct the request to another manager.
+    const target=own || (!local && known.length===1 ? known[0] : undefined);
+    return {manager:target?.manager || this.owner,target:target};
+  }
+
+  private briefScope(section: string, row: Record<string,Object>): string {
+    if (!this.client || !this.current(this.generation)) return '';
+    const owner=this.briefOwner(section,Wire.text(row,'id'));
+    return owner ? JSON.stringify([this.client.profile.id,owner.manager]) : '';
+  }
+
   briefOutcome(section: string, row: Record<string,Object>): string {
-    return this.current(this.generation) ? this.briefRows.outcome(this.scopeKey,section,row) : '';
+    const scope=this.briefScope(section,row);
+    return scope ? this.briefRows.outcome(scope,section,row) : '';
   }
   briefError(section: string, row: Record<string,Object>): string {
-    return this.current(this.generation) ? this.briefRows.error(this.scopeKey,section,row) : '';
+    const scope=this.briefScope(section,row);
+    return scope ? this.briefRows.error(scope,section,row) : '';
+  }
+  briefFailureDetail(section: string, row: Record<string,Object>): string {
+    const scope=this.briefScope(section,row);
+    return scope ? this.briefRows.detail(scope,section,row) : '';
   }
 
   private briefRoute(item: Record<string,Object>, section: string, row: Record<string,Object>, visible: () => boolean): BriefRoute | undefined {
@@ -263,14 +294,9 @@ export class AssistantFeedModel {
     if (!client || !repository || !itemId || !id || !['accept','later'].includes(section) || Wire.text(item,'kind')!=='brief' ||
         Wire.text(item,'conversation',this.conversationId)!==this.conversationId || Wire.text(item,'manager',this.owner)!==this.owner ||
         Wire.text(item,'group',client.profile.id)!==client.profile.id) return undefined;
-    const known=section==='accept' ? client.todos.filter((r:ResourceRow) => r.id===id && (!r.group || r.group===client.profile.id)) : [];
-    const local=this.directoryTodos.find((v:Record<string,Object>) => Wire.text(v,'id')===id);
-    const own=known.find((r:ResourceRow) => (r.manager || this.owner)===this.owner);
-    if (!own && !local && known.length>1) return undefined;
-    // A manager's briefing can mention tasks supervised outside this conversation. Use a known todo's owner,
-    // never an arbitrary manager supplied by an embedded row. Later questions always belong to their feed.
-    const targetTodo=own || (!local && known.length===1 ? known[0] : undefined);
-    const manager=section==='accept' && targetTodo ? targetTodo.manager || this.owner : this.owner;
+    const owner=this.briefOwner(section,id);
+    if (!owner) return undefined;
+    const targetTodo=owner.target, manager=owner.manager;
     let destination: ClientModel | undefined;
     let destinationGeneration=-1, destinationScope='';
     let destinationRepository: HubRepository | undefined;
@@ -287,6 +313,7 @@ export class AssistantFeedModel {
           Wire.text(v,'recommend')===Wire.text(row,'recommend')));
       if (!match || !briefWritable(match) || Wire.text(match,'manager',manager)!==manager) return false;
       if (section==='later') return true;
+      if (this.briefOwner(section,id)?.manager!==manager) return false;
       const fresh=this.directoryTodos.find((v:Record<string,Object>) => Wire.text(v,'id')===id);
       if (fresh && (Wire.text(fresh,'manager',this.owner)!==manager || !briefWritable(fresh))) return false;
       if (!targetTodo) return true;
@@ -302,7 +329,7 @@ export class AssistantFeedModel {
       destination=view; destinationGeneration=view.connectionGeneration(); destinationScope=view.scope(); destinationRepository=view.repo();
       return destinationRepository;
     };
-    return {scope:this.scopeKey,manager:manager,loadRepository:load,current:current,
+    return {scope:JSON.stringify([client.profile.id,manager]),manager:manager,loadRepository:load,current:current,
       blocked:(path:string):boolean => (destination || client).operationBlocked(path),
       reloadTodos:async ():Promise<void> => { if (this.current(run)) await this.refreshTodos(run); }};
 

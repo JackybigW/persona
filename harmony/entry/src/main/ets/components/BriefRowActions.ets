@@ -40,6 +40,8 @@ export struct BriefRowActions {
   @Computed get outcome(): string { return this.feed.briefOutcome(this.section,this.row); }
   @Computed get error(): string { return this.feed.briefError(this.section,this.row); }
 
+  @Computed get failureDetail(): string { return this.feed.briefFailureDetail(this.section,this.row); }
+
   @Builder action(kind: BriefAction, key: string, prominent: boolean) {
     Button() {
       if (this.outcome==='busy') {
@@ -80,6 +82,10 @@ export struct BriefRowActions {
       }.width('100%')
       if (this.error) Text(tr(this.error)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
         .id('brief.error.' + Wire.text(this.row, 'id'))
+      if (this.failureDetail) {
+        Text(this.failureDetail).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+          .id('brief.failure.'+Wire.text(this.row,'id'))
+      }
     }.width('100%').alignItems(HorizontalAlign.End)
   }
 }
