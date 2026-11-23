@@ -63,7 +63,9 @@ conversation, missed-run rules, failure retry and run history. The task is liste
   nothing.
 - **A project node** (`web/src/views/watch/ProjectWatchCards.tsx`): `<ProjectWatchCards project={slug} />` draws the
   confirmed cards of that project with the same actions, without reordering. It reads
-  `GET /api/v1/assistant/watches?project=<slug>`.
+  `GET /api/v1/assistant/watches?project=<slug>`. The project tree's node panel on the knowledge map mounts it under the
+  project's milestones (#13019, `web/src/views/knowledge/ProjectTree.tsx`), so a card on a project shows there as that
+  project's routine check.
 - **iOS and Android**: nothing yet. No existing payload changed; the cards are a new route the apps do not read.
 
 ## Assistant tools

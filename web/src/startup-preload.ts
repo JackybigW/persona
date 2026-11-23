@@ -541,7 +541,12 @@ export async function brotliCopies(dir: string, files: string[]): Promise<{ file
 // 285 B in each language, measured in one environment against main c04291e493 after merging it (ja 484,098 B to
 // 484,383 B; en 481,251 B to 481,536 B, zh-Hans 481,974 B to 482,259 B). Main had 108 B of room, so the budget is
 // main's 484,206 B ceiling plus those 285 B.
-export const FIRST_SCREEN_BUDGET = 484_491;
+// #13019 (stacked on #13784, #13796, #13882 and #13745): that tree, main 315b89af2b with the four merged, measured ja
+// 485,482 B (en 482,841 B, zh-Hans 483,467 B) before Overview by project, 991 B over main's ceiling, most of it the
+// question rail's marks on the main chat's first screen (#13745). Overview by project adds 20 B in each language (the
+// lazy import of views/overview/ProjectOverview.tsx and the Classic layout switch, lib/overview-layout.ts): ja 485,502 B.
+// 10 B of room on top.
+export const FIRST_SCREEN_BUDGET = 485_512;
 // The hash in a built file's name: the 8 characters of Rollup's [hash] (url-safe base64) between "-" and the
 // extension, as vite.config.ts names every chunk and asset ("assets/[name]-[hash].js", "[name]-[hash][extname]").
 const NAME_HASH = /-([A-Za-z0-9_-]{8})\.[^./]+$/;

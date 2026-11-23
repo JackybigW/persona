@@ -1,4 +1,4 @@
-// A project node's routine checks (docs/assistant/watch-cards.md "On a project node"): the confirmed watch cards whose
+// A project node's routine checks (docs/assistant/watch-cards.md "Where it is shown"): the confirmed watch cards whose
 // project is `project` (a knowledge-base project slug), drawn as on Overview, with the same ⋯ actions but no
 // reordering (the order is Overview's). Mount it in a project node's detail panel:
 //

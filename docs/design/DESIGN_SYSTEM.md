@@ -3055,6 +3055,32 @@ every place a card appears (the wall and a project node's `ProjectWatchCards`):
 
 With no cards the wall is one line in `--ink-3` saying how to get one. No new token.
 
+## Overview by project (web, #13019)
+
+By default Overview (under the greeting, and **Needs you** / **Stuck, take a look** when they have rows) is the watch
+wall, then **By project**, then **Temporary** and **Unsorted**, then the main chat's question summary; the activity
+sections in columns (Working, Unread, tasks, computers) are the **Classic layout**, off unless Settings › General ›
+Overview turns it on (`docs/web/web.md` "Overview by project"). New here:
+
+- **Project card** (`web/src/views/overview/ProjectOverview.tsx` `ProjectCard`): one per top-level project of the
+  tree, in an adaptive grid of cards at least 320 px wide (as `WATCH_GRID`, wider for the milestone lines). Surface
+  `rounded-card bg-surface shadow-card`, `hover:bg-hover`; the name in `text-card-title` semibold with the `layers`
+  icon and, at the right, the open to-dos pill (`bg-accent-tint` / `--accent-ink` when any, `bg-field` / `--ink-3`
+  at none); the project's one line in `text-label` `--ink-2`; the sub-projects line (`folder`, the count and the first
+  four names); one line per milestone with the map's flag colors (open `--accent-ink`, accepted `--green`, not
+  accepted `--orange`), its target date and its acceptance word; and, over a hairline at the card's bottom, the latest
+  of its own yesterday notes. Nothing on it is new data: it is the node panel's (the counts come from one function,
+  `lib/project-overview.ts`). The whole card opens the project tree with the project selected (the title link's
+  overlay spans it, as a task card's does on touch).
+- **Temporary / Unsorted blocks**: a heading with its count (as Overview's groups) and one surface listing up to five
+  to-do titles (each opens its to-do), "N more" to the To-dos page, and on Unsorted the **Sort these N…** link in
+  `--accent-ink` that opens the sort sheet. Side by side at 60rem and wider, stacked below.
+- **No projects**: the quiet card Overview already uses for "no computers" (icon in `bg-field`, title, one line, a
+  secondary **Open the project tree** button), with the two blocks still under it.
+
+The node panel on the map gains the same open to-dos count (a `SectionTitle` with its count and a line saying how many
+are on the project itself) and the project's watch cards (`ProjectWatchCards`) under its milestones. No new token.
+
 ## Arranging conversations in place (#12017)
 
 The Assistant's ordinary conversations use the same progressive-disclosure pattern in the sidebar's Recent and in All
