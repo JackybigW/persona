@@ -3,6 +3,7 @@ import { relativeActivityDate } from '../core/PhoneDate';
 import { LengthMetrics } from '@kit.ArkUI';
 import { Colors } from '../design/Colors';
 import { PhoneStyle } from '../design/PhoneStyle';
+import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { Symbols } from '../design/Symbols';
 import { tr } from '../design/Strings';
 import { Tokens } from '../design/Tokens';
@@ -10,7 +11,7 @@ import { ClientModel } from '../models/ClientModel';
 import { HubProfile, ResourceRow, Wire } from '../models/Wire';
 import { DashboardPoint, MachineAgent, MachineAlert, MachineReading, machineAgents, machineAlerts, machineBytes,
   machineConcern, machineAgentTimeBeside, machineKey, machineOnline, machinePending, machinePercent, machineTokens, machineTokenTotal,
-  dashboardLabelTicks, dashboardTickLeft, machineTrace, osFamily, percentOf } from '../models/MachineDashboard';
+  dashboardLabelTicks, dashboardTickLeft, machineTrace, machineAvatarSymbol, osFamily, percentOf } from '../models/MachineDashboard';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { MachineChart } from './MachineChart';
 import { MachineSubscriptionUsage,SubscriptionAccount } from '../models/MachineSubscriptionUsage';
@@ -72,6 +73,7 @@ class ComputerCard {
   readonly system: Record<string,Object>;
   readonly sample?: MachineReading;
   readonly family: string;
+  readonly avatarSymbol: string;
   readonly online: boolean;
   readonly pending: boolean;
   readonly agents: MachineAgent[];
@@ -88,6 +90,7 @@ class ComputerCard {
     this.system = sample && Object.keys(sample.system).length ? sample.system : Wire.object(this.raw,'system');
     this.online = machineOnline(row); this.pending = machinePending(this.raw);
     this.family = osFamily(this.system, Wire.text(this.raw,'os'));
+    this.avatarSymbol = machineAvatarSymbol(Wire.text(this.raw,'icon'));
     this.agents = machineAgents(sessions,pagedOrder); this.alerts = this.online ? machineAlerts(sample,this.system) : [];
     this.needs = this.agents.filter((a:MachineAgent) => a.counted === 'needs_you').length;
     this.working = this.agents.filter((a:MachineAgent) => a.counted === 'working').length;
@@ -557,12 +560,22 @@ export struct MachineDirectory {
       .padding({top:beside && Number.isFinite(a.updated) ?
         17*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(17)) - 12*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(12)) : 0})
   }
-  @Builder agentRow(a:MachineAgent) {
+  private avatarInk(a:MachineAgent): ResourceColor {
+    if (a.state === 'needs_you') return Colors.needsMark;
+    if (a.state === 'working') return Colors.workingMark;
+    if (a.state === 'unread') return Colors.unreadMark;
+    return Colors.secondary;
+  }
+  @Builder agentRow(a:MachineAgent, computer:ComputerCard) {
     Row({space:8}) {
       Row({space:12}) {
         Stack() {
-          Rect().width(44).height(44).radius(13).fill(Colors.control)
-          SymbolGlyph(Symbols.agent).fontSize('18.5vp').fontColor([this.agentInk(a)])
+          Rect().width(44).height(44).radius(13.2).fill($r('app.color.machine_session_avatar_fill'))
+          if (computer.avatarSymbol === 'laptop') {
+            Rect().width(19.5).height(10.5).radius(0.7).fill(this.avatarInk(a)).opacity(0.25)
+              .translate({y:-0.4})
+          }
+          PhoneOutlineIcon({name:computer.avatarSymbol,color:this.avatarInk(a),iconScale:0.8})
         }.width(44).height(44)
         Column() {
           if (this.agentTimeFits(a)) {
@@ -590,7 +603,7 @@ export struct MachineDirectory {
     Column() {
       ForEach(this.expanded ? c.agents : c.agents.slice(0,5),(a:MachineAgent,i:number) => {
         if (i > 0) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:14})
-        this.agentRow(a)
+        this.agentRow(a,c)
       },(a:MachineAgent) => a.row.key()+a.row.raw)
       if (c.agents.length>5 && !this.expanded) {
         Divider().strokeWidth(0.5).color(Colors.divider).margin({left:14})

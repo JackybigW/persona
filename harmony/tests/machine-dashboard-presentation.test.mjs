@@ -18,7 +18,7 @@ registerHooks({
 });
 const {ResourceRow}=await import('../entry/src/main/ets/models/Wire.ets');
 const {MachineReading,machineKey,machineAgents,machineAgentTimeBeside,machineAlerts,machineConcern,machineTrace,
-  machineBytes,machinePercent,machineTokens,machineTokenTotal,osFamily}=await import('../entry/src/main/ets/models/MachineDashboard.ets');
+  machineBytes,machinePercent,machineTokens,machineTokenTotal,machineAvatarSymbol, osFamily}=await import('../entry/src/main/ets/models/MachineDashboard.ets');
 
 test('the dashboard orders concerns exactly as the iPhone and keeps the Hub order for equal priorities',()=>{
   const readings=new MachineReading({system:{cores:4}, latest:{cpu:90,mem_used:80,mem_total:100,disk_used:95,disk_total:100,load:4}});
@@ -284,4 +284,10 @@ test('live monitoring keeps the iPhone two-column summary on a phone and collaps
   for(const width of [160,220,257])assert.equal(columns.call({liveGridWidth:width}),1,'width '+width);
   assert.match(live,/Text\(tile\.title\)[^\n]*\.maxLines\(2\)/);
   assert.match(live,/Text\(tile\.detail[^\n]*\.minFontSize\(9\)[\s\S]*?\.maxLines\(2\)/);
+});
+
+
+test('machine detail session avatars use the explicit machine role and its legacy laptop default',()=>{
+  for(const icon of ['server','desktop','laptop']) assert.equal(machineAvatarSymbol(icon),icon);
+  for(const icon of ['','unknown','Server']) assert.equal(machineAvatarSymbol(icon),'laptop');
 });
