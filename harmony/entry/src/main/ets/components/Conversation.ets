@@ -480,7 +480,14 @@ export struct Conversation {
     const size = change.value<number>('environment.fontScale');
     if (size) this.reflowReadingSize(size.before, size.now);
   }
-  private transcriptEndInset(): number { return this.model.selected.kind === 'session' && this.lines.length > 0 ? 44 : 0; }
+  private transcriptEndInset(): number {
+    if (!this.lines.length) return 0;
+    if (this.model.selected.kind === 'session') return 44;
+    // On iPhone the newest briefing card rests 40 pt above the pinned decision dock.
+    // Keep that space in the scrolling list so older messages can still reach the dock.
+    const phoneDock = this.assistantDockVisible && this.availableWidth > 0 && this.availableWidth < 600;
+    return this.model.selected.kind === 'conversation' && phoneDock ? 32 + Tokens.gap : 0;
+  }
   private sampleVisibleReadingRows(): void {
     if (!this.active || this.model.selected.kind !== 'session' || this.transcriptHeight <= 0 || !this.lines.length) return;
     const scale = this.environment.fontScale, width = this.availableWidth;

@@ -339,3 +339,14 @@ test('keyboard resize remeasures the same last row and preserves readers who are
   view.atEnd=true;view.transcriptViewportChanged(360);frames.shift().onFrame();
   assert.deepEqual(scrolls,[1]);
 });
+
+test('the last briefing keeps its reading room above the phone decision dock', () => {
+  const Tail = new Function('Tokens', 'return ' + stripTypeScriptTypes('class Tail {' + method('transcriptEndInset') + '}'))({gap:8});
+  const page = Object.assign(new Tail(), {model:{selected:{kind:'conversation'}}, lines:[{}], availableWidth:402, assistantDockVisible:true});
+  assert.equal(page.transcriptEndInset(),40);
+  page.availableWidth=365; assert.equal(page.transcriptEndInset(),40);
+  page.availableWidth=744; assert.equal(page.transcriptEndInset(),0);
+  page.availableWidth=402;page.assistantDockVisible=false;assert.equal(page.transcriptEndInset(),0);
+  page.model.selected.kind='session';assert.equal(page.transcriptEndInset(),44);
+  page.lines=[];assert.equal(page.transcriptEndInset(),0);
+});
