@@ -673,6 +673,7 @@ func mergeSignals(a, b []superviseSignal) []superviseSignal {
 			if g.Kind == sigOutageRecovery {
 				g = joinOutageRecovery(out[i], g)
 			}
+			g = preserveIdleHandoff(out[i], g)
 			out[i] = g
 		} else {
 			out = append(out, g)
