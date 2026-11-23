@@ -382,6 +382,7 @@ func New(o Options) *Service {
 	s.agentArchiveRoutes()
 	s.agentNamingRoutes() // agent_naming_request.go
 	s.alwaysRoutes()
+	s.infoAccessRoutes()
 	s.undeliveredRoutes()
 	s.standingAuthorizationRoutes()
 	s.ruleSuggestionRoutes()
@@ -412,6 +413,7 @@ func New(o Options) *Service {
 	s.scheduleGrantRoutes()
 	s.placeRoutes()
 	saved.Register(saved.Host{Store: func() any { return s.store() }, Event: s.event, Handle: s.handle, Full: fullRole, BodyErr: writeBodyErr})
+	s.resourceRoutes()
 	s.repositoryRoutes()
 	s.taskRoutes()
 	s.viewActionRoutes()
@@ -459,7 +461,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		apierr.Call(w, err)
 		return
 	}
-	s.mux.ServeHTTP(w, r)
+	s.mux.ServeHTTP(w, s.extensionReaderRequest(r))
 }
 
 // fullRole: the request came from a device that may do everything (RoleHeader; none: a test's own request).

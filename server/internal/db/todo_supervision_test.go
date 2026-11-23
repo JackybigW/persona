@@ -30,7 +30,7 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 				}
 				var next *TodoSupervisionRow
 				if ledger {
-					current := TodoSupervisionRow{TodoID: before.ID, Supervisor: "main", State: "pending_review", UpdatedAt: at}
+					current := TodoSupervisionRow{TodoID: before.ID, Supervisor: "main", State: "pending_review", UpdatedAt: at, CardlessToldAt: &at}
 					if err := d.PutTodoSupervision(ctx, current); err != nil {
 						t.Fatal(err)
 					}
@@ -38,11 +38,15 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 					if !accepted {
 						current.State, current.Reviews = "cancelled", json.RawMessage(`[{"verdict":"cancelled"}]`)
 					}
+					current.CardlessToldAt = nil // a terminal review clears the pending round's hand-back receipt
 					next = &current
 				}
 				ledgerBefore, err := d.ListTodoSupervision(ctx)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if ledger && (len(ledgerBefore) != 1 || ledgerBefore[0].CardlessToldAt == nil || !ledgerBefore[0].CardlessToldAt.Equal(at)) {
+					t.Fatalf("pending review lost its hand-back receipt: %+v", ledgerBefore)
 				}
 				refused := errors.New("owner became active before commit")
 				checked := false
@@ -70,7 +74,7 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 					t.Fatalf("successful commit = %+v %v %v", row, closed, err)
 				}
 				ledgerAfter, err = d.ListTodoSupervision(ctx)
-				if err != nil || ledger && (len(ledgerAfter) != 1 || ledgerAfter[0].State != next.State) ||
+				if err != nil || ledger && (len(ledgerAfter) != 1 || ledgerAfter[0].State != next.State || ledgerAfter[0].CardlessToldAt != nil) ||
 					!ledger && len(ledgerAfter) != 0 {
 					t.Fatalf("successful commit lost the ledger: %+v %v", ledgerAfter, err)
 				}
