@@ -56,6 +56,7 @@ struct KnowledgeLibraryRow {
   @Param language:string='default';
   @Event open: () => void = () => {};
   @Local badgesWidth:number=0;
+  @Local environment:NativeEnvironment=nativeEnvironment;
   @Computed get entry(): KnowledgeListEntry { return new KnowledgeListEntry(this.row); }
 
   private dateLabel(): string {
@@ -72,18 +73,22 @@ struct KnowledgeLibraryRow {
     if (this.entry.duration) pills.push(tr(this.entry.duration==='long' ? 'knowledge_project_long' : 'knowledge_project_short'));
     if (this.entry.relevance>0) pills.push(tr('kb_relevance_value').replace('{n}',String(this.entry.relevance)));
     let used=0;
-    for (const label of pills) used+=this.textWidth(label,12,label===this.entry.priority)+12+(used ? 5 : 0);
+    for (const label of pills) used+=this.textWidth(label,12,label===this.entry.priority)+12+(used ? 6 : 0);
     const tags:string[]=[];
     for (const tag of this.entry.tags.slice(0,2)) {
-      const width=this.textWidth('#'+tag,12,false)+(used ? 5 : 0);
+      const width=this.textWidth('#'+tag,12,false)+(used ? 6 : 0);
       if (used+width>this.badgesWidth) break; used+=width;tags.push(tag);
     }
     return tags;
   }
   private priority():string { return knowledgePriorityTone(this.entry.priority); }
+  private rowLineHeight(ordinary:number,largest:number):string {
+    return PhoneStyle.settingsExampleLineHeight(ordinary,largest,this.environment.fontScale);
+  }
   @Builder badge(value:string,tone:string,bold:boolean=false) {
     Text(value).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(bold ? FontWeight.Bold : FontWeight.Medium)
-      .maxLines(1).fontColor(knowledgeInk(tone,nativeEnvironment.dark)).padding({left:6,right:6,top:1,bottom:1})
+      .lineHeight(this.rowLineHeight(14.33,21.67))
+      .maxLines(1).fontColor(knowledgeInk(tone,nativeEnvironment.dark)).padding({left:6,right:6,top:2,bottom:2})
       .borderRadius(18).backgroundColor(knowledgeWash(tone,nativeEnvironment.dark)).flexShrink(0)
   }
   build() {
@@ -93,24 +98,28 @@ struct KnowledgeLibraryRow {
         SymbolGlyph(this.symbol).fontSize('16vp').fontWeight(FontWeight.Medium).fontColor([knowledgeInk(this.priority(),nativeEnvironment.dark)])
       }.width(36).height(36).flexShrink(0)
       Column({space:4}) {
-        Row({space:6}) {
-          Text(this.row.title || this.row.id).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(600).fontColor(Colors.ink).layoutWeight(1).maxLines(2)
+        Flex({direction:FlexDirection.Row,alignItems:ItemAlign.Baseline,space:{main:LengthMetrics.vp(6)}}) {
+          Text(this.row.title || this.row.id).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).lineHeight(this.rowLineHeight(20.33,27.67))
+            .fontWeight(600).fontColor(Colors.ink).layoutWeight(1).maxLines(2)
           if (this.dateLabel())
-            Text(this.dateLabel()).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(nativeEnvironment.dark ? '#6696969C' : '#6675757C').maxLines(1)
-        }.width('100%').alignItems(VerticalAlign.Top)
+            Text(this.dateLabel()).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).lineHeight(this.rowLineHeight(14.33,21.67))
+              .fontColor(nativeEnvironment.dark ? '#6696969C' : '#6675757C').flexShrink(0).maxLines(1)
+        }.width('100%')
         if (this.entry.summary) Text(this.entry.summary).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary).maxLines(2)
+          .lineHeight(this.rowLineHeight(18,25.33))
+          .lineSpacing(LengthMetrics.vp(PhoneStyle.formSize(2,0.67,this.environment.fontScale)),{onlyBetweenLines:true})
           .textOverflow({overflow:TextOverflow.Ellipsis})
-        Row({space:5}) {
+        Row({space:6}) {
           if (this.entry.priority) this.badge(this.entry.priority,this.priority(),true)
           if (this.entry.duration) this.badge(tr(this.entry.duration==='long' ? 'knowledge_project_long' : 'knowledge_project_short'),this.entry.duration==='long' ? 'blue' : 'neutral')
           if (this.entry.relevance>0) this.badge(tr('kb_relevance_value').replace('{n}',String(this.entry.relevance)),knowledgeRelevanceTone(this.entry.relevance))
           ForEach(this.fittedTags,(tag:string)=>{
-            Text('#'+tag).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary).maxLines(1)
+            Text('#'+tag).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).lineHeight(this.rowLineHeight(14.33,21.67)).fontColor(Colors.secondary).maxLines(1)
           },(tag:string)=>tag)
-        }.width('100%').onAreaChange((_previous:Area,area:Area)=>{ const width=Number(area.width);if (this.badgesWidth!==width) this.badgesWidth=width; })
+        }.width('100%').padding({top:1}).onAreaChange((_previous:Area,area:Area)=>{ const width=Number(area.width);if (this.badgesWidth!==width) this.badgesWidth=width; })
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.secondary]).alignSelf(ItemAlign.Center)
-    }.width('100%').alignItems(VerticalAlign.Top).padding({left:20,right:18,top:17,bottom:17}).constraintSize({minHeight:63})
+      SymbolGlyph(Symbols.expand).fontSize('12vp').width(12).fontColor([Colors.secondary]).alignSelf(ItemAlign.Center)
+    }.width('100%').alignItems(VerticalAlign.Top).padding({left:20,right:18,top:19,bottom:19}).constraintSize({minHeight:63})
       .backgroundColor(Colors.surface).accessibilityGroup(true).onClick(() => this.open()).id('knowledge.entry.'+this.row.path+'.'+this.row.id)
   }
 }
@@ -511,6 +520,9 @@ export struct KnowledgeWorkspacePage {
   private projectRows(section: string): BoundRow<ResourceRow>[] {
     return this.entryRowBindings.filter((binding: BoundRow<ResourceRow>) => new KnowledgeListEntry(binding.value).section === section);
   }
+  @Computed get visibleProjectSections():string[] {
+    return ['focus','active','done','ignored'].filter((section:string)=>this.projectRows(section).length>0);
+  }
   private sectionLabel(section: string): string {
     if (section === 'focus') return tr('knowledge_focus');
     if (section === 'active') return tr(this.projectRows('focus').length ? 'knowledge_other_active' : 'knowledge_status_active');
@@ -547,7 +559,8 @@ export struct KnowledgeWorkspacePage {
 
   @Builder searchField(meetings:boolean) {
     Search({value:this.workspace.query,placeholder:tr(meetings ? 'phone_record_search' : 'kb_search_profiles')}).maxFontScale(Tokens.interfaceFontMaxScale)
-      .height(Math.max(44,Math.ceil(28*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(17)))+10)).textFont({size:17})
+      .height(this.landingMenu ? PhoneStyle.formSize(44,58,this.environment.fontScale) : Math.max(44,Math.ceil(28*Math.min(this.environment.fontScale,Tokens.interfaceScaleFor(17)))+10))
+      .margin({top:this.landingMenu ? 0 : 8,bottom:this.landingMenu ? 0 : 8}).textFont({size:17})
       .borderRadius(27).backgroundColor(meetings ? Colors.control : Colors.surface)
       .border({width:0.5,color:Colors.divider,radius:27})
       .onChange((value:string) => this.workspace.setQuery(value)).id('knowledge.search')
@@ -631,6 +644,16 @@ export struct KnowledgeWorkspacePage {
         .accessibilityText(tr('knowledge_filter_tag')).bindMenu(this.knowledgeFilters).id('knowledge.filters')
     }
   }
+  @Builder libraryHeading(title:string,count:number,section:string) {
+    Row({space:6}) {
+      Text(title).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
+        .lineHeight(PhoneStyle.settingsExampleLineHeight(20.33,27.67,this.environment.fontScale)).fontColor(Colors.secondary).id('knowledge.group.title.'+section)
+      Text(String(count)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
+        .lineHeight(PhoneStyle.settingsExampleLineHeight(20.33,27.67,this.environment.fontScale)).fontColor(Colors.secondary).opacity(0.7)
+      if (section==='ignored') SymbolGlyph(this.showIgnored ? Symbols.down : Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
+    }.width('100%').padding({left:20,right:20,top:10,bottom:10}).accessibilityGroup(true)
+      .accessibilityText(title+' '+String(count)).onClick(section==='ignored' ? ():void=>{ this.showIgnored=!this.showIgnored; } : undefined).id('knowledge.group.'+section)
+  }
   @Builder rootList() {
     Column({space:6}) {
       Row({space:4}) {
@@ -641,42 +664,36 @@ export struct KnowledgeWorkspacePage {
             .bindMenu(this.knowledgeFilters).id('knowledge.filters')
       }.width('100%').onAreaChange((_:Area,area:Area)=>{this.filterWidth=Number(area.width);})
       if (!this.workspace.query.trim()) {
-        Column() { this.kindBar() }.width('100%').margin({top:nativeEnvironment.fontScale>1.3 ? 28 : 36})
+        Column() { this.kindBar() }.width('100%').margin({
+          top:this.landingMenu ? PhoneStyle.formSize(48,41,this.environment.fontScale) : (this.environment.fontScale>1.3 ? 28 : 36),
+          bottom:this.landingMenu ? PhoneStyle.formSize(9,3,this.environment.fontScale) : 0})
         if (!this.landingMenu && this.separateTagLine() && (this.workspace.tags.length || this.workspace.tag)) this.tagFilter()
-        if (!this.isProjectList()) Row({space:5}) {
-          Text(this.workspace.tag ? '#' + this.workspace.tag : tr('all')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontWeight(FontWeight.Medium).fontColor(Colors.secondary)
-          Text(String(this.workspace.entries.length)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
-        }.width('100%').padding({left:10,top:7,bottom:3})
       }
       Refresh({ refreshing: $$this.refreshing }) { List() {
         this.listStatus()
+        if (!this.workspace.query.trim() && !this.isProjectList() && this.entryRowBindings.length) ListItem() {
+          this.libraryHeading(this.workspace.tag ? '#' + this.workspace.tag : tr('all'),this.workspace.entries.length,'all')
+        }
         if (this.isProjectList()) {
-          ForEach(['focus', 'active', 'done', 'ignored'], (section: string) => {
-            if (this.projectRows(section).length) {
-              ListItem() {
-                Row({space:6}) {
-                  Text(this.sectionLabel(section)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontWeight(FontWeight.Medium).fontColor(Colors.secondary).id('knowledge.group.title.'+section)
-                  Text(String(this.projectRows(section).length)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
-                  if (section==='ignored') SymbolGlyph(this.showIgnored ? Symbols.down : Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
-                }.width('100%').padding({left:20,top:24,bottom:10})
-                  .accessibilityGroup(true).accessibilityText(this.sectionLabel(section)+' '+String(this.projectRows(section).length))
-                  .onClick(() => { if (section==='ignored') this.showIgnored=!this.showIgnored; }).id('knowledge.group.'+section)
-              }
-              if (section !== 'ignored' || this.showIgnored) ListItemGroup() {
-                ForEach(this.projectRows(section), (binding: BoundRow<ResourceRow>) => {
-                  ListItem() { this.libraryRow(binding.value) }
-                }, (binding: BoundRow<ResourceRow>) => binding.key)
-              }.divider({strokeWidth:0.5,color:Colors.divider,startMargin:68,endMargin:20}).backgroundColor(Colors.surface).borderRadius(24).clip(true)
-            }
+          ForEach(this.visibleProjectSections, (section: string) => {
+            ListItem() {
+              this.libraryHeading(this.sectionLabel(section),this.projectRows(section).length,section)
+            }.margin({top:section===this.visibleProjectSections[0] ? 0 : 17.33})
+            if (section !== 'ignored' || this.showIgnored) ListItemGroup() {
+              ForEach(this.projectRows(section), (binding: BoundRow<ResourceRow>) => {
+                ListItem() { this.libraryRow(binding.value) }
+              }, (binding: BoundRow<ResourceRow>) => binding.key)
+            }.divider({strokeWidth:0.5,color:Colors.divider,startMargin:68,endMargin:20}).backgroundColor(Colors.surface).borderRadius(29).clip(true)
           }, (section: string) => section)
         } else if (this.entryRowBindings.length || this.resultRowBindings.length) ListItemGroup() {
           this.sectionEntries()
-        }.divider({strokeWidth:0.5,color:Colors.divider,startMargin:56}).backgroundColor(Colors.surface).borderRadius(14).clip(true)
+        }.divider({strokeWidth:0.5,color:Colors.divider,startMargin:this.workspace.query.trim() ? 56 : 68,endMargin:this.workspace.query.trim() ? 0 : 20})
+          .backgroundColor(Colors.surface).borderRadius(this.workspace.query.trim() ? 14 : 29).clip(true)
 
       }.width('100%').height('100%') }.onRefreshing(() => {
         this.workspace.refresh().finally(() => { this.refreshing=false; });
       }).layoutWeight(1).width('100%').id('knowledge.entries')
-    }.width('100%').height('100%').padding({left:16,right:16,top:6,bottom:8}).backgroundColor(Colors.grouped)
+    }.width('100%').height('100%').padding({left:16,right:16,top:this.landingMenu ? 4 : 6,bottom:8}).backgroundColor(Colors.grouped)
   }
   @Builder transcriptionLine() {
     Row({space:8}) {
