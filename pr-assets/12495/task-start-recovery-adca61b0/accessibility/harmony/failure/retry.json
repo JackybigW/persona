@@ -1,0 +1,61 @@
+{
+  "source": "adca61b014d4a3476255c733504e07c3ec52f747",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "889ea63901addbe663d2e45c219916dbb166cee411c72527b5b82d250fdaa549",
+  "originalNativePNGSHA256": "80bb4b08c719801db44f5045ba53e2321f43638e0c6e854438a28a38e55d8b80",
+  "screenPNG": "screens/harmony/failure/retry.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "设置页按钮对齐",
+      "boundsLogicalPoints": [
+        103.33,
+        95.67,
+        217.67,
+        20.0
+      ],
+      "identifier": "task.failure.title"
+    },
+    {
+      "role": "Text",
+      "label": "Agent 没开起来",
+      "boundsLogicalPoints": [
+        50.33,
+        163.33,
+        92.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "rpc: connection closed",
+      "boundsLogicalPoints": [
+        50.33,
+        181.67,
+        154.33,
+        17.67
+      ],
+      "identifier": "task.failure.reason"
+    },
+    {
+      "role": "Text",
+      "label": "重试",
+      "boundsLogicalPoints": [
+        28.0,
+        230.67,
+        26.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "移除",
+      "boundsLogicalPoints": [
+        217.0,
+        230.67,
+        26.33,
+        15.33
+      ]
+    }
+  ]
+}

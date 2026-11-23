@@ -1,0 +1,61 @@
+{
+  "source": "adca61b014d4a3476255c733504e07c3ec52f747",
+  "platform": "harmony",
+  "originalNativeTreeSHA256": "b5f423f97b219932dc197baa3909aafd87e3e54c8110038c1fe7bad8d8a883f1",
+  "originalNativePNGSHA256": "3a1c47f44384efeacb2b9d9150680a09b36107c0aba195199eefa0b5496fa365",
+  "screenPNG": "screens/harmony/checks/remove-confirmation.png",
+  "controls": [
+    {
+      "role": "Text",
+      "label": "一次性含历史的移除样本",
+      "boundsLogicalPoints": [
+        103.33,
+        95.67,
+        217.67,
+        20.0
+      ],
+      "identifier": "task.failure.title"
+    },
+    {
+      "role": "Text",
+      "label": "Agent 没开起来",
+      "boundsLogicalPoints": [
+        50.33,
+        163.33,
+        92.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "rpc: connection closed",
+      "boundsLogicalPoints": [
+        50.33,
+        181.67,
+        154.33,
+        17.67
+      ],
+      "identifier": "task.failure.reason"
+    },
+    {
+      "role": "Text",
+      "label": "重试",
+      "boundsLogicalPoints": [
+        28.0,
+        230.67,
+        26.33,
+        15.33
+      ]
+    },
+    {
+      "role": "Text",
+      "label": "移除",
+      "boundsLogicalPoints": [
+        217.0,
+        230.67,
+        26.33,
+        15.33
+      ]
+    }
+  ]
+}
