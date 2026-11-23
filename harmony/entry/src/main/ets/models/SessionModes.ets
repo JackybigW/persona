@@ -5,10 +5,12 @@ export function sessionModelLauncher(data: Record<string, Object>): string {
   if (named) return named;
   const agent = Wire.text(data, 'agent'), source = Wire.text(data, 'source_kind');
   if (source === 'runtime') return '';
-  if (agent === 'codex' || source === 'codex_app_server' || source === 'codex_history') {
-    return Wire.text(data, 'space_kind') === 'codex_app' || Wire.text(data, 'agent_surface') === 'desktop' ? 'codex-app' : 'codex';
-  }
-  return !agent || agent === 'claude' ? 'claude' : '';
+  const space = Wire.text(data, 'space_kind'), desktop = Wire.text(data, 'agent_surface') === 'desktop';
+  if (space === 'codex_app') return 'codex-app';
+  if (agent === 'codex' || source === 'codex_app_server' || source === 'codex_history') return desktop ? 'codex-app' : 'codex';
+  if (source === 'claude_desktop' || space === 'claude_desktop') return 'claude-desktop';
+  if (!agent || agent === 'claude') return desktop ? 'claude-desktop' : 'claude';
+  return '';
 }
 
 export function sessionModeAvailable(row: ResourceRow, field: string): boolean {

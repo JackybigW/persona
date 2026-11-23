@@ -630,6 +630,10 @@ test('a terminal Codex lists its launcher models and sends only the chosen field
   assert.equal(await page.saveMode(model, 'permission_mode', 'plan'), false);
   assert.equal(calls.length, 3);
   assert.equal(sessionModelLauncher({agent:'codex', space_kind:'codex_app'}), 'codex-app');
+  assert.equal(sessionModelLauncher({space_kind:'codex_app'}), 'codex-app');
+  assert.equal(sessionModelLauncher({agent:'claude', source_kind:'claude_desktop'}), 'claude-desktop');
+  assert.equal(sessionModelLauncher({agent:'claude', agent_surface:'desktop', launcher:'named'}), 'named');
+  assert.equal(sessionModelLauncher({agent:'claude', source_kind:'runtime'}), '');
 });
 
 test('model catalogs stay with the selected named launcher and unavailable choices never dispatch', async () => {
