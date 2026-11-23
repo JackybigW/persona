@@ -376,6 +376,9 @@ func (f *fakeHub) DeviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 	if hooks.after != nil {
 		hooks.after(read)
 	}
+	if hooks.afterCall != nil {
+		hooks.afterCall(p)
+	}
 	return result, err
 }
 
