@@ -291,3 +291,12 @@ test('machine detail session avatars use the explicit machine role and its legac
   for(const icon of ['server','desktop','laptop']) assert.equal(machineAvatarSymbol(icon),icon);
   for(const icon of ['','unknown','Server']) assert.equal(machineAvatarSymbol(icon),'laptop');
 });
+
+test('the standard machine session avatar composites to the measured system fill on both cards',()=>{
+  for (const [mode,background,expected] of [['base',[255,255,255],[239,239,240]],['dark',[44,44,46],[62,62,66]]]) {
+    const colors=JSON.parse(readFileSync(new URL('../entry/src/main/resources/'+mode+'/element/color.json',import.meta.url),'utf8')).color;
+    const value=colors.find(color=>color.name==='machine_session_avatar_fill').value;
+    const [alpha,...rgb]=value.slice(1).match(/../g).map(byte=>parseInt(byte,16));
+    assert.deepEqual(rgb.map((v,ix)=>Math.round((v*alpha+background[ix]*(255-alpha))/255)),expected);
+  }
+});

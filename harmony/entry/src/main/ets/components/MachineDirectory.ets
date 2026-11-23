@@ -560,7 +560,9 @@ export struct MachineDirectory {
       .padding({top:beside && Number.isFinite(a.updated) ?
         17*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(17)) - 12*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(12)) : 0})
   }
+  @Computed get systemSessionAvatar(): boolean { return Colors.systemControls && Colors.styleID === 'glass'; }
   private avatarInk(a:MachineAgent): ResourceColor {
+    if (!this.systemSessionAvatar) return this.agentInk(a);
     if (a.state === 'needs_you') return Colors.needsMark;
     if (a.state === 'working') return Colors.workingMark;
     if (a.state === 'unread') return Colors.unreadMark;
@@ -570,7 +572,7 @@ export struct MachineDirectory {
     Row({space:8}) {
       Row({space:12}) {
         Stack() {
-          Rect().width(44).height(44).radius(13.2).fill($r('app.color.machine_session_avatar_fill'))
+          Rect().width(44).height(44).radius(13.2).fill(this.systemSessionAvatar ? $r('app.color.machine_session_avatar_fill') : Colors.control)
           if (computer.avatarSymbol === 'laptop') {
             Rect().width(19.5).height(10.5).radius(0.7).fill(this.avatarInk(a)).opacity(0.25)
               .translate({y:-0.4})
