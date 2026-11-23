@@ -3,7 +3,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
-import { PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
+import { PhoneNavigationIcon, PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
 import { tr } from '../design/Strings';
 import { AgentDecisionQueue, AgentDecisionSnapshot } from '../models/AgentDecisionQueue';
 import { ClientModel } from '../models/ClientModel';
@@ -891,14 +891,15 @@ export struct ProjectsPage {
   @Builder spaceBar() {
     Row() {
       Button({type:ButtonType.Circle}) {
-        SymbolGlyph(Symbols.collapse).fontSize('21vp').fontColor([Colors.ink])
-      }.width(42).height(42).padding(0).backgroundColor(Colors.surface).border({width:0.5,color:Colors.divider,radius:21})
-        .responseRegion({x:-1,y:-1,width:44,height:44}).accessibilityText(tr('back')).onClick(() => this.onBack()).id('shell.back')
+        PhoneNavigationIcon({mark:'navigationBack'})
+      }.width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Colors.surface)
+        .border({width:0.5,color:Colors.divider,radius:PhoneStyle.bar/2})
+        .accessibilityText(tr('back')).onClick(() => this.onBack()).id('shell.back')
       Blank().layoutWeight(1)
       ForEach(this.menuEntries(this.target), (current:ProjectWorktree) => {
         this.more(current)
       }, (current:ProjectWorktree):string => this.headerIdentity(current))
-    }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:3,bottom:3})
+    }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,bottom:4})
     Text(this.detailTree?.title || '').fontSize(PhoneStyle.title).fontWeight(FontWeight.Bold).maxFontScale(Tokens.interfaceScaleFor(34))
       .fontColor(Colors.ink).maxLines(2).textOverflow({overflow:TextOverflow.Ellipsis}).width('100%').textAlign(TextAlign.Start)
       .padding({left:PhoneStyle.page,right:PhoneStyle.page,top:15,bottom:6}).id('shell.page_title')

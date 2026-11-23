@@ -101,3 +101,26 @@ test('magnified Inbox filters can grow and row icons keep their layout slots', (
   assert.match(filters, /this.workspace.accountFilter=account && !clear \? value : 'all'/);
   assert.match(list, /minHeight:PhoneStyle\.sidebarMetric\(44,this.environment.fontScale\)/);
 });
+
+test('compact navigation keeps the back and close marks legible independently of the button frame', () => {
+  const design = fs.readFileSync(w + '/design/PhoneStyle.ets', 'utf8');
+  const glyphs = fs.readFileSync(w + '/design/PhoneOutlineIcon.ets', 'utf8');
+  const shell = fs.readFileSync(w + '/pages/Index.ets', 'utf8');
+  const pickers = fs.readFileSync(w + '/components/AgentStartPicker.ets', 'utf8');
+  const projects = fs.readFileSync(w + '/components/ProjectsPage.ets', 'utf8');
+  const drawings = [...glyphs.matchAll(/name:'(navigationBack|navigationClose)',width:([\d.]+),height:([\d.]+),pen:([\d.]+)/g)];
+  assert.deepEqual(drawings.map(([, name, width, height]) => [name, Number(width), Number(height)]), [
+    ['navigationBack', 11, 18.67], ['navigationClose', 17, 17],
+  ]);
+  assert.match(design, /iconScale:PhoneStyle\.formSize\(1,1\.25,this\.environment\.fontScale\)/);
+  assert.match(design, /\.width\(this\.controlDiameter\)\.height\(this\.controlDiameter\)/);
+  for (const [identity, mark] of [['shell.back', 'navigationBack'], ['settings.back', 'navigationBack'], ['settings.close', 'navigationClose']]) {
+    const caller = shell.split('\n').find(line => line.includes("identity:'" + identity + "'"));
+    assert.ok(caller?.includes("symbol:'" + mark + "'"), identity);
+  }
+  for (const [source, mark, identity] of [[shell, 'navigationClose', 'agent.cancel'], [pickers, 'navigationBack', 'agent.picker.back'], [projects, 'navigationBack', 'shell.back']]) {
+    const control = source.slice(source.lastIndexOf('Button({', source.indexOf(".id('" + identity + "')")), source.indexOf(".id('" + identity + "')"));
+    assert.ok(control.includes("PhoneNavigationIcon({mark:'" + mark + "'})"), identity);
+    assert.ok(control.includes('.width(PhoneStyle.bar).height(PhoneStyle.bar)'), identity);
+  }
+});

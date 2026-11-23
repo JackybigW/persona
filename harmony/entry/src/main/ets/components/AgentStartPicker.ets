@@ -3,7 +3,7 @@ import { Tokens } from '../design/Tokens';
 import { AgentLaunchChoices, LaunchChoice } from '../models/AgentLaunchChoices';
 import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
-import { PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
+import { PhoneNavigationIcon, PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
 import { tr, trError } from '../design/Strings';
 
 @ComponentV2
@@ -107,12 +107,13 @@ export struct AgentStartPicker {
   build() {
     Column() {
       Row({space:9}) {
-        Button({type:ButtonType.Circle}) { SymbolGlyph(Symbols.collapse).fontSize('20vp').fontColor([Colors.ink]) }
-          .width(42).height(42).padding(0).backgroundColor(Colors.sheetCard).responseRegion({x:-4,y:-4,width:44,height:44}).accessibilityText(tr('back')).onClick(() => this.back()).id('agent.picker.back')
+        Button({type:ButtonType.Circle}) { PhoneNavigationIcon({mark:'navigationBack'}) }
+          .width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Colors.sheetCard)
+          .accessibilityText(tr('back')).onClick(() => this.back()).id('agent.picker.back')
         Text(this.kind === 'folder' && this.folderName() ? this.folderName() : this.heading).layoutWeight(1).textAlign(TextAlign.Center)
           .fontSize(18).maxFontScale(Tokens.navigationTextMaxScale).fontWeight(FontWeight.Bold).fontColor(Colors.ink).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
-        Blank().width(42)
-      }.width('100%').padding({left:14,right:14,top:17,bottom:11})
+        Blank().width(PhoneStyle.bar)
+      }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
       if (this.kind !== 'folder' && this.kind !== 'model' && (this.kind === 'workspace' || this.options.length > 5 || this.manual)) this.pickerSearch()
       List({space:this.kind === 'folder' ? 12 : this.kind === 'model' ? 9 : 3}) {
         if (this.kind === 'folder' && this.choices.path) ListItem() {

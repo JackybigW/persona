@@ -1,5 +1,6 @@
 import { Colors } from './Colors';
-import { nativeEnvironment } from '../platform/NativeEnvironment';
+import { PhoneOutlineIcon } from './PhoneOutlineIcon';
+import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { Tokens } from './Tokens';
 
 // Compact iPhone's inset lists share their margins, hierarchy and grouped surfaces with the phone shell.
@@ -43,9 +44,22 @@ export class PhoneStyle {
 
 }
 
+export type NavigationMark = 'navigationBack' | 'navigationClose';
+
+@ComponentV2
+export struct PhoneNavigationIcon {
+  @Require @Param mark: NavigationMark;
+  @Param tint: ResourceColor = Colors.ink;
+  @Local private environment: NativeEnvironment = nativeEnvironment;
+
+  build() {
+    PhoneOutlineIcon({name:this.mark,color:this.tint,iconScale:PhoneStyle.formSize(1,1.25,this.environment.fontScale)})
+  }
+}
+
 @ComponentV2
 export struct PhoneIconButton {
-  @Require @Param symbol: Resource;
+  @Require @Param symbol: Resource | NavigationMark;
   @Require @Param label: string;
   @Param identity: string = '';
   @Param controlDiameter: number = PhoneStyle.bar;
@@ -54,7 +68,11 @@ export struct PhoneIconButton {
   @Event action: () => void = () => {};
   build() {
     Button({ type: ButtonType.Circle }) {
-      SymbolGlyph(this.symbol).fontSize(String(19 * this.controlDiameter / PhoneStyle.bar) + 'vp').fontColor([this.tint])
+      if (typeof this.symbol === 'string') {
+        PhoneNavigationIcon({mark:this.symbol,tint:this.tint})
+      } else {
+        SymbolGlyph(this.symbol).fontSize(String(19 * this.controlDiameter / PhoneStyle.bar) + 'vp').fontColor([this.tint])
+      }
     }.width(this.controlDiameter).height(this.controlDiameter).padding(0).backgroundColor(Colors.surface)
       .border({ width: PhoneStyle.surfaceEdgeWidth(.5), color: Colors.styleEdge || Colors.divider, radius: this.controlDiameter / 2 })
       .shadow(PhoneStyle.surfaceShadow({radius:0,color:Color.Transparent}))

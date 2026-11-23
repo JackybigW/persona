@@ -23,7 +23,7 @@ import { PairingSsh } from '../models/PairingSsh';
 import { phonePasswordLogin } from '../platform/PhonePasswordLogin';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { MachineDirectory } from '../components/MachineDirectory';
-import { PhoneIconButton, PhoneStyle } from '../design/PhoneStyle';
+import { PhoneIconButton, PhoneNavigationIcon, PhoneStyle } from '../design/PhoneStyle';
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { phoneAppearancePage, phoneSettingsLink, pushPhoneSetting } from '../core/PhoneSettingsNavigation';
 import { SettingsDirectory, PhoneSettingsOptions } from '../components/SettingsDirectory';
@@ -720,7 +720,7 @@ struct Index {
                 action:() => { this.drawerSearching = false; this.spacesShown = true; }})
             }
           } else {
-            PhoneIconButton({symbol:Symbols.collapse,label:tr('back'),identity:'shell.back',controlDiameter:this.phoneTop === 'session' || this.phoneToolParent ? this.sessionActionSize() : PhoneStyle.bar,action:() => this.phoneBack()})
+            PhoneIconButton({symbol:'navigationBack',label:tr('back'),identity:'shell.back',controlDiameter:this.phoneTop === 'session' || this.phoneToolParent ? this.sessionActionSize() : PhoneStyle.bar,action:() => this.phoneBack()})
               .bindContextMenu(this.backHistory(),ResponseType.LongPress)
           }
         },(role:string) => role)
@@ -1935,14 +1935,14 @@ struct Index {
   @Builder phoneSettings() {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
-        if (this.phoneSettingsPage) PhoneIconButton({symbol:Symbols.collapse,label:tr('back'),identity:'settings.back',
+        if (this.phoneSettingsPage) PhoneIconButton({symbol:'navigationBack',label:tr('back'),identity:'settings.back',
           action:() => { this.phoneSettingsTrail = this.phoneSettingsTrail.slice(0, -1); }})
-        else PhoneIconButton({symbol:IconActions.symbol('close'),label:tr('close'),identity:'settings.close',
+        else PhoneIconButton({symbol:'navigationClose',label:tr('close'),identity:'settings.close',
           action:() => { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }})
         Text(this.phoneSettingsPage === 'appearance' ? '' : this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
           .layoutWeight(1).textAlign(TextAlign.Center).fontSize(18).maxFontScale(Tokens.interfaceScaleFor(18)).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
         Blank().width(PhoneStyle.bar)
-      }.width('100%').padding({left:14,right:14,top:16,bottom:10})
+      }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
       if (phoneAppearancePage(this.phoneSettingsPage)) {
         SettingsPage({model:this.model,page:'appearance',phoneAppearanceRoute:this.phoneSettingsPage,active:this.phoneSettingsShown,
           agentWorkspace:this.agentWorkspace,onOpen:(key:string) => this.openFromPhoneSettings(key)}).layoutWeight(1)
@@ -2359,12 +2359,13 @@ struct Index {
     } else {
       Column() {
         Row() {
-          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('20vp').fontColor([Colors.ink]) }
-            .width(42).height(42).padding(0).backgroundColor(Colors.sheetCard).border({width:0.5,color:Colors.divider,radius:21})
+          Button({type:ButtonType.Circle}) { PhoneNavigationIcon({mark:'navigationClose'}) }
+            .width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Colors.sheetCard)
+            .border({width:0.5,color:Colors.divider,radius:PhoneStyle.bar/2})
             .accessibilityText(tr('cancel')).onClick(() => { this.chatForward.clearNew(); this.showSheet=false; }).enabled(!this.creatingAgent).id('agent.cancel')
           Text(tr('phone_new_chat_title')).fontSize(17).maxFontScale(Tokens.chromeFontMaxScale).maxLines(2).fontWeight(600).fontColor(Colors.ink).textAlign(TextAlign.Center).layoutWeight(1)
-          Blank().width(42)
-        }.width('100%').padding({left:14,right:14,top:17,bottom:11})
+          Blank().width(PhoneStyle.bar)
+        }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
         Scroll(this.agentFormScroll) {
           Column() {
             if (!this.agentWorktree && !this.agentTodo && this.recentSetups.length) {
