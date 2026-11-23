@@ -11,6 +11,7 @@ import { TaskStartupQuestion } from '../models/TaskStartupQuestion';
 export struct TaskStartupQuestionCard {
   @Require @Param recovery:TaskStartRecovery;
   @Require @Param question:TaskStartupQuestion;
+  @Param secondaryText:ResourceColor=Colors.secondary;
   @Local details:boolean=false;
   @Local expired:boolean=false;
   @Local choiceWidth:number=0;
@@ -89,16 +90,16 @@ export struct TaskStartupQuestionCard {
         Row() {
           Button({type:ButtonType.Normal}) {
             Row({space:ReadinessStyle.metric(8.3,10)}) {
-              SymbolGlyph(this.details?Symbols.up:Symbols.down).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor([Colors.secondary])
+              SymbolGlyph(this.details?Symbols.up:Symbols.down).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor([this.secondaryText])
               Text(tr('details')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
-                .lineHeight(ReadinessStyle.line(14.3,21.7)).fontColor(Colors.secondary).maxLines(1)
+                .lineHeight(ReadinessStyle.line(14.3,21.7)).fontColor(this.secondaryText).maxLines(1)
             }
           }.height(ReadinessStyle.metric(14.3,21.7)).padding(0).backgroundColor(Color.Transparent)
             .accessibilityText(tr('details')).accessibilityDescription(tr(this.details?'control_expanded':'control_collapsed'))
             .onClick(()=>this.details=!this.details).id('task.start.details')
         }.width('100%').justifyContent(FlexAlign.End)
         if (this.details) Text(this.question.screen).fontSize(ReadinessStyle.font(Tokens.caption)).fontFamily('monospace').copyOption(CopyOptions.LocalDevice)
-          .fontColor(Colors.secondary).width('100%').padding(Tokens.gap).backgroundColor(Colors.control).borderRadius(Tokens.gap)
+          .fontColor(this.secondaryText).width('100%').padding(Tokens.gap).backgroundColor(Colors.control).borderRadius(Tokens.gap)
       }
     }.width('100%').alignItems(HorizontalAlign.Start).onAreaChange((_old:Area,next:Area)=>{
       const width=Number(next.width);if(Number.isFinite(width)&&width!==this.choiceWidth)this.choiceWidth=width;
@@ -109,14 +110,14 @@ export struct TaskStartupQuestionCard {
       Column({space:Tokens.gap}) {
         Row({space:Tokens.gap}) {
           Row({space:1}) {
-            SymbolGlyph(Symbols.expand).fontSize(ReadinessStyle.metric(7,10.5)+'vp').fontColor([Colors.secondary])
-            Rect().width(ReadinessStyle.metric(3,4.5)).height(1).fill(Colors.secondary).alignSelf(ItemAlign.End)
+            SymbolGlyph(Symbols.expand).fontSize(ReadinessStyle.metric(7,10.5)+'vp').fontColor([this.secondaryText])
+            Rect().width(ReadinessStyle.metric(3,4.5)).height(1).fill(this.secondaryText).alignSelf(ItemAlign.End)
           }.width(ReadinessStyle.metric(16.7,25.7)).height(ReadinessStyle.metric(13,19.5)).padding(2)
-            .border({width:1,radius:2,color:Colors.secondary}).accessibilityLevel('no')
+            .border({width:1,radius:2,color:this.secondaryText}).accessibilityLevel('no')
           Column({space:Tokens.fine}) {
             Text(tr('task_start_title').replace('{value}',this.question.line)).fontSize(ReadinessStyle.font(ReadinessStyle.label))
               .lineHeight(ReadinessStyle.line(14.3,22.3)).lineBreakStrategy(LineBreakStrategy.BALANCED).fontWeight(600).fontColor(Colors.ink)
-            Text(this.hint()).fontSize(ReadinessStyle.font(ReadinessStyle.body)).lineHeight(ReadinessStyle.line(19,25.7)).fontColor(Colors.secondary)
+            Text(this.hint()).fontSize(ReadinessStyle.font(ReadinessStyle.body)).lineHeight(ReadinessStyle.line(19,25.7)).fontColor(this.secondaryText)
             if (this.recovery.error) Text(tr(this.recovery.error)).fontSize(ReadinessStyle.font(ReadinessStyle.body)).fontColor(Colors.danger)
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
         }.width('100%').alignItems(VerticalAlign.Top)

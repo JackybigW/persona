@@ -451,3 +451,26 @@ test('failed tasks enter the same native task detail from the board and the ordi
  const form=readFileSync(new URL('../entry/src/main/ets/components/PhoneTodoDetailForm.ets',import.meta.url),'utf8');
  assert.match(form,/PhoneTodoStartSection\(\{workspace:this\.workspace/);
 });
+
+test('the two-line recovery headline uses the native first break and preserves the full task name', () => {
+ const source=readFileSync(new URL('../entry/src/main/ets/components/TaskStartFailureSheet.ets',import.meta.url),'utf8');
+ const method=source.slice(source.indexOf('  @Computed get displayedHeading'),source.indexOf('  private remove')).replace('@Computed ','');
+ const measured={lines:2,second:8};
+ class Paragraph {
+   pushStyle(){} addText(){} popStyle(){}
+   build(){return {layoutSync:w=>{measured.width=w;},getLineCount:()=>measured.lines,getLineMetrics:()=>({startIndex:measured.second})};}
+ }
+ const Face={ParagraphBuilder:Paragraph,FontWeight:{W600:600},BreakStrategy:{BALANCED:2},WordBreak:{BREAK_WORD:2},FontCollection:{getGlobalInstance:()=>({})}};
+ const Class=new Function('text','ReadinessStyle','Tokens','return '+stripTypeScriptTypes('class Header {'+method+'}'))(Face,{font:()=> '17vp'},{body:17});
+ const row=new Class();row.headingWidth=202;row.fullHeading='Prepare the demo workspace';row.getUIContext=()=>({vp2px:v=>v*3});
+ assert.equal(row.displayedHeading,row.fullHeading);assert.equal(measured.width,606);
+ row.headingWidth=177;measured.lines=3;assert.equal(row.displayedHeading,'Prepare\nthe demo workspace');
+ row.fullHeading='修复👩‍💻 编译失败后再试';measured.second=row.fullHeading.indexOf('编译');
+ assert.equal(row.displayedHeading,'修复👩‍💻\n编译失败后再试');
+ row.fullHeading='Save\n\nthis title';assert.equal(row.displayedHeading,row.fullHeading,'a real hard break stays intact');
+ assert.match(source,/wordBreak\(this\.displayedHeading===this\.fullHeading \? WordBreak\.BREAK_WORD : WordBreak\.BREAK_ALL\)/);
+ assert.match(source,/accessibilityText\(this\.fullHeading\)/);
+ const question=readFileSync(new URL('../entry/src/main/ets/components/TaskStartupQuestionCard.ets',import.meta.url),'utf8');
+ assert.match(question,/@Param secondaryText:ResourceColor=Colors\.secondary/);
+ assert.match(source,/question:this\.recovery\.question!,secondaryText:this\.sheetSecondary/);
+});

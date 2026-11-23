@@ -193,6 +193,10 @@
       "value": "#1C1C1E"
     },
     {
+      "name": "task_failure_secondary",
+      "value": "#62FFFFFF"
+    },
+    {
       "name": "phone_readiness_surface",
       "value": "#38383B"
     },

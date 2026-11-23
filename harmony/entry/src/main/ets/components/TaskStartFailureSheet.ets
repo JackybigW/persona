@@ -1,4 +1,5 @@
 import { Colors } from '../design/Colors';
+import { text } from '@kit.ArkGraphics2D';
 import { ReadinessStyle } from '../design/ReadinessStyle';
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { tr } from '../design/Strings';
@@ -12,6 +13,30 @@ export struct TaskStartFailureSheet {
   @Event onClose:()=>void=()=>{};
   @Event onEdit:()=>void=()=>{};
   @Local details:boolean=false;
+  @Local private headingWidth:number=0;
+  @Computed get fullHeading():string { return this.recovery.title || tr('task'); }
+  @Computed get sheetSecondary():ResourceColor {
+    return Colors.systemControls && Colors.styleID==='glass' ? $r('app.color.task_failure_secondary') : Colors.secondary;
+  }
+  @Computed get displayedHeading():string {
+    const title=this.fullHeading;
+    if (this.headingWidth<=0 || /[\n\r\u2028\u2029]/.test(title)) return title;
+    const ui=this.getUIContext();
+    const face:text.TextStyle={fontSize:ui.vp2px(Number.parseFloat(ReadinessStyle.font(Tokens.body))),fontWeight:text.FontWeight.W600};
+    const layout=new text.ParagraphBuilder({textStyle:face,breakStrategy:text.BreakStrategy.BALANCED,
+      wordBreak:text.WordBreak.BREAK_WORD,maxLines:3},text.FontCollection.getGlobalInstance());
+    layout.pushStyle(face);
+    layout.addText(title);
+    layout.popStyle();
+    const paragraph=layout.build();
+    paragraph.layoutSync(ui.vp2px(this.headingWidth));
+    if (paragraph.getLineCount()<=2) return title;
+    // A truncated headline keeps its natural first line. Let the second fill
+    // the available width up to the ellipsis, including a partial final word.
+    const next=paragraph.getLineMetrics(1);
+    if (!next || next.startIndex<=0 || next.startIndex>=title.length) return title;
+    return title.slice(0,next.startIndex).trimEnd()+'\n'+title.slice(next.startIndex).trimStart();
+  }
   private remove():void {
     if (!this.recovery.canAct('remove')) return;
     const id=this.recovery.id;
@@ -63,9 +88,15 @@ export struct TaskStartFailureSheet {
           .onClick(()=>this.onClose()).accessibilityText(tr('close')).id('task.failure.close')
         SymbolGlyph($r('sys.symbol.exclamationmark_triangle_fill')).fontSize(ReadinessStyle.font(ReadinessStyle.label))
           .width(ReadinessStyle.metric(16,21)).fontColor([Colors.danger])
-        Text(this.recovery.title || tr('task')).fontSize(ReadinessStyle.font(Tokens.body))
-          .lineHeight(ReadinessStyle.line(21.2,28.3)).lineBreakStrategy(LineBreakStrategy.BALANCED).fontWeight(600).fontColor(Colors.ink)
-          .maxLines(2).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1).id('task.failure.title')
+        Text(this.displayedHeading).fontSize(ReadinessStyle.font(Tokens.body))
+          .lineHeight(ReadinessStyle.line(21.2,28.3)).lineBreakStrategy(LineBreakStrategy.GREEDY)
+          .wordBreak(this.displayedHeading===this.fullHeading ? WordBreak.BREAK_WORD : WordBreak.BREAK_ALL)
+          .fontWeight(600).fontColor(Colors.ink).maxLines(2).textOverflow({overflow:TextOverflow.Ellipsis})
+          .layoutWeight(1).accessibilityText(this.fullHeading)
+          .onAreaChange((_old:Area,area:Area) => {
+            const width=Number(area.width);
+            if (width>0 && Math.abs(width-this.headingWidth)>0.15) this.headingWidth=width;
+          }).id('task.failure.title')
         Blank().width(Tokens.gap)
         Button({type:ButtonType.Normal}) {
           Stack() {
@@ -85,7 +116,7 @@ export struct TaskStartFailureSheet {
         Column({space:12}) {
           if (this.recovery.state==='starting') {
             Text(tr('task_recovery_starting')).fontSize(ReadinessStyle.font(Tokens.body)).fontWeight(FontWeight.Medium).fontColor(Colors.ink).id('task.failure.starting')
-            Text(tr('task_recovery_starting_detail')).fontSize(ReadinessStyle.font(ReadinessStyle.body)).fontColor(Colors.secondary)
+            Text(tr('task_recovery_starting_detail')).fontSize(ReadinessStyle.font(ReadinessStyle.body)).fontColor(this.sheetSecondary)
           } else if (this.recovery.state==='gone') {
             Text(tr('task_recovery_gone')).fontSize(ReadinessStyle.font(Tokens.body)).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
           } else {
@@ -94,16 +125,16 @@ export struct TaskStartFailureSheet {
                 .width(ReadinessStyle.metric(15.3,22.3)).fontColor([Colors.danger])
               Column({space:Tokens.fine}) {
                 Text(tr('task_recovery_heading')).fontSize(ReadinessStyle.font(ReadinessStyle.label)).lineHeight(ReadinessStyle.line(14.3,21.7)).fontWeight(600).fontColor(Colors.ink)
-                Text(this.summary()).fontSize(ReadinessStyle.font(ReadinessStyle.body)).lineHeight(ReadinessStyle.line(18,25.7)).fontColor(Colors.secondary).id('task.failure.reason')
+                Text(this.summary()).fontSize(ReadinessStyle.font(ReadinessStyle.body)).lineHeight(ReadinessStyle.line(18,25.7)).fontColor(this.sheetSecondary).id('task.failure.reason')
                 if (this.summary()!==this.recovery.failure && this.recovery.failure) {
                   Button(this.details?tr('collapse'):tr('details')).fontSize(ReadinessStyle.font(ReadinessStyle.label)).fontColor(Colors.link).backgroundColor(Color.Transparent).onClick(()=>this.details=!this.details)
-                  if (this.details) Text(this.recovery.failure).fontSize(ReadinessStyle.font(Tokens.meta)).fontColor(Colors.secondary)
+                  if (this.details) Text(this.recovery.failure).fontSize(ReadinessStyle.font(Tokens.meta)).fontColor(this.sheetSecondary)
                 }
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%').constraintSize({minHeight:60}).padding(12).alignItems(VerticalAlign.Top)
               .backgroundColor(Colors.readinessSurface).borderRadius(Tokens.inset)
               .border({width:Tokens.divider,color:Colors.readinessEdge}).shadow(ReadinessStyle.shadow(this.getUIContext())).id('task.failure.card')
-            if (this.recovery.question) TaskStartupQuestionCard({recovery:this.recovery,question:this.recovery.question!})
+            if (this.recovery.question) TaskStartupQuestionCard({recovery:this.recovery,question:this.recovery.question!,secondaryText:this.sheetSecondary})
             if (this.recovery.alternative) {
               Row() { this.action('retry-launcher',tr('task_recovery_instead').replace('{launcher}',this.recovery.alternative),true) }.width('100%')
             }
