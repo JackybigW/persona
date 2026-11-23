@@ -1188,3 +1188,18 @@ test('a related disclosure in the phone lead toggles its own group and leaves th
     assert.equal(opened.pop(),target,'a standalone or expanded member still opens its own task');
   }
 });
+
+test('the phone related count uses proportional numerals wherever its translation places the count', () => {
+  const page=readFileSync(new URL('../entry/src/main/ets/components/TodoWorkspacePage.ets',import.meta.url),'utf8');
+  const label=page.slice(page.indexOf('@Builder phoneRelatedLabel('),page.indexOf('@Builder phoneRowWords('));
+  assert.match(label,/Span\(parts\[0\]\)[\s\S]*Span\(String\(count\)\)\.fontFamily\('Noto Sans'\)[\s\S]*Span\(parts\.slice\(1\)\.join\('\{count\}'\)\)/);
+  assert.match(label,/fontFeature\('pnum 1'\)/);assert.doesNotMatch(label,/\.(?:width|maxWidth)\(/);
+  for (const dir of ['base','en_US','ja_JP']) {
+    const resource=new URL('../entry/src/main/resources/'+dir+'/element/phone_todo_list.json',import.meta.url);
+    const data=JSON.parse(readFileSync(resource,'utf8')).string;
+    const format=data.find(row=>row.name==='phone_todo_related_count').value;
+    const parts=format.split('{count}');
+    assert.equal(parts.length,2);
+    for(const count of [1,5,12,137])assert.equal(parts[0]+String(count)+parts[1],format.replace('{count}',String(count)));
+  }
+});
