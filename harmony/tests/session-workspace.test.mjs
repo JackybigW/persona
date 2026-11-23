@@ -295,6 +295,27 @@ test('each reachable breadcrumb keeps its own path, including the session direct
   assert.equal(folderCrumbs('/etc','',session)[0].home,false);
 });
 
+test('a measured breadcrumb keeps the current folder in view without moving a manually scrolled path',()=>{
+  const source=readFileSync(new URL('../entry/src/main/ets/components/SessionTools.ets',import.meta.url),'utf8');
+  const method=source.match(/^  private placeCurrentFolder\([\s\S]+?^  \}/m)[0];
+  class Frame { constructor(run){this.run=run;} }
+  const Page=new Function('FolderLayoutFrame','ScrollAlign','return '+stripTypeScriptTypes('class Page {'+method+'}'))(Frame,{END:'end'});
+  const page=new Page(),frames=[],calls=[];let current=true;
+  Object.assign(page,{filePathIdentity:'scope/weather',pathCrumbs:[{},{},{}],workspace:{isCurrent:()=>current},
+    folderScroller:{scrollToIndex:(...args)=>calls.push(args)},getUIContext:()=>({postFrameCallback:f=>frames.push(f)})});
+  const layout=(owner,width,height=44)=>page.placeCurrentFolder(owner,{width,height});
+  layout('scope/weather',0);assert.equal(frames.length,0);
+  layout('scope/weather',214);layout('scope/weather',214);assert.equal(frames.length,1);
+  frames.shift().run();assert.deepEqual(calls,[[2,false,'end']]);
+  layout('scope/weather',214);assert.equal(frames.length,0,'reading back toward home is not interrupted');
+  layout('scope/weather',186,53.3);
+  page.filePathIdentity='scope/another';layout('scope/another',186,53.3);
+  frames.shift().run();assert.equal(calls.length,1,'a retired path cannot scroll its sibling');
+  frames.shift().run();assert.equal(calls.length,2);
+  layout('scope/another',180,53.3);current=false;frames.shift().run();assert.equal(calls.length,2);
+  assert.match(source,/listDirection\(Axis.Horizontal\)\.stackFromEnd\(true\)\.alignListItem\(ListItemAlign.Center\)/);
+});
+
 test('folder history traverses above the session folder, clears stale rows and invalidates forward on a new branch',async()=>{
   const {workspace,state}=fixture();
   await waitForTurn();

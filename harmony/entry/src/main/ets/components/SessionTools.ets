@@ -10,7 +10,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo, fileUri, picker } from '@kit.CoreFileKit';
 import { filePreview } from '@kit.PreviewKit';
 import { util } from '@kit.ArkTS';
-import { ComposeListItemV2, ContentItemV2, LengthMetrics } from '@kit.ArkUI';
+import { ComposeListItemV2, ContentItemV2, FrameCallback, LengthMetrics } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import { ClientModel } from '../models/ClientModel';
 import { SessionWorkspace, WorkspaceEntry, WorkspaceGitFile, WorkspacePreviewServer, WorkspaceBranch, WorkspaceTrashItem } from '../models/SessionWorkspace';
@@ -25,6 +25,13 @@ import { readerLink } from '../platform/ReaderLink';
 import { relativeActivityDate } from '../core/PhoneDate';
 
 const TRANSFER_LIMIT: number = 32 * 1024 * 1024;
+
+class FolderLayoutFrame extends FrameCallback {
+  private apply:() => void;
+  constructor(apply:() => void) { super(); this.apply=apply; }
+  onFrame(_time:number):void { this.apply(); }
+}
+
 
 class PickedFile {
   name: string = '';
@@ -94,6 +101,8 @@ export struct SessionTools {
   @Local previewPathDraft: string = '/';
   @Local previewInput: string = '';
   private previewCopies: FilePreviewCopy[] = [];
+  private folderScroller:Scroller = new Scroller();
+  private folderPlacement:string = '';
   @Event onWorkspaceReady: (workspace: SessionWorkspace | undefined) => void = (_workspace: SessionWorkspace | undefined) => {};
   @Event onOpenLink: (address: string) => void = (_address: string) => {};
 
@@ -825,10 +834,20 @@ export struct SessionTools {
         if (!crumb.current && owner===this.filePathIdentity && this.workspace.isCurrent()) this.goFolder(crumb.path);
       }).id(crumb.home ? 'session.files.home' : 'session.files.crumb.'+crumb.path)
   }
+  private placeCurrentFolder(owner:string,area:Area):void {
+    const width=Number(area.width),height=Number(area.height),last=this.pathCrumbs.length-1;
+    if (owner!==this.filePathIdentity || width<=0 || height<=0 || last<0) return;
+    const layout=JSON.stringify([owner,width,height,last]);
+    if (this.folderPlacement===layout) return;
+    this.folderPlacement=layout;
+    this.getUIContext().postFrameCallback(new FolderLayoutFrame(() => {
+      if (this.folderPlacement===layout && this.workspace.isCurrent() && owner===this.filePathIdentity)
+        this.folderScroller.scrollToIndex(last,false,ScrollAlign.END);
+    }));
+  }
   @Builder folderBreadcrumbs() {
-    // A changed path starts at its trailing segment, including when the user moves between equally deep siblings.
     ForEach([this.filePathIdentity],(owner:string) => {
-      List({initialIndex:Math.max(0,this.pathCrumbs.length-1)}) {
+      List({scroller:this.folderScroller}) {
         ForEach(this.pathCrumbs,(crumb:FolderCrumb,index:number) => {
           ListItem() {
             Row({space:3}) {
@@ -836,10 +855,13 @@ export struct SessionTools {
                 SymbolGlyph(Symbols.expand).fontSize('9vp').fontColor([Colors.tertiary]).accessibilityLevel('no')
               }
               this.folderBreadcrumb(crumb,owner)
-            }
+            }.height('100%').alignItems(VerticalAlign.Center)
           }
         },(crumb:FolderCrumb) => crumb.path)
-      }.listDirection(Axis.Horizontal).scrollBar(BarState.Off).layoutWeight(1).height(this.fileNavigationHeight)
+      }.listDirection(Axis.Horizontal).stackFromEnd(true).alignListItem(ListItemAlign.Center).scrollBar(BarState.Off)
+        .layoutWeight(1).height(this.fileNavigationHeight)
+        .onAreaChange((_:Area,area:Area) => this.placeCurrentFolder(owner,area))
+        .onDisAppear(() => { if (owner===this.filePathIdentity) this.folderPlacement=''; })
         .bindContextMenu(this.pathMenu,ResponseType.LongPress).id('session.files.path')
     },(owner:string) => owner)
   }
