@@ -1,5 +1,6 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
+import { i18n } from '@kit.LocalizationKit';
 import { Colors } from '../design/Colors';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { tr, trError } from '../design/Strings';
@@ -99,7 +100,8 @@ export struct PhoneChatForwardPicker {
     const date=new Date(at),today=new Date();
     const options:Intl.DateTimeFormatOptions={hour:'numeric',minute:'2-digit'};
     if(date.toDateString()!==today.toDateString()){options.month='short';options.day='numeric';}
-    const time=new Intl.DateTimeFormat(this.source.language==='default' ? undefined : this.source.language,options).format(date);
+    const locale=this.source.language==='default' ? i18n.System.getSystemLanguage() : this.source.language;
+    const time=new Intl.DateTimeFormat(locale,options).format(date);
     return machine ? machine+' · '+time : time;
   }
   @Computed get groups():ForwardSection[] {return this.state.sections(this.source);}
