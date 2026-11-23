@@ -8483,6 +8483,10 @@
     {
       "name": "interaction_supervisor_escalation",
       "value": "これはまずタスクの監督者に渡されました。監督者が上げたときだけ、あなたに届きます。"
+    },
+    {
+      "name": "agent_reading_expand_header",
+      "value": "{title}、タイトルとタグを表示"
     }
   ]
 }

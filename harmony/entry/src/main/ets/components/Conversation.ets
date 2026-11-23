@@ -16,6 +16,7 @@ import { ComposerOverlayWorkspace, ComposerOverlaySession } from '../models/Comp
 import { composerPopupLayout, ComposerPopupLayout } from '../core/ComposerPopupLayout';
 import { util } from '@kit.ArkTS';
 import { FoldSplitContainer, HoverModeStatus, FrameCallback, LengthMetrics, window } from '@kit.ArkUI';
+import type { AgentReadingHeader } from '../models/AgentReadingHeader';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { DeviceLook, deviceLook } from '../models/DeviceLook';
@@ -162,6 +163,8 @@ class ConversationLine {
 export struct Conversation {
   @Require @Param model: ClientModel;
   @Param liftHost: PhoneMessageLiftHost = new PhoneMessageLiftHost();
+  @Param readingHeader:AgentReadingHeader | undefined=undefined;
+  @Param headerOwner:string='';
   @Param forwardState: PhoneChatForward = new PhoneChatForward();
   @Event onForwardOrigin: (row:ResourceRow, item:string) => void = () => {};
   @Param active: boolean = true;
@@ -417,6 +420,11 @@ export struct Conversation {
   }
   private trackScrollMotion(offset: number, source: ScrollSource): void {
     if (!offset || source === ScrollSource.SCROLLER || source === ScrollSource.SCROLLER_ANIMATION || source === ScrollSource.EDGE_EFFECT) return;
+    if (this.readingHeader && this.headerOwner && this.active && !this.readingRestoring && this.admission()) {
+      const drag=source===ScrollSource.DRAG || source===ScrollSource.SCROLL_BAR || source===ScrollSource.OTHER_USER_INPUT;
+      if (drag || source===ScrollSource.FLING || source===ScrollSource.SCROLL_BAR_FLING)
+        this.readingHeader.scroll(this.headerOwner,offset,!drag);
+    }
     this.readingMotion++; this.scrollingByHand = true;
     if (this.searchHitId && this.seekingHit) this.readingRestoring = false;
   }
@@ -427,10 +435,20 @@ export struct Conversation {
     // The disappearing composer can resize the list during navigation. Persist the last position the reader chose.
     this.lastManualAnchor = this.scroller.isAtEnd() ? undefined : this.visibleReadingAnchor();
     this.manuallyReading = this.lastManualAnchor !== undefined;
+    if (this.readingHeader && this.headerOwner && this.admission()) {
+      let near=this.scroller.isAtEnd();
+      const last=this.readingPrefix()+this.lines.length-1;
+      if (!near && last>=0 && this.lastVisibleIndex>=last) {
+        const row=this.scroller.getItemRect(last);
+        near=row.height>0 && row.y+row.height+this.transcriptEndInset()-this.transcriptHeight<40;
+      }
+      this.readingHeader.settle(this.headerOwner,near);
+    }
   }
   private selectReadingText(line: string, selected: boolean): void {
     if (selected) this.selectedReadingLine = line;
     else if (this.selectedReadingLine === line) this.selectedReadingLine = '';
+    if (this.readingHeader && this.headerOwner) this.readingOverlayChanged();
   }
   private keepSelectedReadingVisible(next: number, change: number): boolean {
     const selected = this.selectedReadingLine, owner = this.model;
@@ -721,6 +739,7 @@ export struct Conversation {
     } catch (_) { /* The row can leave the viewport between the index and geometry callbacks. */ }
   }
   private jumpToLatest(): void {
+    if (this.readingHeader && this.headerOwner && this.admission()) this.readingHeader.jumped(this.headerOwner);
     this.manuallyReading = false;
     this.tailPosition = undefined;
     this.readingMotion++; this.scrollingByHand = false; this.lastManualAnchor = undefined;
@@ -728,6 +747,11 @@ export struct Conversation {
     this.anchor.atEnd = true;
     this.jumpAvailable = false;
     this.scroller.scrollEdge(Edge.Bottom);
+  }
+  @Monitor('questions.shown','attachmentSheet','draftEditorOpen','modeMenuOpen','searchPresented','fieldFocused','headerOwner')
+  readingOverlayChanged():void {
+    this.readingHeader?.overlay(this.headerOwner,'chat-editor',this.questions.shown || this.attachmentSheet || this.draftEditorOpen ||
+      this.modeMenuOpen || this.searchPresented || this.fieldFocused || !!this.selectedReadingLine);
   }
   @Local availableHeight: number = 800;
   @Local availableWidth: number = 360;
@@ -1728,6 +1752,7 @@ export struct Conversation {
         ListItem() {
           if (entry.item.message?.role === 'recap') {
             ConversationRecap({ model: this.model, message: entry.item.message!, active: this.active,
+              onSheetChange:(shown:boolean) => this.readingHeader?.overlay(this.headerOwner,'recap',shown),
               onLink: (address: string) => this.onLink(address) })
           } else if (entry.item.message) this.message(entry)
           else if (entry.item.card) AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), item: entry.item.card, onOpenTriage: () => this.onOpenTriage(), onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),

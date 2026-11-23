@@ -8483,6 +8483,10 @@
     {
       "name": "interaction_supervisor_escalation",
       "value": "这张卡先交给了任务的督办者。督办者上交后，才会到你这里。"
+    },
+    {
+      "name": "agent_reading_expand_header",
+      "value": "{title}，显示标题和标签"
     }
   ]
 }

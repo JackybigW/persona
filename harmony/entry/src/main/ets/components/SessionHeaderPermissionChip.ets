@@ -13,6 +13,8 @@ export struct SessionHeaderPermissionChip {
   @Require @Param permission: SessionHeaderPermissions;
   @Local private command: SessionComposerModes = new SessionComposerModes();
   @Local private opened: boolean = false;
+  @Event onMenuChange:(open:boolean) => void=() => {};
+  @Monitor('opened') menuChanged():void { this.onMenuChange(this.opened); }
   private mounted: boolean = false;
   private owner: string = '';
 

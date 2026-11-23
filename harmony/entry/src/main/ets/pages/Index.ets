@@ -15,6 +15,8 @@ import { PhoneConversationSearch } from '../components/PhoneConversationSearch';
 import { PhoneAllChats } from '../components/PhoneAllChats';
 import { SessionSpaceTabs } from '../components/SessionSpaceTabs';
 import { PhoneSessionHeading } from '../components/PhoneSessionHeading';
+import { AgentReadingBar } from '../components/AgentReadingBar';
+import { AgentReadingHeader } from '../models/AgentReadingHeader';
 import { SessionSpace, SessionSpaceTab, sessionSpace, worktreeForSessionSpace } from '../models/SessionSpace';
 import { PhoneFirstRun } from '../components/PhoneFirstRun';
 import { PhonePairingForm } from '../components/PhonePairingForm';
@@ -348,6 +350,32 @@ struct Index {
 
   private mergedPhone():boolean { return !this.wide() && this.look.phoneNavigation === 'merged'; }
   @Local longDraftIdentity: string = '';
+  @Local agentReadingHeader:AgentReadingHeader=new AgentReadingHeader();
+  @Computed get readingHeaderOwner():string {
+    if (this.wide() || this.phoneTop!=='session' || this.floatingDraftHeader || !this.phoneChatActionsReady ||
+      this.mainDestination(this.phoneTop,this.phoneParam) || this.detailModel.selected.kind!=='session' ||
+      Wire.bool(this.detailModel.selected.data(),'assistant')) return '';
+    return JSON.stringify([this.activeChild,this.detailModel.scope(),this.detailModel.connectionGeneration(),this.detailModel.target()]);
+  }
+  private readingHeaderCovered():boolean {
+    return this.showSheet || this.spacesShown || this.phoneSettingsShown || this.chatSearchShown || this.chatTitleMenuVisible ||
+      this.chatBodyMenuVisible || !!this.messageLift.current || this.chatForward.isPicking(this.detailModel) ||
+      this.chatForward.isChoosing(this.detailModel) || this.environment.keyboardHeightPx>0;
+  }
+  @Builder slimSessionHeader() {
+    Row() {
+      Button({type:ButtonType.Normal}) {
+        SymbolGlyph(Symbols.collapse).fontSize(Tokens.interfaceFontVp(16,this.environment.fontScale)).fontColor([Colors.ink])
+      }.width(this.sessionActionSize()).height(40).padding(0).backgroundColor(Color.Transparent)
+        .responseRegion({x:0,y:(40-this.sessionActionSize())/2,width:this.sessionActionSize(),height:this.sessionActionSize()})
+        .accessibilityText(tr(this.phoneAtRoot ? 'conversation_spaces' : 'back'))
+        .onClick(() => { if (this.phoneAtRoot) { this.drawerSearching=false; this.spacesShown=true; } else this.phoneBack(); })
+        .bindContextMenu(this.backHistory(),ResponseType.LongPress).id(this.phoneAtRoot ? 'shell.spaces' : 'shell.back')
+      PhoneSessionHeading({model:this.detailModel,space:this.phoneSessionSpace,heading:this.phonePageName(),slim:true,
+        expand:() => this.agentReadingHeader.reveal(this.readingHeaderOwner)}).layoutWeight(1)
+      this.sessionMoreButton(true)
+    }.width('100%').height(AgentReadingHeader.slimHeight).padding({left:4,right:4}).alignItems(VerticalAlign.Center)
+  }
   @Computed get floatingDraftHeader(): boolean {
     return this.fullHeightPhone() && this.phoneTop === 'session' && !!this.longDraftIdentity &&
       this.longDraftIdentity === this.activeChild;
@@ -617,6 +645,11 @@ struct Index {
     else this.newConversation();
   }
   @Builder phoneHeader() {
+    if (this.readingHeaderOwner) AgentReadingBar({state:this.agentReadingHeader,owner:this.readingHeaderOwner,
+      covered:():boolean=>this.readingHeaderCovered(),full:():void=>this.themedPhonePlaces(),slim:():void=>this.slimSessionHeader()})
+    else this.themedPhonePlaces()
+  }
+  @Builder themedPhonePlaces() {
     if (this.phoneTop === 'session' || this.phoneToolParent) {
       // A tool push retains the session header outside Navigation. Renew only its
       // native resource scope when appearance changes, leaving both destinations mounted.
@@ -768,7 +801,8 @@ struct Index {
             .shadow(PhoneStyle.surfaceShadow({radius:0,color:Color.Transparent}))
           Blank().layoutWeight(1)
         } else if ((this.phoneTop === 'session' || this.phoneToolParent) && this.activeChild === this.childKey(this.phoneTop,this.phoneParam) && this.targetReady(this.phoneTop,this.phoneParam)) {
-          PhoneSessionHeading({model:this.detailModel,space:this.phoneSessionSpace,heading:this.phonePageName()}).layoutWeight(1)
+          PhoneSessionHeading({model:this.detailModel,space:this.phoneSessionSpace,heading:this.phonePageName(),
+            onSheetChange:(shown:boolean) => this.agentReadingHeader.overlay(this.readingHeaderOwner,'info',shown)}).layoutWeight(1)
         } else if (this.phoneTop && !this.phoneLargeTitle()) {
           Text(this.phonePageName()).layoutWeight(1).fontSize(17).maxFontScale(Tokens.navigationTextMaxScale).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
             .textAlign(TextAlign.Center).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
@@ -791,7 +825,7 @@ struct Index {
         bottom:this.phoneTop === 'session' || this.phoneToolParent ? 6 : 3}).alignItems(VerticalAlign.Center)
       if ((this.phoneTop === 'session' || this.phoneToolParent) && this.activeChild && this.targetReady(this.phoneTop,this.phoneParam) && this.detailModel.selected.machine) {
         SessionSpaceTabs({space:this.phoneSessionSpace,model:this.detailModel,
-          onOpenSpace:(key:string) => this.openSessionSpace(key),onPick:(key:string,from:string,id:string) => this.switchSessionTab(key,from,id)})
+          onSheetChange:(shown:boolean) => this.agentReadingHeader.overlay(this.readingHeaderOwner,'siblings',shown),onOpenSpace:(key:string) => this.openSessionSpace(key),onPick:(key:string,from:string,id:string) => this.switchSessionTab(key,from,id)})
       }
       if (this.phoneLargeTitle()) Text(this.phonePageName()).fontSize(PhoneStyle.title).maxFontScale(Tokens.chromeFontMaxScale).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
         .width('100%').maxLines(2).textOverflow({overflow:TextOverflow.Ellipsis}).padding({left:PhoneStyle.page,right:PhoneStyle.page,top:4,bottom:8}).id('shell.page_title')
@@ -1326,15 +1360,18 @@ struct Index {
     return this.compactChatMenu(this.phoneTop) && this.activeChild === this.childKey(this.phoneTop,this.phoneParam) &&
       this.targetReady(this.phoneTop,this.phoneParam);
   }
-  @Builder compactSessionMore() {
+  @Builder compactSessionMore() { this.sessionMoreButton(false) }
+  @Builder sessionMoreButton(slim:boolean) {
     Button({type:ButtonType.Circle}) {
       Row({space:3}) {
         ForEach([0,1,2], (_dot:number) => {
           Circle().width(4).height(4).fill(Colors.link)
         }, (dot:number) => String(dot))
       }
-    }.attributeModifier(ButtonStyles.chrome).width(this.sessionActionSize()).height(this.sessionActionSize()).backgroundColor(Colors.surface)
-      .border({width:0.5,color:Colors.divider,radius:this.sessionActionSize()/2}).accessibilityText(tr('more')).id('chat.title.more')
+    }.attributeModifier(ButtonStyles.chrome).width(this.sessionActionSize()).height(slim ? 40 : this.sessionActionSize())
+      .backgroundColor(slim ? Color.Transparent : Colors.surface)
+      .responseRegion({x:0,y:slim ? (40-this.sessionActionSize())/2 : 0,width:this.sessionActionSize(),height:this.sessionActionSize()})
+      .border({width:slim ? 0 : 0.5,color:Colors.divider,radius:this.sessionActionSize()/2}).accessibilityText(tr('more')).id('chat.title.more')
       .enabled(this.phoneChatActionsReady).onClick(() => this.showChatActions(this.phoneTop,this.phoneParam))
       .bindMenu(this.chatTitleMenuVisible && this.phoneChatActionsReady,this.chatActionsMenu,this.chatMenuOptions(this.chatMenuRevision))
   }
@@ -2872,7 +2909,7 @@ struct Index {
       if (['projects','project','project_tree','machine_projects'].includes(name)) {
         this.projectPage(name, param as string)
       } else if (name === 'session' || name === 'conversation') {
-        if (this.targetReady(name, param)) Conversation({ onOpenTriage: () => { if (this.activeChild === this.childKey(name, param)) this.openSettings('triage', true); }, liftHost:this.messageLift, forwardState:this.chatForward, onForwardOrigin:(row:ResourceRow,item:string):void => this.openPickedChat(row,item), searchPresented:this.chatSearchShown, searchHitId:this.searchHitFor(param), decisionTool:this.decisionToolFor(param), model: this.detailModel, onPlace: (kind: string) => { if (this.activeChild === this.childKey(name, param)) this.openSpace(kind); }, admission: (): boolean => this.activeChild === this.childKey(name, param) && this.targetReady(name, param), onOpenFile: (path: string) => this.openTools(path), active: this.activeChild === this.childKey(name, param), onOpenResource: (row: ResourceRow) => this.openFrom(name, param, row), onLink: (address: string) => this.openReader(address), showContextMenu: this.mainDestination(name, param) || this.hideChatTitle(name, param), onOpenCard: (itemId: string, kind: string) => { if (this.activeChild === this.childKey(name, param) && this.targetReady(name, param)) this.openAssistantCard(itemId, kind); }, onLongDraftHeader: (floating: boolean) => {
+        if (this.targetReady(name, param)) Conversation({ readingHeader:this.agentReadingHeader,headerOwner:this.activeChild===this.childKey(name,param) ? this.readingHeaderOwner : '', onOpenTriage: () => { if (this.activeChild === this.childKey(name, param)) this.openSettings('triage', true); }, liftHost:this.messageLift, forwardState:this.chatForward, onForwardOrigin:(row:ResourceRow,item:string):void => this.openPickedChat(row,item), searchPresented:this.chatSearchShown, searchHitId:this.searchHitFor(param), decisionTool:this.decisionToolFor(param), model: this.detailModel, onPlace: (kind: string) => { if (this.activeChild === this.childKey(name, param)) this.openSpace(kind); }, admission: (): boolean => this.activeChild === this.childKey(name, param) && this.targetReady(name, param), onOpenFile: (path: string) => this.openTools(path), active: this.activeChild === this.childKey(name, param), onOpenResource: (row: ResourceRow) => this.openFrom(name, param, row), onLink: (address: string) => this.openReader(address), showContextMenu: this.mainDestination(name, param) || this.hideChatTitle(name, param), onOpenCard: (itemId: string, kind: string) => { if (this.activeChild === this.childKey(name, param) && this.targetReady(name, param)) this.openAssistantCard(itemId, kind); }, onLongDraftHeader: (floating: boolean) => {
           const child = this.childKey(name, param);
           if (floating && this.activeChild === child && this.targetReady(name, param)) this.longDraftIdentity = child;
           else if (!floating && this.longDraftIdentity === child) this.longDraftIdentity = '';

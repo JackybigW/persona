@@ -20,6 +20,9 @@ export struct SessionSpaceTabs {
   @Require @Param space:SessionSpace;
   @Require @Param model:ClientModel;
   @Local pickerShown:boolean=false;
+  @Event onSheetChange:(shown:boolean) => void=() => {};
+  @Local private permissionOpen:boolean=false;
+  @Monitor('pickerShown','permissionOpen') pickerPresentation():void { this.onSheetChange(this.pickerShown || this.permissionOpen); }
   private pickerOwner:string='';
   @Computed get permission():SessionHeaderPermissions {
     return new SessionHeaderPermissions(headerPermissionRow(this.model.selected,this.model.sessions,this.model.profile.id,this.model.profile.manager));
@@ -153,7 +156,7 @@ export struct SessionSpaceTabs {
           .accessibilityText(tr('phone_session_workspace').replace('{space}',this.space.title))
           .onClick(()=>this.onOpenSpace(this.space.key)).id('session.space.open')
       }
-      if (this.permission.visible) SessionHeaderPermissionChip({model:this.model,permission:this.permission}).flexShrink(0)
+      if (this.permission.visible) SessionHeaderPermissionChip({model:this.model,permission:this.permission,onMenuChange:(open:boolean) => { this.permissionOpen=open; }}).flexShrink(0)
     }.width('100%').padding({left:16,right:16}).margin({top:-this.overhang(),bottom:8-this.overhang()})
   }
 }

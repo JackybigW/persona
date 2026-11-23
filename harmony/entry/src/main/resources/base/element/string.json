@@ -8483,6 +8483,10 @@
     {
       "name": "interaction_supervisor_escalation",
       "value": "This went to its task's supervisor first. It comes to you only if the supervisor passes it up."
+    },
+    {
+      "name": "agent_reading_expand_header",
+      "value": "{title}, show title and tags"
     }
   ]
 }

@@ -27,6 +27,10 @@ export struct PhoneSessionHeading {
   @Require @Param model: ClientModel;
   @Require @Param space: SessionSpace;
   @Require @Param heading: string;
+  @Param slim:boolean=false;
+  @Event expand:() => void=() => {};
+  @Event onSheetChange:(shown:boolean) => void=() => {};
+  @Monitor('info.shown') sheetChanged():void { this.onSheetChange(this.info.shown); }
   @Local info: AgentSessionInfo = new AgentSessionInfo();
   @Local available: number = 0;
   aboutToDisappear(): void { this.info.close(); }
@@ -195,8 +199,25 @@ export struct PhoneSessionHeading {
       }.width('100%').layoutWeight(1)
     }.width('100%').height('100%').backgroundColor(Colors.grouped).id('session.info')
   }
+  @Builder compactTitle() {
+    Row() {
+      Button({type:ButtonType.Capsule}) {
+        Row({space:6}) {
+          if (this.model.connected) {
+            this.emblem()
+            Circle().width(7).height(7).fill(this.tone())
+          } else LoadingProgress().width(12).height(12)
+          Text(this.model.connected ? this.heading : tr('offline')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+            .fontWeight(600).fontColor(Colors.ink).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).flexShrink(1)
+        }.padding({left:12,right:12})
+      }.padding(0).constraintSize({maxWidth:'100%'}).height(28*Math.min(nativeEnvironment.fontScale,Tokens.navigationTextMaxScale))
+        .backgroundColor(Colors.control).accessibilityText(tr('agent_reading_expand_header').replace('{title}',this.model.connected ? this.heading : tr('offline')))
+        .onClick(() => this.expand()).id('chat.compactTitle')
+    }.width('100%').height(40).justifyContent(FlexAlign.Center)
+  }
   build() {
-    Column({space:2}) {
+    if (this.slim) this.compactTitle()
+    else Column({space:2}) {
       Text(this.heading).fontSize(17).maxFontScale(Tokens.navigationTextMaxScale).fontWeight(600).fontColor(Colors.ink)
         .maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
       Row({space:4}) {

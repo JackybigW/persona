@@ -16,6 +16,8 @@ export struct ConversationRecap {
   @Require @Param model: ClientModel;
   @Require @Param message: ChatMessage;
   @Param active: boolean = true;
+  @Event onSheetChange:(shown:boolean) => void=() => {};
+  @Monitor('shown') sheetChanged():void { this.onSheetChange(this.shown); }
   @Event onLink: (address: string) => void = () => {};
   @Local closed: string = '';
   @Local ready: boolean = false;
