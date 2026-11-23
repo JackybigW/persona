@@ -239,8 +239,9 @@ export struct PhoneBackgroundActivity {
   @Builder dispatch(item: Record<string, Object>, agent?: TodoWorkspaceAgent, disambiguate: boolean = false) {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
-        Text('↪').width(32).height(32).fontSize(19).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
-          .backgroundColor($r('app.color.activity_icon_well')).borderRadius(16).textAlign(TextAlign.Center).accessibilityLevel('no')
+        Stack({ alignContent: Alignment.Center }) {
+          SymbolGlyph($r('sys.symbol.arrow_turn_down_right')).fontSize(18).fontWeight(FontWeight.Bold).fontColor([Colors.ink])
+        }.width(32).height(32).backgroundColor($r('app.color.activity_icon_well')).borderRadius(16).accessibilityLevel('no')
         Column({ space: 4 }) {
           Row({ space: 6 }) {
             Text(this.titleFor(item, agent)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
@@ -258,7 +259,7 @@ export struct PhoneBackgroundActivity {
             Text(this.status(item, agent)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).maxLines(2)
           }
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-        if (this.task(item)) { Text('↗').fontSize(14).fontColor(Colors.secondary).accessibilityLevel('no') }
+        if (this.task(item)) { SymbolGlyph($r('sys.symbol.arrow_up_right')).fontSize(13).fontColor([Colors.secondary]).accessibilityLevel('no') }
       }.width('100%').padding(12).constraintSize({ minHeight: 64 })
     }.width('100%').padding(0).backgroundColor(Colors.styleCard || $r('app.color.activity_task_card')).border({ width: 0.5, color: $r('app.color.activity_card_edge'), radius: 15 })
       .enabled(!!this.task(item)).onClick(() => this.follow(item, agent))
