@@ -19,6 +19,7 @@ const drawings: GlyphDrawing[] = [
   {name:'server',width:29,height:22,path:'M3.5 2 H25.5 Q26.5 2 26.5 3 V19 Q26.5 20 25.5 20 H3.5 Q2.5 20 2.5 19 V3 Q2.5 2 3.5 2 Z M2.5 8 H26.5 M2.5 14 H26.5 M21.5 5 H23 M21.5 11 H23 M21.5 17 H23',pen:2},
   {name:'desktop',width:30,height:24,path:'M3 1.8 H27 Q28 1.8 28 3 V18 H2 V3 Q2 1.8 3 1.8 Z M2 15 H28 M15 18 V21.8 M10 22 H20',pen:2},
   {name:'sparkles',width:20,height:22,path:'M12.4 4.5 Q13 10.7 18.7 12 Q13 13.3 12.4 20 Q11.7 13.3 6.1 12 Q11.7 10.7 12.4 4.5 Z M4.3 1 L5.1 4.3 L8.1 5.1 L5.1 6 L4.3 9.2 L3.4 6 L0.7 5.1 L3.4 4.3 Z',pen:0.4,filled:true},
+  {name:'inlinePickerCheck',width:15,height:14.67,pen:2.45,path:'M1.23 7.55 L5.6 13.43 L13.77 1.23'},
   {name:'navigationBack',width:11,height:18.67,pen:2.6,path:'M9.7 1.3 L1.3 9.33 L9.7 17.37'},
   {name:'navigationClose',width:17,height:17,pen:2.5,path:'M1.25 1.25 L15.75 15.75 M15.75 1.25 L1.25 15.75'},
   {name:'forward',width:9,height:14,path:'M1.7 1.7 L6.9 7 L1.7 12.3',pen:1.9},
