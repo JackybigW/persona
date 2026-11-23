@@ -41,6 +41,16 @@ export class PhoneStyle {
   // The compact sidebar uses the capped body metric for both symbols and touch targets.
   static sidebarMetric(points: number, scale: number): number { return points * Math.min(scale,57.85/44); }
   static groupedRowHeight(scale: number): number { return PhoneStyle.formSize(52, 59, scale); }
+  static readonly settingsGroupRadius: number = 28;
+  static get settingsLabel(): ResourceColor {
+    return Colors.systemControls && Colors.styleID === 'glass' ? $r('app.color.persona_switcher_ink') : Colors.ink;
+  }
+  static get settingsSecondary(): ResourceColor {
+    return Colors.systemControls && Colors.styleID === 'glass' ? $r('app.color.project_card_secondary') : Colors.secondary;
+  }
+  static get settingsSeparator(): ResourceColor {
+    return Colors.systemControls && Colors.styleID === 'glass' ? $r('app.color.phone_settings_separator') : Colors.divider;
+  }
 
 }
 
@@ -97,6 +107,7 @@ export struct PhoneSectionTitle {
 export struct PhoneSettingsRow {
   @Require @Param label: string;
   @Param elevated: boolean = false;
+  @Param insetGrouped: boolean = false;
   @Require @Param symbol: Resource;
   @Param artwork:Resource|undefined=undefined;
   @Require @Param tint: ResourceColor;
@@ -116,14 +127,18 @@ export struct PhoneSettingsRow {
             .width(40*this.symbolScale).height(28*this.symbolScale).accessibilityLevel('no')
         }
         Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Center}) {
-          Text(this.label).fontSize(Tokens.body).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(Colors.ink)
+          Text(this.label).fontSize(Tokens.body).maxFontScale(Tokens.interfaceFontMaxScale).fontColor(this.insetGrouped ? PhoneStyle.settingsLabel : Colors.ink)
             .flexGrow(1).margin({right:4})
           if (this.detail) Text(this.detail).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary)
         }.layoutWeight(1)
-        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize('14vp').fontColor([Colors.secondary])
+        if (this.insetGrouped) {
+          PhoneOutlineIcon({name:'forward',color:Colors.tertiary})
+            .scale({x:this.symbolScale,y:this.symbolScale}).accessibilityLevel('no')
+        } else SymbolGlyph($r('sys.symbol.chevron_right')).fontSize('14vp').fontColor([Colors.secondary])
       }.width('100%').constraintSize({ minHeight: PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale) })
-        .padding({ left: PhoneStyle.formSize(12,9,nativeEnvironment.fontScale), right: 14, top: 5, bottom: 5 })
-      if (!this.last) Divider().color(Colors.divider).strokeWidth(0.5).margin({ left: PhoneStyle.formSize(60,68,nativeEnvironment.fontScale) })
+        .padding({ left: PhoneStyle.formSize(12,9,nativeEnvironment.fontScale), right: this.insetGrouped ? 22 : 14, top: 5, bottom: 5 })
+      if (!this.last) Divider().color(this.insetGrouped ? PhoneStyle.settingsSeparator : Colors.divider).strokeWidth(0.5)
+        .margin({ left: PhoneStyle.formSize(60,68,nativeEnvironment.fontScale),right:this.insetGrouped ? 20 : 0 })
     }.width('100%').backgroundColor(Colors.card(this.elevated)).accessibilityGroup(true)
       .accessibilityText(this.label + (this.detail ? ' · ' + this.detail : '')).onClick(() => this.action()).id(this.identity)
   }
