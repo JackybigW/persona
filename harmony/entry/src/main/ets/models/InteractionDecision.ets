@@ -166,8 +166,12 @@ export function firstBlockingDecision(requests: Decision[], selectedKind: string
     !isPersonaAskUserQuestion(request, selectedKind) && !['resolved', 'closed', 'dismissed', 'expired', 'cancelled', 'ended'].includes(request.status));
 }
 
-function recommendedLabel(value: string): boolean {
-  return value.endsWith('(Recommended)') || value.endsWith('（推荐）') || value.endsWith('(推荐)');
+/** Display only. The original label is the answer sent to the asking agent. */
+export function recommendedOptionTitle(value: string): string | undefined {
+  for (const suffix of ['(Recommended)', '（推荐）', '(推荐)']) {
+    if (value.endsWith(suffix)) return value.slice(0, value.length - suffix.length).trim();
+  }
+  return undefined;
 }
 
 function decisionField(key: string, title: string, required: boolean, kind: string, choices: string[] = []): DecisionField {
@@ -277,7 +281,7 @@ function optionFrom(data: Record<string, Object>): InteractionChoice {
   choice.detail = Wire.text(data, 'detail', Wire.text(data, 'description'));
   choice.kind = screenOptionKind(choice.label, Wire.text(data, 'kind'));
   choice.checked = Wire.bool(data, 'checked');
-  choice.recommended = recommendedLabel(choice.label);
+  choice.recommended = recommendedOptionTitle(choice.label) !== undefined;
   return choice;
 }
 
@@ -289,7 +293,7 @@ function fallbackScreenOptions(request: Decision): InteractionChoice[] {
     if (match) {
       const row = new InteractionChoice();
       row.key = match[1]; row.label = match[2].trim(); row.kind = screenOptionKind(row.label, '');
-      row.recommended = recommendedLabel(row.label); rows.push(row);
+      row.recommended = recommendedOptionTitle(row.label) !== undefined; rows.push(row);
     }
   });
   let start = -1;
