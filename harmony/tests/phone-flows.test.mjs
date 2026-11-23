@@ -784,6 +784,9 @@ test('the phone start action belongs to the bottom of the scroll area, separate 
   const start=formSource.slice(formSource.indexOf('  @Builder agentStartFooter()'),formSource.indexOf('  private async loadAgentLaunchers()'));
   const cancel=start.indexOf("id('agent.cancel')"),stack=start.indexOf('Stack({alignContent:Alignment.Bottom})'),scroll=start.indexOf('Scroll(this.agentFormScroll)');
   assert.ok(cancel>=0 && stack>cancel && scroll>stack);
+  const inset=start.slice(start.indexOf('if (this.environment.keyboardHeightPx > 0)',stack),start.indexOf('this.agentStartFooter()',stack));
+  assert.ok(inset.includes("Rect().width('100%').height(this.agentActionBottom()).fill(Colors.sheetBackground)"));
+  assert.ok(inset.includes(".hitTestBehavior(HitTestMode.Block).accessibilityLevel('no').id('agent.keyboard.inset')"));
   assert.match(start,/\.height\('100%'\)\.justifyContent\(FlexAlign.End\)/);
   assert.match(start,/this\.agentStartFooter\(\)\s*\}\.width\('100%'\)\.layoutWeight\(1\)\.clip\(true\)/);
   assert.match(start,/bottom:this\.agentScrollClearance\(\)/);

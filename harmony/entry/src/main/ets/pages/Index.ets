@@ -2546,6 +2546,10 @@ struct Index {
         }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
         Stack({alignContent:Alignment.Bottom}) {
           this.agentStartFields()
+          if (this.environment.keyboardHeightPx > 0) {
+            Rect().width('100%').height(this.agentActionBottom()).fill(Colors.sheetBackground)
+              .hitTestBehavior(HitTestMode.Block).accessibilityLevel('no').id('agent.keyboard.inset')
+          }
           this.agentStartFooter()
         }.width('100%').layoutWeight(1).clip(true)
       }.width('100%').height('100%').backgroundColor(Colors.sheetBackground)
