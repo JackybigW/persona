@@ -1585,7 +1585,7 @@ test('the composer can send a quote without an extra note and keeps attachments 
   assert.equal(model.hasSendableContext(),true);
   const prepared=model.prepareMessageText();
   assert.match(prepared,/<persona-context kind="quote"[^>]*msg="reply-42" part="selection">\none selected line\n<\/persona-context>\n\nchat_context_only_note$/);
-  assert.match(model.prepareMessageText('', 'image stand-in'),/\n\nimage stand-in$/);
+  assert.match(model.prepareMessageText('', 'chat_context_image_note'),/\n\nchat_context_image_note$/);
   assert.equal(await model.send(),true);
   assert.equal(writes.length,1);assert.equal(writes[0][1],prepared);
   for(const context of ['', '{}', '{"contexts":[]}', '{broken']) {

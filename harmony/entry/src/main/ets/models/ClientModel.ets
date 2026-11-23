@@ -1270,9 +1270,9 @@ export class ClientModel {
         !!Wire.text(ref,'kind') && !!(Wire.text(ref,'text') || Wire.text(ref,'id') || Wire.text(ref,'msg') || Wire.text(ref,'item_id') || Wire.text(ref,'title')));
     } catch (_) { return false; }
   }
-  prepareMessageText(text:string=this.draft,attachmentNote:string=''):string {
+  prepareMessageText(text:string=this.draft,attachmentNoteKey:string=''):string {
     const hasContext=this.hasSendableContext();
-    if (!text.trim() && attachmentNote) text=attachmentNote;
+    if (!text.trim() && attachmentNoteKey) text=tr(attachmentNoteKey);
     else if (!text.trim() && hasContext) {
       const forwards=this.forwardContexts().length;
       text=tr(forwards>1 ? 'chat_forward_several_note' : forwards===1 ? 'chat_forward_single_note' : 'chat_context_only_note');

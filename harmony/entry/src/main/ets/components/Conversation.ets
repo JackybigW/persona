@@ -785,7 +785,7 @@ export struct Conversation {
   private inlineKeyboardAction(): boolean { return this.fieldFocused || this.environment.keyboardHeightPx > 0; }
   private leftActionWidth(size: number): number { return !this.model.demo || this.showContextMenu ? size : 0; }
   private hasComposerAction(): boolean {
-    return this.primaryStop() || this.sending || !!this.model.draft.trim() || this.attachments.attachments.length > 0 || this.model.hasSendableContext();
+    return this.primaryStop() || this.sending || !!this.model.draft.trim() || this.attachments.attachments.length > 0 || !!this.model.sourceContext;
   }
   private trailingActionWidth(size: number): number { return size + (this.hasComposerAction() ? Tokens.touch : 0); }
   private expandedComposer(): boolean {
@@ -1255,7 +1255,7 @@ export struct Conversation {
     this.sending = true;
     try {
       const hasImage=this.attachments.attachments.some((item:ChatAttachment)=>item.kind==='image');
-      const attachmentNote=tr(hasImage ? 'chat_context_image_note' : 'chat_context_files_note');
+      const attachmentNote=hasImage ? 'chat_context_image_note' : 'chat_context_files_note';
       const prepared = await this.attachments.prepareSend(owner.prepareMessageText(draft,attachmentNote), current);
       await owner.sendPrepared(prepared, draft, context, current);
     } catch (error) { if (current()) this.attachments.errorKey = error instanceof Error && error.message.startsWith('chat_attachment_') ? error.message : 'chat_attachment_send_failed'; }
