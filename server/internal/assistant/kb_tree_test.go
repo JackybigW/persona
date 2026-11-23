@@ -68,8 +68,8 @@ func TestKBProjectTreeHTTPAndTools(t *testing.T) {
 	}
 	var detail struct {
 		Tree struct {
-			Parent     *struct{ ID, Name string } `json:"parent"`
-			Children   []struct{ ID string }       `json:"children"`
+			Parent     *struct{ ID, Name string }   `json:"parent"`
+			Children   []struct{ ID string }        `json:"children"`
 			Milestones []struct{ ID, Title string } `json:"milestones"`
 			Depth      int                          `json:"depth"`
 		} `json:"tree"`

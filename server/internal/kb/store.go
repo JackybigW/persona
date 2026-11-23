@@ -149,8 +149,8 @@ type Project struct {
 	Parent string `json:"parent,omitempty"`
 	// Milestones: the user's milestone flags on it (project_tree.go).
 	Milestones []Milestone `json:"milestones,omitempty"`
-	Created            time.Time                     `json:"created"`
-	Updated            time.Time                     `json:"updated"`
+	Created    time.Time   `json:"created"`
+	Updated    time.Time   `json:"updated"`
 	Tagging
 }
 
