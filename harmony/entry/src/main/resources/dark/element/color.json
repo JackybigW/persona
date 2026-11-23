@@ -157,6 +157,10 @@
       "value": "#39393D"
     },
     {
+      "name": "machine_session_avatar_fill",
+      "value": "#3D767680"
+    },
+    {
       "name": "machine_count_surface",
       "value": "#0AFFFFFF"
     },
@@ -187,6 +191,18 @@
     {
       "name": "persona_sheet_background",
       "value": "#1C1C1E"
+    },
+    {
+      "name": "phone_readiness_surface",
+      "value": "#38383B"
+    },
+    {
+      "name": "phone_readiness_pill",
+      "value": "#505054"
+    },
+    {
+      "name": "phone_readiness_edge",
+      "value": "#49494D"
     },
     {
       "name": "persona_sheet_card",

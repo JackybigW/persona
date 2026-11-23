@@ -238,20 +238,58 @@ const nativeFormDependencies = { Wire, LaunchChoice, RecentAgentSetup, rememberA
 const NativeAgentForm = new Function(...Object.keys(nativeFormDependencies), 'return ' + stripTypeScriptTypes(
   'class NativeAgentForm {\n' + [...required].map(name => formMethods.get(name)).join('\n') + '\n}'))(...Object.values(nativeFormDependencies));
 
+test('Other Model keeps an unlisted ID on cancel and confirms one valid model to the current form after dismissal', async () => {
+  const {modelIDProblem}=await import('../entry/src/main/ets/models/ModelID.ets');
+  const word=key=>key==='flow_model_id_character' ? 'unsupported {character}' : key;
+  for (const [id,expected] of [['','flow_model_id_empty'],['.bad','flow_model_id_start'],['a b','flow_model_id_space'],
+    ['a\nb','flow_model_id_control'],['vendor/模型','unsupported 模'],['a'.repeat(257),'flow_model_id_length'],
+    ['~gateway/latest',''],['vendor/code:beta@1[1m]',''],['a'.repeat(256),'']]) assert.equal(modelIDProblem(id,word),expected,id);
+  const choices=new AgentLaunchChoices();
+  await choices.loadModels(makeOwner(async()=>({agent:'codex',models:[{id:'native',name:'Native',aliases:['short']}]})),'mac','codex');
+  assert.equal(choices.listsModel('short'),true); assert.equal(choices.listsModel('SHORT'),false);
+  assert.deepEqual(choices.models[0].aliases,['short']); assert.equal(choices.hasCatalogModel(),true);
+  const source=readFileSync(new URL('../entry/src/main/ets/components/AgentStartPicker.ets',import.meta.url),'utf8');
+  const methods=['canTypeModel','openTypedModel','confirmTypedModel','finishTypedModel'].map(name=>{
+    const start=source.indexOf('  private '+name+'('), line=source.indexOf('\n',start);
+    assert.ok(start>=0,name);
+    return source.slice(start,source.slice(start,line).trimEnd().endsWith('}') ? line : source.indexOf('\n  }',line)+4);
+  });
+  const Picker=new Function('modelIDProblem','tr','return '+stripTypeScriptTypes('class Picker {\n'+methods.join('\n')+'\n}'))(modelIDProblem,word);
+  const used=[];
+  const picker=Object.assign(new Picker(),{choices,kind:'model',manual:true,selected:'vendor/prior',choose:id=>used.push(id)});
+  picker.openTypedModel(); assert.equal(picker.typedModel,'vendor/prior');
+  picker.typedModel='a b';picker.confirmTypedModel(); assert.equal(picker.typingModel,true);assert.deepEqual(used,[]);
+  picker.typingModel=false;picker.finishTypedModel();assert.deepEqual(used,[]);
+  picker.openTypedModel();picker.typedModel='  vendor/new  ';picker.confirmTypedModel();assert.equal(picker.typingModel,false);assert.deepEqual(used,[]);
+  picker.finishTypedModel();picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+  picker.selected='short';picker.openTypedModel();assert.equal(picker.typedModel,'');picker.typedModel='second';picker.confirmTypedModel();
+  choices.locked='launcher supplies its own model';picker.finishTypedModel();assert.deepEqual(used,['vendor/new']);
+});
+
 
 test('the focused New Agent draft follows the settled keyboard, content and text-size layout, and never a closed form', () => {
-  const callbacks=[],edges=[];
-  const Form=new Function('setTimeout','Edge','return '+stripTypeScriptTypes(
-    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(
-      fn=>callbacks.push(fn),{Bottom:'bottom'});
-  const form=Object.assign(new Form(),{agentMessageFocused:true,showSheet:true,sheetKind:'newagent',agentPanel:'',
-      agentFormRevision:1,agentFormScroll:{scrollEdge:edge=>edges.push(edge)}});
-  form.agentDraftAreaChanged({width:360,height:370},{width:360,height:440});
-  assert.deepEqual(edges,[]);callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentDraftAreaChanged({width:360,height:440},{width:360,height:440});assert.equal(callbacks.length,0);
-  form.revealFocusedAgentDraft();form.agentFormRevision++;callbacks.shift()();assert.deepEqual(edges,['bottom']);
-  form.agentPanel='folder';form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
-  form.agentPanel='';form.agentMessageFocused=false;form.revealFocusedAgentDraft();assert.equal(callbacks.length,0);
+  const callbacks = [], moves = [];
+  const Form = new Function('setTimeout', 'return '+stripTypeScriptTypes(
+    'class Form {\n'+['revealFocusedAgentDraft','agentDraftAreaChanged'].map(x=>formMethods.get(x)).join('\n')+'\n}'))(fn=>callbacks.push(fn));
+  const frames = { 'agent.fields':[150,410], 'agent.create':[460,60], 'agent.task':[410,92], 'agent.tab_name':[535,52] };
+  const context = {px2vp:px=>px/3, getComponentUtils:()=>({getRectangleById(id){
+    const [y,height]=frames[id];
+    return {windowOffset:{y:y*3},size:{height:height*3}};
+  }})};
+  const form = Object.assign(new Form(), {focusedAgentField:'agent.task',showSheet:true,sheetKind:'newagent',agentPanel:'',
+    agentFormRevision:1,getUIContext:()=>context,agentFormScroll:{scrollBy:(x,y)=>moves.push([x,y])}});
+  form.agentDraftAreaChanged({width:402,height:624},{width:402,height:410});
+  assert.deepEqual(moves,[]); callbacks.shift()(); assert.deepEqual(moves,[[0,50]]);
+  form.agentDraftAreaChanged({width:402,height:410},{width:402,height:410}); assert.equal(callbacks.length,0);
+  form.focusedAgentField='agent.tab_name'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.deepEqual(moves.at(-1),[0,135]);
+  frames['agent.tab_name']=[110,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.deepEqual(moves.at(-1),[0,-48]);
+  frames['agent.tab_name']=[200,52]; form.revealFocusedAgentDraft(); callbacks.shift()(); assert.equal(moves.length,3);
+  frames['agent.task']=[90,460]; form.focusedAgentField='agent.task'; form.revealFocusedAgentDraft(); callbacks.shift()();
+  assert.equal(moves.length,3,'the focused multiline editor fills the viewport and can scroll its own caret');
+  form.revealFocusedAgentDraft(); form.agentFormRevision++; callbacks.shift()(); assert.equal(moves.length,3);
+  form.agentPanel='folder'; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
+  form.agentPanel=''; form.focusedAgentField=''; form.revealFocusedAgentDraft(); assert.equal(callbacks.length,0);
   assert.match(formSource,/\.minLines\(3\)\.maxLines\(10,\{overflowMode:MaxLinesMode\.SCROLL\}\)/);
   assert.match(formSource,/\.fontSize\(Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\)\.placeholderFont\(\{size:Tokens\.interfaceFontVp\(17,this\.environment\.fontScale\)\}\)/);
 });
@@ -346,13 +384,15 @@ test('the start sheet and the session request agree on thinking effort for each 
     assert.equal(form.agentPanel,choices.length?'effort':'',launcher.name);
     if (choices.length) assert.deepEqual(form.pickerOptions().map(x=>x.id),['',...choices],launcher.name);
     form.closeAgentPanel(); form.directory='/work/login';
-    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort)=>
-      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort);
+    form.agentTabName = launcher.name === 'codex' ? '  版本复核  ' : '  ';
+    owner.createAgent=(prompt,machine,cwd,launcher,todo,admit,id,host,model,effort,tabName)=>
+      repository.createAgent(prompt,machine,cwd,launcher,'test-operation',todo,admit,id,host,model,effort,tabName);
     owner.saveView=async()=>{}; form.openPickedChat=()=>{}; form.projectPlace=()=>false;
     await form.createAgent();
     assert.equal(form.startFailure??'',''); assert.equal(form.showSheet,false);
     const wire=starts.at(-1);
     assert.deepEqual([wire.machine_id,wire.cwd,wire.launcher,wire.model,wire.prompt],['mac','/work/login',launcher.name,model,'test']);
+    assert.equal(wire.tab_name,launcher.name==='codex' ? '版本复核' : undefined);
     assert.equal(Object.hasOwn(wire,'effort'),!!expected,launcher.name);
     assert.equal(wire.effort??'',expected,launcher.name);
   }

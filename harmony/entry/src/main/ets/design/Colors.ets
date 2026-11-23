@@ -22,6 +22,9 @@ class NativeColors {
   get grouped(): ResourceColor { return this.stylePage || $r('app.color.persona_grouped'); }
   get sheetBackground(): ResourceColor { return this.stylePage || $r('app.color.persona_sheet_background'); }
   get sheetCard(): ResourceColor { return this.styleCard || $r('app.color.persona_sheet_card'); }
+  get readinessSurface(): ResourceColor { return this.styleCard || $r('app.color.phone_readiness_surface'); }
+  get readinessControl(): ResourceColor { return this.styleCard || $r('app.color.phone_readiness_pill'); }
+  get readinessEdge(): ResourceColor { return this.styleEdge || $r('app.color.phone_readiness_edge'); }
   readonly sheetControl: ResourceColor = $r('app.color.persona_sheet_control');
   get listBackground(): ResourceColor { return this.stylePage || $r('app.color.persona_list_background'); }
   card(elevated: boolean): ResourceColor { return elevated ? this.sheetCard : this.surface; }

@@ -339,11 +339,17 @@ export struct SettingsDirectory {
 export struct PhoneSettingsOptions {
   @Param elevated: boolean = false;
   @Local dictation: DictationPreference = dictationPreference;
+  @Local environment: NativeEnvironment = nativeEnvironment;
   @Require @Param model:ClientModel;
   @Require @Param page:string;
   @Require @Param label:(page:string)=>string;
   @Event onOpen:(page:string)=>void = () => {};
   private mounted:boolean = false;
+
+  @Computed get inlinePickerScale(): number {
+    return PhoneStyle.formSize(1,1.35,this.environment.fontScale);
+  }
+
   aboutToAppear():void { this.mounted = true; this.dictation.load(this.getUIContext().getHostContext()); }
   private dictationLabel(choice: string): string {
     return choice === 'zh-CN' ? languageName(choice) : tr(choice === 'keyboard' ? 'phone_system_input' : 'auto');
@@ -395,8 +401,11 @@ export struct PhoneSettingsOptions {
             Row({space:7}) {
               Text(lang==='default' ? tr('phone_settings_system_language').replace('{language}',languageName(i18n.getSystemLanguage())) : languageName(lang))
                 .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).layoutWeight(1)
-              if (this.model.language===lang) SymbolGlyph(Symbols.check).fontSize('17vp').width(21).flexShrink(0).fontColor([Colors.link])
-            }.width('100%').constraintSize({minHeight:PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)}).padding({left:20,right:20,top:6,bottom:6})
+              if (this.model.language===lang) {
+                PhoneOutlineIcon({name:'inlinePickerCheck',color:Colors.link,iconScale:this.inlinePickerScale})
+                  .margin({right:4.33*this.inlinePickerScale}).flexShrink(0)
+              }
+            }.width('100%').constraintSize({minHeight:PhoneStyle.groupedRowHeight(this.environment.fontScale)}).padding({left:20,right:20,top:6,bottom:6})
               .enabled(!this.model.languageChanging).accessibilitySelected(this.model.language===lang).accessibilityGroup(true)
               .onClick(() => this.choose(lang)).id('settings.language.'+lang)
             if (ix<LANGUAGES.length-1) Divider().strokeWidth(0.5).color(Colors.divider).margin({left:20})
@@ -409,7 +418,7 @@ export struct PhoneSettingsOptions {
             Text(tr('phone_dictation')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.ink).layoutWeight(1)
             Text(this.dictationLabel(this.dictation.choice)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.link)
             SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
-          }.constraintSize({minHeight:PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)}).width('100%').padding({left:20,right:20,top:7,bottom:7})
+          }.constraintSize({minHeight:PhoneStyle.groupedRowHeight(this.environment.fontScale)}).width('100%').padding({left:20,right:20,top:7,bottom:7})
             .backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius).accessibilityGroup(true)
             .bindMenu(this.dictationMenu()).accessibilityRole(AccessibilityRoleType.BUTTON).id('settings.dictation.choice')
         }

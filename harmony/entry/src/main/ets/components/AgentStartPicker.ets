@@ -1,6 +1,7 @@
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { Tokens } from '../design/Tokens';
 import { AgentLaunchChoices, LaunchChoice } from '../models/AgentLaunchChoices';
+import { modelIDProblem } from '../models/ModelID';
 import { Colors } from '../design/Colors';
 import { Symbols } from '../design/Symbols';
 import { PhoneNavigationIcon, PhoneSectionTitle, PhoneStyle } from '../design/PhoneStyle';
@@ -16,6 +17,9 @@ export struct AgentStartPicker {
   @Param manual:boolean = false;
   @Local query:string = '';
   @Local address:string = '';
+  @Local typingModel:boolean = false;
+  @Local typedModel:string = '';
+  private confirmedModel:string = '';
   private searchField:SearchController = new SearchController();
   @Event back:() => void = () => {};
   @Event choose:(id:string) => void = () => {};
@@ -24,8 +28,54 @@ export struct AgentStartPicker {
   @Monitor('choices.path') resolved():void { if (this.choices.path) this.address = this.choices.path; }
   @Computed get filtered():LaunchChoice[] {
     const term = this.query.trim().toLowerCase();
-    return this.options.filter((o:LaunchChoice) => !term || [o.title,o.detail,o.description,o.id,
-      this.kind === 'model' && !o.id ? this.choices.defaultModelName() : ''].join(' ').toLowerCase().includes(term));
+    return this.options.filter((o:LaunchChoice) => !term || (this.kind !== 'model' || !!o.id) &&
+      [o.title,o.detail,o.description,o.id].concat(o.aliases).some((word:string) => word.toLowerCase().includes(term)));
+  }
+  private canTypeModel():boolean { return this.kind === 'model' && this.manual && !this.choices.locked; }
+  private openTypedModel():void {
+    if (!this.canTypeModel()) return;
+    this.typedModel = this.selected && !this.choices.listsModel(this.selected) ? this.selected : '';
+    this.confirmedModel = ''; this.typingModel = true;
+  }
+  private confirmTypedModel():void {
+    const id=this.typedModel.trim();
+    if (!this.typingModel || !this.canTypeModel() || modelIDProblem(id,tr)) return;
+    this.confirmedModel = id; this.typingModel = false;
+  }
+  private finishTypedModel():void {
+    const id=this.confirmedModel; this.confirmedModel = '';
+    if (id && this.canTypeModel()) this.choose(id);
+  }
+  @Builder typedModelSheet() {
+    Column({space:16}) {
+      Row() {
+        Button(tr('cancel'),{buttonStyle:ButtonStyleMode.TEXTUAL}).fontColor(Colors.link)
+          .onClick(() => { this.typingModel = false; }).id('agent.typed_model.cancel')
+        Text(tr('flow_typed_model_title')).layoutWeight(1).textAlign(TextAlign.Center)
+          .fontColor(Colors.ink).fontSize(17).maxFontScale(Tokens.chromeFontMaxScale).fontWeight(600)
+        Button(tr('flow_typed_model_use'),{buttonStyle:ButtonStyleMode.TEXTUAL}).fontColor(Colors.link)
+          .fontWeight(600).enabled(this.canTypeModel() && !modelIDProblem(this.typedModel.trim(),tr))
+          .onClick(() => this.confirmTypedModel()).id('agent.typed_model.use')
+      }.width('100%')
+      Scroll() {
+        Column({space:8}) {
+          TextInput({text:this.typedModel,placeholder:'vendor/model-name'})
+            .fontFamily('monospace').fontSize(Tokens.interfaceFontVp(17,nativeEnvironment.fontScale))
+            .height(PhoneStyle.groupedRowHeight(nativeEnvironment.fontScale)).padding({left:20,right:20})
+            .fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+            .accessibilityText(tr('model_id')).enterKeyType(EnterKeyType.Done).defaultFocus(true)
+            .onChange((value:string) => { this.typedModel = value; }).onSubmit(() => this.confirmTypedModel()).id('agent.typed_model.field')
+          if (this.typedModel.trim() && modelIDProblem(this.typedModel.trim(),tr)) {
+            Text(modelIDProblem(this.typedModel.trim(),tr)).fontColor($r('app.color.persona_dock_warning')).id('agent.typed_model.problem')
+              .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).padding({left:20,right:20})
+          } else {
+            Text(tr('flow_model_id_rule')+'\n'+tr('flow_model_id_note')).fontColor(Colors.secondary)
+              .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).padding({left:20,right:20})
+          }
+        }.alignItems(HorizontalAlign.Start).width('100%')
+      }.width('100%').layoutWeight(1).align(Alignment.TopStart)
+    }.width('100%').height('100%').padding({left:16,right:16,top:12,bottom:12})
+      .backgroundColor(Colors.sheetBackground).id('agent.typed_model')
   }
   private folderName():string {
     const path=this.choices.path.replace(/\/+$/,'');
@@ -86,6 +136,10 @@ export struct AgentStartPicker {
   }
   private groupItems(group:string):LaunchChoice[] {
     if (group === 'folder') return this.choices.directories;
+    if (group === 'default' && !this.query.trim() && this.canTypeModel() && this.selected && !this.choices.listsModel(this.selected)) {
+      return this.options.filter((o:LaunchChoice) => !o.id).concat(
+        new LaunchChoice(this.selected,this.selected,tr('phone_start_typed_model_id').replace('{id}',this.selected)));
+    }
     return this.filtered.filter((o:LaunchChoice) => group === 'default' ? !o.id : !!o.id);
   }
   @Builder optionGroup(group:string,folder:boolean) {
@@ -115,7 +169,7 @@ export struct AgentStartPicker {
         Blank().width(PhoneStyle.bar)
       }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
       if (this.kind !== 'folder' && this.kind !== 'model' && (this.kind === 'workspace' || this.options.length > 5 || this.manual)) this.pickerSearch()
-      List({space:this.kind === 'folder' ? 12 : this.kind === 'model' ? 9 : 3}) {
+      List({space:this.kind === 'folder' ? 25 : this.kind === 'model' ? 9 : 3}) {
         if (this.kind === 'folder' && this.choices.path) ListItem() {
           Column({space:7}) {
             this.chooseFolder()
@@ -153,19 +207,34 @@ export struct AgentStartPicker {
             Column({space:7}) {
               Row({space:10}) {
                 SymbolGlyph($r('sys.symbol.keyboard')).fontSize('18vp').fontColor([Colors.link])
-                Text(tr('flow_other_model')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontColor(Colors.link)
-              }.width('100%').constraintSize({minHeight:48}).padding({left:16,right:16}).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-                .accessibilityGroup(true).onClick(() => this.getUIContext().getFocusController().requestFocus('agent.picker.search')).id('agent.model.other')
+                Text(tr(this.choices.hasCatalogModel() ? 'flow_other_model' : 'flow_enter_model_id'))
+                  .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.link)
+              }.width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.33,59.33,nativeEnvironment.fontScale)})
+                .padding({left:20,right:20}).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+                .accessibilityGroup(true).onClick(() => this.openTypedModel()).id('agent.model.other')
               Text(tr('flow_model_manual_hint')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).padding({left:16,right:16})
-            }.width('100%').alignItems(HorizontalAlign.Start)
+            }.width('100%').alignItems(HorizontalAlign.Start).margin({top:26})
           }
-          if (this.manual && this.query.trim() && !this.options.some((o:LaunchChoice) => o.id === this.query.trim()) && !this.choices.locked) ListItem() {
-            this.item(new LaunchChoice(this.query.trim(),this.query.trim()),false)
+          if (this.manual && this.query.trim() && !this.options.some((o:LaunchChoice) => o.id === this.query.trim()) && !this.choices.locked) {
+            if (this.kind !== 'model') {
+              ListItem() { this.item(new LaunchChoice(this.query.trim(),this.query.trim()),false) }
+            } else if (!this.choices.listsModel(this.query.trim()) && !modelIDProblem(this.query.trim(),tr)) {
+              ListItem() {
+                this.item(new LaunchChoice(this.query.trim(),tr('flow_use_model_id').replace('{id}',this.query.trim()),'',false,tr('flow_unlisted_model_start')),false)
+              }
+            } else if (!this.filtered.length && modelIDProblem(this.query.trim(),tr)) {
+              ListItem() {
+                Text(modelIDProblem(this.query.trim(),tr)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14))
+                  .fontColor($r('app.color.persona_dock_warning')).padding(12).id('agent.model.problem')
+              }
+            }
           }
           if (!this.filtered.length && !this.manual && !this.choices.loading) ListItem() { Text(tr('no_results')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).padding(12) }
         }
       }.width('100%').layoutWeight(1).padding({left:16,right:16,top:this.kind === 'model' || this.kind === 'folder' ? 35 : 7,bottom:10})
       if (this.kind === 'model' && (this.options.length > 5 || this.manual)) this.pickerSearch()
     }.width('100%').height('100%').backgroundColor(Colors.sheetBackground).id('agent.picker')
+      .bindSheet($$this.typingModel,this.typedModelSheet(),{height:SheetSize.MEDIUM,detents:[SheetSize.MEDIUM,SheetSize.LARGE],
+        showClose:false,backgroundColor:Colors.sheetBackground,onDisappear:() => this.finishTypedModel()})
   }
 }

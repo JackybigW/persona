@@ -155,12 +155,14 @@ export class HubRepository {
     const result = await this.call('/api/v1/inbox/' + segment(row.id) + '/done?manager=' + segment(row.manager), 'POST', Wire.payload(['done'], [!row.isDone()]));
     const item = Wire.object(result, 'item'); const next = ResourceRow.from(Object.keys(item).length ? item : result, 'inbox'); next.manager = row.manager; return next;
   }
-  async createAgent(prompt: string, machine: ResourceRow, cwd: string, launcher: string, op: string, todoId: string = '', admit?: () => boolean, workspaceId: string = '', host: string = '', model: string = '', effort: string = ''): Promise<ResourceRow> {
+  async createAgent(prompt: string, machine: ResourceRow, cwd: string, launcher: string, op: string, todoId: string = '', admit?: () => boolean, workspaceId: string = '', host: string = '', model: string = '', effort: string = '', tabName: string = ''): Promise<ResourceRow> {
     if (!machine.id || machine.manager && machine.manager !== this.owner || Wire.text(machine.data(), 'trust') === 'pending' ||
       !Wire.bool(machine.data(), 'online', true) || Wire.bool(machine.data(), 'pending_confirm') || Wire.bool(machine.data(), 'pending')) throw new Error('permission_denied');
     const body = Wire.payload(['machine_id', 'cwd', 'launcher', 'prompt'], [machine.id, cwd, launcher, prompt]);
     if (model) body['model'] = model;
     if (effort) body['effort'] = effort;
+    const name = tabName.trim();
+    if (name) body['tab_name'] = name;
     if (workspaceId && host) { body['workspace_id'] = workspaceId; body['host'] = host; }
     if (todoId) body['todo_id'] = todoId;
     const result = await this.call('/api/v1/sessions', 'POST', body, op, admit);

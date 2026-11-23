@@ -352,6 +352,7 @@ test('the system phone drawer paints its surface and selection without overridin
   assert.equal(palette.find(v=>v.name==='persona_phone_drawer_surface').value,ground);
   assert.equal(palette.find(v=>v.name==='persona_phone_drawer_selection').value,fill);
  }
- assert.match(source,/\.selected\(this\.drawerPlaceSelected\(kind\)\)/);
+ assert.match(source,/\.selectable\(this\.wide\(\)\)\.selected\(this\.wide\(\) && this\.drawerPlaceSelected\(kind\)\)/);
+ assert.match(source,/\.accessibilitySelected\(this\.drawerPlaceSelected\(kind\)\)/);
  assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });

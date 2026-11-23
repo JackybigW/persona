@@ -4,6 +4,7 @@ import type { ClientModel } from './ClientModel';
 import type { HubRepository } from './HubRepository';
 import { ResourceRow, Wire } from './Wire';
 import { SessionHeaderPermissions } from './SessionHeaderPermissions';
+import { modelIDProblem } from './ModelID';
 
 type Fields = Record<string,Object>;
 const claudeEfforts:string[]=['auto','low','medium','high','xhigh','max'];
@@ -16,7 +17,7 @@ export function composerModelName(id:string):string {
 }
 // PersonaWire.ModelID: ASCII IDs, including a gateway's tilde-prefixed latest alias.
 export function validComposerModelID(id:string):boolean {
-  return id.length>0 && id.length<=256 && /^~?[a-zA-Z0-9][a-zA-Z0-9._/:@\[\]-]*$/.test(id);
+  return !modelIDProblem(id, (key:string):string => key);
 }
 function liveRow(client:ClientModel):ResourceRow|undefined {
   const selected=client.selected, manager=client.profile.manager, group=client.profile.id;
