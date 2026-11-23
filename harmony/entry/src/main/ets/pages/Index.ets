@@ -74,6 +74,7 @@ import { SettingsPage } from '../components/SettingsPage';
 import { SshSettingsPage } from '../components/SshSettingsPage';
 import { DeviceLook, deviceLook } from '../models/DeviceLook';
 import { nativeLookTheme } from '../design/LookTheme';
+import { deviceLookSelectedFilterInk } from '../core/DeviceLook';
 import { IconTypeV2 } from '@kit.ArkUI';
 import { Tokens } from '../design/Tokens';
 import { Colors } from '../design/Colors';
@@ -2407,6 +2408,7 @@ struct Index {
             .fontColor(Colors.danger).width('100%').padding(8).id('agent.error')
           Button(tr(this.creatingAgent || this.agentModel.operationBlocked('/api/v1/sessions') ? this.createAgentKey() : 'flow_start_chat'),{type:ButtonType.Capsule})
             .height(PhoneStyle.formSize(60,69.3,this.environment.fontScale)).width('100%').backgroundColor(Colors.action).fontColor(Colors.onAction)
+            .borderWidth(Colors.systemControls ? 0.67 : 0).borderColor(Colors.prominentRim)
             .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
             .enabled(this.canStartAgent()).onClick(() => this.createAgent()).id('agent.create')
         }.width('100%').padding({left:24,right:24,top:7,bottom:this.agentActionBottom()})
@@ -2807,7 +2809,8 @@ struct Index {
   build() {
     Stack() {
     WithTheme({ theme: nativeLookTheme(this.look, this.model.style, this.environment.dark), colorMode: this.environment.dark ? ThemeColorMode.DARK : ThemeColorMode.LIGHT }) {
-    ThemeScope() {
+    ThemeScope({ systemControls: this.look.accentId === 'style' && this.model.style === 'system',
+      selectedAccentInk: deviceLookSelectedFilterInk(this.look.palette(this.model.style), this.environment.dark) }) {
     Stack({alignContent:Alignment.TopStart}) {
       if (this.model.profile.id && !this.wide() && (this.spacesShown || this.drawerMounted)) {
         Column() { this.spacesContent() }.width(this.drawerWidth()).height('100%').backgroundColor(Colors.canvas)

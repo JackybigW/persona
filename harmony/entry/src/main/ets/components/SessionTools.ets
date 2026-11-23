@@ -1460,6 +1460,7 @@ export struct SessionTools {
       Button({type:ButtonType.Capsule}) {
         Text(tr('session_git_commit_action')).fontSize(15).maxFontScale(Tokens.navigationTextMaxScale).fontColor(Colors.onAction)
           .padding({left:12,right:12}).height(this.gitMetric(34.3,41.7,38)).backgroundColor(Colors.action).borderRadius(24)
+          .borderWidth(Colors.systemControls ? 0.67 : 0).borderColor(Colors.prominentRim)
       }.height(this.gitMetric(44,57.7,44)).padding(0)
         .enabled(this.workspace.canWriteGit() && !!Wire.text(this.workspace.gitStatus,'branch') && this.filterCount('staged') > 0)
         .backgroundColor(Color.Transparent).onClick(() => this.openGitSheet('commit')).id('session.git.commit.new')

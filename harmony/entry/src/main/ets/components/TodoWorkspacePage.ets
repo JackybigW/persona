@@ -975,12 +975,15 @@ export struct TodoWorkspacePage {
   @Builder filterMark() {
     Stack() {
       Circle().width(this.phoneMeasure(23,29)).height(this.phoneMeasure(23,29))
-        .fill(this.workspace.dueFilter==='all' && this.workspace.order==='recent' ? Color.Transparent : Colors.link)
-        .stroke(Colors.link).strokeWidth(this.phoneMeasure(1.8,2.3))
+        .fill(this.workspace.dueFilter==='all' && this.workspace.order==='recent' ? Color.Transparent :
+          Colors.systemControls ? $r('app.color.phone_filter_mark_fill') : Colors.action)
+        .stroke(this.workspace.dueFilter==='all' && this.workspace.order==='recent' ? Colors.link :
+          Colors.systemControls ? $r('app.color.phone_filter_mark_fill') : Colors.action).strokeWidth(this.phoneMeasure(1.8,2.3))
       Column({space:this.phoneMeasure(2.1,2.5)}) {
         ForEach([12,8,4],(length:number) => {
           Row().width(this.phoneMeasure(length,length*1.3)).height(this.phoneMeasure(1.6,2.1)).borderRadius(2)
-            .backgroundColor(this.workspace.dueFilter==='all' && this.workspace.order==='recent' ? Colors.link : Colors.onAction)
+            .backgroundColor(this.workspace.dueFilter==='all' && this.workspace.order==='recent' ? Colors.link :
+              Colors.systemControls ? $r('app.color.phone_filter_mark_ink') : Colors.onAction)
         },(length:number) => String(length))
       }
     }.accessibilityLevel('no')
@@ -990,9 +993,11 @@ export struct TodoWorkspacePage {
       Row() {
         ForEach(['list','calendar'],(mode:string) => {
           Button({type:ButtonType.Capsule}) {
-            Text(tr(mode==='list' ? 'phone_todo_list' : 'calendar')).fontSize('13vp').fontColor(Colors.ink)
+            Text(tr(mode==='list' ? 'phone_todo_list' : 'calendar')).fontSize('13vp')
+              .fontColor(mode==='list' && Colors.systemControls ? $r('app.color.phone_filter_segment_ink') : Colors.ink)
               .fontWeight(mode==='list' ? 600 : FontWeight.Normal).maxLines(1)
-          }.height(27).padding({left:8,right:8}).backgroundColor(mode==='list' ? Colors.surface : Color.Transparent)
+          }.height(27).padding({left:8,right:8}).backgroundColor(mode==='list' ?
+            Colors.systemControls ? $r('app.color.phone_filter_segment_fill') : Colors.surface : Color.Transparent)
             .accessibilitySelected(mode==='list').enabled(this.workspace.calendarReady).onClick(() => this.workspace.setCalendar(mode==='calendar')).id('todos.mode.'+mode)
         },(mode:string) => mode)
       }.height(31).padding(2).borderRadius(16).backgroundColor(Colors.control)
@@ -1018,7 +1023,7 @@ export struct TodoWorkspacePage {
             .fontColor(Colors.onAction).maxLines(1)
         }
       }.padding({left:9,right:9}).height(this.phoneMeasure(30,37.3)).constraintSize({minWidth:this.phoneMeasure(70,66.7)})
-        .backgroundColor(Colors.link).accessibilitySelected(true).accessibilityText(tr('phone_todo_clear_filter').replace('{filter}',this.dueFilterLabel(this.workspace.dueFilter)))
+        .backgroundColor(Colors.action).accessibilitySelected(true).accessibilityText(tr('phone_todo_clear_filter').replace('{filter}',this.dueFilterLabel(this.workspace.dueFilter)))
         .onClick(()=>this.workspace.setDueFilter('all')).id('todos.due.clear')
       Button({type:ButtonType.Circle}) { this.filterMark() }
         .width(this.phoneMeasure(44,57.7)).aspectRatio(1).padding(0).backgroundColor(Color.Transparent)

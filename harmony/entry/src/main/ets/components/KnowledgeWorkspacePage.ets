@@ -854,7 +854,9 @@ export struct KnowledgeWorkspacePage {
               .fontColor(Colors.onAction).textAlign(TextAlign.Center).maxLines(1).flexShrink(1).id('recordings.capture.label')
           }.width('100%').justifyContent(FlexAlign.Center)
         }.width('100%').constraintSize({minHeight:meetingCaptureHeight(nativeEnvironment.fontScale, this.recordingPageHeight)})
-          .padding({left:14,right:14,top:6,bottom:6}).backgroundColor(this.recording.canStop() ? Colors.danger : Colors.action).enabled(!this.model.demo && (this.recording.canStart() || this.recording.canStop()))
+          .padding({left:14,right:14,top:6,bottom:6}).backgroundColor(this.recording.canStop() ? Colors.danger : Colors.action)
+          .borderWidth(Colors.systemControls && !this.recording.canStop() ? 0.67 : 0).borderColor(Colors.prominentRim)
+          .enabled(!this.model.demo && (this.recording.canStart() || this.recording.canStop()))
           .onClick(() => {
             if (this.recording.canStop()) this.openRecording().catch(() => undefined);
             else this.requestRecordingStart();
@@ -1105,7 +1107,8 @@ export struct KnowledgeWorkspacePage {
                 .flexShrink(1).id('knowledge.ask.label')
             }.width('100%').justifyContent(FlexAlign.Center)
           }.width('100%').constraintSize({minHeight:PhoneStyle.formSize(50.3,57.7,nativeEnvironment.fontScale)}).margin({top:14})
-            .padding({left:14,right:14}).backgroundColor(Colors.action).accessibilityText(tr('recording_detail_ask'))
+            .padding({left:14,right:14}).backgroundColor(Colors.action).borderWidth(Colors.systemControls ? 0.67 : 0)
+            .borderColor(Colors.prominentRim).accessibilityText(tr('recording_detail_ask'))
             .onClick(() => this.askPersona()).id('knowledge.ask')
         }.width('100%').alignItems(HorizontalAlign.Start).padding({left:4,right:4,bottom:25.7})
         this.entryEvidence()

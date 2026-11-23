@@ -215,12 +215,17 @@ function mix(left: string, right: string, amount: number): string {
 
 function meet(color: string, background: string, floor: number): string {
   if (contrastRatio(color, background) >= floor) return color;
-  const target = background === '#FFFFFF' ? '#000000' : '#FFFFFF';
+  const target = deviceLookAccentText(background);
   for (let step = 1; step <= 100; step++) {
     const candidate = mix(color, target, step / 100);
     if (contrastRatio(candidate, background) >= floor) return candidate;
   }
   return target;
+}
+
+export function deviceLookSelectedFilterInk(palette: DeviceLookPalette, dark: boolean): string {
+  const color = dark ? palette.dark.emphasize : palette.light.emphasize;
+  return meet(color, dark ? '#1F3551' : '#E5EEFC', 4.55);
 }
 
 function readableBubble(fill: string, suppliedText: string | undefined): [string, string] {
@@ -301,7 +306,14 @@ export function deviceLookPalette(accent: string, style: string, avatar: DeviceL
     light: packageColors(style, false, avatar),
     dark: packageColors(style, true, avatar)
   };
-  if (accent === 'style') return { light: styleColors(style, false), dark: styleColors(style, true) };
+  if (accent === 'style') {
+    const light = styleColors(style, false), dark = styleColors(style, true);
+    if (style === 'system') {
+      // Filled controls keep white words at the previous 4.7:1 contrast while following the two system-blue appearances.
+      light.brand = '#006EED'; dark.brand = '#0070E5';
+    }
+    return { light: light, dark: dark };
+  }
   const preset = PRESETS[accent] || PRESETS.blue;
   return {
     light: safeColorSet(preset.light, false),

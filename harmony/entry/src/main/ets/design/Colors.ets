@@ -25,6 +25,11 @@ class NativeColors {
   @Trace onAction: ResourceColor = $r('sys.color.font_on_primary');
   @Trace link: ResourceColor = $r('sys.color.font_emphasize');
   @Trace iconAccent: ResourceColor = $r('sys.color.icon_emphasize');
+  readonly prominentRim: ResourceColor = $r('app.color.phone_prominent_rim');
+  @Trace systemControls: boolean = false;
+  @Trace selectedAccentInk: ResourceColor = $r('sys.color.font_emphasize');
+  @Computed get selectedFilterFill(): ResourceColor { return this.systemControls ? $r('app.color.phone_filter_fill') : this.selection; }
+  @Computed get selectedFilterInk(): ResourceColor { return this.systemControls ? $r('app.color.phone_filter_ink') : this.selectedAccentInk; }
   readonly control: ResourceColor = $r('app.color.persona_control');
   readonly selection: ResourceColor = $r('app.color.persona_selection');
   readonly question: ResourceColor = $r('app.color.persona_question');

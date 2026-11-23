@@ -588,6 +588,15 @@ export struct InboxWorkspacePage {
       .accessibilityText(tr('phone_inbox_grouping_mode').replace('{name}',tr(this.grouping.byTime ? 'phone_inbox_by_time' : 'phone_inbox_by_source')))
       .bindMenu(this.groupingOptions).id('inbox.grouping')
   }
+  private countInk(key: string): ResourceColor {
+    if (Colors.systemControls) return key === 'action' ? $r('app.color.phone_filter_count_ink') : Color.White;
+    return this.workspace.statusFilter === key ? Colors.selectedFilterInk : key === 'action' ? Colors.needs : Colors.secondary;
+  }
+  private countFill(key: string): ResourceColor {
+    if (!Colors.systemControls) return Color.Transparent;
+    if (key !== 'action') return $r('app.color.phone_filter_neutral_count');
+    return this.workspace.statusFilter === key ? $r('app.color.phone_filter_count_fill') : $r('app.color.phone_filter_idle_count_fill');
+  }
   @Builder choiceBar() {
     Scroll() {
       Row({space:4}) {
@@ -595,14 +604,18 @@ export struct InboxWorkspacePage {
           Button({type:ButtonType.Capsule}) {
             Row({space:5}) {
               Text(tr(inboxTierLabel(choice.key))).fontSize(14).maxFontScale(Tokens.navigationTextMaxScale).maxLines(1)
-                .fontWeight(this.workspace.statusFilter === choice.key ? FontWeight.Bold : FontWeight.Medium)
-                .fontColor(this.workspace.statusFilter === choice.key ? Colors.link : Colors.ink).id('inbox.choice.label.' + choice.key)
-              if (choice.count && ['action','working','fyi'].includes(choice.key)) Text(String(choice.count)).fontSize(12)
+                .fontWeight(!Colors.systemControls && this.workspace.statusFilter === choice.key ? FontWeight.Bold : FontWeight.Medium)
+                .fontColor(this.workspace.statusFilter === choice.key ? Colors.selectedFilterInk : Colors.ink).id('inbox.choice.label.' + choice.key)
+              if (choice.count && ['action','working','fyi'].includes(choice.key)) Text(choice.count > 99 ? '99+' : String(choice.count)).fontSize(12)
                 .maxFontScale(Tokens.navigationTextMaxScale).maxLines(1).fontWeight(FontWeight.Bold)
-                .fontColor(this.workspace.statusFilter === choice.key ? Colors.link : choice.key === 'action' ? Colors.needs : Colors.secondary)
-            }
+                .fontColor(this.countInk(choice.key))
+                .textAlign(TextAlign.Center).padding({left:6,right:6}).constraintSize({minWidth:PhoneStyle.formSize(20.3,23,this.environment.fontScale)})
+                .height(PhoneStyle.formSize(17.7,25.7,this.environment.fontScale))
+                .backgroundColor(this.countFill(choice.key)).borderRadius(Tokens.capsule)
+            }.padding({left:8,right:8}).height(PhoneStyle.formSize(26.3,33.7,this.environment.fontScale)).borderRadius(Tokens.capsule)
+              .backgroundColor(this.workspace.statusFilter === choice.key ? Colors.selectedFilterFill : Color.Transparent)
           }.height(PhoneStyle.sidebarMetric(44,this.environment.fontScale))
-            .padding({ left: 12, right: 12, top: 4, bottom: 4 }).backgroundColor(this.workspace.statusFilter === choice.key ? Colors.selection : Color.Transparent)
+            .constraintSize({minWidth:PhoneStyle.sidebarMetric(44,this.environment.fontScale)}).padding(0).backgroundColor(Color.Transparent)
             .accessibilityText([tr(inboxTierLabel(choice.key)),choice.count ? String(choice.count) : ''].filter((v:string) => !!v).join(' · '))
             .accessibilitySelected(this.workspace.statusFilter === choice.key).onClick(() => this.pickChoice(choice.key)).id('inbox.choice.'+choice.key)
         },(choice:InboxQuickFilter) => choice.key + '/' + String(choice.count))

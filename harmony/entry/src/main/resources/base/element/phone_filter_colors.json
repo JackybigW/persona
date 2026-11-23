@@ -1,0 +1,48 @@
+{
+  "color": [
+    {
+      "name": "phone_filter_fill",
+      "value": "#D5E4F8"
+    },
+    {
+      "name": "phone_filter_ink",
+      "value": "#0059C7"
+    },
+    {
+      "name": "phone_filter_count_fill",
+      "value": "#CDDBEF"
+    },
+    {
+      "name": "phone_filter_count_ink",
+      "value": "#0057B5"
+    },
+    {
+      "name": "phone_filter_segment_fill",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "phone_filter_segment_ink",
+      "value": "#000000"
+    },
+    {
+      "name": "phone_filter_mark_fill",
+      "value": "#006EED"
+    },
+    {
+      "name": "phone_filter_mark_ink",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "phone_filter_idle_count_fill",
+      "value": "#E9E9EE"
+    },
+    {
+      "name": "phone_filter_neutral_count",
+      "value": "#636366"
+    },
+    {
+      "name": "phone_prominent_rim",
+      "value": "#008BFC"
+    }
+  ]
+}
