@@ -3184,7 +3184,7 @@ struct Index {
         PhoneMessageLiftHostLayer({content:this.messageLift.current!.content})
       }
     }
-    }.width('100%').height('100%').backgroundColor(Colors.canvas)
+    }.width('100%').height('100%').backgroundColor(this.knowledgeInsetHeight() > 0 ? Colors.grouped : Colors.canvas)
       .bindSheet($$this.readerShown, this.readerContent(), { title: { title: this.readerTitle }, height: Tokens.readerFull, width: Tokens.readerFull, preferType: SheetType.BOTTOM,
         detents: [Tokens.readerFull, Tokens.readerPartial], enableOutsideInteractive: true, showClose: true })
   }
