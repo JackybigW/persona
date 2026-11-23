@@ -1,0 +1,87 @@
+{
+  "appearance": "light",
+  "style": "island",
+  "scene": "agent-chat",
+  "platform": "iPhone",
+  "sourceCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "originalPNGSHA256": "b46c00c812188d6d3f77d2eeb7113fe1b78f8e6a1148c692463ca74be37913e6",
+  "originalAccessibilitySHA256": "c30a1bc2f7a31e32017b7c275ce1013136c0ce771b5fb44ffbe936211c326d8d",
+  "originalPNGBytes": 827744,
+  "originalPixels": [
+    1206,
+    2622
+  ],
+  "recognizedTextLines": 26,
+  "textOrEXIFChunksSHA256": {
+    "eXIf": "bbb6cf9c714327cee2af7e86321c59f76afe1a7552fa75de308d722e0cd53463",
+    "iTXt": "861617ee5fefbed9354987559086a994ffc207a0c9999d379568b0759fd79574"
+  },
+  "controls": [
+    {
+      "id": "chat.title",
+      "role": "Button",
+      "boundsPx": [
+        228,
+        203,
+        978,
+        313
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "检查 PR #42 的改动，查看会话信息"
+    },
+    {
+      "id": "chat.recapStrip",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        1818,
+        1158,
+        2195
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "离开期间回顾：在审 PR #42：逻辑没问题，留了两条命名建议（`fetchAll` → `loadAll`，`tmp` → `cached`）。下一步等作者改完再看一遍，顺便确认新加的重试测试在 CI 上稳定。。点按关闭"
+    },
+    {
+      "id": "shell-composer-add",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        2345,
+        193,
+        2490
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "添加照片或文件"
+    },
+    {
+      "id": "shell-composer-mic",
+      "role": "Button",
+      "boundsPx": [
+        1013,
+        2345,
+        1158,
+        2490
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "听写"
+    },
+    {
+      "id": "shell-composer-field",
+      "role": "TextField",
+      "boundsPx": [
+        217,
+        2387,
+        989,
+        2448
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "给 Claude 发消息"
+    }
+  ],
+  "scope": "Application-owned landmarks from the original native hierarchy. Bounds are physical pixels of the reference screenshot."
+}

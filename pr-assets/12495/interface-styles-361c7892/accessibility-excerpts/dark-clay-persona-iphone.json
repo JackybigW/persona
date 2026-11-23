@@ -1,0 +1,203 @@
+{
+  "appearance": "dark",
+  "style": "clay",
+  "scene": "persona",
+  "platform": "iPhone",
+  "sourceCommit": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "originalPNGSHA256": "2b9bc26987059e0990a6ab803622090a622ad33ed922a786358ccdda9c7b0e1e",
+  "originalAccessibilitySHA256": "13b70fd7dd3dc8fc1b851a595cc04e4b269e7b6b4304756a9264df255971914d",
+  "originalPNGBytes": 607594,
+  "originalPixels": [
+    1206,
+    2622
+  ],
+  "recognizedTextLines": 33,
+  "textOrEXIFChunksSHA256": {
+    "eXIf": "bbb6cf9c714327cee2af7e86321c59f76afe1a7552fa75de308d722e0cd53463",
+    "iTXt": "861617ee5fefbed9354987559086a994ffc207a0c9999d379568b0759fd79574"
+  },
+  "controls": [
+    {
+      "id": "question-dock.previous",
+      "role": "Button",
+      "boundsPx": [
+        870,
+        886,
+        1002,
+        1018
+      ],
+      "enabled": false,
+      "selected": false,
+      "accessibilityLabel": "上一张"
+    },
+    {
+      "id": "question-dock.next",
+      "role": "Button",
+      "boundsPx": [
+        1026,
+        886,
+        1158,
+        1018
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "下一张"
+    },
+    {
+      "id": "question-dock.position",
+      "role": "StaticText",
+      "boundsPx": [
+        282,
+        928,
+        368,
+        976
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "1 / 5"
+    },
+    {
+      "id": "chat.card.ix_photos",
+      "role": "Other",
+      "boundsPx": [
+        34,
+        982,
+        1172,
+        2162
+      ],
+      "enabled": true,
+      "selected": false
+    },
+    {
+      "id": "interaction-grabber",
+      "role": "Button",
+      "boundsPx": [
+        60,
+        982,
+        1146,
+        1078
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "卡片高度"
+    },
+    {
+      "id": "interaction-source",
+      "role": "Button",
+      "boundsPx": [
+        525,
+        1049,
+        690,
+        1144
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "看原文"
+    },
+    {
+      "id": "interaction-menu",
+      "role": "Button",
+      "boundsPx": [
+        936,
+        1054,
+        1020,
+        1138
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "更多"
+    },
+    {
+      "id": "action-bar.to-decide",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        2220,
+        333,
+        2303
+      ],
+      "enabled": true,
+      "selected": true,
+      "accessibilityLabel": "待选择、5"
+    },
+    {
+      "id": "action-bar.needs-you",
+      "role": "Button",
+      "boundsPx": [
+        357,
+        2220,
+        623,
+        2303
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "要你处理、4"
+    },
+    {
+      "id": "action-bar.running",
+      "role": "Button",
+      "boundsPx": [
+        647,
+        2220,
+        900,
+        2303
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "进行中、15"
+    },
+    {
+      "id": "action-bar.finished",
+      "role": "Button",
+      "boundsPx": [
+        924,
+        2220,
+        1151,
+        2303
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "已完成、1"
+    },
+    {
+      "id": "shell-composer-add",
+      "role": "Button",
+      "boundsPx": [
+        48,
+        2345,
+        193,
+        2490
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "添加照片或文件"
+    },
+    {
+      "id": "shell-composer-mic",
+      "role": "Button",
+      "boundsPx": [
+        1013,
+        2345,
+        1158,
+        2490
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "听写"
+    },
+    {
+      "id": "shell-composer-field",
+      "role": "TextField",
+      "boundsPx": [
+        217,
+        2387,
+        989,
+        2448
+      ],
+      "enabled": true,
+      "selected": false,
+      "accessibilityLabel": "问 Persona"
+    }
+  ],
+  "scope": "Application-owned landmarks from the original native hierarchy. Bounds are physical pixels of the reference screenshot."
+}
