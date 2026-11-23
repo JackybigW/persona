@@ -134,6 +134,7 @@ struct Index {
   @Local chatMenuActions: ChatActionEntry[] = [];
   @Local chatTitleMenuVisible: boolean = false;
   @Local activityRow: ResourceRow | undefined = undefined;
+  @Local activityVisible: boolean = false;
   @Local chatBodyMenuVisible: boolean = false;
   @Local chatMenuRevision: number = 0;
   private routeRevision: number = 0;
@@ -383,11 +384,13 @@ struct Index {
   }
   private openActivity(): void {
     const row = this.model.mainActivityRow();
-    if (row) this.activityRow = row;
+    if (!row) return;
+    this.activityRow = row;
+    this.activityVisible = true;
   }
   @Builder backgroundActivitySheet() {
     if (this.activityRow) {
-      PhoneBackgroundActivity({ model: this.model, row: this.activityRow, onClose: () => { this.activityRow = undefined; } })
+      PhoneBackgroundActivity({ model: this.model, row: this.activityRow, onClose: () => { this.activityVisible = false; } })
     }
   }
   @Builder allChatsSheet() {
@@ -2951,9 +2954,9 @@ struct Index {
         onAppear: () => { this.spacesLayoutReady = true; this.measureSpaces(); }, onDisappear: () => { this.spacesLayoutReady = false; if (this.wide()) this.spacesShown = false; } })
     }
     }
-    Column().width(0).height(0).bindSheet(!!this.activityRow, this.backgroundActivitySheet(), {
+    Column().width(0).height(0).bindSheet($$this.activityVisible, this.backgroundActivitySheet(), {
       height: SheetSize.LARGE, preferType: SheetType.BOTTOM, dragBar: true, showClose: false,
-      onDisappear: () => { this.activityRow = undefined; } })
+      onDisappear: () => { this.activityVisible = false; this.activityRow = undefined; } })
     Column().width(0).height(0).bindSheet(this.chatForward.isChoosing(this.detailModel),this.forwardPickerContent(),{
       height:forwardRestingDetent,detents:[forwardRestingDetent,SheetSize.LARGE],
       detentSelection:this.chatForward.expanded ? SheetSize.LARGE : forwardRestingDetent,
