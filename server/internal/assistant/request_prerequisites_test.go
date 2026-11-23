@@ -181,11 +181,14 @@ func TestRequestPrerequisitesMissingCancelledAndLegacy(t *testing.T) {
 }
 
 func TestRequestPrerequisitesUnconfirmedStartNeverReplays(t *testing.T) {
-	// The fake loses the reply after receiving session.start. Queue preparation and its database reads
-	// need the normal dispatch budget so the test actually reaches the fake before observing the claim.
-	dispatchBudget := taskStartTimeout
 	shortTaskStartReconcile(t)
-	taskStartTimeout = dispatchBudget
+	// The start fails at once on the fake hub (failStart below), so nothing here waits for the start's budget. The
+	// budget still covers what the start reads before the hub: the task's model record from Postgres. 100 ms (the
+	// helper's) was not always enough with the package's partitions sharing one server, and a start that fails there
+	// never reaches the hub, so the unconfirmed launch this test is about never happens (#13557).
+	shortBudget := taskStartTimeout
+	taskStartTimeout = 2 * time.Second
+	t.Cleanup(func() { taskStartTimeout = shortBudget })
 	database := todoTestDB(t)
 	env := newTodoEnv(t, database)
 	ctx := context.Background()
