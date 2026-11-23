@@ -88,6 +88,10 @@ export struct MarkdownText {
     if (this.recapProse) return String(recapGlyphSize(this.readingPoints(Tokens.body), han)) + 'vp';
     return han ? String(this.agentHanVp) + 'vp' : undefined;
   }
+  private recapTopInset(): number {
+    // The smaller display face loses 5 vp of intrinsic first-line ascent at the largest reading size.
+    return Math.max(0, this.readingPoints(Tokens.body) - Tokens.body) * 5 / (48 - Tokens.body);
+  }
   private headingSize(level: number): number {
     if (this.chatReply) {
       if (level === 1) return Math.round(Tokens.body * 1.3);
@@ -165,7 +169,7 @@ export struct MarkdownText {
   @Builder blockView(block: MarkdownBlock, first: boolean = false) {
     if (block.kind === 'paragraph') {
       this.inlineText(block.inlines, this.paragraphLineSpacingEm, Tokens.body, FontWeight.Normal,
-        TextAlign.Start, this.recapProse && hasHanProse(block.inlines), false, this.recapProse)
+        TextAlign.Start, false, false, this.recapProse)
     } else if (block.kind === 'heading') {
       Column() {
         this.inlineText(block.inlines, 0.26, this.headingSize(block.level),
@@ -271,5 +275,6 @@ export struct MarkdownText {
       },
         (block: MarkdownBlock, index: number) => 'block.' + String(index) + ':' + JSON.stringify(block))
     }.width(this.fitContent ? undefined : '100%').alignItems(HorizontalAlign.Start)
+      .padding({ top: this.recapProse ? this.recapTopInset() : 0 })
   }
 }
