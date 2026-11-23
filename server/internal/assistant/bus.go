@@ -162,8 +162,11 @@ func NewBusHub(o BusOptions) *BusHub {
 			if reviewEnabled {
 				capabilities = append(capabilities, assistantwire.CapabilityProjectReview)
 			}
+			b.mu.Lock()
+			svc := b.svc
+			b.mu.Unlock()
 			params := map[string]any{"id": id, "host": host, "os": runtime.GOOS, "arch": runtime.GOARCH,
-				"deploy": o.Deploy, "version": o.Version, "capabilities": capabilities, "project_review_app_inputs": reviewAppInputs}
+				"deploy": o.Deploy, "version": o.Version, "capabilities": withRecording(capabilities, svc), "project_review_app_inputs": reviewAppInputs}
 			if o.Features != nil {
 				if features := o.Features(); len(features) > 0 {
 					params["features"] = features

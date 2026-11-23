@@ -742,6 +742,13 @@ A `ReadinessCard` with `choices` puts those choices in the shared measured `Stac
 
 **Place map card** (iOS, #5543, `PlaceMapCard`): a quick result like the added-reminder card (`QuickResultCard`): the same `Fill.well` and `Radius.card`, under the turn's work line, with the tool calls still folded (super rule 2). On top, a still map `Size.chatMap` tall (160, scaled), made by `MKMapSnapshotter` off the main thread for the card's size and appearance and cached (bound 24); while it is made the well's fill holds the same height, so nothing below moves. Places carry `CountBadge` numbers on the accent in the order the tool returned them, which is the order the answer counts in; the phone's own fix is an accent dot. Under the map, the first three places as rows (number, name in `secondaryStrong`, distance and address in `caption`) with an icon-only Directions button (`Icon.directions`, 44 pt target, spoken "Directions to <place>"), then "N more on the map". Tapping the map opens a sheet with a live `Map`, the same numbers as `Marker` monograms, every place's row and Done. Why a new card: no existing component shows places, and a live map in the chat would redraw while scrolling (`docs/apple/performance.md`, P8). No setting; nothing is drawn for a failed, empty or running call. **Hand-off** (#5545): directions `phone_maps_navigate` opened in Apple Maps are the same card with one place, the destination: on the map a white `Icon.place` in an accent circle (the accent dot stays the phone's own fix), and one row with Maps' app icon (`BrandMark`, `Brand.iosMaps`, as Settings › Connectors draws it), the destination's name, the mode and "Opened in Maps" in `caption`, and the icon-only button (`Icon.directions`, spoken "Open directions to <place> in Maps") that opens the same directions in the same mode again. Nothing opens Maps without a tap, and the words say Maps navigates, not Persona. **Route** (#5544): a route `phone_maps_route` worked out is the same card with the destination: on the map the route's line in the accent (`Size.barWide`, round caps and joins) from the phone's accent dot to the destination's mark, the same line as a `MapPolyline` in the sheet with the same accent dot (an `Annotation` titled "Start") where it begins, since the phone may have moved since; one row with `Icon.place`, the destination and "Walking · 6 min · 420 m" in `caption`, and under it a full-width prominent "Start in Maps" button (`Icon.directions`, `labelStrong`, one line that scales down rather than wraps, spoken "Start directions to <place> in Maps") that hands the route to Maps in its mode (#6177). It is labeled, not icon-only like Directions and the hand-off's button, because starting the route is what the card is for. Transit has no line (Apple Maps gives apps none), only the destination with its time and distance.
 
+The iPhone/iPad Health water-extension migration (#13636) reuses `NoticeBanner` above Today,
+with unrestricted body lines and one single-line, tap-target-sized action. The notice states
+what moves and what turns off, including the Android page, before the person chooses.
+The existing intake busy state disables the action and shows Moving into Health while the
+request runs. Success uses the shared result toast with the count and replacement reminder;
+failure keeps the notice and shows the reason in the shared error toast. No card in demo mode.
+
 #### Adaptive card grids
 
 Machine cards use one adaptive row grid on iOS and Android. Measure the actual pane's available content width after page and reading insets, never the physical display or a device-model bucket. With minimum column `cardColumn` 330 and gap `Space.m`, the column count is `floor((contentWidth + gap) / (cardColumn + gap))`, clamped to at least one; insufficient space stays one column instead of squeezing a card. Android inserts one weighted row at a time into the page's existing lazy list, keyed by that row's stable machine ids, rather than nesting a second scrolling grid. Empty slots in a short last row keep their weights. Cards in a row have equal height and their charts align at the bottom. Reordering is a separate concern projection: equal ranks retain source order, so heartbeat and sample changes at the same severity do not move rows or reset reading position.
@@ -3783,9 +3790,9 @@ summary card (contract: `docs/assistant/meeting-minutes.md` "Summary card (#6563
 pixel for pixel. Reason: where the meeting landed and each workstream's state are what a reader looks for first, and
 the flat Key points / Decisions lists made them read every line (principle 2).
 
-- **Where.** `web/src/lib/minutes-overview.ts` reads the overview on its own (`minutesOverview`, the contract's
+- **Where.** `web/src/modules/recording/minutes-overview.ts` reads the overview on its own (`minutesOverview`, the contract's
   "Clients" cleaning) and finds the bold places (`boldParts`); `RecordingMinutes.tsx` chooses the layout once, when the
-  minutes change (a bullet left after cleaning), never while drawing; `web/src/views/knowledge/MinutesOverview.tsx` draws it.
+  minutes change (a bullet left after cleaning), never while drawing; `web/src/modules/recording/MinutesOverview.tsx` draws it.
 - **Card.** Still one `Card` in the recording page's column. Its first child holds the headline (or the minutes' title)
   as the h3 in `text-card-title`, when · where · attendees on one line in `text-label` `--ink-2` (the dots are read out
   too, so a screen reader keeps the facts apart), the partial note,
@@ -3816,7 +3823,7 @@ the flat Key points / Decisions lists made them read every line (principle 2).
   an empty cell. The reading order runs row by row.
 - **Text size.** Every size is a named one (`text-card-title`, `text-meta`, `text-label`); the card's own marks, tiles
   and icons are sized in `em` and `--minutes-card-min` follows `--text-scale`, so they grow with the page's text.
-- **Tokens** in `web/src/views/knowledge/minutes-overview.css`, which loads with the Knowledge page: as Tailwind
+- **Tokens** in `web/src/modules/recording/minutes-overview.css`, which loads with the recording module (web/src/modules/recording) when a recording opens: as Tailwind
   utilities in `web/src/styles.css` they added 325 B to every language's first screen (`FIRST_SCREEN_BUDGET`) for a page
   most visits never open, so the card's tokens and its few own rules (the tints by `data-minutes-tint`, the grid, the em
   sizes) live there, as `web/src/ui/share-tokens.css` does for sharing; everything else is the usual utilities. Checked in
@@ -3842,7 +3849,7 @@ the flat Key points / Decisions lists made them read every line (principle 2).
   `send`, performance `gauge`, metrics `chart`, tooling `tool`, quality `shield`, design `layers`, people `users`,
   customer `person`, budget `money`, risk `shieldAlert`, general `list`.
 - **Copy** sends the hub's `markdown`, as it always did.
-- Checks: `web/src/lib/minutes-overview.test.ts` (the cleaning, `boldParts` and the shared
+- Checks: `web/src/modules/recording/minutes-overview.test.ts` (the cleaning, `boldParts` and the shared
   `spec/fixtures/minutes-overview/cases.json`), `RecordingMinutes.test.tsx` (order, heading levels, fallback, the fold,
   to-dos, Copy, the trim), `RecordingPhotos.test.tsx` (a cited photo after the trim) and `web/e2e/recording-minutes.mjs`
   (en, zh-Hans and ja at 1440 and 390, light and dark; the Large text size and a 1440 window at 200% zoom; a card
