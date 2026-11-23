@@ -79,9 +79,9 @@ export function waitingAgentBadge(rows: ResourceRow[], todos: ResourceRow[], car
       excluded.add(key);
     }
   }
-  for (const [key, parent] of parents) {
+  parents.forEach((parent: string, key: string): void => {
     if (parent && parents.has(parent)) waiting.delete(key);
-  }
+  });
 
   const active = new Set<string>();
   const held = new Set<string>();
