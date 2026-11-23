@@ -8431,6 +8431,46 @@
     {
       "name": "phone_alarm_day_sun",
       "value": "周日"
+    },
+    {
+      "name": "phone_health_reports",
+      "value": "健康"
+    },
+    {
+      "name": "phone_search_alias_phone_health_reports",
+      "value": "健康 运动 报告 Apple 健康"
+    },
+    {
+      "name": "phone_auto_workout_reports",
+      "value": "运动后自动生成报告"
+    },
+    {
+      "name": "phone_workout_access",
+      "value": "运动记录读取权限"
+    },
+    {
+      "name": "phone_workout_granted",
+      "value": "已授权"
+    },
+    {
+      "name": "phone_workout_not_granted",
+      "value": "尚未授权"
+    },
+    {
+      "name": "phone_workout_unavailable",
+      "value": "本设备未提供华为健康服务。"
+    },
+    {
+      "name": "phone_workout_unknown",
+      "value": "健康服务暂时无法核验此应用的运动读取权限。"
+    },
+    {
+      "name": "phone_workout_check",
+      "value": "重新检查权限"
+    },
+    {
+      "name": "phone_workout_access_note",
+      "value": "这里核验 Persona 的读取权限，运动记录保留在设备上。"
     }
   ]
 }

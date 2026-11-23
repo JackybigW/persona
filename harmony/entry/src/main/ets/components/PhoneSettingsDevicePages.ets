@@ -6,6 +6,7 @@ import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
 import { ClientModel } from '../models/ClientModel';
 import { HubProfile } from '../models/Wire';
+import { workoutAccess } from '../platform/PhoneWorkoutAccess';
 import { screenScrollPreference, ScreenScrollPreference } from '../platform/ScreenScrollPreference';
 import { screenScrollChoices } from '../core/ScreenWheel';
 import { LicenseNotices } from './LicenseNotices';
@@ -25,10 +26,21 @@ export struct PhoneSettingsDevicePages {
   @Local licenses:boolean=false;
   @Local screenScroll:ScreenScrollPreference=screenScrollPreference;
   private active:boolean=false;
+  private healthRevision:number=0;
+  @Local workoutState:string='';
+  @Local workoutCode:number=0;
   aboutToAppear():void { this.active=true;this.load(); }
-  aboutToDisappear():void { this.active=false; }
+  aboutToDisappear():void {this.active=false;this.healthRevision++;}
   @Monitor('page') changed():void { this.load(); }
   private async load():Promise<void> {
+    const healthRevision=++this.healthRevision;
+    if (this.page==='phone_health_reports') {
+      this.workoutState='';this.workoutCode=0;
+      const answer=await workoutAccess();
+      if (this.active && this.page==='phone_health_reports' && healthRevision===this.healthRevision) {
+        this.workoutState=answer.state;this.workoutCode=answer.code;
+      }
+    }
     if (this.page==='phone_live_screen') this.screenScroll.load(this.getUIContext().getHostContext());
     if (this.page==='about') {
       try {
@@ -68,6 +80,17 @@ export struct PhoneSettingsDevicePages {
           this.info(tr('phone_settings_build'),this.buildNumber || tr('unknown'))
           this.action(tr('diagnostics'),'settings.about.diagnostics',()=>this.onOpen('diagnostics'))
           this.action(tr('open_source_licenses'),'settings.about.licenses',()=>{this.licenses=true;})
+        } else if (this.page==='phone_health_reports') {
+          this.info(tr('phone_auto_workout_reports'),tr('ks_off'))
+          Column() {
+          if (!this.workoutState) LoadingProgress().height(28).width(28)
+          else if (this.workoutState==='granted' || this.workoutState==='not_granted') {
+            this.info(tr('phone_workout_access'),tr('phone_workout_'+this.workoutState))
+          } else { Text(tr('phone_workout_'+this.workoutState)+(this.workoutCode ? ' ('+this.workoutCode+')':''))
+            .fontSize(15).fontColor(Colors.secondary).width('100%').padding(16) }
+          }.width('100%').id('settings.health.access.'+(this.workoutState || 'checking'))
+          Text(tr('phone_workout_access_note')).fontSize(13).fontColor(Colors.secondary).padding(16)
+          this.action(tr('phone_workout_check'),'settings.health.check',()=>{this.load();})
         } else if (this.page==='phone_live_screen') {
           Text(tr('phone_screen_scroll_speed')).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Colors.secondary).padding(12)
           ForEach(screenScrollChoices,(choice:string)=>{

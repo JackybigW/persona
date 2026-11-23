@@ -8427,6 +8427,46 @@
     {
       "name": "phone_alarm_day_sun",
       "value": "Sun"
+    },
+    {
+      "name": "phone_health_reports",
+      "value": "Health"
+    },
+    {
+      "name": "phone_search_alias_phone_health_reports",
+      "value": "health workout report Apple Health"
+    },
+    {
+      "name": "phone_auto_workout_reports",
+      "value": "Automatic workout reports"
+    },
+    {
+      "name": "phone_workout_access",
+      "value": "Workout record access"
+    },
+    {
+      "name": "phone_workout_granted",
+      "value": "Allowed"
+    },
+    {
+      "name": "phone_workout_not_granted",
+      "value": "Not granted"
+    },
+    {
+      "name": "phone_workout_unavailable",
+      "value": "Huawei Health Service is unavailable on this device."
+    },
+    {
+      "name": "phone_workout_unknown",
+      "value": "The health service could not verify this app’s workout access."
+    },
+    {
+      "name": "phone_workout_check",
+      "value": "Check access again"
+    },
+    {
+      "name": "phone_workout_access_note",
+      "value": "This check reads Persona’s permission status. Your workout records stay on the device."
     }
   ]
 }

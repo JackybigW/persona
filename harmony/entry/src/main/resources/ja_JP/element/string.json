@@ -8431,6 +8431,46 @@
     {
       "name": "phone_alarm_day_sun",
       "value": "日"
+    },
+    {
+      "name": "phone_health_reports",
+      "value": "ヘルスケア"
+    },
+    {
+      "name": "phone_search_alias_phone_health_reports",
+      "value": "ヘルスケア ワークアウト レポート Apple ヘルスケア"
+    },
+    {
+      "name": "phone_auto_workout_reports",
+      "value": "ワークアウトレポートを自動生成"
+    },
+    {
+      "name": "phone_workout_access",
+      "value": "ワークアウト記録の読み取り権限"
+    },
+    {
+      "name": "phone_workout_granted",
+      "value": "許可済み"
+    },
+    {
+      "name": "phone_workout_not_granted",
+      "value": "未許可"
+    },
+    {
+      "name": "phone_workout_unavailable",
+      "value": "この端末では Huawei ヘルスサービスを利用できません。"
+    },
+    {
+      "name": "phone_workout_unknown",
+      "value": "ヘルスサービスで、このアプリのワークアウト読み取り権限を確認できませんでした。"
+    },
+    {
+      "name": "phone_workout_check",
+      "value": "権限を再確認"
+    },
+    {
+      "name": "phone_workout_access_note",
+      "value": "ここでは Persona の読み取り権限を確認します。ワークアウト記録は端末に保存されます。"
     }
   ]
 }
