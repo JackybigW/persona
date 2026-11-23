@@ -415,6 +415,11 @@ struct Index {
             MenuItem({content:tr(value === 'needsYou' ? 'needs_you' : value === 'unread' ? 'agent_group_unread' : value)})
               .selected(this.agentWorkspace.quickFilter === value).selectIcon(true).onClick(() => this.agentWorkspace.setQuickFilter(value))
           },(value:string) => value)
+          ForEach(['avatar','compact','cards','list'],(mode:string) => {
+            MenuItem({content:tr('phone_agent_display_'+mode)})
+              .selected(this.look.agentDisplay === mode).selectIcon(true)
+              .onClick(() => { this.look.setAgentDisplay(mode); }).id('shell.agents.display.'+mode)
+          },(mode:string) => mode)
         }
         MenuItem({content:tr('search_sessions')}).onClick(() => this.showAllChats(true))
       }
