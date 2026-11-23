@@ -1,0 +1,145 @@
+[
+  {
+    "id": "sheet-close",
+    "role": "Button",
+    "boundsPoints": [
+      24.7,
+      82.0,
+      26.7,
+      36.0
+    ],
+    "label": "关闭"
+  },
+  {
+    "id": "background-activity-page",
+    "role": "Other",
+    "boundsPoints": [
+      0.0,
+      132.0,
+      402.0,
+      708.0
+    ],
+    "label": ""
+  },
+  {
+    "id": "supervision-record",
+    "role": "Button",
+    "boundsPoints": [
+      16.0,
+      101.3,
+      370.0,
+      27.7
+    ],
+    "label": "已在后台处理"
+  },
+  {
+    "id": "supervision-input",
+    "role": "StaticText",
+    "boundsPoints": [
+      32.0,
+      157.0,
+      51.7,
+      15.7
+    ],
+    "label": "督办输入"
+  },
+  {
+    "id": "supervision-input",
+    "role": "StaticText",
+    "boundsPoints": [
+      32.0,
+      180.7,
+      261.0,
+      18.0
+    ],
+    "label": "检查示例任务的进展，不需要用户处理。"
+  },
+  {
+    "id": "work-head",
+    "role": "Button",
+    "boundsPoints": [
+      16.0,
+      226.7,
+      99.0,
+      15.7
+    ],
+    "label": "收起过程"
+  },
+  {
+    "id": "dispatch.task.todo_task_release",
+    "role": "Button",
+    "boundsPoints": [
+      16.0,
+      1366.3,
+      370.0,
+      64.0
+    ],
+    "label": "整理发布说明、已在运行、还没有动静、·、工作中、正在开"
+  },
+  {
+    "id": "exchange.routed",
+    "role": "Other",
+    "boundsPoints": [
+      16.0,
+      1446.3,
+      338.0,
+      64.0
+    ],
+    "label": ""
+  },
+  {
+    "id": "exchange.header",
+    "role": "Button",
+    "boundsPoints": [
+      16.0,
+      1446.3,
+      160.3,
+      15.7
+    ],
+    "label": "Persona → @整理发布说明"
+  },
+  {
+    "id": "exchange.text",
+    "role": "StaticText",
+    "boundsPoints": [
+      32.0,
+      1478.0,
+      234.7,
+      20.3
+    ],
+    "label": "Continue the synthetic checks."
+  },
+  {
+    "id": "exchange.text",
+    "role": "Other",
+    "boundsPoints": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "label": ""
+  },
+  {
+    "id": "answered-line",
+    "role": "Button",
+    "boundsPoints": [
+      16.0,
+      1526.3,
+      315.7,
+      27.7
+    ],
+    "label": "整理发布说明、· Approved by the assistant."
+  },
+  {
+    "id": "answered-detail",
+    "role": "StaticText",
+    "boundsPoints": [
+      12.0,
+      1538.0,
+      214.3,
+      69.7
+    ],
+    "label": "Run the synthetic checks?、Approved by the assistant."
+  }
+]

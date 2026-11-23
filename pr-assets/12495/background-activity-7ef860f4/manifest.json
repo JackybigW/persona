@@ -1,0 +1,185 @@
+{
+  "harmonySource": "7ef860f483d2b9c9113063ee3080a3393d6892a4",
+  "iPhoneSource": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "visualHapSHA256": "4c88ef149633c033e327f925d179f5bad749dd519abba5fddab2953a711b79c7",
+  "installableHapSHA256": "5bc4910c784f2537d29a887cb67d4a1cd555a4ee8caeefe82cdd606b5fd7a1e2",
+  "width": 402,
+  "pixels": [
+    1206,
+    2622
+  ],
+  "fixtureSHA256": "ce439b164bfa60af823a4cdbc55fce0687ec7b828065f68a029e87fa41a0a868",
+  "fixtureFeatures": {
+    "MOCK_TASKS": "1",
+    "MOCK_SUPERVISION": "1"
+  },
+  "sourceTestRuns": {
+    "inbox": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "entry": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "sameInboxOnClose": true,
+  "readOrSendCounterChangesWhileInspecting": 0,
+  "nativePages": [
+    {
+      "state": "collapsed-light",
+      "iPhone": {
+        "png": "iPhone/collapsed-light.png",
+        "pngSHA256": "99002b7c72a10ce4a7b8cd939d37645130d54f95a806d9f6fb6d534cd465d89d",
+        "sourceAXSHA256": "5edf99967b355df2d159c14692bae1b11061fb8ab0b87f68cf2ca24959bec8f4",
+        "controls": "iPhone/collapsed-light.controls.json",
+        "controlsSHA256": "003e7dc61b26dd1f70e044747a082b77a5291a56a9796e40971cd5f9c51c73db"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/collapsed-light.png",
+        "pngSHA256": "53425c6667eb9001ff335e5e9bb51c4ac532e2a41a029af95ca004cd1dd7ff76",
+        "sourceAXSHA256": "c7b8f9075982fe3a323200960f55945b7156201915efa110b37de5417d02f8b0",
+        "controls": "HarmonyOS/collapsed-light.controls.json",
+        "controlsSHA256": "f1d2a6d0b4e403208a20bd1ac39170361828cdad6c88c71c6c2bf091578e2acd"
+      }
+    },
+    {
+      "state": "collapsed-dark",
+      "iPhone": {
+        "png": "iPhone/collapsed-dark.png",
+        "pngSHA256": "d8e3581eba2325cc1df01a8dceca8fd84afbc82282e2c25b46b79ee3f6d410ae",
+        "sourceAXSHA256": "01f827ee51da29c7da8b987dca1e4587f423e5fb5d7f74b9e6910c859f15f40c",
+        "controls": "iPhone/collapsed-dark.controls.json",
+        "controlsSHA256": "003e7dc61b26dd1f70e044747a082b77a5291a56a9796e40971cd5f9c51c73db"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/collapsed-dark.png",
+        "pngSHA256": "d2416629c41901c0ff5dd4cf90eb1daa462a3203a320908b0fa5f8c89fc31834",
+        "sourceAXSHA256": "e5a2ebba4611095d9589a423ed8fb5c6583f6b4a3ecfe9a71b1c8de905f815da",
+        "controls": "HarmonyOS/collapsed-dark.controls.json",
+        "controlsSHA256": "f1d2a6d0b4e403208a20bd1ac39170361828cdad6c88c71c6c2bf091578e2acd"
+      }
+    },
+    {
+      "state": "answered",
+      "iPhone": {
+        "png": "iPhone/answered.png",
+        "pngSHA256": "f725fb1d54d5fb4ce466593a662611e61c0af983ba5b40422bc9d30f1eb722c6",
+        "sourceAXSHA256": "7f542c009547bf7d9fda46da609da67f2e9e604c313fb7900177cf993b321ec4",
+        "controls": "iPhone/answered.controls.json",
+        "controlsSHA256": "2d23e9c243c040a8374533781b0ba4695f025cc235c54dd7896d24f56c184a7d"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/answered.png",
+        "pngSHA256": "d786162efb4b90c0081437bf8930fede53b87fabe23adea9afc6edd9c4b02f66",
+        "sourceAXSHA256": "01675d8598e7222d3ff19650da411fe06f52c76a37660ac91deae90d416f5de7",
+        "controls": "HarmonyOS/answered.controls.json",
+        "controlsSHA256": "692f363acfaf5fe060c51eb4aeadf289e051c97eb63cf540a7dd63eac87d466f"
+      }
+    },
+    {
+      "state": "expanded-work",
+      "iPhone": {
+        "png": "iPhone/expanded-work.png",
+        "pngSHA256": "e7c0596361f38b2a0f138ef2f2e8a7080d218682ebb88d29f3a4d1154f760831",
+        "sourceAXSHA256": "df7b41ef5cd9314ca69d220d75438d0193ca8ca9f494366217177a8a4946bc21",
+        "controls": "iPhone/expanded-work.controls.json",
+        "controlsSHA256": "80a1a00b85ba17251ec9a1f83535648ebd2ad56905c505c9ea251d02965ad8cd"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/expanded-work.png",
+        "pngSHA256": "1bf68a2df7c1088fe71dee714df1ec98d964bfd987ba38e8a135f8bbc5144b71",
+        "sourceAXSHA256": "1cc49b0e39c06961ceb29334a2f1a04aed4f6ce6392841da07f223ab40a6495f",
+        "controls": "HarmonyOS/expanded-work.controls.json",
+        "controlsSHA256": "0e9d5606d91fd1d777425a7200a40cdbcbf3a20085eaeb613c9fc86c1df0cf9f"
+      }
+    },
+    {
+      "state": "expanded-work-dark",
+      "iPhone": {
+        "png": "iPhone/expanded-work-dark.png",
+        "pngSHA256": "5fb489d7b01260bbc0b9babb361bb76073314bfe7efb442707a195433a13e203",
+        "sourceAXSHA256": "09b9fdb9ac88864552a662244394365b30cc61feb37d28da4f43504d24c57ff4",
+        "controls": "iPhone/expanded-work-dark.controls.json",
+        "controlsSHA256": "70ecca44e60418f0fe2373f2d2accca56775657005e160600e8656312064b9b1"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/expanded-work-dark.png",
+        "pngSHA256": "1d02ff98778979d91d9321b25f38e065c7252c418e2d9269031637c33ea5a253",
+        "sourceAXSHA256": "97702d56d4a6384f9db793403552a56609e49f00ff0830b8f2f2b06816c51009",
+        "controls": "HarmonyOS/expanded-work-dark.controls.json",
+        "controlsSHA256": "0e9d5606d91fd1d777425a7200a40cdbcbf3a20085eaeb613c9fc86c1df0cf9f"
+      }
+    },
+    {
+      "state": "main-menu",
+      "iPhone": {
+        "png": "iPhone/main-menu.png",
+        "pngSHA256": "d51ab09d5446a83c4ae65873be4b8edd01c197cd6ee7f16f0eeb4cc41392d33a",
+        "sourceAXSHA256": "67e0bbbe053067089e56ec507ffe3aa60a8939ae648ce2dc3dc46db56bb30777",
+        "controls": "iPhone/main-menu.controls.json",
+        "controlsSHA256": "e5420eb846c39e5ac10d752b2fa73ae58d76b37a0d0f6145534d3ccfa1e3c6a3"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/main-menu.png",
+        "pngSHA256": "4d320c86c4c3e24d628fd8c4242e95400b93d4c7cf78f906f849273ba893767a",
+        "sourceAXSHA256": "a29206d7a23205a2a8b580e844500fb557684754188a7c3429d7bd4c9ecb0fc8",
+        "controls": "HarmonyOS/main-menu.controls.json",
+        "controlsSHA256": "e5cc84b83f57803bebf58800b45f721e7a36aed41502c0f828778c4f19f7fd9f"
+      }
+    },
+    {
+      "state": "main-activity",
+      "iPhone": {
+        "png": "iPhone/main-activity.png",
+        "pngSHA256": "7385816a1514c41f12fad84fb7d9667ed93c04fbc0769363de13b0e6078f0c84",
+        "sourceAXSHA256": "09f7258d01cc333167d855984cb309437d6b3cf8be02ac0e44fe3ddbb995b141",
+        "controls": "iPhone/main-activity.controls.json",
+        "controlsSHA256": "b69ec8555130772ea4fe87196dd4ad0d55ef2c6bd8e8beac21c1810e7e6ff3ba"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/main-activity.png",
+        "pngSHA256": "bdc080e85d6943dc524e7af3dec779f65f97e10b716322f9b114a161237172eb",
+        "sourceAXSHA256": "a218f69189bab4ad379753c5d37b476ba5b3d3989d1954095c5bdff708ab129c",
+        "controls": "HarmonyOS/main-activity.controls.json",
+        "controlsSHA256": "b3f30a25359f7c6685cfb99f5bd3896632e1bac9b082034cbfbb5fedebc47eaf"
+      }
+    },
+    {
+      "state": "selected-agent",
+      "iPhone": {
+        "png": "iPhone/selected-agent.png",
+        "pngSHA256": "40aea79b8ba4920408e641cd068d1dda4f1a698ce1024fc4b06a105134f017e9",
+        "sourceAXSHA256": "90f924b2ad75ac18f0b060d46f6ab6414df25b2cc27268c4969c7c168ac6301b",
+        "controls": "iPhone/selected-agent.controls.json",
+        "controlsSHA256": "dcde2495edc5e35cffcadc5f2f8ab8d6cb11c04169666e6c753a88ef13fe23fc"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/selected-agent.png",
+        "pngSHA256": "c53d9e463ff5c769d5c572f9a66520d490659f2f62bd661b1326dacb2eaf411c",
+        "sourceAXSHA256": "f6e32f08ae93180d04a1c8ab92ff03486fba1569587296de13887c478756e6ac",
+        "controls": "HarmonyOS/selected-agent.controls.json",
+        "controlsSHA256": "76084290092a931f6ad742ee3279735d75746b9fababeb277553de1ac0761bf8"
+      }
+    },
+    {
+      "state": "agent-destination",
+      "iPhone": {
+        "png": "iPhone/agent-destination.png",
+        "pngSHA256": "e70fc650788251b3dd3eae23b34ee634900149d4b87b617ce5df29713c25e123",
+        "sourceAXSHA256": "a1cdb960fb2567a177d0252cfee362dd0ec4100969d11f337ee77304785c098e",
+        "controls": "iPhone/agent-destination.controls.json",
+        "controlsSHA256": "1aaef1c5f266c65f71ca678f917a6004357743422cca4cc92a08147cd60cb3c0"
+      },
+      "HarmonyOS": {
+        "png": "HarmonyOS/agent-destination.png",
+        "pngSHA256": "ae14f79f435aefe104a43edd2ea2868bd63c3e939b8bf4f082373bc59d9ac697",
+        "sourceAXSHA256": "b13ed45d2bcc441ace4f761e4c4ee22943d28cbec709027eac420b5749ed2fdc",
+        "controls": "HarmonyOS/agent-destination.controls.json",
+        "controlsSHA256": "e6554bb5fddde40db6962a847ba48a8e2479f18e5c7b022c86ac71b061586820"
+      }
+    }
+  ]
+}
