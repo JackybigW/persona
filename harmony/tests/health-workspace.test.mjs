@@ -237,6 +237,27 @@ test('Health resolves the roster default and keeps only health-space conversatio
   assert.equal(shared.calls.some((call) => call.path === '/api/v1/assistant'), false);
 });
 
+test('Health lists conversations by updated_at, newest first, and keeps Hub order for ties and unknown dates', async () => {
+  const conversations = [
+    chat('sleep', 'health', { updated_at: '2026-11-24T05:20:00Z' }),
+    chat('lipids', 'health', { updated_at: '2026-11-23T04:00:00Z' }),
+    chat('unknown'),
+    chat('steps', 'health', { updated_at: '2026-11-21T08:00:00Z' }),
+    chat('meal', 'health', { updated_at: '2026-11-24T13:45:00+08:00' }),
+    chat('same-instant', 'health', { updated_at: '2026-11-24T05:45:00Z' }),
+    chat('malformed', 'health', { updated_at: 'invalid', last_activity: '2030-01-01T00:00:00Z' }),
+    chat('before-epoch', 'health', { updated_at: '1969-04-01T09:10:00Z' }),
+    chat('unrelated', 'main', { updated_at: '2030-01-01T00:00:00Z' })
+  ];
+  const { workspace, child } = await opened({ conversations });
+  assert.deepEqual(workspace.conversations.map(row => row.id),
+    ['meal', 'same-instant', 'sleep', 'lipids', 'steps', 'before-epoch', 'unknown', 'malformed']);
+  child().state.conversations[3].updated_at = '2026-11-25T00:00:00Z';
+  await workspace.refresh();
+  assert.deepEqual(workspace.conversations.map(row => row.id),
+    ['steps', 'meal', 'same-instant', 'sleep', 'lipids', 'before-epoch', 'unknown', 'malformed']);
+});
+
 test('creating a Health chat uses the exact health space body and returns a default-manager route', async () => {
   const { workspace, child } = await opened();
   workspace.setDraft('How did I sleep this week?');

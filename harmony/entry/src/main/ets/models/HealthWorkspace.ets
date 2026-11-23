@@ -10,6 +10,11 @@ export const HEALTH_SUGGESTIONS: string[] = [
   'health_question_sleep', 'health_question_steps', 'health_question_resting_heart_rate', 'health_log_weight'
 ];
 
+function conversationUpdatedAt(data: Record<string, Object>): number {
+  const at = Date.parse(Wire.text(data, 'updated_at'));
+  return Number.isFinite(at) ? at : Number.MIN_SAFE_INTEGER;
+}
+
 class HealthOwner {
   root: ClientModel;
   rootGeneration: number;
@@ -568,8 +573,10 @@ export class HealthWorkspace {
       const machine = Wire.rows(machineList, 'machines').find((item: Record<string, Object>) => Wire.text(item, 'id') === expectedMachine);
       this.reportUploadAllowed = !!machine && this.machineUsable(machine, owner.manager);
     } catch (_) { this.reportUploadAllowed = false; }
-    const chats = Wire.rows(assistant, 'conversations').filter((data: Record<string, Object>) =>
-      !Wire.text(data, 'space') || Wire.text(data, 'space') === HEALTH_SPACE).map((data: Record<string, Object>) => {
+    const inSpace = Wire.rows(assistant, 'conversations').filter((data: Record<string, Object>) =>
+      !Wire.text(data, 'space') || Wire.text(data, 'space') === HEALTH_SPACE);
+    inSpace.sort((a: Record<string, Object>, b: Record<string, Object>): number => conversationUpdatedAt(b) - conversationUpdatedAt(a));
+    const chats = inSpace.map((data: Record<string, Object>) => {
       const row = ResourceRow.from(data, 'conversation'); row.manager = owner.manager;
       row.machine = Wire.text(data, 'machine_id', owner.machine); row.session = Wire.text(data, 'session_id', row.id);
       row.path = Wire.text(data, 'cwd');
