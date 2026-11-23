@@ -8467,6 +8467,14 @@
     {
       "name": "phone_workout_access_note",
       "value": "This check reads Persona’s permission status. Your workout records stay on the device."
+    },
+    {
+      "name": "interaction_supervisor_handling",
+      "value": "Supervisor is handling this"
+    },
+    {
+      "name": "interaction_supervisor_escalation",
+      "value": "This went to its task's supervisor first. It comes to you only if the supervisor passes it up."
     }
   ]
 }

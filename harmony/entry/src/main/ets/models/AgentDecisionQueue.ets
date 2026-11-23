@@ -1,6 +1,6 @@
 import type { ClientModel } from './ClientModel';
 import { Decision, ResourceRow, Wire } from './Wire';
-import { decodeInteractionDecision, interactionCanSubmit } from './InteractionDecision';
+import { decodeInteractionDecision, interactionCanSubmit, interactionIsOpen, interactionSupervisorHeld } from './InteractionDecision';
 
 // A runtime can host several providers. Its own name alone does not identify which one is asking.
 function previewAgent(data:Record<string,Object>):string {
@@ -16,6 +16,7 @@ function previewAgent(data:Record<string,Object>):string {
 
 export class AgentDecisionCard {
   readonly request: Decision;
+  readonly supervisorHeld: boolean;
   readonly key: string;
   readonly preview: string;
   readonly since: number;
@@ -24,12 +25,15 @@ export class AgentDecisionCard {
   readonly manager: string;
   readonly machine: string;
   readonly session: string;
+  readonly parent: string;
   constructor(owner: ClientModel, manager: string, machine: string, session: string, data: Record<string, Object>) {
     this.owner=owner; this.manager=manager; this.machine=machine; this.session=session;
     this.request=decodeInteractionDecision(data);
+    this.supervisorHeld=interactionSupervisorHeld(this.request);
     this.request.machine=machine; this.request.session=session;
     this.key=JSON.stringify([owner.scope(),manager,machine,session,this.request.id]);
     const nested=Wire.object(data,'interaction'), source=Object.keys(nested).length ? nested : data;
+    this.parent=Wire.text(source,'folded_under') || Wire.text(data,'folded_under');
     this.since = Date.parse(Wire.text(source,'created_at') || Wire.text(data,'created_at')) || 0;
     const tool=Wire.text(source,'tool_name'), input=Wire.object(source,'tool_input');
     this.requestAgent=tool==='ask_user' ? 'Persona' : previewAgent(source) || (source===data ? '' : previewAgent(data));
@@ -42,6 +46,7 @@ export class AgentDecisionCard {
   questionAgent(row:ResourceRow):string { return this.requestAgent || previewAgent(row.data()); }
 
   quickOptions(): string[] {
+    if (!interactionCanSubmit(this.request)) return [];
     if (this.request.kind==='permission' && !this.request.fields.length) return ['allow','deny'];
     if (this.request.kind==='question' && this.request.fields.length===1 && this.request.fields[0].kind==='choice')
       return this.request.fields[0].choices;
@@ -59,6 +64,7 @@ export interface AgentDecisionSnapshot {
 @ObservedV2
 export class AgentDecisionQueue {
   @Trace cards: AgentDecisionCard[]=[];
+  @Trace private supervisorCards: AgentDecisionCard[]=[];
   @Trace snapshotComplete: boolean = false;
   @Trace submitted: string[]=[];
   @Trace error:string='';
@@ -70,7 +76,7 @@ export class AgentDecisionQueue {
 
   clear():void {
     this.snapshotComplete = false;
-    this.generation++; this.sequence++; this.current=undefined; this.singleOwner=undefined; this.cards=[]; this.submitted=[]; this.acknowledged.clear(); this.error='';
+    this.generation++; this.sequence++; this.current=undefined; this.singleOwner=undefined; this.cards=[]; this.supervisorCards=[]; this.submitted=[]; this.acknowledged.clear(); this.error='';
   }
   private read(owner:ClientModel,rows:Record<string,Object>[]):AgentDecisionCard[] {
     const found:AgentDecisionCard[]=[], ids=new Set<string>();
@@ -81,7 +87,7 @@ export class AgentDecisionQueue {
       const session=Wire.text(data,'session_id') || Wire.text(nested,'session_id');
       if (manager!==owner.profile.manager || !machine || !session || Wire.bool(data,'muted') || Wire.bool(nested,'muted')) continue;
       const card=new AgentDecisionCard(owner,manager,machine,session,data);
-      if (!interactionCanSubmit(card.request) || ids.has(card.key)) continue;
+      if (!interactionIsOpen(card.request) || ids.has(card.key)) continue;
       ids.add(card.key); found.push(card);
     }
     return found.sort((a:AgentDecisionCard,b:AgentDecisionCard) => a.since-b.since);
@@ -106,14 +112,46 @@ export class AgentDecisionQueue {
     }));
     if (this.current===root && this.sequence===n && root.owns(generation,scope)) {
       this.cards=groups.flat();
+      this.supervisorCards=this.cards.filter((card:AgentDecisionCard) => card.supervisorHeld);
       this.snapshotComplete=complete;
       if (readDirectory) readDirectory(pending);
     }
   }
   forSession(root:ClientModel,row:ResourceRow):AgentDecisionCard[] {
     const owner=root.directoryOwnerFor(row);
-    return this.cards.filter((card:AgentDecisionCard) => card.owner===owner && card.manager===row.manager &&
+    return this.cards.filter((card:AgentDecisionCard) => !card.supervisorHeld && card.owner===owner && card.manager===row.manager &&
       card.machine===row.machine && card.session===(row.session || row.id));
+  }
+  get hasSupervisorCards():boolean { return this.supervisorCards.length > 0; }
+
+  /** Resolve a folded child's cards under its waiting parent, without ever changing their owner or write target. */
+  heldOnlyRows(root:ClientModel, waiting:ResourceRow[]):Set<ResourceRow> {
+    const held = new Set<ResourceRow>();
+    if (this.current !== root || !this.supervisorCards.length) return held;
+    const homes = new Map<ClientModel,Map<string,ResourceRow>>();
+    for (const row of waiting) {
+      if (!['needs_you','blocked','waiting_for_user'].includes(row.state) && !row.badgeFields().childrenWaiting) continue;
+      const owner = root.directoryOwnerFor(row);
+      if (!owner) continue;
+      const rows = homes.get(owner) || new Map<string,ResourceRow>();
+      rows.set(JSON.stringify([row.manager,row.machine,row.session || row.id]),row);
+      homes.set(owner,rows);
+    }
+    const home = (card:AgentDecisionCard):ResourceRow|undefined => {
+      const rows = homes.get(card.owner);
+      return rows?.get(JSON.stringify([card.manager,card.machine,card.parent])) ||
+        rows?.get(JSON.stringify([card.manager,card.machine,card.session]));
+    };
+    for (const card of this.supervisorCards) {
+      const row = home(card);
+      if (row) held.add(row);
+    }
+    for (const card of this.cards) {
+      if (card.supervisorHeld) continue;
+      const row = home(card);
+      if (row) held.delete(row);
+    }
+    return held;
   }
   waitingSince(root:ClientModel,row:ResourceRow):number {
     const cards=this.forSession(root,row);
@@ -142,7 +180,7 @@ export class AgentDecisionQueue {
     try {
       const actual=this.read(owner,await repo.decisions()).find((fresh:AgentDecisionCard) => fresh.key===card.key);
       if (!current()) return;
-      if (!actual || actual.request.raw!==card.request.raw || owner.operationBlocked(this.path(card))) {
+      if (!actual || !interactionCanSubmit(actual.request) || actual.request.raw!==card.request.raw || owner.operationBlocked(this.path(card))) {
         this.error='request_updated'; return;
       }
       const dispatch=():boolean => current() && this.cards.some((pending:AgentDecisionCard) =>

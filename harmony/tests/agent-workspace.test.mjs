@@ -29,7 +29,7 @@ registerHooks({
       return { url: new URL('./Wire.ets', context.parentURL).href, shortCircuit: true };
     if (context.parentURL?.includes('/entry/src/main/ets/')) {
       const resolved = new URL(specifier, context.parentURL);
-      if (['/Wire','/AgentActivityGroups','/AgentRepositoryPlace','/MachineDashboard'].some(name=>resolved.pathname.endsWith(name))) resolved.pathname += '.ets';
+      if (['/Wire','/AgentActivityGroups','/AgentRepositoryPlace','/MachineDashboard','/InteractionDecision'].some(name=>resolved.pathname.endsWith(name))) resolved.pathname += '.ets';
       else if (!/\.[a-z]+$/i.test(resolved.pathname)) resolved.pathname += '.ts';
       return { url: resolved.href, shortCircuit: true };
     }
@@ -113,6 +113,31 @@ async function opened(options = {}) {
   await workspace.open(fixture.client);
   return { ...fixture, workspace };
 }
+
+test('Needs You omits only waiting rows with solely supervisor-held cards, including a folded child',async()=>{
+  const {AgentDecisionQueue}=await import('../entry/src/main/ets/models/AgentDecisionQueue.ets');
+  const waiting=id=>agent(id,{state:'needs_you',status:'idle'});
+  const {workspace,client,repo}=await opened({sessions:['bare','held','mixed','parent'].map(waiting)});
+  const card=(id,session_id,kind,delegating,extras={})=>({id,session_id,machine_id:'m1',manager:'work',kind,delegating,...extras});
+  let cards=[card('approval','held','permission',true),card('plan','mixed','plan',true),
+    card('ask','mixed','question',true),card('branch','child','screen',true,{folded_under:'parent'})];
+  repo.decisions=async()=>structuredClone(cards);
+  const queue=new AgentDecisionQueue();
+  async function refresh(){await queue.reload(client);workspace.updateSupervisorCards(client,queue);}
+  const needs=()=>workspace.groups.find(g=>g.id==='state/needs')?.rows.map(r=>r.id).sort();
+  await refresh();
+  assert.deepEqual(needs(),['bare','mixed']);
+  assert.equal(workspace.filterCounts.needsYou,2);
+  workspace.setQuickFilter('needsYou');
+  assert.deepEqual(workspace.visibleRows().map(r=>r.id).sort(),['bare','mixed']);
+  workspace.setSearch('parent');
+  assert.equal(workspace.filterCounts.needsYou,0);
+  workspace.setSearch('');workspace.setQuickFilter('all');
+  cards=cards.map(c=>({...c,delegating:false}));
+  await refresh();
+  assert.deepEqual(needs(),['bare','held','mixed','parent']);
+  assert.equal(workspace.filterCounts.needsYou,4);
+});
 
 test('the phone app and recent groupings read the native filtered inventory, retain history and use deterministic local folds', async () => {
   const when = n => `2026-01-01T00:00:${String(n).padStart(2,'0')}Z`;

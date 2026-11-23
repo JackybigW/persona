@@ -149,6 +149,26 @@ test('elicitation URLs require an exact safe HTTP(S) open and preserve separate 
   assert.equal(interactionElicitationUrl(decision({ id: 'other-mode', kind: 'elicitation', elicitation: { mode: 'form', url: 'https://example.test/' } })), '');
 });
 
+test('only escalation releases a held permission, plan or parsed terminal choice; a delegated question remains answerable', () => {
+  const inputs=[
+    [{kind:'permission',tool_name:'Read',tool_input:{file_path:'README.md'}},'allow',{}, {allow:true}],
+    [{kind:'plan',plan:'Review the documentation'},'approve',{}, {approve:true}],
+    [{kind:'screen',dialog:{question:'Which branch?',options:[{key:'1',label:'main'},{key:'2',label:'docs'}],rev:'r1'}},'1',{}, {option:'1'}]
+  ];
+  for(const [data,choice,values,expected] of inputs){
+    const held=decision({id:'from-supervisor',...data,delegating:true});
+    assert.equal(interactionCanSubmit(held),false,data.kind);
+    assert.throws(()=>interactionResolution(held,choice,values),/not_pending/);
+    assert.throws(()=>interactionResolution(held,'dismiss',{}),/not_pending/);
+    for(const flags of [{},{delegating:false,delegate:{reason:'Please decide'}}]){
+      const released=decision({id:'from-supervisor',...data,...flags});
+      assert.deepEqual(interactionResolution(released,choice,values),expected);
+    }
+  }
+  const question=decision({id:'q',kind:'question',delegating:true,questions:[{question:'Which color?',options:[{label:'Blue'}]}]});
+  assert.deepEqual(interactionResolution(question,'answer',{'Which color?':'Blue'}),{answers:{'Which color?':'Blue'}});
+});
+
 test('history entries expose safe outcomes and cannot be submitted', () => {
   const resolved = decision({ id: 'history-1', kind: 'permission', fields: [{ key: 'token', label: 'Token', secret: true }] }, {
     status: 'resolved', resolution: { allow: true, values: { token: 'secret-value' } }

@@ -130,9 +130,12 @@ export struct AgentListPage {
   private reloadDecisions(): void {
     clearTimeout(this.decisionQueued);
     if (!this.active || this.rail || !this.compactRoot) return;
-    this.decisionQueued=setTimeout(() => this.decisions.reload(this.model).catch(() => {}),50);
+    const owner = this.model;
+    this.decisionQueued=setTimeout(() => this.decisions.reload(owner).then(() => {
+      if (this.active && this.model === owner) this.workspace.updateSupervisorCards(owner,this.decisions);
+    }).catch(() => {}),50);
   }
-  private retireDecisions(): void { clearTimeout(this.decisionQueued); this.decisions.clear(); }
+  private retireDecisions(): void { clearTimeout(this.decisionQueued); this.decisions.clear(); this.workspace.updateSupervisorCards(this.model); }
 
   @Local searchOpen: boolean = false;
   @Local searchEditing: boolean = false;

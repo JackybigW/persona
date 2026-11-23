@@ -1,3 +1,4 @@
+import type { AgentDecisionQueue } from './AgentDecisionQueue';
 import type { ClientModel } from './ClientModel';
 import { ResourceRow, Wire } from './Wire';
 import type { AgentListAdapter } from '../core/AgentListAdapter';
@@ -127,6 +128,8 @@ export class AgentWorkspace {
   private revision: number = 0;
   private actionEpoch: number = 0;
   revokeRowActions(): void { this.actionEpoch++; this.busy = false; }
+  private supervisorQueue: AgentDecisionQueue | undefined;
+  private hidSupervisorRows: boolean = false;
   private sourceRows: ResourceRow[] = [];
   private latestSourceRows: ResourceRow[] = [];
   private externalSelection: ResourceRow | undefined;
@@ -199,6 +202,7 @@ export class AgentWorkspace {
     this.viewScope = JSON.stringify([this.scope, this.owner]);
     this.openingView = true; this.loading = true; this.busy = false; this.error = '';
     this.externalSelection = undefined; this.groups = []; this.sourceRows = []; this.latestSourceRows = []; this.historyRows = []; this.historyLoaded = false; this.frozenGroups = undefined;
+    this.supervisorQueue = undefined; this.hidSupervisorRows = false;
     this.quickFilter = 'all'; this.filterCounts = {}; this.unpinnedRows = [];
     this.preferredGrouping = this.defaultGrouping; this.groupingMode = this.defaultGrouping;
     this.supportsTodos = false; this.supportsDirections = false;
@@ -243,6 +247,7 @@ export class AgentWorkspace {
   }
 
   hide(): void {
+    this.supervisorQueue = undefined; this.hidSupervisorRows = false;
     this.filterCounts = {}; this.unpinnedRows = [];
     this.revision++; this.openingView = false; this.client = undefined; this.groups = []; this.sourceRows = []; this.latestSourceRows = []; this.historyRows = []; this.historyLoaded = false;
     this.frozenGroups = undefined; this.readingDetail = false;
@@ -800,12 +805,41 @@ export class AgentWorkspace {
     if (this.sourceReady() || this.groups.length > 0) this.frozenGroups = this.copyGroups(this.groups);
   }
 
+  updateSupervisorCards(client: ClientModel, queue?: AgentDecisionQueue): void {
+    if (!this.isBoundTo(client)) return;
+    this.supervisorQueue = queue;
+    if (this.hidSupervisorRows || queue?.hasSupervisorCards) this.rebuild();
+  }
+
+  private applySupervisorHolds(matches:string[]):void {
+    this.hidSupervisorRows = false;
+    if (this.history || !this.client || !this.supervisorQueue?.hasSupervisorCards) return;
+    const held = this.supervisorQueue.heldOnlyRows(this.client,this.sourceRows);
+    if (!held.size) return;
+    this.hidSupervisorRows = true;
+    const ids = new Set(Array.from(held).map((row:ResourceRow) => coreRowId(row)));
+    const visible = (id:string):boolean => !ids.has(id);
+    const quick = this.quickFilter === 'needsYou';
+    const affected = matches.filter((id:string) => ids.has(id)).length;
+    this.filterCounts = { ...this.filterCounts, 'needsYou':Math.max(0,Wire.number(this.filterCounts,'needsYou')-affected) };
+    if (quick) this.unpinnedRows = this.unpinnedRows.filter((row:ResourceRow) => visible(coreRowId(row)));
+    this.groups = this.groups.filter((group:AgentWorkspaceGroup):boolean => {
+      if (!quick && group.id !== 'state/needs') return true;
+      group.memberIds = group.memberIds.filter(visible);
+      group.totalRowCount = group.memberIds.length;
+      group.rows = group.rows.filter((row:ResourceRow) => visible(coreRowId(row)));
+      return group.totalRowCount > 0;
+    });
+  }
+
   private rebuild(): void {
     let groups: CoreAgentListGroup[];
     let unpinned: string[];
+    let matches: string[];
     try {
       const input = this.makeListInput();
       const projection = this.adapter.project(input);
+      matches = projection.queryMatches || [];
       groups = phoneAgentGroups(input,projection);
       unpinned = projection.unpinned || [];
       this.filterCounts = projection.filter_counts || {};
@@ -836,6 +870,7 @@ export class AgentWorkspace {
         }
         return copy;
       }).filter((group) => group.rows.length > 0 || group.totalRowCount > 0);
+      this.applySupervisorHolds(matches);
       return;
     }
     this.unpinnedRows = unpinned.flatMap((id:string):ResourceRow[]=>{ const row=byId.get(id); return row ? [row] : []; });
@@ -851,6 +886,7 @@ export class AgentWorkspace {
       return native;
     });
     if (this.readingDetail && this.sourceReady() && !this.freezeSuppressed && !this.frozenGroups) this.frozenGroups = this.copyGroups(this.groups);
+    this.applySupervisorHolds(matches);
   }
 
   // Projects shares the Agents search and pane-source projection, with its own machine, query and reading position.

@@ -37,7 +37,8 @@ export function agentAttentionCards(input: Record<string, Object>[], manager: st
 
     seen.add(key);
     const parent = Wire.text(card, 'folded_under') || Wire.text(envelope, 'folded_under');
-    const held = (Wire.bool(card, 'delegating') || Wire.bool(envelope, 'delegating')) && Wire.text(card, 'kind') !== 'screen';
+    // Neither a supervised card nor a question the assistant is answering should ring the Agents badge.
+    const held = Wire.bool(card, 'delegating') || Wire.bool(envelope, 'delegating');
     const hidden = Wire.bool(card, 'hidden_by_directory') || Wire.bool(envelope, 'hidden_by_directory') ||
       Wire.bool(card, 'muted') || Wire.bool(envelope, 'muted');
     result.push(new AgentAttentionCard(id, machine, session, parent, held, hidden));

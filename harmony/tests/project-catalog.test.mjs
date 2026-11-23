@@ -5,7 +5,7 @@ import test from 'node:test';
 
 registerHooks({
   resolve(specifier, context, next) {
-    if (context.parentURL?.endsWith('.ets') && ['./Wire','./ProjectCatalog','./SessionSpace','./AgentRepositoryPlace'].includes(specifier)) {
+    if (context.parentURL?.endsWith('.ets') && ['./Wire','./ProjectCatalog','./SessionSpace','./AgentRepositoryPlace','./InteractionDecision'].includes(specifier)) {
       return { url: new URL(specifier + '.ets', context.parentURL).href, shortCircuit: true };
     }
     return next(specifier, context);
@@ -860,6 +860,15 @@ test('project search counts scoped pending sessions once across the search; term
   assert.deepEqual(needs.rows,new Set([wait.key(),outside.key()]));
   assert.deepEqual(search('terminal',localMachine,[done]).rows,new Set([done.key()]));
   assert.deepEqual(search('unread',localMachine,[done]).rows,new Set([done.key()]));
+  pending.splice(0,pending.length,snapshot(local,[
+    {interaction:ask('supervised','child',{folded_under:'parent',kind:'screen',delegating:true})},
+    ask('outside-agent','',{kind:'plan',delegating:true})
+  ]));
+  assert.equal(search('needsYou',localMachine,[wait]).counts.needsYou,0);
+  assert.deepEqual(search('needsYou',localMachine,[wait]).rows,new Set());
+  pending[0].records.push(ask('mine','parent',{kind:'question',delegating:true}));
+  assert.deepEqual(search('needsYou',localMachine,[wait]).rows,new Set([wait.key()]));
+
 });
 
 test('the repository tree keeps matching workspace paths with no sessions and projects only the selected source rows', () => {

@@ -51,6 +51,33 @@ test('identical request IDs on two paired Hubs resolve only on the displayed ses
   assert.equal(b.state.rows.length,1);
 });
 
+test('a supervisor-held approval never has quick actions, including when ownership changes just before a tap',async()=>{
+  const p=pair('one'), other=pair('other'), root=rootFor([p,other]), queue=new AgentDecisionQueue();
+  const approval={id:'approval',machine_id:'machine',session_id:'s',kind:'permission',tool_name:'Read',tool_input:{file_path:'README.md'}};
+  const question={...p.state.rows[0],delegating:true};
+  p.state.rows=[{interaction:{...approval,delegating:true}},question];
+  await queue.reload(root);
+  assert.deepEqual(queue.forSession(root,p.row).map(card=>card.request.id),['ask']);
+  assert.deepEqual(queue.cards.filter(card=>card.supervisorHeld).map(card=>card.request.id),['approval']);
+  assert.deepEqual(queue.cards.find(card=>card.supervisorHeld).quickOptions(),[]);
+  assert.deepEqual(queue.forSession(root,p.row)[0].quickOptions(),['Blue','Green']);
+  p.state.rows=[{...approval,delegating:false}];
+  await queue.reload(root);
+  const visible=queue.forSession(root,p.row)[0];
+  assert.deepEqual(visible.quickOptions(),['allow','deny']);
+  p.state.rows=[{...approval,delegating:true}];
+  await queue.answer(root,p.row,visible,'allow','changed',()=>true);
+  assert.equal(p.state.writes.length,0);
+  assert.equal(queue.forSession(root,p.row).length,0);
+  assert.equal(queue.forSession(root,other.row).length,1);
+  p.state.rows=[{...approval,delegate:{reason:'Owner input requested'}}];
+  await queue.reload(root);
+  const escalated=queue.forSession(root,p.row)[0];
+  await queue.answer(root,p.row,escalated,'allow','escalated',()=>true);
+  assert.deepEqual(p.state.writes,[{body:{allow:true},op:'escalated'}]);
+  assert.deepEqual(other.state.writes,[]);
+});
+
 test('an outdated request, read-only session, or uncertain mutation cannot be answered from the list',async()=>{
   const p=pair('one'), root=rootFor([p]), queue=new AgentDecisionQueue();
   await queue.reload(root);

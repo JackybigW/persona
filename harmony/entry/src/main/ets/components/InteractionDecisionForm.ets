@@ -12,7 +12,7 @@ import { util } from '@kit.ArkTS';
 import {
   InteractionChoice, InteractionSchemaField, InteractionValidation,
   interactionCardAgent, interactionQuestionHeader, interactionPermissionTool, interactionPermissionSubject, interactionSessionAllowance, interactionAllowanceScope,
-  recordedPlanMode, interactionCanDefer, interactionCanSubmit, interactionToolName, interactionElicitationDefaults, interactionElicitationMessage,
+  recordedPlanMode, interactionCanDefer, interactionCanSubmit, interactionSupervisorHeld, interactionToolName, interactionElicitationDefaults, interactionElicitationMessage,
   interactionElicitationMode, interactionElicitationSupported, interactionElicitationUrl, interactionHistoryResolution,
   interactionPermissionFieldPlaceholder, interactionPlanTitle, interactionQuestionOptions,
   interactionSchemaFields, interactionSkipReason, interactionScreenCanCancel, interactionScreenMulti, interactionScreenOptions,
@@ -645,6 +645,19 @@ export struct InteractionDecisionForm {
   private agentActionHeight():number {
     return 30 + this.agentFontSize(17)*1.2;
   }
+  @Computed get supervisorHeld():boolean {
+    return !this.readOnly && interactionSupervisorHeld(this.request);
+  }
+  @Builder supervisorNote() {
+    Row({space:8}) {
+      SymbolGlyph($r('sys.symbol.eye')).fontSize(13).fontColor([Colors.secondary]).accessibilityLevel('no')
+      Column({space:3}) {
+        Text(tr('interaction_supervisor_handling')).fontSize(13).fontWeight(600).fontColor(Colors.ink)
+        Text(tr('interaction_supervisor_escalation')).fontSize(13).fontColor(Colors.secondary)
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+    }.width('100%').padding(12).alignItems(VerticalAlign.Top).backgroundColor(Colors.control).borderRadius(12)
+      .accessibilityGroup(true).id('interaction.supervisor-held')
+  }
   @Builder taskHeader() {
     Row({space:this.docked ? 6 : 5}) {
       Button({type:ButtonType.Normal}) {
@@ -661,17 +674,17 @@ export struct InteractionDecisionForm {
         .height(this.headerControlSide()).padding({left:8,right:8}).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.link)
         .responseRegion({x:0,y:-5,width:'100%',height:Math.max(44,this.headerControlSide())}).backgroundColor(Color.Transparent)
         .onClick(() => { if (this.admission()) this.onViewTask(); }).id('interaction.task.source')
-      if (this.docked && interactionSkipReason(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
+      if (!this.supervisorHeld && this.docked && interactionSkipReason(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
         .height(this.headerControlSide()).padding({left:5,right:5}).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.tertiary)
         .responseRegion({x:0,y:-5,width:'100%',height:Math.max(44,this.headerControlSide())}).backgroundColor(Color.Transparent).enabled(false).id('interaction.task.skip_unavailable')
-      else if ((this.docked || this.agentCard) && interactionScreenCanCancel(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
+      else if (!this.supervisorHeld && (this.docked || this.agentCard) && interactionScreenCanCancel(this.request)) Button(tr('decision_skip'),{type:ButtonType.Normal})
         .height(this.headerControlSide()).padding({left:3,right:3}).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.link)
         .backgroundColor(Color.Transparent).enabled(this.canRespond()).onClick(() => this.submit('cancel')).id('interaction.task.skip')
       if (!this.cardFolded && this.request.kind==='plan') Button({type:ButtonType.Circle}) {
         SymbolGlyph($r('sys.symbol.arrow_up_left_and_arrow_down_right')).fontSize('13vp').fontColor([Colors.secondary])
       }.width(this.headerControlSide()).height(this.headerControlSide()).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('phone_plan_fullscreen'))
         .onClick(() => { if (this.admission()) this.fullPlan=true; }).id('interaction.task.expand_plan')
-      if ((this.taskQueue || this.agentCard) && interactionToolName(this.request)!=='ask_user') Button({type:ButtonType.Circle}) {
+      if (!this.supervisorHeld && (this.taskQueue || this.agentCard) && interactionToolName(this.request)!=='ask_user') Button({type:ButtonType.Circle}) {
         Row({space:2}) {
           ForEach([0,1,2],(_dot:number) => { Circle().width(2.5).height(2.5).fill(Colors.secondary) },(dot:number) => String(dot))
         }
@@ -1133,7 +1146,13 @@ export struct InteractionDecisionForm {
     return Math.max(1, this.heightLimit - this.inlineFooterHeight - (this.docked || this.taskQueue ? this.inlineHeaderHeight + 28 : 22));
   }
   build() {
-    if (this.agentCard) this.agentDecisionCard()
+    if (this.supervisorHeld) Column({space:12}) {
+      this.taskHeader()
+      if (!this.cardFolded) this.supervisorNote()
+    }.width('100%').padding({left:16,right:16,top:12,bottom:16}).alignItems(HorizontalAlign.Start)
+      .backgroundColor(Colors.surface).border({width:0.6,color:Colors.divider,radius:20}).borderRadius(20).id('interaction.card')
+      .bindSheet($$this.fullPlan,this.planReader(),{height:SheetSize.LARGE,showClose:false,dragBar:false,preferType:SheetType.BOTTOM})
+    else if (this.agentCard) this.agentDecisionCard()
     else if (this.docked) this.dockPanel()
     else if (this.heightLimit > 0) Column({space: 6}) {
       if (this.docked || this.taskQueue) this.taskHeader()

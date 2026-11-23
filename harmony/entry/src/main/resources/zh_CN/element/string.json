@@ -8471,6 +8471,14 @@
     {
       "name": "phone_workout_access_note",
       "value": "这里核验 Persona 的读取权限，运动记录保留在设备上。"
+    },
+    {
+      "name": "interaction_supervisor_handling",
+      "value": "督办者处理中"
+    },
+    {
+      "name": "interaction_supervisor_escalation",
+      "value": "这张卡先交给了任务的督办者。督办者上交后，才会到你这里。"
     }
   ]
 }

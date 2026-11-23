@@ -53,6 +53,14 @@ function rawInteraction(request: Decision): Record<string, Object> {
 
 export function interactionIsDelegated(request: Decision): boolean { return Wire.bool(rawInteraction(request),'delegating'); }
 
+/** A delegated question may still be answered by its owner. Other routed cards stay with the task supervisor until escalation. */
+export function supervisorHoldsCard(kind:string, delegating:boolean):boolean {
+  return delegating && kind !== 'question';
+}
+export function interactionSupervisorHeld(request: Decision): boolean {
+  return supervisorHoldsCard(request.kind,interactionIsDelegated(request));
+}
+
 /** Main's attention tray contains questions and owner proposals that actually await the person. */
 export function directUserRequest(request: Decision): boolean {
   const data = rawInteraction(request);
@@ -509,8 +517,12 @@ export function recordedPlanMode(request:Decision):string {
   return ['default','acceptEdits','auto','bypassPermissions'].includes(mode) ? mode : '';
 }
 
+export function interactionIsOpen(request: Decision): boolean {
+  return !!request.id && request.status === 'open' && requestStatus(request) === 'open';
+}
+
 export function interactionCanSubmit(request: Decision, readOnly: boolean = false): boolean {
-  return !readOnly && !!request.id && request.status === 'open' && requestStatus(request) === 'open';
+  return !readOnly && interactionIsOpen(request) && !interactionSupervisorHeld(request);
 }
 
 /** Build the documented proto.Resolution JSON body. Screen labels are resolved to keys before the request is sent. */

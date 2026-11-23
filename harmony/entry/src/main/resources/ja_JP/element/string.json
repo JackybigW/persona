@@ -8471,6 +8471,14 @@
     {
       "name": "phone_workout_access_note",
       "value": "ここでは Persona の読み取り権限を確認します。ワークアウト記録は端末に保存されます。"
+    },
+    {
+      "name": "interaction_supervisor_handling",
+      "value": "監督者が対応中"
+    },
+    {
+      "name": "interaction_supervisor_escalation",
+      "value": "これはまずタスクの監督者に渡されました。監督者が上げたときだけ、あなたに届きます。"
     }
   ]
 }

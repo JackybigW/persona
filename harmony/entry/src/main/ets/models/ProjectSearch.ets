@@ -1,3 +1,4 @@
+import { supervisorHoldsCard } from './InteractionDecision';
 import type { CoreAgentListProjection } from '../core/AgentListProjection';
 import type { AgentDecisionSnapshot } from './AgentDecisionQueue';
 import type { ClientModel } from './ClientModel';
@@ -25,7 +26,7 @@ export function projectSearchResult(root:ClientModel, sessions:ResourceRow[], pr
   if (counts) for (const key of Object.keys(counts)) result.counts[key] = counts[key];
   const matches = new Set(projection.queryMatches || []);
   const selected = new Set(projection.filtered || []);
-  const waiting = new Set<string>(), attention = new Set<string>();
+  const waiting = new Set<string>(), attention = new Set<string>(), held = new Set<string>();
   const bySession = new Map<string,ResourceRow>(), hidden = new Set<string>();
   for (const row of sessions) {
     const data = row.data(), key = identity(row.group,row.manager,row.machine,row.session || row.id);
@@ -37,7 +38,6 @@ export function projectSearchResult(root:ClientModel, sessions:ResourceRow[], pr
     if (selected.has(id)) result.rows.add(row.key());
     if (matches.has(id) && (row.state === 'needs_you' || row.state === 'blocked')) waiting.add(key);
   }
-  for (const key of waiting) attention.add(key);
   const visibleOwners = new Set(root.directoryOwners());
   for (const snapshot of pending) {
     const owner = snapshot.owner;
@@ -50,14 +50,26 @@ export function projectSearchResult(root:ClientModel, sessions:ResourceRow[], pr
       if (!id || manager !== owner.profile.manager || (machineFilter && machineFilter !== JSON.stringify([group,manager,machine]))) continue;
       const status = field('status');
       if (status && status !== 'open' && status !== 'pending') continue;
-      if (!session) { attention.add(JSON.stringify([group,manager,'card',id,''])); continue; }
+      const supervisorHeld = supervisorHoldsCard(field('kind'),Wire.bool(Object.keys(inner).length ? inner : outer,'delegating'));
+      if (!session) {
+        if (!supervisorHeld) attention.add(JSON.stringify([group,manager,'card',id,'']));
+        continue;
+      }
       const key = identity(group,manager,machine,session);
       if (!machine || hidden.has(key)) continue;
       const home = identity(group,manager,machine,field('folded_under'));
       const target = waiting.has(home) ? home : key;
+      if (supervisorHeld) { held.add(target); continue; }
       attention.add(target);
       const row = bySession.get(target);
       if (quick === 'needsYou' && row) result.rows.add(row.key());
+    }
+  }
+  for (const key of waiting) {
+    if (!held.has(key)) attention.add(key);
+    else if (quick === 'needsYou' && !attention.has(key)) {
+      const row = bySession.get(key);
+      if (row) result.rows.delete(row.key());
     }
   }
   result.counts['needsYou'] = attention.size;

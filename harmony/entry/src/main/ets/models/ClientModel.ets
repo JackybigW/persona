@@ -21,7 +21,7 @@ import { ChatDraftStore, ChatDraft, ChatOutboxEntry, DraftForwardImage, draftFor
 import { clearImagePreviews } from '../platform/NativePreview';
 import { forwardPrefix, forwardOrigin, forwardGroups } from '../core/ChatForwardWire';
 import { parseMessageContent } from '../core/MessageContent';
-import { decodeInteractionDecision, firstBlockingDecision, isPersonaAskUserQuestion } from './InteractionDecision';
+import { decodeInteractionDecision, firstBlockingDecision, interactionCanSubmit, isPersonaAskUserQuestion } from './InteractionDecision';
 import { ChatAttachments } from './ChatAttachments';
 import { AgentAttentionCard, agentAttentionCards, waitingAgentBadge } from './AgentAttention';
 import type { PreparedAttachmentSend } from './ChatAttachments';
@@ -1494,7 +1494,7 @@ export class ClientModel {
       decision.machine !== row.machine || decision.session !== session || row.manager && row.manager !== this.profile.manager)) {
       this.error = 'request_updated'; return;
     }
-    if (decision.status !== 'open') return;
+    if (!interactionCanSubmit(decision)) return;
     const personaQuestion = isPersonaAskUserQuestion(decision, row.kind);
     const request = new Decision();
     request.id = decision.id; request.raw = decision.raw; request.kind = decision.kind; request.revision = decision.revision;
