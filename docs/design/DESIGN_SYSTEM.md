@@ -29,6 +29,16 @@ This table only points the way. Values and rules live in the sections it names, 
 | A new setting | Settings, showing its current value | principles 2 and 3 |
 | Any UI change | the UI change self-check | 1.4 |
 
+## Apple Health intake sync (#13291)
+
+Audience: people who want their Persona water and protein records in Apple Health. Reuse Settings › Health's
+`SettingsForm`, `SettingsSwitchRow`, secondary status text and caution color. The iPhone-only switch is off by default
+and hidden in demo mode. Its footer explains historical backfill, undo and keeping already written samples on
+disable. Status shows the last complete sync time, denied write types or the last failure. The Health home's final
+Today row uses the existing `NavigationLink` to this same page and disappears while sync is enabled for this hub.
+No new visual token, component style, polling loop or background task is introduced. All text ships in English,
+Simplified Chinese and Japanese; use Apple Health / Apple 健康 consistently.
+
 ## Product design principles
 
 The seven product design principles, with their rules, how to check each one and recent cases, live in `docs/design/PRINCIPLES.md`: 1 defaults first, 2 progressive disclosure, 3 user control, 4 consistency first, 5 model and product are separate, 6 rules are checkable, 7 fast, local-first and stateful. They decide product questions before any rule in this document applies. "Principle N" below refers to that numbering. Apple's Human Interface Guidelines are a source for this document, not its authority: what Persona takes from them is rewritten here as Persona rules (sections 2 to 6), and `docs/design/HIG_AUDIT.md` records where the code still falls short.
@@ -2074,6 +2084,7 @@ loading/retry states and timestamps as other secondary views, and adds no primar
 
 - The system prompt appears right after pairing and at launch, with no in-app explanation first (`apple/Persona/App/PushRegistrar.swift:41-53`, the options at `:174`). Requested options include time-sensitive. When denied, Settings explains and deep-links; allowing it there registers when the app comes back (#1861). A confirmed outage also puts one `NoticeBanner` on Persona's main screen (#9612): plain words for what cannot reach this device and one repair action, with denied permission deep-linking to system Settings and other causes opening Notifications settings. Its ✕ hides it on this device (#12319): a build installed straight from Xcode never gets pushes and could not clear it. A closed cause stays hidden, per hub, until pushes reach the device there again; a different cause (notifications turned off, an update needed) or another hub shows its own notice, and Settings › Notifications always shows the status. Unknown or unchecked hubs, a healthy route and a route whose only problem is one failed push stay silent; raw relay, APNs, HTTP and credential details remain in Settings.
 - Foreground: the system banner, suppressed for the visible session. No custom in-app push banner.
+- Built-in water reminders use the system category `HEALTH_WATER` with Drank a Glass, Later and Log Another Amount (millilitre text input). All three run in the background; the hub's answer is a local notification. Receiving a reminder and completing an action refresh widget timelines. Repeated callbacks for the same reminder/button are coalesced per hub; failures allow a corrected retry. Log Water in Shortcuts returns the recorded amount and today's progress in a dialog, without opening the app.
 - Actions: Allow (needs unlock) and Deny on permissions; Approve and Send Back on plans; Reply on done (`apple/Persona/App/NotificationActions.swift:19-52`). Failures are posted as local notifications.
 - Live Activity: Allow and Deny buttons; Allow requires authentication. Stale after 15 minutes.
 - Recording Live Activity, a meeting app's (#8731 V4): the name with a still waveform (green while it records, gray paused) and the time, Persona's part and "Topic 2 / 4: <topic>", the latest line in quotes or Persona's answer in a purple box. Then Bookmark · Ask Persona (while Persona answers) · End, each with its words. A meeting's End opens the meeting and asks "End the Meeting?"; any other recording's Stop stops it at once, without unlocking (`docs/apple/live-activity.md`, "Recording"). In a room meeting with Talk (#3862 phase 4) **Talk** leads instead: its tap opens a talk window (Live Activity buttons can't be held), the button reads **Done** while it is open, the third line says "Listening to you…" and the island's mark is the talk mark.
