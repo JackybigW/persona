@@ -126,8 +126,19 @@ func TestReviewCardlessWaitSurvivesRestart(t *testing.T) {
 	if !slices.Contains(pendingKinds(s, todo.ID), sigCardlessWait) {
 		t.Fatalf("card-less review not handed back: %v", pendingKinds(s, todo.ID))
 	}
-	forgetSignals(t, s)
-	again, _ := restartedOn(t, database)
+	// The digest removes its in-memory batch before the send and its durable ACK.
+	// This restart follows delivery. A claim still in Postgres belongs to crash recovery.
+	releaseDigest(s)
+	waitFor(t, "the cardless hand-back to be delivered and acknowledged", func() bool {
+		_, pending := storedSupervisePending(t, s)[todo.ID+"|"+sigCardlessWait]
+		return cardlessNotices(f) > 0 && !pending
+	})
+	stopCardlessManager(s)
+	if n := cardlessNotices(f); n != 1 {
+		t.Fatalf("the old manager delivered %d card-less hand-backs, want one", n)
+	}
+	again, nextHub := restartedOn(t, database)
+	t.Cleanup(func() { stopCardlessManager(again) })
 	holdDigest(again)
 	if err := again.ensureTodosLoaded(ctx); err != nil {
 		t.Fatal(err)
@@ -139,6 +150,10 @@ func TestReviewCardlessWaitSurvivesRestart(t *testing.T) {
 	again.superviseWatch(ctx, time.Now().Add(2*time.Hour))
 	if slices.Contains(pendingKinds(again, todo.ID), sigCardlessWait) {
 		t.Fatal("a restart reissued the same card-less hand-back")
+	}
+	flushCardlessClaim(again)
+	if n := cardlessNotices(nextHub); n != 0 {
+		t.Fatalf("the restarted manager delivered %d duplicate card-less hand-backs", n)
 	}
 }
 
