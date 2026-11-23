@@ -142,7 +142,7 @@ node web/e2e/sidebar-unread-chats.mjs <loopback-web-origin> <loopback-mock-origi
 ```
 
 Against an exclusively owned mock-backed web server, in English, at 1440 × 1000 and 390 × 844 (the phone's drawer),
-light and dark. The mock's `GET /mock/incoming` puts a reply nobody has opened in two pinned leads (one with Agents
+standard and Large text, light and dark. The mock's `GET /mock/incoming` puts a reply nobody has opened in two pinned leads (one with Agents
 at work under it, whose arc its own Unread replaces) and two Recent chats, pushed as the hub pushes it; each row is
 measured before and after: its height and where its mark's slot, title and time sit stay, the slot draws the unread
 mark in place of the chat icon and the title takes the unread weight. Folded, Recent's heading counts its two and the

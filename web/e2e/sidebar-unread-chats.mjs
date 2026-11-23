@@ -4,7 +4,7 @@
 //   (cd web && PERSONA_HUB_URL=http://127.0.0.1:<mock port> npx vite --host 127.0.0.1 --port <web port> --strictPort &)
 //   node web/e2e/sidebar-unread-chats.mjs <web origin> <mock hub origin> <artifact directory> [Chromium executable]
 //
-// Wide (1440) and phone (390) widths, light and dark, in English. A reply lands in two pinned leads (one with Agents at
+// Wide (1440) and phone (390) widths, standard and Large text, light and dark, in English. A reply lands in two pinned leads (one with Agents at
 // work under it, whose arc its own Unread replaces) and two Recent chats through the mock's GET /mock/incoming (a new
 // turn, pushed as the hub pushes it). Each row is measured before and after: its height, where its mark's slot, its
 // title and its time sit in it stay; the slot draws the unread mark in place of the chat icon and the title takes the
@@ -53,18 +53,19 @@ const results = { base, cases: [] };
 const browser = await chromium.launch(executablePath ? { executablePath } : { channel: "chrome" });
 let failed = false;
 try {
-  for (const phone of [false, true]) {
+  for (const [phone, textSize] of [[false, "standard"], [true, "standard"], [false, "large"], [true, "large"]]) {
     for (const theme of ["light", "dark"]) {
-      const name = `${phone ? "phone" : "wide"}-${theme}`;
+      const name = `${phone ? "phone" : "wide"}-${theme}${textSize === "large" ? "-large" : ""}`;
       const context = await browser.newContext({
         viewport: { width: phone ? 390 : 1440, height: phone ? 844 : 1000 },
         hasTouch: phone, isMobile: phone, colorScheme: theme, reducedMotion: "reduce",
       });
       try {
-        await context.addInitScript(({ theme }) => {
+        await context.addInitScript(({ theme, textSize }) => {
           localStorage.setItem("persona.language", "en");
           localStorage.setItem("persona.theme", theme);
-        }, { theme });
+          if (textSize === "large") localStorage.setItem("persona.text-size", textSize);
+        }, { theme, textSize });
         const page = await context.newPage();
         page.setDefaultTimeout(12_000);
         const errors = [];
@@ -208,5 +209,5 @@ try {
   writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
   clearTimeout(watchdog);
 }
-console.log(failed ? "FAIL sidebar unread chats" : "PASS sidebar unread chats: wide and phone, light and dark");
+console.log(failed ? "FAIL sidebar unread chats" : "PASS sidebar unread chats: wide and phone, standard and Large text, light and dark");
 process.exit(failed ? 1 : 0);
