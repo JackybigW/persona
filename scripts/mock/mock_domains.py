@@ -69,6 +69,7 @@ DOMAINS = [
     "dock_mock",  # more of the main conversation's tasks waiting in the To Decide pager (#12831), MOCK_DOCK
     "extension_scene_mock",  # UI version 11's scene on a made-up Home page (#12544), MOCK_EXTENSION_SCENE
     "space_folders_mock",  # two of the MacBook's spaces with one name, in two folders (#13522), MOCK_SPACE_FOLDERS
+    "spaces_mock",  # domain spaces: tracks, kinds, SPACE.md, categories, extension trust (#13500), MOCK_SPACES
 ]
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
