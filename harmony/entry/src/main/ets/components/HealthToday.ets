@@ -164,6 +164,10 @@ export struct HealthToday {
       else if (this.intake.error && !this.intake.data && this.intake.supported) Button(tr('retry')).buttonStyle(ButtonStyleMode.TEXTUAL)
         .onClick(() => this.intake.refresh()).id('health.intake.retry')
     }.width('100%').id('health.intake.feedback')
+    if (this.intake.refreshError) Row({space:8}) {
+      Text(tr(this.intake.refreshError)).fontSize(14).fontColor(Colors.secondary).layoutWeight(1)
+      Button(tr('retry')).buttonStyle(ButtonStyleMode.TEXTUAL).onClick(() => this.intake.refresh()).id('health.intake.retry')
+    }.width('100%')
   }
   build() {
     Column() {

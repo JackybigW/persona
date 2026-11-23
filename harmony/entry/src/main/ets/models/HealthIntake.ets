@@ -66,6 +66,7 @@ export class HealthIntakeModel {
   @Trace loading: boolean = false;
   @Trace busy: boolean = false;
   @Trace error: string = '';
+  @Trace refreshError: string = '';
   @Trace notice: string = '';
   @Trace actionId: string = '';
   private client: ClientModel | undefined;
@@ -98,7 +99,7 @@ export class HealthIntakeModel {
   }
   close(): void {
     this.stopEvents?.();this.stopEvents=undefined;this.epoch++;this.readId++;this.client=undefined;this.target='';this.ownerKey='';
-    this.supported=false;this.available=false;this.data=undefined;this.busy=false;this.loading=false;this.error='';this.notice='';this.actionId='';
+    this.supported=false;this.available=false;this.data=undefined;this.busy=false;this.loading=false;this.error='';this.refreshError='';this.notice='';this.actionId='';
     this.offered=undefined;this.cup=undefined;this.daySeen='';this.queued=0;this.needsRead=false;this.chain=Promise.resolve();
   }
   private current(): boolean { return !!this.client?.connected && this.supported && this.stillCurrent(); }
@@ -111,12 +112,19 @@ export class HealthIntakeModel {
     try {
       const raw=await client.repo().call(intakeRoute+healthQuery);
       if (!this.current() || read!==this.readId || epoch!==this.epoch) return;
-      const snapshot=intakeDay(raw);this.data=snapshot;this.daySeen=calendarDay(snapshot.zone);
+      const snapshot=intakeDay(raw);this.data=snapshot;this.daySeen=calendarDay(snapshot.zone);this.refreshError='';
       if (!this.offered || !this.error) this.error='';
     } catch (failure) {
       if (!this.current() || read!==this.readId || epoch!==this.epoch) return;
-      this.data=undefined;this.error=this.errorKey(failure as Error,'health_intake_load_failed');
-      if (this.error==='permission_denied') {this.offered=undefined;this.actionId='';this.notice='';}
+      const reason=this.errorKey(failure as Error,'health_intake_load_failed');
+      if (reason==='permission_denied') {
+        this.data=undefined;this.error=reason;this.refreshError='';this.offered=undefined;this.actionId='';this.notice='';
+      } else if (this.data || this.offered) {
+        // An acknowledged write can still be undone if the separate read fails. Retrying that read is always a GET.
+        this.refreshError=reason;
+      } else {
+        this.error=reason;
+      }
     } finally { if (epoch===this.epoch && read===this.readId) this.loading=false; }
   }
   refreshDay(): void {
@@ -131,7 +139,7 @@ export class HealthIntakeModel {
   }
   act(id: string): Promise<void> {
     const intent=this.offered;
-    if (!intent || !id || this.actionId!==id || !this.current()) return Promise.resolve();
+    if (!intent || !id || this.actionId!==id || !this.currentClient()) return Promise.resolve();
     this.offered=undefined;this.actionId='';return this.enqueue(intent);
   }
   private enqueue(intent: IntakeIntent): Promise<void> {
@@ -153,7 +161,7 @@ export class HealthIntakeModel {
     const current=():boolean => epoch===this.epoch && client===this.client && this.current();
     try {
       if (!await this.authorize() || !current()) throw new Error('request_updated');
-      this.readId++;this.error='';this.notice='';this.actionId='';this.offered=undefined;
+      this.readId++;this.error='';this.refreshError='';this.notice='';this.actionId='';this.offered=undefined;
       const add=intent.amount ?? this.cup;
       if (!intent.undo && add!==undefined) this.data=baseline.totals(baseline.water.today+(intent.kind==='water'?add:0),baseline.protein.today+(intent.kind==='protein'?add:0),baseline.zone);
       // Retrying the same POST reuses both id and timestamp. DELETE is idempotent even after the first reply was lost.

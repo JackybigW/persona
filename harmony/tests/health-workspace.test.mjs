@@ -503,3 +503,13 @@ test('the official omitted or empty machine trust means confirmed; missing/offli
     else assert.equal(shared.calls.some(c=>c.method==='UPLOAD'),false);
   }
 });
+
+test('a failed readback keeps an acknowledged undo explicitly separate from a safe GET retry; revoked access drops both',async()=>{
+  const env=intakeFixture(),i=env.workspace.intake;await env.workspace.open(env.root);
+  env.current.readFail=failure(503,'unavailable');await i.record('protein',5);
+  const undo=i.actionId;assert.equal(i.notice,'health_intake_logged');assert.equal(i.error,'');assert.equal(i.refreshError,'health_intake_load_failed');
+  assert.equal(i.data.protein.today,12.5);assert.equal(env.writes.length,1);await i.refresh();assert.equal(env.writes.length,1);assert.equal(i.actionId,undo);
+  env.current.readFail=null;await i.refresh();assert.equal(i.refreshError,'');assert.equal(i.actionId,undo);
+  env.current.readFail=failure(403,'forbidden');await i.refresh();assert.equal(i.data,undefined);assert.equal(i.notice,'');assert.equal(i.actionId,'');
+  await i.act(undo);assert.equal(env.writes.length,1);
+});
