@@ -1,4 +1,6 @@
 import { Tokens } from '../design/Tokens';
+import { PhoneStyle } from '../design/PhoneStyle';
+import { phoneSearchExcerpt, SearchTextPart } from '../core/PhoneSearchExcerpt';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { ClientModel } from '../models/ClientModel';
 import { ResourceRow } from '../models/Wire';
@@ -31,20 +33,26 @@ export struct PhoneConversationSearch {
     return !this.agents && !!this.model.mainId && hit.row.id===this.model.mainId &&
       (!this.model.mainMachineId || hit.row.machine===this.model.mainMachineId);
   }
-  private fieldHeight():number { return Math.max(38,Math.ceil(24*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(16)))+8); }
+  @Computed get assistantDrawer():boolean { return this.inline && !this.agents; }
+  private sidebarSize(regular:number,large:number):number { return PhoneStyle.formSize(regular,large,nativeEnvironment.fontScale); }
+  private fieldHeight():number {
+    return this.assistantDrawer ? this.sidebarSize(40,52.7) : Math.max(38,Math.ceil(24*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(16)))+8);
+  }
   @Builder fieldBar() {
     Row({space:8}) {
-      Row({space:5}) {
-        SymbolGlyph($r('sys.symbol.magnifyingglass')).fontSize('16vp').fontColor([Colors.secondary])
+      Row({space:this.assistantDrawer ? 8 : 5}) {
+        SymbolGlyph($r('sys.symbol.magnifyingglass')).fontSize(this.assistantDrawer ? Tokens.interfaceFontVp(15,nativeEnvironment.fontScale) : '16vp').fontColor([Colors.secondary])
         TextInput({text:this.query,placeholder:tr(this.agents ? 'search_sessions' : 'flow_search_chats'),controller:this.field})
           .height(this.fieldHeight()).padding({left:2,right:1}).layoutWeight(1).fontColor(Colors.ink)
           .fontSize(Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(16,nativeEnvironment.fontScale)})
           .backgroundColor(Color.Transparent).cancelButton({style:CancelButtonStyle.INPUT})
           .onChange((v:string) => this.query = v).enterKeyType(EnterKeyType.Search).defaultFocus(true).id('phone_search.field')
-      }.layoutWeight(1).alignItems(VerticalAlign.Center).padding({left:10,right:5}).backgroundColor(Colors.control).borderRadius(12)
+      }.layoutWeight(1).alignItems(VerticalAlign.Center).padding({left:this.assistantDrawer ? 12 : 10,right:this.assistantDrawer ? 12 : 5})
+        .backgroundColor(Colors.control).borderRadius(this.assistantDrawer ? this.fieldHeight()/2 : 12)
       Button(tr('cancel'),{buttonStyle:ButtonStyleMode.TEXTUAL}).height(this.fieldHeight()).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.link).padding({left:3,right:2})
         .onClick(() => this.onCancel()).id('phone_search.cancel')
-    }.width('100%').padding({left:12,right:12,top:6,bottom:6})
+    }.width('100%').padding({left:this.assistantDrawer ? 24 : 12,right:this.assistantDrawer ? 24 : 12,
+      top:this.assistantDrawer ? 8 : 6,bottom:this.assistantDrawer ? 8 : 6})
   }
   @Builder scopeButton(isAgent:boolean,label:string) {
     Button(tr(label),{type:ButtonType.Capsule}).layoutWeight(1).height(Math.max(31,Math.ceil(21*Math.min(nativeEnvironment.fontScale,Tokens.interfaceScaleFor(14)))+8)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14))
@@ -64,27 +72,48 @@ export struct PhoneConversationSearch {
       List() {
         if (this.rows.length && this.query.trim()) ListItem() {
           Text(tr(this.agents ? 'project_agent_count' : 'phone_search_conversation_count').replace('{count}',String(this.rows.length)))
-            .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%').padding({left:15,right:12,top:7,bottom:5}).id('phone_search.count')
+            .fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%')
+            .height(this.assistantDrawer ? this.sidebarSize(35.7,43) : undefined)
+            .padding({left:this.assistantDrawer ? 20 : 15,right:12,top:7,bottom:5}).id('phone_search.count')
         }
         if (this.search.busy) ListItem() { LoadingProgress().width(23).height(23).margin(10) }
         if (!this.rows.length && !this.search.busy) ListItem() { Text(tr(this.query ? 'no_results' : 'empty')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary).padding(16) }
         ForEach(this.rows,(hit:PhoneChatMatch) => {
           ListItem() {
-            Row({space:10}) {
-              SymbolGlyph(this.agents ? Symbols.agent : this.main(hit) ? $r('sys.symbol.house') : Symbols.persona).fontSize('19vp').fontColor([Colors.secondary])
-              Column({space:3}) {
-                Text(this.main(hit) ? tr('main_chat') : hit.row.title || tr('persona')).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(2)
-                if (hit.subtitle) Text(hit.subtitle).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).maxLines(this.inline ? 1 : 2).textOverflow({overflow:TextOverflow.Ellipsis})
+            Row() {
+            Row({space:this.assistantDrawer ? 12 : 10}) {
+              SymbolGlyph(this.agents ? Symbols.agent : this.main(hit) ? $r('sys.symbol.house') : Symbols.persona)
+                .fontSize(this.assistantDrawer ? String(this.sidebarSize(22,29))+'vp' : '19vp')
+                .width(this.assistantDrawer ? this.sidebarSize(24,31.5) : undefined).fontColor([Colors.secondary])
+              Column({space:this.assistantDrawer ? 2 : 3}) {
+                Text(this.main(hit) ? tr('main_chat') : hit.row.title || tr('persona'))
+                  .fontSize(this.assistantDrawer ? Tokens.interfaceFontVp(17,nativeEnvironment.fontScale) : 16).maxFontScale(Tokens.interfaceScaleFor(16))
+                  .lineHeight(this.assistantDrawer ? String(this.sidebarSize(20.3,27.7))+'vp' : undefined)
+                  .fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(this.assistantDrawer ? 1 : 2).textOverflow({overflow:TextOverflow.Ellipsis})
+                if (hit.subtitle && this.assistantDrawer) {
+                  Text() {
+                    ForEach(phoneSearchExcerpt(hit.subtitle,hit.ranges,nativeEnvironment.fontScale),(part:SearchTextPart) => {
+                      Span(part.text).fontWeight(part.matched ? FontWeight.Bold : FontWeight.Normal)
+                    },(part:SearchTextPart,index:number) => JSON.stringify([index,part.matched,part.text]))
+                  }.fontSize(Tokens.interfaceFontVp(15,nativeEnvironment.fontScale))
+                    .lineHeight(String(this.sidebarSize(18,25.3))+'vp').fontColor(Colors.secondary)
+                    .maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).id('phone_search.snippet')
+                } else if (hit.subtitle) {
+                  Text(hit.subtitle).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.secondary).maxLines(this.inline ? 1 : 2).textOverflow({overflow:TextOverflow.Ellipsis})
+                }
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               if (!this.inline) SymbolGlyph(Symbols.expand).fontSize('12vp').fontColor([Colors.secondary])
-            }.width('100%').constraintSize({minHeight:48}).padding({left:13,right:12,top:8,bottom:8})
+            }.layoutWeight(1).constraintSize({minHeight:this.assistantDrawer ? this.sidebarSize(44,57.7) : 48})
+              .padding({left:this.assistantDrawer ? 12 : 13,right:12,top:this.assistantDrawer ? 4 : 8,bottom:this.assistantDrawer ? 4 : 8})
               .backgroundColor(this.inline ? Colors.subtle : Colors.surface).borderRadius(this.inline ? 12 : 0)
-          }.onClick(() => this.onOpen(hit.row,hit.hitId)).accessibilityGroup(true).id('phone_search.result')
-        },(hit:PhoneChatMatch) => JSON.stringify([hit.row.key(),hit.row.title,hit.subtitle]))
+            }.width('100%').padding({left:this.assistantDrawer ? 8 : 0,right:this.assistantDrawer ? 8 : 0})
+          }.onClick(() => this.onOpen(hit.row,hit.hitId)).accessibilityGroup(true)
+            .accessibilityText([this.main(hit) ? tr('main_chat') : hit.row.title,hit.subtitle].filter((s:string)=>!!s).join(', ')).id('phone_search.result')
+        },(hit:PhoneChatMatch) => JSON.stringify([hit.row.key(),hit.row.title,hit.subtitle,hit.hitId,hit.ranges]))
         if (this.search.partial || this.search.failed) ListItem() {
           Text(tr(this.search.failed ? 'flow_search_local' : 'flow_search_partial')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).padding(12)
         }
-      }.layoutWeight(1).width('100%').divider({strokeWidth:0.5,startMargin:43,endMargin:12,color:Colors.divider})
+      }.layoutWeight(1).width('100%').divider({strokeWidth:this.assistantDrawer ? 0 : 0.5,startMargin:43,endMargin:12,color:Colors.divider})
       if (!this.inline) this.fieldBar()
     }.width('100%').height('100%').backgroundColor(this.inline ? Colors.canvas : Colors.grouped).id('phone_search.results')
   }

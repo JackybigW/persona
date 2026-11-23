@@ -1,11 +1,15 @@
 import type { ClientModel } from './ClientModel';
 import { ResourceRow, Wire } from './Wire';
+import { searchHitRanges } from '../core/PhoneSearchExcerpt';
 
 export class PhoneChatMatch {
   row: ResourceRow;
   subtitle: string;
   hitId: string;
-  constructor(row: ResourceRow, subtitle: string, hitId: string = '') { this.row = row; this.subtitle = subtitle; this.hitId = hitId; }
+  ranges: number[][];
+  constructor(row: ResourceRow, subtitle: string, hitId: string = '', ranges: number[][] = []) {
+    this.row = row; this.subtitle = subtitle; this.hitId = hitId; this.ranges = ranges;
+  }
 }
 
 function lastText(row: ResourceRow): string {
@@ -63,7 +67,8 @@ export class PhoneSearchIndex {
         const row = model.conversations.find((r: ResourceRow) => r.id === id && r.machine === machine) || ResourceRow.from(v,'conversation');
         if (!model.conversations.includes(row)) { row.id = id; row.machine = machine; row.session = id; row.manager = model.profile.manager; row.group = model.profile.id; }
         const hit = Wire.rows(v, 'hits')[0];
-        found.push(new PhoneChatMatch(row, hit ? Wire.text(hit, 'snippet') : lastText(row),hit ? Wire.text(hit,'item_id') : ''));
+        found.push(new PhoneChatMatch(row, hit ? Wire.text(hit, 'snippet') : lastText(row),hit ? Wire.text(hit,'item_id') : '',
+          hit ? searchHitRanges(hit['ranges']) : []));
       }
       this.matches = found; this.partial = Wire.bool(res, 'partial');
     } catch (err) {
@@ -79,7 +84,7 @@ export function mergeChatMatches(local: PhoneChatMatch[], remote: PhoneChatMatch
   const result = local.slice();
   for (const hit of remote) {
     const i = result.findIndex((v: PhoneChatMatch) => v.row.id === hit.row.id && v.row.machine === hit.row.machine);
-    if (i < 0) result.push(hit); else if (hit.subtitle) result[i] = new PhoneChatMatch(result[i].row, hit.subtitle, hit.hitId);
+    if (i < 0) result.push(hit); else if (hit.subtitle) result[i] = new PhoneChatMatch(result[i].row, hit.subtitle, hit.hitId,hit.ranges);
   }
   return result;
 }

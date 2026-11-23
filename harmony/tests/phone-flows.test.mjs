@@ -5,6 +5,8 @@ import test from 'node:test';
 
 registerHooks({
   resolve(spec, ctx, next) {
+    if (spec === '../core/PhoneSearchExcerpt' && ctx.parentURL?.endsWith('.ets'))
+      return {url:new URL(spec+'.ts',ctx.parentURL).href,shortCircuit:true};
     if (spec.startsWith('.') && ctx.parentURL?.endsWith('.ets'))
       return {url:new URL(spec+'.ets',ctx.parentURL).href,shortCircuit:true};
     return next(spec,ctx);
@@ -17,6 +19,22 @@ registerHooks({
 });
 const {phonePlaceAtRoot,phonePanIntent,finishesPhonePan}=await import('../entry/src/main/ets/models/PhoneNavigation.ets');
 const {PhoneSearchIndex,PhoneChatMatch,mergeChatMatches,localChatMatches}=await import('../entry/src/main/ets/models/PhoneChatSearch.ets');
+const {phoneSearchExcerpt,searchHitRanges}=await import('../entry/src/main/ets/core/PhoneSearchExcerpt.ts');
+
+test('sidebar search keeps the actual UTF-16 hits visible and bold across the phone type sizes',()=>{
+  const sentence='顺便把 PR #42 的 review 意见处理掉',ranges=searchHitRanges([[4,6],[13,19],['wrong',2],[1],[2.8,4]]);
+  const excerpt=(scale)=>phoneSearchExcerpt(sentence,ranges,scale);
+  assert.equal(excerpt(1).map(s=>s.text).join(''),sentence);
+  assert.equal(excerpt(3.2).map(s=>s.text).join(''),'…把 PR #42 的 review 意见处理掉');
+  assert.equal(excerpt(3.2).filter(s=>s.matched)[0].text,'PR');
+  const unicode='abc👩‍💻e\u0301🧑‍🚀XY rest';
+  const at=unicode.indexOf('XY');
+  assert.deepEqual(phoneSearchExcerpt(unicode,[[at,at+2]],3.2),[
+    {text:'…e\u0301🧑‍🚀',matched:false},{text:'XY',matched:true},{text:' rest',matched:false}]);
+  assert.deepEqual(phoneSearchExcerpt(unicode,[[4,5],[90,41]],3.2),[{text:unicode,matched:false}]);
+  assert.deepEqual(phoneSearchExcerpt('first abcd',[[6,9],[7,10]],1),[{text:'first ',matched:false},{text:'abcd',matched:true}]);
+  assert.deepEqual(phoneSearchExcerpt(sentence,[],3.2),[{text:sentence,matched:false}]);
+});
 const {Tokens}=await import('../entry/src/main/ets/design/Tokens.ets');
 
 test('the in-chat recap preview and its date follow interface type while the full recap keeps reading type', () => {
@@ -475,7 +493,9 @@ test('matches local titles and previews immediately; remote message snippet and 
   const a=ResourceRow.from({id:'a',title:'Release',machine_id:'mac',last_text:'Zoom quality',updated_at:'2026-11-20'},'conversation');
   const b=ResourceRow.from({id:'b',machine_id:'mac',title:'Archived',archived:true},'conversation');
   const list=localChatMatches([b,a],'release quality',false);assert.equal(list.length,1);assert.equal(list[0].row,a);
-  const merged=mergeChatMatches(list,[new PhoneChatMatch(a,'This sentence matches','actual-item')]);assert.equal(merged.length,1);assert.equal(merged[0].subtitle,'This sentence matches');assert.equal(merged[0].hitId,'actual-item');
+  const merged=mergeChatMatches(list,[new PhoneChatMatch(a,'This sentence matches','actual-item',[[5,13]])]);
+  assert.equal(merged.length,1);assert.equal(merged[0].subtitle,'This sentence matches');assert.equal(merged[0].hitId,'actual-item');
+  assert.deepEqual(merged[0].ranges,[[5,13]]);
 });
 test('full-text requests are debounced, and clearing, switching scope or hiding search discards late hits',async()=>{
   const calls=[];const owner=makeOwner(async p=>{const g=gate();calls.push([p,g]);return g.promise});
