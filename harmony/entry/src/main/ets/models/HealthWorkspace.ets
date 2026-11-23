@@ -1,6 +1,7 @@
 import type { ClientModel } from './ClientModel';
 import type { HubRepository } from './HubRepository';
 import { ResourceRow, Wire } from './Wire';
+import { HealthIntakeModel } from './HealthIntake';
 
 const HEALTH_SPACE: string = 'health';
 const MEMORY_INDEX: string = 'MEMORY.md';
@@ -55,6 +56,7 @@ function payload(keys: string[], values: Object[]): Record<string, Object> { ret
 /** The native, manager-owned Health space. It never changes the selected global manager. */
 @ObservedV2
 export class HealthWorkspace {
+  readonly intake: HealthIntakeModel = new HealthIntakeModel();
   @Trace conversations: ResourceRow[] = [];
   @Trace memories: HealthMemoryFile[] = [];
   @Trace reports: HealthReport[] = [];
@@ -88,6 +90,7 @@ export class HealthWorkspace {
 
   async open(client: ClientModel): Promise<void> {
     const revision = ++this.revision;
+    this.intake.close();
     this.client = client; this.healthClient = undefined; this.owner = '';
     this.rootGeneration = client.connectionGeneration(); this.rootScope = client.scope(); this.rootManager = client.profile.manager;
     this.viewScope = JSON.stringify([this.rootScope, this.rootManager]);
@@ -110,7 +113,7 @@ export class HealthWorkspace {
     } finally { if (this.revision === revision) this.loading = false; }
   }
 
-  hide(): void { this.revision++; this.client = undefined; this.healthClient = undefined; this.conversations = []; this.memories = []; this.reports = []; }
+  hide(): void { this.revision++; this.intake.close(); this.client = undefined; this.healthClient = undefined; this.conversations = []; this.memories = []; this.reports = []; }
 
   async refresh(): Promise<void> {
     const client = this.client;
@@ -385,12 +388,18 @@ export class HealthWorkspace {
     } finally { if (this.revision === revision && this.healthClient === client && this.client === root) this.busy = false; }
   }
 
+  composerOwner(): string {
+    const child=this.healthClient;
+    return JSON.stringify([this.rootScope,this.rootGeneration,this.owner,child?.scope() || '',child?.connectionGeneration(),this.machine]);
+  }
+
   canUploadReports(): boolean {
-    return !!this.healthClient && !!this.machine && this.reportUploadAllowed && !this.busy;
+    return !!this.healthClient?.connected && !!this.client?.connected && this.client.owns(this.rootGeneration,this.rootScope) &&
+      !!this.machine && this.reportUploadAllowed && !this.busy;
   }
 
   canStartConversation(): boolean {
-    return !!this.healthClient && !!this.machine && this.reportUploadAllowed && !this.busy &&
+    return this.canUploadReports() &&
       !['pending', 'unknown'].includes(this.conversationWriteState);
   }
 
@@ -527,12 +536,21 @@ export class HealthWorkspace {
   }
 
   private clearOwnerState(): void {
+    this.intake.close();
     this.healthClient = undefined; this.owner = ''; this.machine = '';
     this.conversations = []; this.memories = []; this.reports = []; this.selectedMemory = undefined; this.memoryDraft = '';
     this.writeState = ''; this.conversationWriteState = ''; this.memoryWriteState = ''; this.reportUploadState = ''; this.reportUploadAllowed = false;
   }
 
   private async load(owner: HealthOwner, revision: number): Promise<void> {
+    this.intake.bind(owner.client,owner.root.features.includes('health_intake'),() => this.current(owner,revision),
+      async ():Promise<boolean> => {
+        const checked=await this.ownerSnapshot(owner.root,owner.client,this.healthTarget(owner.manager),revision);
+        return this.current(checked,revision) && checked.manager===owner.manager;
+      });
+    await Promise.all([this.loadResources(owner,revision),this.intake.refresh()]);
+  }
+  private async loadResources(owner: HealthOwner, revision: number): Promise<void> {
     // The health list itself supplies the manager's configured assistant machine and health cwd.
     const assistant = await owner.repository.call('/api/v1/assistant?space=' + HEALTH_SPACE);
     if (!this.current(owner, revision, owner.target)) return;
@@ -633,7 +651,8 @@ export class HealthWorkspace {
   private machineUsable(machine: Record<string, Object>, manager: string): boolean {
     return Wire.text(machine, 'id').length > 0 &&
       (!Wire.text(machine, 'manager') || Wire.text(machine, 'manager') === manager) &&
-      Wire.bool(machine, 'online') && ['personal', 'work'].includes(Wire.text(machine, 'trust')) &&
+      Wire.bool(machine, 'online') && (!Wire.has(machine,'trust') || typeof machine['trust']==='string') &&
+      ['', 'personal', 'work'].includes(Wire.text(machine, 'trust')) &&
       !Wire.bool(machine, 'pending') && !Wire.bool(machine, 'pending_confirm');
   }
 

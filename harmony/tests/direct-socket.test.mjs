@@ -255,3 +255,15 @@ test('reading a normal batch does not recopy the unconsumed suffix after each me
   assert.ok(copiedSuffix <= total, 'unconsumed data was copied repeatedly');
   assert.equal(stream.rx.buffer.byteLength, 0);
 });
+
+test('reserved Health routes keep the paired credentials and use only the Hub’s default manager',async()=>{
+  const requests=[],rcp=globalThis.socketTestKit.rcp, uuid='ed0fe4c5-f936-4419-b24f-b95cee97dc9d',base='/api/v1/assistant/health/intake';
+  rcp.Request=class {constructor(target,method,headers){Object.assign(this,{target,method,headers});}};
+  rcp.createSession=()=>({close(){},async fetch(request){requests.push(request);request.destination(new TextEncoder().encode('{}').buffer);return {statusCode:200,headers:{}};}});
+  const client=new HubTransport(new EndpointConfig('https://test.invalid/','fixture','synthetic-health','','manager-a'));
+  client.clientMetadata=()=>({platform:'harmony',version:'1',build:'1',os:{}});
+  for(const [path,verb,defaultOnly] of [[base+'?space=health','POST',true],[base+'?space=health','GET',true],[base+'/ui?space=health','POST',true],[base+'/'+uuid+'?space=health','DELETE',true],[base+'/ui?space=work','POST',false],[base+'/unrelated?space=health','DELETE',false],['/api/v1/assistant?space=health','GET',false]]){
+    await client.request(path,verb,verb==='POST'?'{}':'');
+    const h=requests.at(-1).headers;assert.equal(h.Authorization,'Bearer synthetic-health');assert.equal(h['X-Persona-Manager'],defaultOnly?undefined:'manager-a');
+  }
+});
