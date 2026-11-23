@@ -394,8 +394,10 @@ export class HealthWorkspace {
   }
 
   canUploadReports(): boolean {
-    return !!this.healthClient?.connected && !!this.client?.connected && this.client.owns(this.rootGeneration,this.rootScope) &&
-      !!this.machine && this.reportUploadAllowed && !this.busy;
+    // The first render precedes connection to the owner's view. Read the observable readiness first
+    // so ArkUI enables the existing controls when the default machine is confirmed.
+    return this.reportUploadAllowed && !this.busy && !!this.machine && !!this.healthClient?.connected &&
+      !!this.client?.connected && this.client.owns(this.rootGeneration,this.rootScope);
   }
 
   canStartConversation(): boolean {
