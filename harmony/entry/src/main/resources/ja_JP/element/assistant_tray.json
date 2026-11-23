@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "tray_waiting_answer",
+      "value": "回答を待っています"
+    },
+    {
+      "name": "tray_draft_reply",
+      "value": "返信を下書き"
+    },
+    {
+      "name": "tray_did_not_start",
+      "value": "起動失敗"
+    },
+    {
+      "name": "tray_empty_tasks",
+      "value": "タスクはまだありません"
+    },
+    {
+      "name": "tray_empty_tasks_detail",
+      "value": "チャットでやることを伝えると、Personaがタスクにします。"
+    }
+  ]
+}

@@ -38,7 +38,7 @@ registerHooks({
   }
 });
 
-const { assistantTrayRows, TrayRequest }=await import('../entry/src/main/ets/models/AssistantTrays.ets');
+const { assistantBoardRows, assistantTrayRows, TrayRequest }=await import('../entry/src/main/ets/models/AssistantTrays.ets');
 const { ResourceRow }=await import('../entry/src/main/ets/models/Wire.ets');
 const { composerModelName, validComposerModelID, SessionComposerModes }=await import('../entry/src/main/ets/models/SessionComposerModes.ets');
 function session(id,state='idle',details={}) {
@@ -91,6 +91,26 @@ test('Main excludes delegated questions, ordinary permissions, plans, failed sta
   const ordinary=assistantTrayRows(todos,sessions,feed,plans,reqs,'owner','group','ordinary','main',now);
   assert.deepEqual(new Set(ordinary.filter(r=>r.bucket==='needs').map(r=>r.id)),new Set(['failure','supervisor','owner','handoff','plan']));
 });
+test('the conversation board retains its complete history, own tasks, and unclaimed main Agents',()=>{
+  const todos=[
+    {id:'active',origin:'main',title:'Assigned here',created_at:'2026-06-01T10:00:00Z',agents:[{machine_id:'machine',session_id:'worker'}]},
+    {id:'old',origin:'main',title:'Old completed task',created_at:'2026-01-01T10:00:00Z',done_at:'2026-01-02T10:00:00Z'},
+    {id:'failed',origin:'main',title:'Launch failure',start_error:'not started'},
+    {id:'elsewhere',origin:'other',title:'Other chat',agents:[{machine_id:'machine',session_id:'other-agent'}]},
+    {id:'foreign',manager:'foreign',origin:'main',title:'Other manager'}];
+  const sessions=[session('worker','working'),session('unclaimed','needs_you'),session('other-agent','working')];
+  const board=assistantBoardRows(todos,sessions,'owner','group','main','main');
+  assert.deepEqual(board.map(row=>row.title),['Assigned here','Old completed task','Launch failure',sessions[1].title]);
+  assert.deepEqual(board.map(row=>row.bucket),['working','done','failed','needs']);
+  assert.equal(board[0].resource.group,'group');
+  assert.deepEqual(assistantBoardRows(todos,sessions,'owner','group','other','main').map(row=>row.id),['elsewhere']);
+  const now=Date.parse('2026-06-01T11:00:00Z'); sessions[0].state='needs_you';
+  const rows=assistantTrayRows(todos,sessions,[{id:'m',ref:'mail',kind:'message',body:{text:'Incoming question\nquoted text',draft:'Private draft'}}],{},
+    [new TrayRequest('machine','worker','ix','Original user question',now,true)],'owner','group','main','main',now);
+  assert.equal(rows.find(row=>row.id==='active').note,'Original user question');
+  assert.equal(rows.find(row=>row.id==='m').note,'Incoming question');
+});
+
 function owner() {
   const row=session('chat'), calls=[], trace={scope:'hub-A',generation:1,target:'chat',compose:true,blocked:[],pending:'',afterJournal:undefined};
   const repo={mutations:{blocked:()=>trace.blocked},async call(path,method='GET',body={},op='',admit){

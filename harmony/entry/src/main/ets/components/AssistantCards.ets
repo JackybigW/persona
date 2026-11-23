@@ -1,4 +1,4 @@
-import { directUserRequest } from '../models/InteractionDecision';
+import { directUserRequest, interactionPermissionSubject } from '../models/InteractionDecision';
 import { IconActions } from '../design/IconActions';
 import { Symbols } from '../design/Symbols';
 import { AgentDecisionQueue, AgentDecisionCard } from '../models/AgentDecisionQueue';
@@ -19,7 +19,7 @@ import { Decision, ResourceRow, Wire } from '../models/Wire';
 import { MarkdownText } from './MarkdownText';
 import { Tokens } from '../design/Tokens';
 import { Colors } from '../design/Colors';
-import { assistantTrayRows, TaskTrayRow, TrayRequest } from '../models/AssistantTrays';
+import { assistantBoardRows, assistantTrayRows, TaskTrayRow, TrayRequest } from '../models/AssistantTrays';
 import { ButtonStyles } from '../design/Controls';
 import { tr } from '../design/Strings';
 import { projectAssistantReceipt, AssistantReceiptProjection, AssistantReceiptCriterion } from '../models/AssistantReceipt';
@@ -67,6 +67,8 @@ export struct AssistantCards {
   @Local environment: NativeEnvironment = nativeEnvironment;
   @Local editorInset: number = 0;
   @Local trayOpen: boolean = false;
+  @Local boardOpen: boolean = false;
+  @Local trayContentHeight: number = 0;
   @Local trayBucket: string = '';
   private trayOwner: string = '';
   @Local private requests: AgentDecisionQueue = new AgentDecisionQueue();
@@ -168,18 +170,19 @@ export struct AssistantCards {
   }
   private trayScope(): string { return JSON.stringify([this.model.scope(), this.model.connectionGeneration(), this.model.target()]); }
   @Monitor('active', 'model.selected', 'model.profile', 'model.connected', 'feed.conversationId')
-  trayOwnerChanged(): void { if (this.trayOpen && (!this.active || this.trayOwner !== this.trayScope())) this.trayOpen = false; this.syncRequests(); }
+  trayOwnerChanged(): void { if (!this.active || this.trayOwner !== this.trayScope()) { this.trayOpen = false; this.boardOpen=false; } this.syncRequests(); }
   private openTray(bucket: string): void {
     if (!this.active) return;
     if (this.trayOpen && this.trayBucket===bucket) { this.trayOpen=false; return; }
-    this.trayBucket=bucket; this.trayOwner=this.trayScope(); this.expandedEntry=''; this.trayOpen=true;
+    this.trayContentHeight=0; this.trayBucket=bucket; this.trayOwner=this.trayScope(); this.expandedEntry=''; this.trayOpen=true;
   }
   @Computed get trayRows(): TaskTrayRow[] {
     if (!this.dockOnly || !this.active || !this.feed.todosReady || this.feed.owner!==this.model.profile.manager) return [];
     const manager=this.feed.owner, session=this.feed.conversationId;
     const main=!this.model.mainMachineId || this.model.mainMachineId===this.model.selected.machine ? this.model.mainId : '';
     const requests=this.requests.cards.filter((c:AgentDecisionCard) => c.owner===this.model && c.manager===manager)
-      .map((c:AgentDecisionCard) => new TrayRequest(c.machine,c.session,c.request.id,c.preview,c.since,directUserRequest(c.request)));
+      .map((c:AgentDecisionCard) => new TrayRequest(c.machine,c.session,c.request.id,
+        c.request.kind==='permission' ? interactionPermissionSubject(c.request) : c.preview,c.since,directUserRequest(c.request)));
     const feed=this.feed.items.filter((i:Record<string,Object>) => Wire.text(i,'kind')!=='message' || this.feed.messageState(i)==='open');
     const rows=assistantTrayRows(this.feed.directoryTodos,this.model.sessions,feed,this.feed.plans,requests,manager,this.model.profile.id,session,main,Date.now());
     for (const req of requests) {
@@ -187,6 +190,32 @@ export struct AssistantCards {
       rows.unshift(new TaskTrayRow('question',req.id,'needs','needs_you',req.title,'',{}));
     }
     return rows;
+  }
+  @Computed get boardRows(): TaskTrayRow[] {
+    if (!this.boardOpen || !this.active || this.trayScope()!==this.trayOwner) return [];
+    const main=!this.model.mainMachineId || this.model.mainMachineId===this.model.selected.machine ? this.model.mainId : '';
+    return assistantBoardRows(this.feed.directoryTodos,this.model.sessions,this.model.profile.manager,this.model.profile.id,this.feed.conversationId,main);
+  }
+  private openBoardRow(entry: TaskTrayRow): void {
+    if (!this.boardOpen || this.trayScope()!==this.trayOwner) return;
+    const row=this.boardRows.find((value:TaskTrayRow) => value.key()===entry.key())?.resource;
+    if (!row) return;
+    this.boardOpen=false;
+    if (row.kind==='session') this.onOpenSession(row); else this.onOpenTodo(row);
+  }
+  private boardSectionTitle(bucket: string): string {
+    return tr(bucket==='needs' ? 'needs_you' : bucket==='working' ? 'working' : bucket==='failed' ? 'tray_did_not_start' :
+      bucket==='done' ? 'done' : bucket==='unread' ? 'unread' : 'todo_state_followup');
+  }
+  private rowNote(entry: TaskTrayRow): string { return entry.waitingForOwner ? tr('tray_waiting_answer') : entry.note; }
+  private trayDetail(entry: TaskTrayRow): string {
+    const state=entry.kind==='message' ? tr('tray_draft_reply') : entry.status==='needs_you' ? tr('needs_you') : this.rowState(entry);
+    return state+(entry.agentCount>1 ? ' · '+tr('project_agent_count').replace('{count}',String(entry.agentCount)) : '');
+  }
+  private trayHeight(): number {
+    const cap = this.expandedEntry ? 380 : 280;
+    const available = Math.max(48,this.dockRoom-this.composerHeight-this.actionBarHeight-70);
+    return Math.min(cap,available,this.trayContentHeight || 54);
   }
   @Local private expandedEntry:string='';
   private rowState(entry:TaskTrayRow):string {
@@ -463,49 +492,113 @@ export struct AssistantCards {
     }
   }
 
+  @Builder taskMark(entry: TaskTrayRow) {
+    Stack({alignContent:Alignment.Center}) {
+      if (entry.kind==='message') {
+        SymbolGlyph(Wire.text(Wire.object(entry.data,'body'),'source')==='mail' ? $r('sys.symbol.envelope') : Symbols.persona)
+          .fontSize(14).fontColor([Colors.link])
+      } else {
+        Circle().width(9).height(9).fill(this.trayColor(entry.bucket))
+      }
+    }.width(14).accessibilityLevel('no')
+  }
+
   @Builder taskRow(entry: TaskTrayRow) {
     Column() {
       Button({type:ButtonType.Normal}) {
-        Row({space:9}) {
-          Circle().width(7).height(7).fill(this.trayColor(entry.bucket))
+        Row({space:8}) {
+          this.taskMark(entry)
           Column({space:2}) {
-            Text(entry.title || this.rowState(entry)).fontSize(16).maxFontScale(Tokens.interfaceScaleFor(16)).fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(2)
-              .textOverflow({overflow:TextOverflow.Ellipsis})
-            if (entry.note) Text(entry.note).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+            Row({space:8}) {
+              Text(entry.title || this.rowState(entry)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink)
+                .maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1)
+              Text(this.trayDetail(entry)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(this.trayColor(entry.bucket)).maxLines(1)
+            }.width('100%')
+            if (this.rowNote(entry)) Text(this.rowNote(entry)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+              .fontColor(Colors.secondary).textAlign(TextAlign.Start).width('100%').maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Text(this.rowState(entry)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(this.trayColor(entry.bucket)).maxLines(1)
-          SymbolGlyph(Symbols.expand).fontSize('11vp').fontColor([Colors.secondary])
-        }.width('100%').padding({top:5,bottom:5}).constraintSize({minHeight:entry.note ? 52 : 38})
-      }.width('100%').padding({left:8,right:8}).backgroundColor(Color.Transparent)
-        .id('chat.tasks.'+entry.kind+'.'+entry.id).accessibilityText([entry.title,this.rowState(entry),entry.note].filter((v:string) => !!v).join('、'))
+          SymbolGlyph(this.expandedEntry===entry.key() ? Symbols.down : Symbols.expand).fontSize(11).fontColor([Colors.tertiary])
+        }.width('100%').padding({left:12,right:12,top:7,bottom:7}).constraintSize({minHeight:this.rowNote(entry) ? 54 : 40})
+      }.width('100%').padding(0).backgroundColor(Color.Transparent)
+        .id('chat.tasks.'+entry.kind+'.'+entry.id).accessibilityText([entry.title,this.trayDetail(entry),this.rowNote(entry)].filter((v:string) => !!v).join('、'))
         .onClick(() => this.activateTray(entry))
       if (this.expandedEntry===entry.key() && entry.kind==='message') this.message(entry.data)
-      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planSummary(entry.data)
-      Divider().color(Colors.divider).margin({left:24})
+      if (this.expandedEntry===entry.key() && entry.kind==='plan') this.planCard(entry.data)
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 
-  @Builder trayList() {
-    Column({space:4}) {
-      Row() {
-        Text(this.trayLabel(this.trayBucket)+' ('+this.trayRows.filter((row:TaskTrayRow) => row.bucket===this.trayBucket).length+')')
-          .fontSize(13).fontWeight(FontWeight.Medium).fontColor(Colors.secondary).layoutWeight(1)
-        Button({type:ButtonType.Circle}) { SymbolGlyph(Symbols.down).fontSize('13vp').fontColor([Colors.secondary]) }
-          .width(32).height(28).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('close')).onClick(() => this.trayOpen=false)
-      }.width('100%')
-      Scroll() {
-        Column({space:2}) {
-          ForEach(this.trayRows.filter((row:TaskTrayRow) => row.bucket===this.trayBucket),(row:TaskTrayRow) => {
-            if (row.groupHeading) Text(this.trayGroupTitle(row.groupHeading)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
-              .fontWeight(FontWeight.Medium).fontColor(Colors.secondary).padding({left:12,top:5}).width('100%').id('chat.tasks.group.'+row.groupHeading)
-            this.taskRow(row)
-          },(row:TaskTrayRow) => JSON.stringify([row.key(),row.title,row.status,row.note,row.groupHeading]))
-          if (!this.trayRows.some((row:TaskTrayRow) => row.bucket===this.trayBucket)) Text(tr('empty')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
-          if (this.feed.todoError) Text(tr(this.feed.todoError)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.danger)
+  @Builder taskBoard() {
+    Column() {
+      Stack({alignContent:Alignment.Center}) {
+        Text(tr('task')).fontSize(17).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
+        Row() {
+          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(20).fontColor([Colors.ink]) }
+            .width(44).height(44).backgroundColor(Colors.sheetControl).accessibilityText(tr('close')).onClick(() => this.boardOpen=false).id('tasks-board-close')
+          Blank()
         }.width('100%')
-      }.width('100%').constraintSize({maxHeight:Math.max(48,Math.min(this.dockRoom*(this.taskQuestions.length ? 0.21 : 0.45),260))}).align(Alignment.TopStart)
-    }.width('100%').alignItems(HorizontalAlign.Start).padding({left:10,right:10,top:3,bottom:7})
-      .backgroundColor(Colors.surface).border({width:Tokens.divider,color:Colors.divider,radius:14}).borderRadius(14).id('chat.tasks.tray')
+      }.width('100%').height(56).padding({left:16,right:16})
+      if (!this.boardRows.length) {
+        Blank()
+        Text(tr('tray_empty_tasks')).fontSize(19).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
+        Text(tr('tray_empty_tasks_detail')).fontSize(15).fontColor(Colors.secondary).textAlign(TextAlign.Center).padding(12)
+        Blank()
+      } else {
+        Scroll() {
+          Column({space:14}) {
+            ForEach(['needs','working','unread','followup','done','failed'],(bucket:string) => {
+              if (this.boardRows.some((row:TaskTrayRow) => row.bucket===bucket)) {
+                Column({space:5}) {
+                  Text(this.boardSectionTitle(bucket)).fontSize(13).fontWeight(FontWeight.Medium).fontColor(Colors.secondary).padding({left:12})
+                  Column() {
+                    ForEach(this.boardRows.filter((row:TaskTrayRow) => row.bucket===bucket),(row:TaskTrayRow) => {
+                      Button({type:ButtonType.Normal}) {
+                        Row({space:10}) {
+                          this.taskMark(row)
+                          Column({space:2}) {
+                            Text(row.title).fontColor(Colors.ink).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+                            if (row.note) Text(row.note).fontColor(Colors.secondary).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
+                          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+                          SymbolGlyph(Symbols.expand).fontSize(11).fontColor([Colors.tertiary])
+                        }.width('100%').padding(12).constraintSize({minHeight:48})
+                      }.width('100%').padding(0).backgroundColor(Color.Transparent).onClick(() => this.openBoardRow(row)).id('tasks-board.'+row.kind+'.'+row.id)
+                    },(row:TaskTrayRow) => JSON.stringify([row.key(),row.title,row.note,row.status]))
+                  }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(15)
+                }.width('100%').alignItems(HorizontalAlign.Start)
+              }
+            },(bucket:string) => bucket)
+          }.width('100%').padding({left:16,right:16,top:14,bottom:24})
+        }.layoutWeight(1).width('100%').align(Alignment.Top)
+      }
+    }.width('100%').height('100%').backgroundColor(Colors.sheetBackground).id('tasks-board')
+  }
+
+  @Builder trayList() {
+    Column() {
+      Row({space:8}) {
+        Text(this.trayLabel(this.trayBucket)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontWeight(FontWeight.Medium)
+          .fontColor(Colors.secondary).layoutWeight(1)
+        Button({type:ButtonType.Normal}) {
+          Text(tr('all')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+            .padding({left:12,right:12,top:3,bottom:3}).backgroundColor(Colors.control).borderRadius(14)
+        }.constraintSize({minWidth:50}).height(44).padding(0).backgroundColor(Color.Transparent)
+          .onClick(() => { this.trayOpen=false; this.boardOpen=true; }).id('action-tray.board')
+        Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(15).fontColor([Colors.secondary]) }
+          .width(44).height(44).padding(0).backgroundColor(Color.Transparent).accessibilityText(tr('close')).onClick(() => this.trayOpen=false).id('action-tray.close')
+      }.width('100%').padding({left:12}).constraintSize({minHeight:44})
+      Scroll() {
+        Column() {
+          ForEach(this.trayRows.filter((row:TaskTrayRow) => row.bucket===this.trayBucket),(row:TaskTrayRow) => {
+            if (row.groupHeading) Text(this.trayGroupTitle(row.groupHeading)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
+              .fontWeight(FontWeight.Medium).fontColor(Colors.secondary).textAlign(TextAlign.Start)
+              .padding({left:12,top:6,bottom:2}).width('100%').constraintSize({minHeight:24}).id('chat.tasks.group.'+row.groupHeading)
+            this.taskRow(row)
+          },(row:TaskTrayRow) => JSON.stringify([row.key(),row.title,row.status,row.note,row.groupHeading,row.agentCount,row.waitingForOwner]))
+          if (!this.trayRows.some((row:TaskTrayRow) => row.bucket===this.trayBucket)) Text(tr('empty')).fontSize(13).fontColor(Colors.secondary).padding(16)
+          if (this.feed.todoError) Text(tr(this.feed.todoError)).fontSize(13).fontColor(Colors.danger)
+        }.width('100%').onAreaChange((_old:Area,area:Area) => {this.trayContentHeight=Number(area.height);})
+      }.width('100%').height(this.trayHeight()).align(Alignment.TopStart).scrollBar(BarState.Auto)
+    }.width('100%').alignItems(HorizontalAlign.Start).padding({bottom:4}).margin({bottom:16})
+      .backgroundColor(Colors.surface).border({width:0.5,color:Colors.divider,radius:20}).borderRadius(20).id('chat.tasks.tray')
   }
 
   private metric(points:number):number {
@@ -937,6 +1030,8 @@ export struct AssistantCards {
     if (this.dockOnly) {
       Column() {
         this.taskDock()
+        Column().width(0).height(0).bindSheet($$this.boardOpen,this.taskBoard(),{height:SheetSize.LARGE,
+          dragBar:true,showClose:false,onDisappear:()=>{this.boardOpen=false;}})
       }.width('100%')
         .bindSheet($$this.feed.editing, this.planEditor(), {
           title: { title: tr('assistant_feed_edit_plan') }, height: SheetSize.LARGE, showClose: true,

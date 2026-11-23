@@ -31,6 +31,8 @@ export class TaskTrayRow {
   rank:number=0;
   order:number=0;
   groupHeading:string='';
+  agentCount:number=0;
+  waitingForOwner:boolean=false;
   constructor(kind:string,id:string,bucket:string,status:string,title:string,note:string,data:Fields,resource?:ResourceRow) {
     this.kind=kind; this.id=id; this.bucket=bucket; this.status=status; this.title=title; this.note=note; this.data=data; this.resource=resource;
   }
@@ -90,6 +92,55 @@ function taskNote(todo:TodoWorkspaceItem, sessions:ResourceRow[]):string {
     if (note) return note;
   }
   return todo.notes;
+}
+
+function independentAgentRows(todos: TodoWorkspaceItem[], lookup: Map<string,ResourceRow>, folded: Set<string>,
+  asking?: Map<string,number>): TaskTrayRow[] {
+  const rows: TaskTrayRow[] = [];
+  const manual=new Set<string>(todos.filter((t:TodoWorkspaceItem) => !t.origin).map((t:TodoWorkspaceItem) => t.id));
+  for (const key of lookup.keys()) {
+    const s=lookup.get(key); if (!s) continue;
+    const d=s.data(), tagged=Wire.text(Wire.object(d,'todo'),'id');
+    if (Wire.bool(d,'assistant') || !['needs_you','working'].includes(s.state) || folded.has(key) || (tagged && !manual.has(tagged))) continue;
+    if (Wire.bool(d,'archived') || Wire.bool(d,'muted') || Wire.bool(d,'deleted')) continue;
+    const parent=Wire.text(d,'parent_session_id') || Wire.text(Wire.object(d,'parent'),'session_id');
+    if (parent && lookup.has(pair(s.machine,parent)) && s.state!=='needs_you' && ['needs_you','working'].includes(lookup.get(pair(s.machine,parent))?.state || '')) continue;
+    const waits=s.state==='needs_you';
+    if (waits && asking && !asking.has(key)) continue;
+    const row=new TaskTrayRow('agent',key,waits ? 'needs':'progress',s.state,s.title,'',d,s);
+    row.order=waits ? 0 : 5; row.at=waits ? asking?.get(key) || 0 : date(Wire.text(d,'state_since')); rows.push(row);
+  }
+  return rows;
+}
+
+/** The board keeps every task handed out by this conversation, including older finished work. */
+export function assistantBoardRows(directory: Fields[], sessions: ResourceRow[], manager: string, group: string,
+  conversation: string, main: string): TaskTrayRow[] {
+  if (!conversation) return [];
+  const lookup = new Map<string,ResourceRow>();
+  for (const row of sessions) {
+    if (row.manager === manager && (!row.group || row.group === group)) lookup.set(pair(row.machine,row.session || row.id),row);
+  }
+  const todos = directory.filter((raw: Fields) => !!Wire.text(raw,'id') && Wire.text(raw,'manager',manager) === manager)
+    .map((raw: Fields) => new TodoWorkspaceItem(raw,manager));
+  const folded = new Set<string>(), rows: TaskTrayRow[] = [];
+  for (const todo of todos) {
+    if (todo.origin && !todo.isDone()) for (const agent of todo.activeAgents()) folded.add(pair(agent.machineId,agent.sessionId));
+    if (todo.origin !== conversation) continue;
+    const status = statusOf(todo,todo.activeAgents(),lookup), data = Wire.parse(todo.raw), resource = ResourceRow.from(data,'todo');
+    resource.manager=manager; resource.group=group;
+    const row = new TaskTrayRow('todo',todo.id,'',status,todo.title,todo.notes,data,resource);
+    row.at=date(todo.createdAt); rows.push(row);
+  }
+  rows.sort((a:TaskTrayRow,b:TaskTrayRow) => b.at-a.at || a.id.localeCompare(b.id));
+  if (conversation === main) rows.push(...independentAgentRows(todos,lookup,folded));
+  for (const row of rows) {
+    if (row.status === 'needs_you') row.bucket='needs';
+    else if (['done','failed','unread'].includes(row.status)) row.bucket=row.status;
+    else if (['followup','interrupted','usage_limit'].includes(row.status)) row.bucket='followup';
+    else row.bucket='working';
+  }
+  return rows;
 }
 
 /** Projects the main supervisor's directory or an ordinary conversation's own slots using the same links as iOS. */
@@ -165,25 +216,19 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
     const raw=Wire.parse(todo.raw), resource=ResourceRow.from(raw,'todo'); resource.manager=manager; resource.group=group;
     const linked:ResourceRow[]=[]; for(const a of active) { const row=lookup.get(pair(a.machineId,a.sessionId)); if(row) linked.push(row); }
     const row=new TaskTrayRow('todo',todo.id,bucket,held ? 'needs_you' : status,todo.title,taskNote(todo,linked),raw,resource);
+    row.agentCount=active.length;
+    if (row.status === 'needs_you') {
+      const request = requests.filter((req:TrayRequest) => active.some((agent:TodoWorkspaceAgent) =>
+        agent.machineId===req.machine && agent.sessionId===req.session)).sort((a:TrayRequest,b:TrayRequest) => a.at-b.at || a.id.localeCompare(b.id))
+        .find((req:TrayRequest) => !!req.title.trim());
+      row.note=request?.title.trim().split(/\s*\n\s*/).join(' ') || '';
+      row.waitingForOwner=!row.note;
+    }
     row.order=order; row.at=nowAsks.length ? Math.min(...nowAsks as number[]) : bucket==='done' ? closed : when(todo);
     const ranking=['needs_you','interrupted','usage_limit','owner_review','failed','working','waiting','not_started','unread','followup','done'];
     row.rank=ranking.indexOf(['not_started','followup','unread'].includes(status) && (review==='pending_review' || ask) ? 'owner_review' : status); rows.push(row);
   }
-  if (isMain) {
-    const manual=new Set<string>(todos.filter((t:TodoWorkspaceItem) => !t.origin).map((t:TodoWorkspaceItem) => t.id));
-    for (const key of lookup.keys()) {
-      const s=lookup.get(key); if (!s) continue;
-      const d=s.data(), tagged=Wire.text(Wire.object(d,'todo'),'id');
-      if (Wire.bool(d,'assistant') || !['needs_you','working'].includes(s.state) || folded.has(key) || (tagged && !manual.has(tagged))) continue;
-      if (Wire.bool(d,'archived') || Wire.bool(d,'muted') || Wire.bool(d,'deleted')) continue;
-      const parent=Wire.text(d,'parent_session_id') || Wire.text(Wire.object(d,'parent'),'session_id');
-      if (parent && lookup.has(pair(s.machine,parent)) && s.state!=='needs_you' && ['needs_you','working'].includes(lookup.get(pair(s.machine,parent))?.state || '')) continue;
-      const waits=s.state==='needs_you';
-      if (waits && !asking.has(key)) continue;
-      const row=new TaskTrayRow('agent',key,waits ? 'needs':'progress',s.state,s.title,'',d,s);
-      row.order=waits ? 0 : 5; row.at=waits ? asking.get(key) || 0 : date(Wire.text(d,'state_since')); rows.push(row);
-    }
-  }
+  if (isMain) rows.push(...independentAgentRows(todos,lookup,folded,asking));
   for (const item of items) {
     const kind=Wire.text(item,'kind'), ref=Wire.text(item,'ref'), id=Wire.text(item,'id'), body=Wire.object(item,'body');
     if (!id || !ref) continue;
@@ -195,7 +240,7 @@ export function assistantTrayRows(directory:Fields[], sessions:ResourceRow[], it
       const row=new TaskTrayRow('plan',id,'needs','plan',Wire.text(first,'title'),Wire.text(first,'prompt'),item);
       row.order=1; row.at=date(Wire.text(plan,'created_at')); rows.push(row);
     } else if(kind==='message' && !Wire.text(item,'sent_at') && !Wire.text(item,'filed_at') && !Wire.text(body,'sent_at') && !Wire.text(body,'filed_at') && !Wire.text(body,'dismissal_id') && !Wire.text(body,'dismissed_at')) {
-      const row=new TaskTrayRow('message',id,'needs','message',[Wire.text(body,'sender'),Wire.text(body,'chat')].filter((s:string) => !!s).join(' · '),Wire.text(body,'quote') || Wire.text(body,'draft'),item);
+      const row=new TaskTrayRow('message',id,'needs','message',[Wire.text(body,'sender'),Wire.text(body,'chat')].filter((s:string) => !!s).join(' · '),(Wire.text(body,'text') || Wire.text(body,'quote')).split('\n')[0],item);
       row.order=3; row.at=date(Wire.text(item,'at')); rows.push(row);
     }
   }

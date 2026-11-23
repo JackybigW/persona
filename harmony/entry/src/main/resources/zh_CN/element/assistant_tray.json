@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "tray_waiting_answer",
+      "value": "有事等你回答"
+    },
+    {
+      "name": "tray_draft_reply",
+      "value": "起草回复"
+    },
+    {
+      "name": "tray_did_not_start",
+      "value": "没开起来"
+    },
+    {
+      "name": "tray_empty_tasks",
+      "value": "还没有任务"
+    },
+    {
+      "name": "tray_empty_tasks_detail",
+      "value": "在对话里说要做的事，Persona 会把它变成任务。"
+    }
+  ]
+}

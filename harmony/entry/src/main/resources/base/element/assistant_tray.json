@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "tray_waiting_answer",
+      "value": "Waiting for your answer"
+    },
+    {
+      "name": "tray_draft_reply",
+      "value": "Draft Reply"
+    },
+    {
+      "name": "tray_did_not_start",
+      "value": "Didn't Start"
+    },
+    {
+      "name": "tray_empty_tasks",
+      "value": "No tasks yet"
+    },
+    {
+      "name": "tray_empty_tasks_detail",
+      "value": "Tell Persona what needs doing in a chat, and it'll turn it into a task."
+    }
+  ]
+}
