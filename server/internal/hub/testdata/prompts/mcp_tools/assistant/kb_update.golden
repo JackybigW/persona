@@ -1,6 +1,6 @@
 {
   "name": "kb_update",
-  "description": "Write settled facts to the KB. Projects: the fields below (dirs: `\u003cmachine\u003e:\u003cpath\u003e`, linking Agents); merge_into folds a duplicate, unmerge reverses it, each alone in its call. Chats, people, docs, meetings, events, recordings (phone-owned: tags, pinned, projects only) and topics (name, note, aliases, tags only) take annotations. Explicit tags beat automatic ones. remove_* (ids) unlinks only that link, for good. At the user's word only: parent (\"\" = top level); milestone adds (no id), edits or removes (id, remove) a flag; its result has the undo. project_mode/source_urls: reference-only keeps pointers and aliases, details stay at the source; full, in a separate call, restores detail writes.",
+  "description": "Write settled facts to the KB. Projects: the fields below (dirs: `\u003cmachine\u003e:\u003cpath\u003e`, linking Agents); merge_into folds a duplicate, unmerge reverses it, each alone in its call. Other kinds take annotations; recordings (phone-owned) only tags, pinned, projects; topics only name, note, aliases, tags. Explicit tags beat automatic ones. remove_* (ids) unlinks only that link, for good. At the user's word only: parent (\"\" = top level); milestone adds (no id), edits or removes (id, remove) a flag; its result has the undo. project_mode/source_urls: reference-only keeps pointers and aliases, details stay at the source; full, alone, restores detail writes.",
   "input_schema": {
     "type": "object",
     "required": [
