@@ -2641,6 +2641,7 @@ struct Index {
         TextArea({text:this.newTask,placeholder:tr(this.promptOptional() ? 'flow_draft_optional' : 'task')})
           .keyboardAppearance(this.environment.dark ? KeyboardAppearance.DARK_IMMERSIVE : KeyboardAppearance.LIGHT_IMMERSIVE)
           .minLines(3).maxLines(10,{overflowMode:MaxLinesMode.SCROLL}).width('100%')
+          .constraintSize({minHeight:this.agentSize(94.33,115.67)})
           .fontSize(Tokens.interfaceFontVp(17,this.environment.fontScale)).placeholderFont({size:Tokens.interfaceFontVp(17,this.environment.fontScale)})
           .padding({left:16,right:16,top:11,bottom:11}).fontColor(Colors.ink).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
           .onFocus(() => { this.focusedAgentField = 'agent.task'; this.revealFocusedAgentDraft(); })
