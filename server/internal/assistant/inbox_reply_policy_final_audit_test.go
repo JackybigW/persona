@@ -69,16 +69,34 @@ func TestInboxReplyPolicyUnknownAttemptOutranksPolicyFailure(t *testing.T) {
 	if code != http.StatusBadGateway || out["delivered"] != "unknown" || len(c.calls()) != 1 {
 		t.Fatalf("test setup did not create one uncertain send: code=%d out=%+v calls=%+v", code, out, c.calls())
 	}
+
+	// Reconstruct from the actual store before making fresh configuration reads fail. An in-memory-only retry would
+	// not prove that the durable uncertain outcome survives a restart and still outranks a later policy outage.
+	restarted := New(Options{Hub: h.f, Store: func() Store { return h.st }, Logf: testLogf(t)})
+	if err := restarted.inboxReady(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	restarted.inbox.mu.Lock()
+	loaded := restarted.inbox.items[it.ID]
+	var persisted *InboxSuggestionAttempt
+	if loaded != nil {
+		persisted = suggestionAttempt(loaded, 1)
+	}
+	restarted.inbox.mu.Unlock()
+	if persisted == nil || persisted.Status != suggestionUnknown {
+		t.Fatalf("uncertain outcome was not persisted through reload: %+v", persisted)
+	}
 	c.answer(nil)
 	h.in.mu.Lock()
 	h.in.configErr = errors.New("controlled policy configuration outage")
 	h.in.mu.Unlock()
-	code, out = suggestionCall(t, h, it.ID, `{"version":1,"action":"confirm","client_id":"`+recoveryFreshID+`"}`)
+	code, out = inboxCall(t, restarted, "POST", "/api/v1/inbox/"+it.ID+"/suggestion",
+		`{"version":1,"action":"confirm","client_id":"`+recoveryFreshID+`"}`)
 	if code != http.StatusBadGateway || out["delivered"] != "unknown" || out["code"] != assistantwire.CodeAssistantInDoubt {
 		t.Errorf("policy failure hid the persisted uncertain outcome: code=%d out=%+v", code, out)
 	}
 	if got := len(c.calls()); got != 1 {
-		t.Fatalf("policy-failure retry repeated the uncertain physical send: calls=%d", got)
+		t.Fatalf("policy-failure retry repeated the uncertain physical send after reload: calls=%d", got)
 	}
 }
 
@@ -143,7 +161,8 @@ func TestInboxReplyPolicyWorkbenchStaleRedraftRejected(t *testing.T) {
 	actionValue := replyPolicyWorkbenchActionValue(t, h.draftCard(context.Background(), *it, oldText, nil, "").JSON(), "redraft")
 	const replacement = "Replacement published before the stale redraft arrived"
 	finalReviewInstallMirror(h, it, replacement)
-	calls := replyPolicyDraftSequenceModel(t, h, nil, "Draft generated from a stale card", `{"category":"ordinary_coordination"}`)
+	const generated = "Draft generated from the matching Workbench card"
+	calls := replyPolicyDraftSequenceModel(t, h, nil, generated, `{"category":"ordinary_coordination"}`)
 	action := &feishubot.CardAction{}
 	action.Action.Value = actionValue
 	action.Action.FormValue = map[string]any{"text": oldText, "instruction": "Synthetic stale redraft instruction"}
@@ -163,6 +182,29 @@ func TestInboxReplyPolicyWorkbenchStaleRedraftRejected(t *testing.T) {
 	if len(c.calls()) != 0 {
 		t.Fatalf("stale Workbench redraft reached the sender: %+v", c.calls())
 	}
+
+	// A current rendered card must still redraft. Without this positive control, rejecting every redraft as stale
+	// would satisfy the negative assertions above without preserving the Workbench operation at all.
+	matchingValue := replyPolicyWorkbenchActionValue(t, h.draftCard(context.Background(), *it, replacement, nil, "").JSON(), "redraft")
+	matching := &feishubot.CardAction{}
+	matching.Action.Value = matchingValue
+	matching.Action.FormValue = map[string]any{"text": replacement, "instruction": "Synthetic matching-version redraft instruction"}
+	matching.Context.MessageID = "synthetic-matching-redraft-card"
+	h.workbenchInboxAction(context.Background(), matching)
+	select {
+	case <-updated:
+	case <-time.After(3 * time.Second):
+		t.Fatal("matching Workbench redraft did not finish")
+	}
+	if got := len(calls()); got != 2 {
+		t.Errorf("matching Workbench redraft made %d model calls, want generation and classification", got)
+	}
+	if g := currentSuggestion(it); g == nil || g.Version != 3 || g.Text != generated {
+		t.Fatalf("matching Workbench redraft did not publish its generated replacement: %+v", g)
+	}
+	if len(c.calls()) != 0 {
+		t.Fatalf("matching Workbench redraft unexpectedly reached the sender: %+v", c.calls())
+	}
 }
 
 type replyPolicyDraftOneShotFailStore struct {
@@ -181,48 +223,74 @@ func (s *replyPolicyDraftOneShotFailStore) PutInboxItem(ctx context.Context, id 
 }
 
 func TestInboxReplyPolicyFailedDraftCannotSendAfterStoreRecovery(t *testing.T) {
-	h, lark, it := handledHub(t)
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
-	it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
-	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
-	const generated = "Draft whose only publication write fails once"
-	h.in.model = fakeModel(t, generated)
-	st := &replyPolicyDraftOneShotFailStore{inboxMemStore: h.st, fail: true}
-	st.before = func() {
-		h.inbox.mu.Lock()
-		h.inbox.touched(it.ID)
-		h.inbox.mu.Unlock()
-	}
-	h.store = func() Store { return st }
-	text, err := h.draftReply(t.Context(), it.ID, "")
-	if err == nil || text != "" {
-		t.Fatalf("failed publication returned text: text=%q err=%v", text, err)
-	}
-	// Keep exercising the old-client mirror route when the implementation retains an explicitly unusable tombstone.
-	// Simply forgetting all AI provenance would turn the same text into an apparently owner-authored direct reply.
-	if g := mirroredLegacyReply(it); g != nil {
-		_, err = h.replyInboxChecked(t.Context(), it.ID, g.Text, recoveryFreshID, false, nil, nil)
-		if err == nil {
-			t.Error("unpublished old-client mirror confirmed after the store recovered")
+	newFailedDraft := func(t *testing.T) (*inboxHub, *extensionLark, *InboxItem) {
+		t.Helper()
+		h, lark, it := handledHub(t)
+		h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+		it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		const generated = "Draft whose only publication write fails once"
+		h.in.model = fakeModel(t, generated)
+		st := &replyPolicyDraftOneShotFailStore{inboxMemStore: h.st, fail: true}
+		st.before = func() {
+			h.inbox.mu.Lock()
+			h.inbox.touched(it.ID)
+			h.inbox.mu.Unlock()
 		}
-	} else if code, _ := suggestionCall(t, h, it.ID, `{"version":1,"action":"confirm","client_id":"`+recoveryFreshID+`"}`); code < 400 {
-		t.Error("unpublished suggestion confirmed after the store recovered")
-	}
-	if len(lark.got) != 0 {
-		t.Fatalf("unpublished draft reached the sender after store recovery: %+v", lark.got)
-	}
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = nil })
-	const afterPolicyExitID = "10000000-0000-4000-8000-000000000003"
-	if g := mirroredLegacyReply(it); g != nil {
-		_, err = h.replyInboxChecked(t.Context(), it.ID, g.Text, afterPolicyExitID, false, nil, nil)
-		if err == nil {
-			t.Error("unpublished mirror confirmed after policy exit")
+		h.store = func() Store { return st }
+		text, err := h.draftReply(t.Context(), it.ID, "")
+		if err == nil || text != "" {
+			t.Fatalf("failed publication returned text: text=%q err=%v", text, err)
 		}
-	} else if code, _ := suggestionCall(t, h, it.ID, `{"version":1,"action":"confirm","client_id":"`+afterPolicyExitID+`"}`); code < 400 {
-		t.Error("unpublished suggestion confirmed after policy exit")
+		return h, lark, it
 	}
-	if len(lark.got) != 0 {
-		t.Fatalf("unpublished draft reached the sender after policy exit: %+v", lark.got)
+	// Each route gets a fresh failed publication. A broken send in one subtest therefore cannot consume the mirror or
+	// create an attempt that hides an independent bypass in another route or after policy exit.
+	for _, tc := range []struct {
+		name       string
+		suggestion bool
+		policy     bool
+		clientID   string
+	}{
+		{name: "reply_with_policy", clientID: recoveryFreshID, policy: true},
+		{name: "suggestion_with_policy", suggestion: true, clientID: "10000000-0000-4000-8000-000000000003", policy: true},
+		{name: "reply_after_policy_exit", clientID: "10000000-0000-4000-8000-000000000004"},
+		{name: "suggestion_after_policy_exit", suggestion: true, clientID: "10000000-0000-4000-8000-000000000005"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, lark, it := newFailedDraft(t)
+			g := mirroredLegacyReply(it)
+			if g == nil {
+				t.Fatal("test setup did not retain the unpublished mirror")
+			}
+			if !tc.policy {
+				h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = nil })
+			}
+			what, when := "old-client mirror", "after the store recovered"
+			if tc.suggestion {
+				what = "suggestion"
+			}
+			if !tc.policy {
+				what, when = "mirror", "after policy exit"
+				if tc.suggestion {
+					what = "suggestion"
+				}
+			}
+			if tc.suggestion {
+				code, _ := suggestionCall(t, h, it.ID, `{"version":1,"action":"confirm","client_id":"`+tc.clientID+`"}`)
+				if code < 400 {
+					t.Errorf("unpublished %s confirmed %s", what, when)
+				}
+			} else {
+				_, err := h.replyInboxChecked(t.Context(), it.ID, g.Text, tc.clientID, false, nil, nil)
+				if err == nil {
+					t.Errorf("unpublished %s confirmed %s", what, when)
+				}
+			}
+			if len(lark.got) != 0 {
+				t.Fatalf("unpublished draft reached the sender through %s %s: %+v", tc.name, when, lark.got)
+			}
+		})
 	}
 }
 

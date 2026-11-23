@@ -75,10 +75,12 @@ var listedDrops = map[string]string{
 // listedDropsOpenPRs are paths open PRs add to the item and leave out of the list: listed here so those PRs merge
 // without touching this file. Move an entry to listedDrops when its PR lands; drop it when the PR closes.
 var listedDropsOpenPRs = map[string]string{
-	"tier_was":                "#4512: what the item had before the user moved it, for Undo",
-	"reply_approval":          "#9790, #10580, #10587: the overdue reply reminder's receipt",
-	"reply_content_sources":   "#11901: internal member-text provenance for reply-policy scope after merge and Undo",
-	"reply_context_truncated": "#11901: internal incomplete-classification-input marker, not client content",
+	"tier_was":                            "#4512: what the item had before the user moved it, for Undo",
+	"reply_approval":                      "#9790, #10580, #10587: the overdue reply reminder's receipt",
+	"reply_content_sources":               "#11901: internal member-text provenance for reply-policy scope after merge and Undo",
+	"reply_context_truncated":             "#11901: internal incomplete-classification-input marker, not client content",
+	"suggestion.reply_instruction":        "#11901: binds authorization to the exact instructed generated text",
+	"suggestion.reply_publication_failed": "#11901: fail-closed unpublished-model-text tombstone, not client content",
 }
 
 // listed() lists every key of a filled item but listedDrops, adds none, and computes the keys it owns (status, now,
