@@ -362,12 +362,14 @@ test('Knowledge fills its compact app inset only while that library is foremost'
   const shell = Object.assign(new Shell(), {phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,
     chatSearchShown:false,phoneSettingsShown:false,showSheet:false,compactNavigationInset:()=>23});
   assert.equal(shell.knowledgeInsetHeight(),23);
-  for (const [key, value] of [['phoneTop','knowledge'],['phoneParam','inbox'],['drawerFraction',0.5],
+  for (const [key, value] of [['phoneTop',''],['phoneTop','conversation'],['phoneTop','session'],['phoneTop','projects'],
+    ['phoneTop','knowledge'],['phoneParam','inbox'],['drawerFraction',0.5],
     ['chatSearchShown',true],['phoneSettingsShown',true],['showSheet',true]]) {
     const prior=shell[key];
     shell[key]=value; assert.equal(shell.knowledgeInsetHeight(),0); shell[key]=prior;
   }
   shell.compactNavigationInset=()=>0;
   assert.equal(shell.knowledgeInsetHeight(),0);
-  assert.match(source,/height\(this\.knowledgeInsetHeight\(\)\)\.fill\(Colors\.grouped\)[\s\S]{0,100}hitTestBehavior\(HitTestMode\.None\)/);
+  assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.knowledgeInsetHeight\(\) > 0 \? Colors\.grouped : Color\.Transparent\)/);
+  assert.doesNotMatch(source,/\.overlay\(this\.knowledge|@Builder knowledgeNavigationInset/);
 });
