@@ -1377,7 +1377,10 @@ export struct Conversation {
     const inputs: TimelineMessage[] = this.model.messages.map((message: ChatMessage): TimelineMessage => {
       messages.set(message.id, message); return { id: message.id, role: message.role, at: message.at };
     });
-    const activities: TimelineCard[] = this.feed.items.filter((item: Record<string, Object>) => !['task', 'today'].includes(Wire.text(item, 'kind')))
+    const activities: TimelineCard[] = this.feed.items.filter((item: Record<string, Object>): boolean => {
+      const kind = Wire.text(item, 'kind');
+      return !['task', 'today'].includes(kind) && !this.model.feedInBackground(kind, Date.parse(Wire.text(item, 'at')));
+    })
       .map((item: Record<string, Object>): TimelineCard => { const id = Wire.text(item, 'id'), stamp = Date.parse(Wire.text(item, 'at')); cards.set(id, item); return { id: id, at: Number.isFinite(stamp) ? stamp : 0 }; });
     const lines = mergeConversationTimeline(inputs, activities).map((entry) => new ConversationLine(entry.id, messages.get(entry.messageId), cards.get(entry.cardId)));
     this.model.personaQuestions.forEach((request: Decision) => lines.push(new ConversationLine('persona-question:' + request.id, undefined, undefined, request)));

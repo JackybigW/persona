@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "background_activity",
+      "value": "后台活动"
+    },
+    {
+      "name": "activity_empty",
+      "value": "没有后台活动"
+    },
+    {
+      "name": "activity_empty_detail",
+      "value": "已完成的静默轮次会保留在这里，供你查看。"
+    },
+    {
+      "name": "activity_record",
+      "value": "已在后台处理"
+    },
+    {
+      "name": "activity_answered",
+      "value": "已回答"
+    },
+    {
+      "name": "activity_task",
+      "value": "任务"
+    },
+    {
+      "name": "activity_expand",
+      "value": "展开详情"
+    }
+  ]
+}

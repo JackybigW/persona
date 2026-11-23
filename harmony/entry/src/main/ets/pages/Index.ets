@@ -1,3 +1,4 @@
+import { PhoneBackgroundActivity } from '../components/PhoneBackgroundActivity';
 import { PhoneChatForward } from '../models/PhoneChatForward';
 import { PhoneChatForwardPicker, PhoneForwardNewTray } from '../components/PhoneChatForward';
 import { PhoneMessageLiftHost, PhoneMessageLiftHostLayer } from '../components/PhoneMessageLift';
@@ -130,6 +131,7 @@ struct Index {
   @Local shownParam: string = '';
   @Local chatMenuActions: ChatActionEntry[] = [];
   @Local chatTitleMenuVisible: boolean = false;
+  @Local activityRow: ResourceRow | undefined = undefined;
   @Local chatBodyMenuVisible: boolean = false;
   @Local chatMenuRevision: number = 0;
   private routeRevision: number = 0;
@@ -376,6 +378,15 @@ struct Index {
     this.stack.clear();
     this.openRow(row, true);
   }
+  private openActivity(): void {
+    const row = this.model.mainActivityRow();
+    if (row) this.activityRow = row;
+  }
+  @Builder backgroundActivitySheet() {
+    if (this.activityRow) {
+      PhoneBackgroundActivity({ model: this.model, row: this.activityRow, onClose: () => { this.activityRow = undefined; } })
+    }
+  }
   @Builder allChatsSheet() {
     PhoneAllChats({model:this.model,history:this.sidebarTaskHistory,onClose:() => this.chatSearchShown = false,
       onOpen:(row:ResourceRow) => this.openPickedChat(row)})
@@ -390,6 +401,9 @@ struct Index {
         MenuItem({content:tr('main_chat')}).onClick(() => { this.stack.clear(); this.openMain(); })
         MenuItem({content:tr('flow_all_chats')}).onClick(() => this.showAllChats(false)).id('shell.menu.chats')
         MenuItem({content:tr('new_chat')}).onClick(() => this.newConversation())
+        if (this.model.mainActivityRow()) {
+          MenuItem({content:tr('background_activity')}).onClick(() => this.openActivity()).id('background-activity-menu')
+        }
       } else {
         if (this.model.section === 4) {
           MenuItem({content:tr('agents')}).onClick(() => this.browsePeer(1)).id('shell.menu.agents')
@@ -630,6 +644,10 @@ struct Index {
           },(input:MeetingInputChoice)=>String(input.id))
         }
       } else if (this.moduleMenuKind==='inbox') {
+        if (this.model.mainActivityRow()) {
+          MenuItem({content:tr('background_activity')}).onClick(() => { if (this.menuCurrent('inbox')) this.openActivity(); })
+            .id('inbox-background-activity')
+        }
         MenuItem({content:tr('mail_compose')}).enabled(this.canComposeFromMenu())
           .onClick(()=>{if(this.menuCurrent('inbox') && this.canComposeFromMenu())this.inboxComposeRevision++;}).id('inbox.more.compose')
         MenuItem({content:tr('refresh')}).enabled(this.model.connected)
@@ -1712,6 +1730,10 @@ struct Index {
           else this.openTools('', pick);
         }});
       }
+    }
+    const main = this.model.mainActivityRow();
+    if (main && name === 'conversation' && owner.target(owner.selected) === this.model.target(main)) {
+      sheets.push({ title: tr('background_activity'), identity: 'background-activity-menu', action: () => { if (valid()) this.openActivity(); } });
     }
     if (owner.isChat() && owner.selected.machine) sheets.push({ title: tr('interaction_history'), action: () => { if (valid()) this.openHistory(); } });
     const computer = this.selectedComputer();
@@ -2908,6 +2930,9 @@ struct Index {
         onAppear: () => { this.spacesLayoutReady = true; this.measureSpaces(); }, onDisappear: () => { this.spacesLayoutReady = false; if (this.wide()) this.spacesShown = false; } })
     }
     }
+    Column().width(0).height(0).bindSheet(!!this.activityRow, this.backgroundActivitySheet(), {
+      height: SheetSize.LARGE, preferType: SheetType.BOTTOM, dragBar: true, showClose: false,
+      onDisappear: () => { this.activityRow = undefined; } })
     Column().width(0).height(0).bindSheet(this.chatForward.isChoosing(this.detailModel),this.forwardPickerContent(),{
       height:forwardRestingDetent,detents:[forwardRestingDetent,SheetSize.LARGE],
       detentSelection:this.chatForward.expanded ? SheetSize.LARGE : forwardRestingDetent,

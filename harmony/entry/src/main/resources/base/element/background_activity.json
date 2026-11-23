@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "background_activity",
+      "value": "Background activity"
+    },
+    {
+      "name": "activity_empty",
+      "value": "No background activity"
+    },
+    {
+      "name": "activity_empty_detail",
+      "value": "Completed quiet rounds stay here for you to inspect."
+    },
+    {
+      "name": "activity_record",
+      "value": "Handled in the background"
+    },
+    {
+      "name": "activity_answered",
+      "value": "Answered"
+    },
+    {
+      "name": "activity_task",
+      "value": "Task"
+    },
+    {
+      "name": "activity_expand",
+      "value": "Show details"
+    }
+  ]
+}

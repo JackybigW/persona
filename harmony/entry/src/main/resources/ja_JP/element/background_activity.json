@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "background_activity",
+      "value": "バックグラウンドアクティビティ"
+    },
+    {
+      "name": "activity_empty",
+      "value": "バックグラウンドアクティビティはありません"
+    },
+    {
+      "name": "activity_empty_detail",
+      "value": "完了した静かなラウンドはここに保持され、確認できます。"
+    },
+    {
+      "name": "activity_record",
+      "value": "バックグラウンドで処理済み"
+    },
+    {
+      "name": "activity_answered",
+      "value": "回答済み"
+    },
+    {
+      "name": "activity_task",
+      "value": "タスク"
+    },
+    {
+      "name": "activity_expand",
+      "value": "詳細を表示"
+    }
+  ]
+}

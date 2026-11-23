@@ -5,6 +5,14 @@ import type { HubRepository } from './HubRepository';
 
 function segment(value: string): string { return encodeURIComponent(value); }
 
+export function conversationFeedPath(conversation: string, manager: string, cursor: string = '', since: string = ''): string {
+  let path = '/api/v1/assistant/conversations/' + segment(conversation) + '/feed?paginate=1';
+  if (manager) path += '&manager=' + segment(manager);
+  if (cursor) path += '&cursor=' + segment(cursor);
+  else if (since) path += '&since=' + segment(since);
+  return path;
+}
+
 function textField(value: Object | undefined, key: string, fallback: string = ''): string {
   return Wire.text(Wire.record(value), key, fallback);
 }
@@ -235,11 +243,7 @@ export class AssistantFeedModel {
   }
 
   private feedPath(cursor: string = '', since: string = ''): string {
-    let path = '/api/v1/assistant/conversations/' + segment(this.conversationId) + '/feed?paginate=1';
-    if (this.owner) path += '&manager=' + segment(this.owner);
-    if (cursor) path += '&cursor=' + segment(cursor);
-    else if (since) path += '&since=' + segment(since);
-    return path;
+    return conversationFeedPath(this.conversationId, this.owner, cursor, since);
   }
 
   private ownerPath(path: string): string { return this.owner ? path + '?manager=' + segment(this.owner) : path; }

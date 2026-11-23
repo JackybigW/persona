@@ -1,3 +1,5 @@
+import type { BackgroundRound } from '../core/BackgroundActivity';
+import { activityFeedRound, splitBackgroundRounds } from '../core/BackgroundActivity';
 import type { HubAccess } from '../core/HubAccess';
 import { liftedMessageWords } from '../core/Markdown';
 import type { ConversationRecapItem } from './Wire';
@@ -187,6 +189,35 @@ export class ClientModel {
   private transcriptKey: string = '';
   private revisionItems: TranscriptItem[] = [];
   transcriptItems(): readonly TranscriptItem[] { return this.revisionItems.slice(); }
+
+  private activityOwner: string = '';
+  private activityRounds: readonly BackgroundRound[] = [];
+
+  mainActivityRow(): ResourceRow | undefined {
+    if (!this.mainId) return undefined;
+    return this.conversations.find((row: ResourceRow): boolean => this.isMainActivityRow(row));
+  }
+
+  private isMainActivityRow(row: ResourceRow): boolean {
+    return row.kind === 'conversation' && !!this.mainId && row.id === this.mainId &&
+      (!this.mainMachineId || row.machine === this.mainMachineId) && (!row.group || row.group === this.profile.id) &&
+      (!row.manager || row.manager === this.profile.manager);
+  }
+
+  readActivityTranscript(row: ResourceRow, publish: (items: readonly TranscriptItem[], more: boolean, ready: boolean) => void,
+    failure: (error: Error) => void): TranscriptModel | undefined {
+    const main = this.mainActivityRow();
+    if (!main || this.target(main) !== this.target(row)) throw new Error('request_updated');
+    if (this.demo && this.demoRepository) {
+      publish(this.demoRepository.historyItems(row) as Object as TranscriptItem[], false, true);
+      return undefined;
+    }
+    return new TranscriptModel(row, this.repo(), this.local, this.target(row), publish, failure, false);
+  }
+
+  feedInBackground(kind: string, at: number): boolean {
+    return this.activityOwner === this.target() && !!activityFeedRound(this.activityRounds, kind, at);
+  }
   private repository: HubRepository | undefined;
   private demoRepository: DemoRepository | undefined;
   private detached: boolean = false;
@@ -1038,7 +1069,12 @@ export class ClientModel {
   }
   rememberDictationLocale(locale: string): void { dictationPreference.remember(locale); }
   private publishTranscript(items: readonly TranscriptItem[], running: boolean): void {
-    this.revisionItems = items.slice(); this.renderedMessages = this.projectMessages(items, running);
+    this.revisionItems = items.slice();
+    const isMain = this.isMainActivityRow(this.selected);
+    const projection = isMain ? splitBackgroundRounds(items, running) : undefined;
+    this.activityOwner = isMain ? this.target() : '';
+    this.activityRounds = projection?.rounds || [];
+    this.renderedMessages = this.projectMessages(projection?.timeline || items, running);
     this.echoedMessages = new Set(items.filter((item: TranscriptItem) => item.role === 'user').map((item: TranscriptItem) => Wire.text(Wire.record(item as Object), 'client_msg_id')).filter((id: string) => !!id));
     this.reconcileMessageCopies();
   }
