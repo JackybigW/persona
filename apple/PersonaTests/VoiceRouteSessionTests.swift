@@ -23,7 +23,7 @@ import Testing
             (.airPlay, .other), (.HDMI, .other), (.lineIn, .other), (.lineOut, .other),
         ]
         for (port, kind) in expected {
-            #expect(PhoneVoiceAudio.kind(port) == kind, "\(port.rawValue)")
+            #expect(AudioSessionBroker.port(port) == kind, "\(port.rawValue)")
         }
     }
 }

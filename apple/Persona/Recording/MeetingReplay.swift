@@ -181,10 +181,10 @@ import OSLog
 
     private static func deactivateSession() {
         Task.detached(priority: .utility) {
-            LiveCallGate.sessionQueue.sync {
+            AudioSessionBroker.queue.sync {
                 // A call that went live owns the session now: deactivating it here would stop the call's audio.
                 guard !LiveCallGate.liveNow else { return }
-                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                try? AudioSessionBroker.shared.deactivate(for: audioClient)
             }
         }
     }
@@ -203,12 +203,12 @@ import OSLog
                 let player = try AVAudioPlayer(contentsOf: file)
                 player.enableRate = true
                 player.prepareToPlay()
-                let session = AVAudioSession.sharedInstance()
+                let session = AudioSessionBroker.shared
                 // Ordered with the call's own category: a call that went live while the file opened keeps its session.
-                let activated = try LiveCallGate.sessionQueue.sync { () -> Bool in
+                let activated = try AudioSessionBroker.queue.sync { () -> Bool in
                     guard !LiveCallGate.liveNow else { return false }
-                    try session.setCategory(.playback, mode: .spokenAudio)
-                    try session.setActive(true)
+                    try session.setCategory(.playback, mode: .spokenAudio, for: audioClient)
+                    try session.activate(for: audioClient)
                     return true
                 }
                 guard activated else { return nil }
@@ -385,3 +385,6 @@ extension MeetingReplay {
 }
 #endif
 #endif
+
+/// A replayed meeting tape, to the audio session's broker: it plays back.
+private nonisolated let audioClient = AudioSessionClient("meeting-replay", use: .playback)

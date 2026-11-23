@@ -9,7 +9,7 @@ struct VNCPiPDiagnostics: View {
     @Environment(\.dismiss) private var dismiss
 
     private var facts: [(String, String)] {
-        let audio = AVAudioSession.sharedInstance()
+        let audio = AudioSessionBroker.shared
         return [
             (String(localized: "Picture in Picture supported"), VNCPiP.supported ? String(localized: "Yes [V N C Pi P Diagnostics b5141d]") : String(localized: "No")),
             (String(localized: "Picture in Picture open"), VNCPiP.shared.active ? String(localized: "Yes [V N C Pi P Diagnostics b5141d]") : String(localized: "No")),

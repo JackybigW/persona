@@ -80,10 +80,11 @@ import Synchronization
         // A live system call keeps its audio session (docs/apple/calls.md): the playback category would cut the call's
         // microphone. The small window still gets its source; whether the system offers it then is its own call.
         if !LiveCallGate.callIsLive {
-            let audio = AVAudioSession.sharedInstance()
+            let audio = AudioSessionBroker.shared
+            let client = AudioSessionClient("screen-pip", use: .playback)
             do {
-                try audio.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
-                try audio.setActive(true)
+                try audio.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers], for: client)
+                try audio.activate(for: client)
             } catch {
                 note(String(localized: "Couldn't start the audio session: \(error.localizedDescription)"))
             }

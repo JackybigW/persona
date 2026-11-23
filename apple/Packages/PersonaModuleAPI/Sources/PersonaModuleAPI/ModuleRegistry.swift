@@ -13,11 +13,12 @@ public struct ModuleRegistrar<Host: ModuleHost> {
     var settingsEntries: [ModuleSettingsEntry<Host>] = []
     var shellPages: [ModuleShellPage<Host>] = []
     var capabilities: [ObjectIdentifier: Any] = [:]
+    var audioLeases: [AudioLease] = []
     var problems: [String] = []
 
     init(module: ModuleDescriptor) { self.module = module }
 
-    private mutating func allows(_ slot: ModuleSlot) -> Bool {
+    fileprivate mutating func allows(_ slot: ModuleSlot) -> Bool {
         if module.slots.contains(slot) { return true }
         problems.append("\(module.id): registers into \(slot.rawValue), which its descriptor does not declare")
         return false
@@ -78,6 +79,20 @@ public struct ModuleRegistrar<Host: ModuleHost> {
     }
 }
 
+extension ModuleRegistrar {
+    /// Declares a client of the shared audio session (`ModuleSlot.audioLeases`): the name the module's audio code hands
+    /// the core's `AudioSessionBroker`, and what it uses the session for. A name is the module's own: declared twice,
+    /// the second is refused.
+    public mutating func audioLease(_ name: String, use: AudioLeaseUse) {
+        guard allows(.audioLeases) else { return }
+        guard !audioLeases.contains(where: { $0.name == name }) else {
+            problems.append("\(module.id): audio lease \(name) is declared twice")
+            return
+        }
+        audioLeases.append(AudioLease(module: module.id, name: name, use: use))
+    }
+}
+
 /// The active modules and their entries, built from the app's module list. A module is active when it is in the list,
 /// `isEnabled` says so and the hub allows it (`HubModules`); an inactive module registers nothing, so it leaves no row,
 /// no handler and no hook. When the hub's answer changes the app builds the registry again (`rebuilt(hub:)`).
@@ -97,6 +112,8 @@ public struct ModuleRegistry<Host: ModuleHost> {
     /// Registrations that were refused: an undeclared slot, a duplicate module id or composer action id, a composer
     /// action id the core uses itself, a malformed id. Empty in a correct build; the app asserts it in DEBUG and the tests check it.
     public let problems: [String]
+    /// Every audio lease the active modules declared, in list order, then declaration order.
+    public let audioLeases: [AudioLease]
     /// Every settings entry of the active modules, in list order, then registration order.
     public let settingsEntries: [ModuleSettingsEntry<Host>]
     /// Every shell page of the active modules, in list order.
@@ -120,6 +137,7 @@ public struct ModuleRegistry<Host: ModuleHost> {
         var active: [ModuleDescriptor] = []
         var offByHub: [ModuleID] = []
         var actions: [ComposerAction<Host>] = []
+        var leases: [AudioLease] = []
         var problems: [String] = []
         var hooks: [(ModuleID, () -> Void)] = []
         var handlers: [(URL) -> Bool] = []
@@ -161,6 +179,7 @@ public struct ModuleRegistry<Host: ModuleHost> {
                     problems.append("\(descriptor.id): composer action \(action.id) is already taken")
                 }
             }
+            leases += registrar.audioLeases
             hooks += registrar.launchHooks.map { (descriptor.id, $0) }
             handlers += registrar.urlHandlers
             for (place, view) in registrar.views { placeViews[place, default: []].append(view) }
@@ -186,6 +205,7 @@ public struct ModuleRegistry<Host: ModuleHost> {
         self.hub = hub
         self.composerActions = actions
         self.problems = problems
+        self.audioLeases = leases
         self.launchHooks = hooks
         self.urlHandlers = handlers
         self.placeViews = placeViews

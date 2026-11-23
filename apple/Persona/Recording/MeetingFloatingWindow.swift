@@ -235,7 +235,7 @@ private struct MeetingFloatDock: View {
 /// its wearer, so a voice is "you".
 enum MeetingFloatHeadset {
     static func now() -> Bool {
-        AVAudioSession.sharedInstance().currentRoute.inputs.contains { [.headsetMic, .bluetoothHFP].contains($0.portType) }
+        AudioSessionBroker.shared.currentRoute.inputs.contains { [.headsetMic, .bluetoothHFP].contains($0.portType) }
     }
 }
 #endif

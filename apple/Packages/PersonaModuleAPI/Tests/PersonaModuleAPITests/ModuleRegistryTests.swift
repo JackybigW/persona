@@ -157,11 +157,62 @@ struct ModuleRegistryTests {
 
     @Test func servedSlots() {
         #expect(ModuleSlot.allCases.filter(\.isServed) == [.launchHooks, .deepLinks, .composerActions, .shellPlaces, .settings, .chatCardKinds,
-                                                           .chatAccessories, .toolbarItems, .capabilities])
+                                                           .chatAccessories, .toolbarItems, .capabilities, .audioLeases])
         #expect(ModuleSlot.allCases.count == 16)
         // The contract's names (#13430 section 4) where it has one.
         for name in ["shell_places", "settings", "chat_card_kinds", "composer_actions", "chat_accessories", "frame_handlers", "push_categories"] {
             #expect(ModuleSlot(rawValue: name) != nil, "\(name)")
         }
+    }
+
+    @Test func audioLeasesAreServedOnlyToModulesThatDeclareThem() {
+        let registry = ModuleRegistry<TestHost>(modules: [
+            Leasing("voice", slots: [.audioLeases], leases: [("conversation", .conversation), ("call", .call)]),
+            Leasing("recording", slots: [.audioLeases], leases: [("meeting", .recording)]),
+            Leasing("glasses", slots: [], leases: [("photo", .playback)]),
+        ])
+        #expect(registry.audioLeases == [
+            AudioLease(module: "voice", name: "conversation", use: .conversation),
+            AudioLease(module: "voice", name: "call", use: .call),
+            AudioLease(module: "recording", name: "meeting", use: .recording),
+        ])
+        #expect(registry.problems == ["glasses: registers into audio_leases, which its descriptor does not declare"])
+    }
+
+    @Test func anAudioLeaseNameIsDeclaredOncePerModule() {
+        let registry = ModuleRegistry<TestHost>(modules: [
+            Leasing("voice", slots: [.audioLeases], leases: [("conversation", .conversation), ("conversation", .call)]),
+        ])
+        #expect(registry.audioLeases.map(\.use) == [.conversation])
+        #expect(registry.problems == ["voice: audio lease conversation is declared twice"])
+    }
+
+    @Test func aModuleThatIsOffDeclaresNoLease() {
+        let registry = ModuleRegistry<TestHost>(modules: [
+            Leasing("voice", slots: [.audioLeases], leases: [("conversation", .conversation)]),
+        ], isEnabled: { _ in false })
+        #expect(registry.audioLeases.isEmpty)
+    }
+
+    @Test func leaseUsesRankCallOverConversationOverRecordingOverPlayback() {
+        #expect(AudioLeaseUse.allCases.sorted() == [.playback, .recording, .conversation, .call])
+        #expect(AudioLeaseUse.allCases.map(\.rawValue) == [0, 1, 2, 3])
+    }
+}
+
+@MainActor
+private struct Leasing: PersonaModule {
+    typealias Host = TestHost
+    let descriptor: ModuleDescriptor
+    let isAvailable = true
+    let leases: [(String, AudioLeaseUse)]
+
+    init(_ id: ModuleID, slots: Set<ModuleSlot>, leases: [(String, AudioLeaseUse)]) {
+        descriptor = ModuleDescriptor(id: id, slots: slots)
+        self.leases = leases
+    }
+
+    func register(into registrar: inout ModuleRegistrar<TestHost>) {
+        for (name, use) in leases { registrar.audioLease(name, use: use) }
     }
 }

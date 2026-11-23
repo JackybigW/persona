@@ -294,7 +294,7 @@ nonisolated enum CallPlatform {
     func activateAudio() async -> Bool {
         await Task.detached {
             do {
-                try AVAudioSession.sharedInstance().setActive(true)
+                try AudioSessionBroker.shared.activate(for: .systemCall)
                 return true
             } catch {
                 Logger(subsystem: "persona", category: "call").notice("call: activating the audio session failed: \(error.localizedDescription, privacy: .public)")
@@ -408,11 +408,13 @@ nonisolated enum CallPlatform {
 
     fileprivate func activated() {
         Self.log.notice("call: the system activated the audio session")
+        AudioSessionBroker.shared.systemActivated(for: .systemCall)
         handler?.systemActivatedAudio()
     }
 
     fileprivate func deactivated() {
         Self.log.notice("call: the system deactivated the audio session")
+        AudioSessionBroker.shared.systemDeactivated(for: .systemCall)
         handler?.systemDeactivatedAudio()
     }
 
@@ -553,7 +555,7 @@ nonisolated final class PersonaCallsLCKDelegate: ConversationManagerDelegate, @u
     private static func setActive(_ on: Bool) async -> Bool {
         await Task.detached {
             do {
-                try AVAudioSession.sharedInstance().setActive(on, options: on ? [] : .notifyOthersOnDeactivation)
+                if on { try AudioSessionBroker.shared.activate(for: .systemCall) } else { try AudioSessionBroker.shared.deactivate(for: .systemCall) }
                 return true
             } catch {
                 Logger(subsystem: "persona", category: "call").notice("call: the stand-in could not \(on ? "activate" : "deactivate", privacy: .public) the audio session: \(error.localizedDescription, privacy: .public)")
@@ -568,3 +570,8 @@ nonisolated enum CallSystemStandInError: Error {
 }
 #endif
 #endif
+
+extension AudioSessionClient {
+    /// A system call's audio (a call to Persona, an urgent call), to the audio session's broker.
+    nonisolated static let systemCall = AudioSessionClient("call", use: .call)
+}

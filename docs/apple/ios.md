@@ -1773,10 +1773,28 @@ every platform are described from #13430; this section is the Apple side.
   `capabilities` (`provide(_:_:)`: an interface the core declares and asks for, such as `LiveScreen`; nil when no
   active module provides it, and the core then offers none of it), and, since #14278, `shell_places`
   (`shellPage(id:_:)`: a page the core routes to by id, handed `PersonaHostApp.ShellContext`; the core lists its row and
-  opens its route only while a module provides it). Declared but **not yet served**, with no API until a module needs
-  one: `hello_hooks`, `frame_handlers`, `hub_session_lifecycle`, `phone_tools`, `intents`,
-  `push_categories` and `audio_leases` (the core's `AudioSessionBroker` does not exist yet). Each gets its registrar
+  opens its route only while a module provides it), and, since #13849 item 3, `audio_leases`
+  (`audioLease(_:use:)`: a client of the shared audio session a module's audio code names to the core's
+  `AudioSessionBroker`, with what it uses the session for; `ModuleRegistry.audioLeases`; "Audio session" below).
+  Declared but **not yet served**, with no API until a module needs one: `hello_hooks`, `frame_handlers`,
+  `hub_session_lifecycle`, `phone_tools`, `intents` and `push_categories`. Each gets its registrar
   method and registry reader with the first module that needs it (#13849).
+- **Audio session** (#13849 item 3, #13431). `AudioSessionBroker` (`apple/Shared/AudioSessionBroker.swift`, so the
+  watch has it too) is the one place that calls `AVAudioSession`: voice conversations, system calls, CarPlay, recording,
+  meeting replay and spoken answers, the composer's dictation, the screen's Picture in Picture and the watch set the
+  session up, read its route and let it go through `AudioSessionBroker.shared`, each naming itself with an
+  `AudioSessionClient` (a name and an `AudioSessionUse`). The broker passes every call to the session exactly as asked,
+  in order, and keeps a lease per client from activation to deactivation (a system call's session, which the system
+  activates, through `systemActivated(for:)`), ranked call > conversation > recording > playback (`owner`). It decides
+  nothing yet: a lower-ranked client activating over a higher one is only logged, and `LiveCallGate` and
+  `RecordingMicrophone` still decide; enforcing the ranking is a later change. The session's queue
+  (`AudioSessionBroker.queue`, formerly `LiveCallGate.sessionQueue`) orders dictation, meeting replay and a call's
+  category. The route as `VoiceRoute` sees it (`routeSnapshot`, `apple/Persona/App/AudioSessionRoute.swift`) is a core
+  read, so recording needs nothing of voice for it. A module declares its clients through `audio_leases`
+  (`AudioSessionClient(_: AudioLease)` names one `<module>.<name>`; `AudioLeaseUse` and `AudioSessionUse` share their
+  cases and ranks). `scripts/test/test_apple_audio_session.py` fails on any other non-test file under `apple/` that
+  takes `AVAudioSession.sharedInstance()` or changes a session it was handed; tests: `AudioSessionBrokerTests`, the
+  package's `ModuleRegistryTests`.
 - **The module list** (`apple/Persona/App/Modules.swift`) is the seed of the `PersonaHostApp` layer (#13430 decision 4;
   `apple/Packages/PersonaCore` stays the Rust binding). `PersonaHostApp` is the `ModuleHost` (a composer action hands
   back a `UIImage`), `Modules.builtIn` lists the modules in the order their entries appear, and `Modules.registry` is

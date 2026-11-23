@@ -31,10 +31,10 @@ import os
     nonisolated private static let log = Logger(subsystem: "persona", category: "call")
 
     /// Where the sound goes now, and whether another way is there: read off the main actor (the session's own queue).
-    nonisolated static func read(_ session: AVAudioSession) -> (Output, Bool) {
+    nonisolated static func read(_ session: AudioSessionBroker = .shared) -> (Output, Bool) {
         let now = output(session.currentRoute)
         let builtIn: Set<AVAudioSession.Port> = [.builtInMic, .builtInReceiver, .builtInSpeaker]
-        let other = (session.availableInputs ?? []).contains { !builtIn.contains($0.portType) }
+        let other = session.availableInputs.contains { !builtIn.contains($0.portType) }
         return (now, other || ![.receiver, .speaker].contains(now))
     }
 
@@ -61,13 +61,13 @@ import os
         // Read where the session posts it, off the main actor; only the answer comes over.
         observer = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil,
                                                           queue: nil) { @Sendable [weak self] _ in
-            let (now, external) = Self.read(AVAudioSession.sharedInstance())
+            let (now, external) = Self.read()
             Task { @MainActor in self?.set(now, external: external) }
         }
         // The read runs detached and captures nothing of this object; only its answer comes back to the main actor
         // (Swift 6.2 refuses to send `self` into a detached task: "sending 'self' risks causing data races").
         Task { [weak self] in
-            let (now, external) = await Task.detached { Self.read(AVAudioSession.sharedInstance()) }.value
+            let (now, external) = await Task.detached { Self.read() }.value
             self?.set(now, external: external)
         }
     }
@@ -84,7 +84,7 @@ import os
         overrode = on
         Task.detached {
             do {
-                try AVAudioSession.sharedInstance().overrideOutputAudioPort(on ? .speaker : .none)
+                try AudioSessionBroker.shared.overrideOutput(on ? .speaker : .none, for: .systemCall)
             } catch {
                 Self.log.notice("call: could not \(on ? "turn the speaker on" : "turn the speaker off", privacy: .public): \(error.localizedDescription, privacy: .public)")
             }

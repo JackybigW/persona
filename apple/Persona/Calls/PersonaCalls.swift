@@ -654,13 +654,13 @@ nonisolated enum CallOrigin: String, Equatable, Sendable {
 
     /// Off the main actor (setting the category blocks for a moment), on the audio session's queue: a dictation block
     /// queued before the call went live runs first, and one queued after sees the call and touches nothing
-    /// (`LiveCallGate.sessionQueue`).
+    /// (`AudioSessionBroker.queue`).
     static func setCallCategory() async {
         let options = PhoneVoiceAudio.callSessionOptions
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            LiveCallGate.sessionQueue.async {
+            AudioSessionBroker.queue.async {
                 do {
-                    try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .voiceChat, options: options)
+                    try AudioSessionBroker.shared.setCategory(.playAndRecord, mode: .voiceChat, options: options, for: .systemCall)
                 } catch {
                     PersonaCalls.log.notice("call: the audio category: \(error.localizedDescription, privacy: .public)")
                 }

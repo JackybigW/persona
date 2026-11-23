@@ -116,8 +116,11 @@ struct CallSourceTests {
             "Persona/Recording/MeetingReplay.swift": ("meeting replay: refused, audio-session changes skipped", "LiveCallGate.liveNow"),
             "Modules/ScreenShare/VNCPiP.swift": ("picture in picture: the session left alone", "LiveCallGate.callIsLive"),
             "Persona/Recording/MeetingSpeaker.swift": ("a meeting recording's answers: a recording a call paused leaves the call's route alone", "LiveCallGate.callIsLive"),
+            "Shared/AudioSessionBroker.swift": ("the broker: passes on what each client above asked, after that client's own gate", nil),
         ]
-        let calls = ["setCategory(", "setActive(", "overrideOutputAudioPort(", "setPreferredInput(", "setMode("]
+        // The session's own calls, and the broker's that pass them on (`AudioSessionBroker`, #13849 item 3).
+        let calls = ["setCategory(", "setActive(", "overrideOutputAudioPort(", "setPreferredInput(", "setMode(",
+                     "overrideOutput(", "activate(for:"]
         var found: Set<String> = []
         for file in try Self.sources(tests: false) where file.lines.contains(where: { line in calls.contains { line.contains($0) } }) {
             found.insert(file.path)
@@ -140,22 +143,22 @@ struct CallSourceTests {
             #expect(gate.lowerBound < (body.range(of: "askPermission()")?.lowerBound ?? body.endIndex), "\(name)")
         }
         let pip = try #require(Self.body(try Self.lines("Modules/ScreenShare/VNCPiP.swift"), "if !LiveCallGate.callIsLive {"))
-        #expect(pip.contains("setCategory(") && pip.contains("setActive("), "picture in picture sets the session only with no call")
+        #expect(pip.contains("setCategory(") && pip.contains("activate(for:"), "picture in picture sets the session only with no call")
         // A replay asks on the main actor before its tape opens, then again on the session queue before every session
         // change: a call that went live while its audio file opened or ended keeps its own session (#10693).
         let replay = try Self.lines("Persona/Recording/MeetingReplay.swift")
         let canStart = try #require(Self.body(replay, "static var canStart"))
         #expect(canStart.contains("callGate() == nil"), "a replay starts during a live call")
         let prepare = try #require(Self.body(replay, "private func prepareAudio("))
-        let queue = try #require(prepare.range(of: "LiveCallGate.sessionQueue.sync"))
+        let queue = try #require(prepare.range(of: "AudioSessionBroker.queue.sync"))
         let live = try #require(prepare.range(of: "!LiveCallGate.liveNow", range: queue.upperBound..<prepare.endIndex))
-        for call in ["setCategory(", "setActive(true)"] {
+        for call in ["setCategory(", "activate(for:"] {
             #expect(live.lowerBound < (prepare.range(of: call)?.lowerBound ?? prepare.startIndex), "\(call) runs before the replay's call gate")
         }
         let deactivate = try #require(Self.body(replay, "private static func deactivateSession()"))
-        let offQueue = try #require(deactivate.range(of: "LiveCallGate.sessionQueue.sync"))
+        let offQueue = try #require(deactivate.range(of: "AudioSessionBroker.queue.sync"))
         let offLive = try #require(deactivate.range(of: "!LiveCallGate.liveNow", range: offQueue.upperBound..<deactivate.endIndex))
-        #expect(offLive.lowerBound < (deactivate.range(of: "setActive(false")?.lowerBound ?? deactivate.startIndex))
+        #expect(offLive.lowerBound < (deactivate.range(of: "deactivate(for:")?.lowerBound ?? deactivate.startIndex))
     }
 
     /// Nothing in the app ends a live call to Persona by itself (#9290 follow-up): every way into a voice chat asks the call
@@ -280,10 +283,10 @@ struct CallSourceTests {
         #expect(permission.upperBound < recheck.lowerBound, "dictation does not ask the gate after its permission")
         #expect(recheck.lowerBound < (listen.range(of: "RecordingMicrophone.shared.claim(")?.lowerBound ?? listen.startIndex))
         #expect(listen.contains("guard !LiveCallGate.liveNow else { return c.resume(returning: .call) }"))
-        #expect(composer.joined(separator: "\n").contains("private static var audioQueue: DispatchQueue { LiveCallGate.sessionQueue }"))
+        #expect(composer.joined(separator: "\n").contains("private static var audioQueue: DispatchQueue { AudioSessionBroker.queue }"))
         let calls = try Self.lines("Persona/Calls/PersonaCalls.swift")
         let category = try #require(Self.body(calls, "static func setCallCategory()"))
-        #expect(category.contains("LiveCallGate.sessionQueue.async"), "the call's category is not on the session's queue")
+        #expect(category.contains("AudioSessionBroker.queue.async"), "the call's category is not on the session's queue")
         let guards = try Self.lines("Persona/Calls/CallGuards.swift").joined(separator: "\n")
         #expect(guards.contains("LiveCallGate.callLiveChanged(live)"))
 

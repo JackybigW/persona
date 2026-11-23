@@ -203,3 +203,10 @@ final class ModuleState {
         if let done = launched { launched = registry.launch(after: done) }
     }
 }
+
+extension AudioSessionClient {
+    /// A module's declared client of the audio session (`ModuleSlot.audioLeases`): `<module>.<name>`, ranked by its use.
+    nonisolated init(_ lease: AudioLease) {
+        self.init("\(lease.module.rawValue).\(lease.name)", use: AudioSessionUse(rawValue: lease.use.rawValue) ?? .playback)
+    }
+}

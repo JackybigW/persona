@@ -294,10 +294,10 @@ extension MeetingSpeaker.Deps {
              routeToSpeaker: {
                  // A meeting recording a system call paused: the route is the call's (docs/apple/calls.md).
                  guard !LiveCallGate.callIsLive else { return false }
-                 let session = AVAudioSession.sharedInstance()
-                 guard VoiceRoute.output(PhoneVoiceAudio.snapshot(session)).speaker else { return false }
+                 let session = AudioSessionBroker.shared
+                 guard VoiceRoute.output(session.routeSnapshot).speaker else { return false }
                  do {
-                     try session.overrideOutputAudioPort(.speaker)
+                     try session.overrideOutput(.speaker, for: .meetingAnswer)
                      return true
                  } catch {
                      Logger(subsystem: "persona", category: "meeting-speaker")
@@ -307,7 +307,7 @@ extension MeetingSpeaker.Deps {
              },
              restoreOutput: {
                  guard !LiveCallGate.callIsLive else { return }
-                 try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+                 try? AudioSessionBroker.shared.overrideOutput(.none, for: .meetingAnswer)
              })
     }
 }
@@ -486,3 +486,8 @@ extension MeetingDeviceVoice: AVSpeechSynthesizerDelegate {
     }
 }
 #endif
+
+extension AudioSessionClient {
+    /// A meeting's spoken answer, to the audio session's broker: it plays into the recording's session.
+    nonisolated static let meetingAnswer = AudioSessionClient("meeting-answer", use: .recording)
+}

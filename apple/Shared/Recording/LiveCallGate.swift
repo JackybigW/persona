@@ -32,12 +32,9 @@ import os
 
     // MARK: Off the main actor
 
-    /// The audio session's own queue: dictation opens and lets go of its session here, and the call sets its category
-    /// here (`PersonaCalls.setCallCategory`), so one never runs in the middle of the other. A block that would set up
-    /// the session for dictation asks `liveNow` on this queue first: the call's category, queued once the call went live,
-    /// always comes after it.
-    nonisolated static let sessionQueue = DispatchQueue(label: "persona.audio-session")
-
+    /// Session calls that must not run in the middle of a call's category (dictation, meeting playback) run on the
+    /// audio session's queue (`AudioSessionBroker.queue`) and ask `liveNow` there first: the call's category, queued
+    /// once the call went live, always comes after them.
     nonisolated private static let live = OSAllocatedUnfairLock(initialState: false)
 
     /// `callIsLive` for code off the main actor (the session queue): the call manager sets it, on the main actor, as a

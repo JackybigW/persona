@@ -379,7 +379,7 @@ an in-app action never silently ends it, takes its microphone or sets up the aud
 - **Dictation** (the composer's mic tapped or held, #9619; the to-do fields): refused at once with a toast, "On a call —
   dictation is off until it ends"; neither the dictation bar nor a hold opens (`Dictation.callGate`). A dictation that
   was waiting for its permission when the call went live is refused once it is answered, before the microphone or the
-  session; its session is opened on the audio session's queue the call sets its category on (`LiveCallGate.sessionQueue`),
+  session; its session is opened on the audio session's queue the call sets its category on (`AudioSessionBroker.queue`),
   and a block that finds a call live there touches nothing (`LiveCallGate.liveNow`). A dictation the call came during
   (an urgent call answered) does not deactivate the session as it ends.
 - **A recording** (a meeting from the + list, the home screen's menu, Siri, the Control or the Recordings page; a note;
@@ -417,9 +417,9 @@ fails on a new one until it is given one):
 | `CallSystem` (`activateAudio` once after the 5 s watchdog; the Simulator's stand-in) | yes, the call's own | no | none needed |
 | `CallRoute.setSpeaker` (`overrideOutputAudioPort`) | yes, on Speaker | no: the call's own route | none needed |
 | `PhoneVoiceAudio` (`.phone`, `.carPlay`: category, activation, preferred input, speaker override) | only through `VoiceCalls` | would: its session replaces the call's | refused, or asked first (`VoiceCalls.systemCallName`); the system mode (a call's) never touches the session (`aSystemCallsAudioNeverTouchesTheSystemsSession`) |
-| `Dictation` (`.record` category, activation, deactivation) | would, when tapped, or when its permission is answered | would: cuts the call's microphone, its deactivation stops the call's audio | refused before and after the permission (`LiveCallGate.dictationRefusal`); opened on `LiveCallGate.sessionQueue`, in order with the call's category; no deactivation while a call is live |
+| `Dictation` (`.record` category, activation, deactivation) | would, when tapped, or when its permission is answered | would: cuts the call's microphone, its deactivation stops the call's audio | refused before and after the permission (`LiveCallGate.dictationRefusal`); opened on `AudioSessionBroker.queue`, in order with the call's category; no deactivation while a call is live |
 | `RecordingCapture.configureSession` (start, resume, the resume when the app comes back) | would | would | refused, and asked again after every wait and before the session or the microphone (`LiveCallGate.recordingRefusal`) |
-| `MeetingReplay` (playback category, activation and deactivation) | would, starting a tape or opening / ending its audio | would: it replaces or deactivates the call's session | refused before the replay begins (`RecordingCapture.callGate`); activation and deactivation run on `LiveCallGate.sessionQueue` and are skipped when `LiveCallGate.liveNow` |
+| `MeetingReplay` (playback category, activation and deactivation) | would, starting a tape or opening / ending its audio | would: it replaces or deactivates the call's session | refused before the replay begins (`RecordingCapture.callGate`); activation and deactivation run on `AudioSessionBroker.queue` and are skipped when `LiveCallGate.liveNow` |
 | `RecordingCapture` stop, cancel, failed start (preferred input, deactivation), `setPlaysAloud` (category), `turnOnEchoCancellation` | yes: a recording paused before an urgent call was answered | would: the deactivation stops the call's audio, the category moves its route | under a live call only the microphone goes back; the category and voice processing wait for the resume |
 | `MeetingSpeaker` (speaker override and its restore), `MeetingVoicePlayer`, `MeetingCallAudio` | only during a meeting recording (a paused one exists under a call) | the override would move the call's route | skipped during a call (`LiveCallGate.callIsLive`) |
 | `VNCPiP.prepare` (`.playback` category, activation) | would, opening a Mac's screen | would | skipped during a call (`LiveCallGate.callIsLive`) |

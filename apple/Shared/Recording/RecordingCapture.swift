@@ -295,7 +295,7 @@ final class RecordingCapture {
     /// Name of the input the current route records from, shown while recording.
     var inputName: String? {
         guard state == .recording || state == .paused else { return nil }
-        return AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName
+        return AudioSessionBroker.shared.currentRoute.inputs.first?.portName
     }
     #endif
 
@@ -307,7 +307,7 @@ final class RecordingCapture {
     private static func permission() async -> Bool {
         if #available(iOS 17.0, watchOS 10.0, *) { return await AVAudioApplication.requestRecordPermission() }
         return await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { @Sendable allowed in continuation.resume(returning: allowed) }
+            AudioSessionBroker.shared.requestRecordPermission { @Sendable allowed in continuation.resume(returning: allowed) }
         }
     }
 
@@ -1593,18 +1593,20 @@ struct RecordingSession {
     var setPreferredInput: (AVAudioSessionPortDescription?) throws -> Void
     #endif
 
-    /// The app's shared session.
+    /// The app's shared session, through its broker (a recording's lease).
     static var app: RecordingSession {
+        let broker = AudioSessionBroker.shared
+        let client = AudioSessionClient("recording", use: .recording)
         #if os(iOS) || os(visionOS)
-        RecordingSession(setCategory: { try AVAudioSession.sharedInstance().setCategory($0, mode: $1, options: $2) },
-                         activate: { try AVAudioSession.sharedInstance().setActive(true) },
-                         deactivate: { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) },
-                         availableInputs: { AVAudioSession.sharedInstance().availableInputs ?? [] },
-                         setPreferredInput: { try AVAudioSession.sharedInstance().setPreferredInput($0) })
+        return RecordingSession(setCategory: { try broker.setCategory($0, mode: $1, options: $2, for: client) },
+                                activate: { try broker.activate(for: client) },
+                                deactivate: { try? broker.deactivate(for: client) },
+                                availableInputs: { broker.availableInputs },
+                                setPreferredInput: { try broker.setPreferredInput($0, for: client) })
         #else
-        RecordingSession(setCategory: { try AVAudioSession.sharedInstance().setCategory($0, mode: $1, options: $2) },
-                         activate: { try AVAudioSession.sharedInstance().setActive(true) },
-                         deactivate: { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) })
+        return RecordingSession(setCategory: { try broker.setCategory($0, mode: $1, options: $2, for: client) },
+                                activate: { try broker.activate(for: client) },
+                                deactivate: { try? broker.deactivate(for: client) })
         #endif
     }
 }

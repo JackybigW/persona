@@ -445,15 +445,15 @@ final class Dictation {
         }
         guard RecordingMicrophone.shared.claim(microphoneOwner) else { return String(localized: "The microphone is in use. Stop the recording or dictation first.") }
         // On the audio session's queue, after any deactivation a closing bar left there (`stop(settling:)`), and in order
-        // with a system call's own category (`LiveCallGate.sessionQueue`): a call that went live before this block runs
+        // with a system call's own category (`AudioSessionBroker.queue`): a call that went live before this block runs
         // has the session, and this touches nothing.
         let opened: SessionOpening = await withCheckedContinuation { c in
             Self.audioQueue.async {
                 guard !LiveCallGate.liveNow else { return c.resume(returning: .call) }
                 do {
-                    let session = AVAudioSession.sharedInstance()
-                    try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-                    try session.setActive(true, options: .notifyOthersOnDeactivation)
+                    let session = AudioSessionBroker.shared
+                    try session.setCategory(.record, mode: .measurement, options: .duckOthers, for: Self.audioClient)
+                    try session.activate(for: Self.audioClient, options: .notifyOthersOnDeactivation)
                     c.resume(returning: .opened)
                 } catch {
                     c.resume(returning: .failed)
@@ -477,7 +477,7 @@ final class Dictation {
         engine.prepare()
         do { try engine.start() } catch {
             engine.inputNode.removeTap(onBus: 0)
-            if callGate() == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+            if callGate() == nil { try? AudioSessionBroker.shared.deactivate(for: Self.audioClient) }
             RecordingMicrophone.shared.release(microphoneOwner)
             return String(localized: "Couldn't open the microphone")
         }
@@ -580,16 +580,18 @@ final class Dictation {
                 guard RecordingMicrophone.shared.isFree, (self?.callGate() ?? LiveCallGate.dictationRefusal) == nil else { return }
                 Self.audioQueue.async {
                     guard !LiveCallGate.liveNow else { return }
-                    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                    try? AudioSessionBroker.shared.deactivate(for: Self.audioClient)
                 }
             }
         } else {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            try? AudioSessionBroker.shared.deactivate(for: Self.audioClient)
         }
     }
 
     /// Dictation's audio session calls, in order, off the main thread, on the queue a system call sets its category on.
-    private static var audioQueue: DispatchQueue { LiveCallGate.sessionQueue }
+    private static var audioQueue: DispatchQueue { AudioSessionBroker.queue }
+    /// Dictation, to the audio session's broker: it records.
+    nonisolated private static let audioClient = AudioSessionClient("dictation", use: .recording)
 
     private static func allowed() async -> Bool {
         let speech = await withCheckedContinuation { c in
