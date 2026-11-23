@@ -355,14 +355,21 @@ func rolloutThreadID(home, path string) string {
 
 // mainThread maps a subagent's thread to the conversation it belongs to; any other thread maps to itself.
 func mainThread(home, id string) string {
+	thread, _ := mainThreadRollout(home, id)
+	return thread
+}
+
+func mainThreadRollout(home, id string) (string, string) {
 	p := rolloutPath(home, id)
 	if p == "" {
-		return id
+		return id, ""
 	}
-	if m := metaOf(home, p); m.sub && m.root != "" && rolloutPath(home, m.root) != "" {
-		return m.root
+	if m := metaOf(home, p); m.sub && m.root != "" {
+		if root := rolloutPath(home, m.root); root != "" {
+			return m.root, root
+		}
 	}
-	return id
+	return id, p
 }
 
 // rolloutGlob is what rolloutPath globs with (a test counts the globs).
@@ -693,12 +700,11 @@ func codexTitleName(title string) (name string, match func(string) bool, ok bool
 // codexByTitle finds the thread a Codex pane shows by the name in its title (codexTitleName). Of several threads with
 // that name it keeps prefer (what the host or a start said). A herdr pane with an ambiguous title waits for stronger
 // evidence. claimed prevents keeping a stale id when a uniquely matching thread is already taken.
-func (n *Node) codexByTitle(a host.Agent, prefer string, taken map[string]host.Agent) (bestID string, claimed bool) {
+func (n *Node) codexByTitle(home string, a host.Agent, prefer string, taken map[string]host.Agent) (bestID string, claimed bool) {
 	_, match, ok := codexTitleName(a.Title)
 	if !ok {
 		return "", false
 	}
-	home := n.codexPaneHome(a.PaneID)
 	var best string
 	var bestAt time.Time
 	matches := 0

@@ -82,10 +82,24 @@ func (n *Node) sessionListIn(ctx context.Context, refreshAgents bool, pass *code
 	seen := make(map[string]bool, size)
 	livePanes := map[string]bool{} // the resting Claudes' panes, whose screens are read for a dialog
 	now := time.Now()
+	paneDeadline := now.Add(codexHomeListWait)
 	// In id order, not the map's: the list is sorted by UpdatedAt with a stable sort, and rows that tie on it (live panes
 	// with no transcript yet all have none) came out in a new order on every pass, each one a whole new list for the hub.
 	for _, id := range slices.Sorted(maps.Keys(agents)) {
 		a := agents[id]
+		if a.Agent == "codex" && n.codices != nil && !isCodexWaitID(id) &&
+			(host.ParsePane(a.PaneID).Kind == host.Herdr || host.ParsePane(a.PaneID).Kind == host.HerdrCore) &&
+			!n.liveCodexHomeReady(id, paneDeadline) {
+			out = append(out, unavailableCodexRow(proto.Session{SessionID: id, Agent: a.Agent, Cwd: a.Cwd, Title: a.Title}))
+			if pass != nil {
+				if pass.unavailable == nil {
+					pass.unavailable = map[string]bool{}
+				}
+				pass.unavailable[id] = true
+			}
+			seen[id] = true
+			continue
+		}
 		if !onList[id] { // a pane on Claude's agents list stays idle: the transcript is its parked session's (claudebg.go)
 			a.AgentStatus = n.liveStatus(id, a, now)
 		}

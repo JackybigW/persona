@@ -22,6 +22,7 @@ import (
 type codexRegistry struct {
 	mu                sync.Mutex
 	index             codexHomeIndex
+	paneReads         codexPaneReads
 	lastRows          map[string]proto.Session // immutable last observations, reused when their home is inaccessible
 	listSeq, savedSeq uint64
 	config            proto.CodexConfig
@@ -265,6 +266,23 @@ func (n *Node) discoverCodex() {
 	}
 	scan := r.scan
 	r.mu.Unlock()
+	// The TUI's environment identifies the pane's home before any rollout or
+	// unrelated transcript directory is opened. An inherited pane variable on
+	// an app-server subprocess must not override its terminal client.
+	found := scan()
+	byPane := map[string]string{}
+	for _, p := range found {
+		if p.pane == "" {
+			continue
+		}
+		pane := n.herdrPaneIn(p.pane, p.herdrSession)
+		if p.endpoint == "" || byPane[pane] == "" {
+			byPane[pane] = canonicalCodexHome(firstNonEmpty(p.home, n.codexHome()), n.home)
+		}
+	}
+	r.mu.Lock()
+	r.byPane = byPane
+	r.mu.Unlock()
 	claudeIDs := map[string]bool{}
 	for _, path := range n.globProjects("*", "*.jsonl") {
 		claudeIDs[strings.TrimSuffix(filepath.Base(path), ".jsonl")] = true
@@ -272,7 +290,6 @@ func (n *Node) discoverCodex() {
 	r.mu.Lock()
 	r.claudeIDs = claudeIDs
 	r.mu.Unlock()
-	found := scan()
 	changed := false
 	liveRollouts := map[string]string{}
 	for pid, paths := range openCodexRollouts(found) {
@@ -299,14 +316,10 @@ func (n *Node) discoverCodex() {
 	r.mu.Lock()
 	r.liveRollouts = liveRollouts
 	r.mu.Unlock()
-	byPane := map[string]string{}
 	for _, p := range found {
 		home := canonicalCodexHome(firstNonEmpty(p.home, n.codexHome()), n.home)
 		if home == "" {
 			continue
-		}
-		if p.pane != "" {
-			byPane[n.herdrPaneIn(p.pane, p.herdrSession)] = home
 		}
 		r.mu.Lock()
 		if !slices.Contains(r.config.Homes, home) {
@@ -327,9 +340,6 @@ func (n *Node) discoverCodex() {
 		}
 		r.mu.Unlock()
 	}
-	r.mu.Lock()
-	r.byPane = byPane
-	r.mu.Unlock()
 	cfg := n.codexInventory()
 	// Existing official control sockets are discoverable without starting a daemon.
 	for _, home := range cfg.Homes {

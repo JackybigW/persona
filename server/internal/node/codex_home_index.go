@@ -42,6 +42,21 @@ func (n *Node) indexCodexHome(home string, deadline time.Time) bool {
 	})
 }
 
+// A live pane is decorated before the history rows, sometimes between host refreshes.
+// Do not re-enter a filesystem scan the index has already timed out or another reader holds.
+func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
+	src, ok := n.codexSource(id)
+	if !ok || !n.indexCodexHome(src.home, deadline) {
+		return false
+	}
+	c := rolloutCacheFor(src.home)
+	if !c.mu.TryLock() {
+		return false
+	}
+	c.mu.Unlock()
+	return true
+}
+
 // firstMessageRollouts reads the completed index. A start polls until its first
 // message appears, so it can pass a busy home and check again on the next look.
 func (n *Node) firstMessageRollouts(home string, deadline time.Time) []codexRollout {
@@ -111,10 +126,21 @@ func (i *codexHomeIndex) available(home string, deadline time.Time, scan func() 
 			i.mu.Unlock()
 		}()
 	}
-	done, wait := s.done, min(codexHomeScanWait-now.Sub(s.started), deadline.Sub(now))
+	done, started := s.done, s.started
 	i.mu.Unlock()
+	return waitCodexScan(done, started, deadline)
+}
+
+func waitCodexScan(done <-chan struct{}, started, deadline time.Time) bool {
+	now := time.Now()
+	wait := min(codexHomeScanWait-now.Sub(started), deadline.Sub(now))
 	if wait <= 0 {
-		return false
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
 	}
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
