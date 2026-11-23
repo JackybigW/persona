@@ -618,15 +618,22 @@ func TestChannelReceiveAcknowledgesBeforeBusyMainTurnAndFolds(t *testing.T) {
 		t.Fatalf("second receive did not acknowledge while main was busy: %v", err)
 	}
 	close(release)
+	var run *channel.Run
 	waitUntil(t, func() bool {
 		runs := s.channelRuns("examplechat")
-		return len(runs) == 1 && len(runs[0].MsgIDs) == 2
+		if len(runs) != 1 || len(runs[0].MsgIDs) != 2 {
+			return false
+		}
+		// The folded run is published before its watcher can accept the answer.
+		var live *chanLive
+		run, live = s.channelRunByID(runs[0].ID)
+		return run != nil && live != nil
 	})
 	runs := s.channelRuns("examplechat")
 	if runs[0].ReplyTo != "m2" || len(runs[0].Folded) != 1 || runs[0].Folded[0].ReplyTo != "m1" || len(*sent) != 0 {
 		t.Fatalf("busy main run/replies: %+v / %+v", runs[0], *sent)
 	}
-	s.finishChannelRun(&runs[0], &channel.Result{Answer: "one answer"})
+	s.finishChannelRun(run, &channel.Result{Answer: "one answer"})
 	if len(*sent) != 1 || (*sent)[0]["reply_to"] != "m2" {
 		t.Fatalf("busy main answers: %+v", *sent)
 	}
