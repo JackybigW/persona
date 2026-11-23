@@ -77,7 +77,8 @@ import { SettingsPage } from '../components/SettingsPage';
 import { SshSettingsPage } from '../components/SshSettingsPage';
 import { DeviceLook, deviceLook } from '../models/DeviceLook';
 import { nativeLookTheme } from '../design/LookTheme';
-import { deviceLookSelectedFilterInk } from '../core/DeviceLook';
+import { deviceLookInterfaceTint, deviceLookSelectedFilterInk, deviceLookSurface, usesSystemStyleColors } from '../core/DeviceLook';
+import { phoneInterfaceStyleID } from '../core/PhoneInterfaceStyle';
 import { IconTypeV2 } from '@kit.ArkUI';
 import { Tokens } from '../design/Tokens';
 import { Colors } from '../design/Colors';
@@ -1418,7 +1419,7 @@ struct Index {
     return Math.min(PhoneStyle.sidebarMetric(300, this.environment.fontScale), Math.max(1, available - 20));
   }
   private assistantMenuTint(): ResourceColor {
-    return this.look.accentId === 'style' && this.model.style === 'system' ? $r('app.color.persona_needs_mark') : Colors.link;
+    return this.look.accentId === 'style' && usesSystemStyleColors(this.model.style) ? $r('app.color.persona_needs_mark') : Colors.link;
   }
   private assistantWell(): number { return PhoneStyle.sidebarMetric(36, this.environment.fontScale); }
   private assistantAvatarColor(row: ResourceRow): ResourceColor {
@@ -2854,7 +2855,11 @@ struct Index {
   build() {
     Stack() {
     WithTheme({ theme: nativeLookTheme(this.look, this.model.style, this.environment.dark), colorMode: this.environment.dark ? ThemeColorMode.DARK : ThemeColorMode.LIGHT }) {
-    ThemeScope({ systemControls: this.look.accentId === 'style' && this.model.style === 'system',
+    ThemeScope({ systemControls: this.look.accentId === 'style' && usesSystemStyleColors(this.model.style),
+      styleID: phoneInterfaceStyleID(this.model.style),
+      interfaceAccent: deviceLookInterfaceTint(this.look.accentId,this.model.style,this.environment.dark,
+        this.environment.dark ? this.look.palette(this.model.style).dark : this.look.palette(this.model.style).light),
+      surfaces: deviceLookSurface(this.model.style, this.look.accentId, this.environment.dark, this.look.palette(this.model.style)),
       selectedAccentInk: deviceLookSelectedFilterInk(this.look.palette(this.model.style), this.environment.dark) }) {
     Stack({alignContent:Alignment.TopStart}) {
       if (this.model.profile.id && !this.wide() && (this.spacesShown || this.drawerMounted)) {

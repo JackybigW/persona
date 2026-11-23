@@ -1512,15 +1512,17 @@ export struct Conversation {
         onQuoteText:(text?:string):void => this.quoteLiftedText(text)})
     }
   }
+  @Builder pickMark(picked:boolean,brought:boolean) {
+    Stack() {
+      Circle().width(22).height(22).fill(picked || brought ? Colors.interfaceAccent : Color.Transparent)
+        .stroke(picked || brought ? Colors.interfaceAccent : Colors.secondary).strokeWidth(1)
+      if (picked || brought) SymbolGlyph($r('sys.symbol.checkmark')).fontSize(13).fontColor([Color.White])
+    }.width(24).height(32).margin({left:Tokens.page,top:3}).opacity(brought ? .33 : 1)
+  }
   @Builder message(entry: RepeatItem<ConversationLine>) {
     if (this.forwardState.isPicking(this.model) && this.forwardState.isEligible(this.model,entry.item.message!)) {
       Row({space:8}) {
-        Stack() {
-          Circle().width(22).height(22).fill(this.forwardState.isPicked(this.model,entry.item.message!) ? Colors.link : Color.Transparent)
-            .stroke(this.forwardState.isPicked(this.model,entry.item.message!) ? Colors.link : Colors.secondary).strokeWidth(1)
-          if (this.forwardState.isPicked(this.model,entry.item.message!))
-            SymbolGlyph($r('sys.symbol.checkmark')).fontSize(13).fontColor([Color.White])
-        }.width(24).height(32).margin({left:Tokens.page,top:3}).opacity(this.forwardState.isBrought(this.model,entry.item.message!) ? .5 : 1)
+        this.pickMark(this.forwardState.isPicked(this.model,entry.item.message!),this.forwardState.isBrought(this.model,entry.item.message!))
         Column() { this.messageBody(entry) }.layoutWeight(1).hitTestBehavior(HitTestMode.None).accessibilityLevel('no-hide-descendants')
       }.width('100%').alignItems(VerticalAlign.Top).accessibilityGroup(true).accessibilityRole(AccessibilityRoleType.BUTTON)
         .accessibilityText(entry.item.message!.text).accessibilitySelected(this.forwardState.isPicked(this.model,entry.item.message!))
@@ -1559,7 +1561,9 @@ export struct Conversation {
             if (entry.item.message!.thoughtCount > 0) Text(tr('phone_chat_thoughts') + ' ' + String(entry.item.message!.thoughtCount)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary)
             SymbolGlyph(this.expanded.includes(entry.item.message!.id) ? Symbols.down : Symbols.expand).fontSize(12).fontColor([Colors.secondary])
           }.constraintSize({ minHeight: 32 })
-        }.padding({ left: 10, right: 10 }).borderRadius(12).backgroundColor(Colors.control)
+        }.padding({ left: 10, right: 10 }).borderRadius(12)
+          .backgroundColor(this.model.style==='beautiful' ? this.composerSurface() : Colors.control)
+          .outline({width:this.model.style==='beautiful' ? 1 : 0,color:this.composerRim(),radius:12})
           .accessibilityText(tr('work_summary') + ' · ' + tr(this.expanded.includes(entry.item.message!.id) ? 'agent_collapse' : 'agent_expand'))
           .onClick(() => { this.toggle(entry.item.message!.id); if (this.expanded.includes(entry.item.message!.id)) this.model.expandWork(entry.item.message!); })
           .id('chat.work.' + entry.item.message!.id)
@@ -1754,14 +1758,26 @@ export struct Conversation {
   }
 
   // Shell ComposerRoundButton uses its own ink/canvas pair in every style.
+  @Computed get legacyInterface():boolean { return this.model.style==='brief' || this.model.style==='board'; }
   private roundInk():ResourceColor {
-    return this.model.style==='system' || this.model.style==='glass' ? this.environment.dark ? '#F2F2F2' : '#0D0D0D' : Colors.ink;
+    if(this.model.style==='beautiful') return this.environment.dark ? '#F2F3F4' : '#1F2124';
+    return this.legacyInterface ? Colors.ink : this.environment.dark ? '#F2F2F2' : '#0D0D0D';
   }
   private roundSymbol():ResourceColor {
-    return this.model.style==='system' || this.model.style==='glass' ? this.environment.dark ? '#0D0D0D' : '#FFFFFF' : Colors.canvas;
+    if(this.model.style==='beautiful') return this.environment.dark ? '#1C1D1F' : '#F1F2F3';
+    return this.legacyInterface ? Colors.canvas : this.environment.dark ? '#0D0D0D' : '#FFFFFF';
   }
   private toolInk():ResourceColor {
-    return this.model.style==='system' || this.model.style==='glass' ? this.environment.dark ? '#FFFFFF' : '#000000' : Colors.secondary;
+    if(this.model.style==='beautiful') return this.environment.dark ? '#A5A8AD' : '#62656B';
+    return this.legacyInterface ? Colors.secondary : this.environment.dark ? '#FFFFFF' : '#000000';
+  }
+  private composerSurface(): ResourceColor {
+    if(this.model.style==='beautiful') return this.environment.dark ? '#232427' : '#FFFFFF';
+    return this.legacyInterface ? Colors.surface : this.environment.dark ? '#1F1F21' : '#FFFFFF';
+  }
+  private composerRim(): ResourceColor {
+    if(this.model.style==='beautiful') return this.environment.dark ? '#21FFFFFF' : '#ECEDEF';
+    return this.legacyInterface ? Colors.divider : this.environment.dark ? '#3A3A3C' : '#E3E3E3';
   }
   @Builder composerRound(size: number = 44, inline: boolean = false) {
     Stack() {
@@ -1885,7 +1901,8 @@ export struct Conversation {
             .buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
             .accessibilityText(tr('chat_lift_remove_quote')).enabled(!this.sending)
             .id('chat.context.quote.remove').onClick(() => this.model.removeMessageQuote(ref))
-        }.width('100%').padding({left:Tokens.inset,right:Tokens.fine,top:3,bottom:3}).backgroundColor(Colors.control)
+        }.width('100%').padding({left:Tokens.inset,right:Tokens.fine,top:3,bottom:3})
+          .backgroundColor(this.model.style==='beautiful' ? this.environment.dark ? '#1F2022' : '#F7F8F9' : Colors.control)
           .borderRadius(Tokens.inset).id('chat.context.quote')
       },(ref:Record<string,Object>, index:number) => Wire.text(ref,'msg',Wire.text(ref,'item_id'))+':'+String(index))
       if (this.model.otherContextTitle()) Row({ space: Tokens.gap }) {
@@ -1982,9 +1999,10 @@ export struct Conversation {
             .padding({ right: this.expandedComposer() ? Tokens.fine : 0 })
         }
       }.width('100%').onAreaChange((_old: Area, area: Area) => { const width = Number(area.width); if (Number.isFinite(width) && width > 0) this.composerWidth = width; })
-    }.padding(this.composerPadding()).backgroundColor(this.model.style==='system' ? this.environment.dark ? '#1F1F21' : '#FFFFFF' : Colors.surface)
+    }.padding(this.composerPadding()).backgroundColor(this.composerSurface())
       .border({width:this.restingComposer() ? String(this.restingStrokePx()) + 'px' : this.composerStroke,
-        color:this.model.style==='system' ? this.environment.dark ? '#3A3A3C' : '#E3E3E3' : Colors.divider,radius:25}).borderRadius(25).width('100%').id('chat.composer')
+        color:this.composerRim(),radius:25}).borderRadius(25).width('100%').id('chat.composer')
+      .shadow({radius:this.model.style==='beautiful' ? 8 : 0,color:this.environment.dark ? '#38000000' : '#0D000000',offsetY:5})
   }
 
   @Builder taskDock(horizontalInset: number = 0) {
@@ -2069,7 +2087,7 @@ export struct Conversation {
           .height(Math.max(1, Math.min(this.controlsHeight, this.maxControlsHeight())))
       }
     }.width('100%').height('100%')
-      .backgroundColor(this.model.style === 'system' ? this.environment.dark ? Color.Black : Color.White : Colors.canvas)
+      .backgroundColor(this.legacyInterface || Colors.stylePage ? Colors.canvas : this.environment.dark ? Color.Black : Color.White)
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
       .bindSheet($$this.attachmentSheet, this.attachmentContent(), { title: { title: tr(this.contextKind === 'knowledge' ? 'knowledge' : this.contextKind === 'todo' ? 'todos' : this.contextKind === 'inbox' ? 'inbox' : 'attach') }, height: SheetSize.LARGE, showClose: true, onAppear: () => { this.attachmentLayoutReady = true; this.measureAttachment(); }, onDisappear: () => this.attachmentLayoutReady = false })
       .onAreaChange((_before: Area, area: Area): void => {

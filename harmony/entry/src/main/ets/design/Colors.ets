@@ -1,7 +1,15 @@
 // Semantic native colors; appearance resources own the light and dark variants.
 @ObservedV2
 class NativeColors {
-  readonly surface: ResourceColor = $r('app.color.persona_surface');
+  @Trace styleID: string = 'glass';
+  @Trace stylePage: string = '';
+  @Trace styleCard: string = '';
+  @Trace styleEdge: string = '';
+  @Trace styleShadow: string = '';
+  @Trace interfaceAccent: string = '#007AFF';
+  get accentWell():string { return '#1F'+this.interfaceAccent.slice(1); }
+  get recapTint():string { return '#14'+this.interfaceAccent.slice(1); }
+  get surface(): ResourceColor { return this.styleCard || $r('app.color.persona_surface'); }
   readonly codeCanvas: ResourceColor = $r('app.color.persona_code_canvas');
   readonly inlineCodeInk: ResourceColor = $r('app.color.persona_inline_code_ink');
   readonly codeHunk: ResourceColor = $r('app.color.persona_code_hunk');
@@ -10,12 +18,12 @@ class NativeColors {
   readonly diffModified: ResourceColor = $r('app.color.persona_diff_modified');
   readonly codeAddedFill: ResourceColor = $r('app.color.persona_code_added_fill');
   readonly codeRemovedFill: ResourceColor = $r('app.color.persona_code_removed_fill');
-  readonly canvas: ResourceColor = $r('app.color.persona_canvas');
-  readonly grouped: ResourceColor = $r('app.color.persona_grouped');
-  readonly sheetBackground: ResourceColor = $r('app.color.persona_sheet_background');
-  readonly sheetCard: ResourceColor = $r('app.color.persona_sheet_card');
+  get canvas(): ResourceColor { return this.stylePage || $r('app.color.persona_canvas'); }
+  get grouped(): ResourceColor { return this.stylePage || $r('app.color.persona_grouped'); }
+  get sheetBackground(): ResourceColor { return this.stylePage || $r('app.color.persona_sheet_background'); }
+  get sheetCard(): ResourceColor { return this.styleCard || $r('app.color.persona_sheet_card'); }
   readonly sheetControl: ResourceColor = $r('app.color.persona_sheet_control');
-  readonly listBackground: ResourceColor = $r('app.color.persona_list_background');
+  get listBackground(): ResourceColor { return this.stylePage || $r('app.color.persona_list_background'); }
   card(elevated: boolean): ResourceColor { return elevated ? this.sheetCard : this.surface; }
   listGroup(elevated: boolean): ResourceColor { return elevated ? this.sheetBackground : this.grouped; }
   readonly ink: ResourceColor = $r('app.color.persona_ink');

@@ -9,6 +9,7 @@ import type { SshProxyLease } from './SshTunnel';
 import type { PairingSshRoute } from './PairingSsh';
 import { KnowledgeRecording } from './KnowledgeRecording';
 import { deviceLook } from './DeviceLook';
+import { storedPhoneInterfaceStyle } from '../core/PhoneInterfaceStyle';
 import { clientLocale, initializeClientLanguage, setClientLanguage } from '../core/ClientLocale';
 import { dictationLocale, dictationTexts } from '../core/DictationLanguage';
 import { dictationPreference } from '../platform/DictationPreference';
@@ -471,7 +472,7 @@ export class ClientModel {
     const preferences = Wire.parse(await this.local.get('preferences'));
     this.appearance = Wire.number(preferences, 'appearance');
     const savedStyle = Wire.text(preferences, 'style', 'system');
-    this.style = ['system', 'glass', 'brief', 'board'].includes(savedStyle) ? savedStyle : 'system';
+    this.style = storedPhoneInterfaceStyle(savedStyle);
     this.alerts = Wire.bool(preferences, 'alerts', true); this.language = Wire.text(preferences, 'language', 'default');
     if (!['default', 'en-US', 'zh-CN', 'ja-JP'].includes(this.language)) this.language = 'default';
     i18n.System.setAppPreferredLanguage(this.language); initializeClientLanguage(this.language);
@@ -524,7 +525,7 @@ export class ClientModel {
     await this.changePreferences(async (): Promise<void> => {
       const mode = change.appearance === undefined ? this.appearance : change.appearance;
       const requested = change.style === undefined ? this.style : change.style;
-      const style = ['system', 'glass', 'brief', 'board'].includes(requested) ? requested : 'system';
+      const style = storedPhoneInterfaceStyle(requested);
       const alerts = change.alerts === undefined ? this.alerts : change.alerts;
       try { await this.local.put('preferences', JSON.stringify({ appearance: mode, style: style, alerts: alerts, language: this.language })); }
       catch (_) { this.error = 'cache_unavailable'; return; }

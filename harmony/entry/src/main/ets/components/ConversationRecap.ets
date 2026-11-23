@@ -118,7 +118,7 @@ export struct ConversationRecap {
     Button({ type: ButtonType.Normal }) {
       Column({ space: 6 }) {
         Row({ space: 6 }) {
-          SymbolGlyph(IconActions.symbol('restore_draft')).fontSize(Tokens.interfaceFontVp(17, nativeEnvironment.fontScale)).fontColor([Colors.link])
+          SymbolGlyph(IconActions.symbol('restore_draft')).fontSize(Tokens.interfaceFontVp(17, nativeEnvironment.fontScale)).fontColor([Colors.interfaceAccent])
           Text(tr('chat_away_recap')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontWeight(FontWeight.Medium).fontColor(Colors.ink)
           if (this.relative(item.at)) Text('· ' + this.relative(item.at)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
             .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
@@ -129,8 +129,8 @@ export struct ConversationRecap {
           .fontColor(Colors.ink).lineHeight(Tokens.interfaceFontVp(19.5, nativeEnvironment.fontScale))
           .maxLines(8).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%').textAlign(TextAlign.Start)
       }.width('100%').alignItems(HorizontalAlign.Start).padding({left: Tokens.inset})
-        .border({ width: {left: 3}, color: Colors.link })
-    }.width('100%').padding(12).backgroundColor(Colors.selection).borderRadius(12)
+        .border({ width: {left: 3}, color: Colors.interfaceAccent })
+    }.width('100%').padding(12).backgroundColor(Colors.recapTint).borderRadius(12)
       .accessibilityText(tr('chat_away_recap') + ' · ' + item.text + ' · ' + tr('close'))
       .id('chat.recap.open').onClick(() => this.dismiss())
   }

@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from 'node:fs';
 
 registerHooks({
   resolve(specifier, context, next) {
+    if (context.parentURL?.endsWith('/ClientModel.ets') && specifier === '../core/PhoneInterfaceStyle')
+      return {url:new URL('../core/PhoneInterfaceStyle.ts',context.parentURL).href,shortCircuit:true};
     if ((context.parentURL?.endsWith('/Compatibility.ets') || context.parentURL?.endsWith('/ClientModel.ets')) && specifier === '../core/ChatForwardWire')
       return {url:new URL('../core/ChatForwardWire.ts',context.parentURL).href,shortCircuit:true};
     if (context.parentURL?.endsWith('/ClientModel.ets') && specifier === '../core/Markdown')

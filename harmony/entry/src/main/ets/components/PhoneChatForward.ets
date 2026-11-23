@@ -37,8 +37,8 @@ export struct PhoneChatPickBar {
   }
   @Builder action(label:string,mark:Resource,id:string,run:()=>void) {
     Column({space:4}){
-      SymbolGlyph(mark).fontSize(21).fontColor([Colors.ink])
-      Text(label).fontSize(13).maxFontScale(1.35).maxLines(1).fontColor(Colors.ink)
+      SymbolGlyph(mark).fontSize(21).fontColor([this.state.picked.length ? Colors.interfaceAccent : Colors.tertiary])
+      Text(label).fontSize(13).maxFontScale(1.35).maxLines(1).fontColor(this.state.picked.length ? Colors.interfaceAccent : Colors.tertiary)
     }.layoutWeight(1).height(62).justifyContent(FlexAlign.Center).accessibilityGroup(true).accessibilityText(label)
     .accessibilityRole(AccessibilityRoleType.BUTTON).enabled(!this.working && !!this.state.picked.length)
     .onClick(run).id(id)
@@ -51,8 +51,16 @@ export struct PhoneChatPickBar {
         Text(selectedCount(this.state.picked.length)).fontSize(13).fontColor(Colors.secondary).id('chat.pickCount')
         Row(){
           if(this.state.offersQuestions(this.source)){
-          Button((this.state.include?'✓ ':'')+tr('chat_forward_questions')).fontSize(13).fontColor(Colors.link)
-          .backgroundColor(Colors.sheetControl).onClick(()=>this.state.setInclude(this.source,!this.state.include)).id('chat.pickQuestions')
+          Button({type:ButtonType.Capsule}) {
+            Row({space:4}) {
+              SymbolGlyph(this.state.include ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle')).fontSize(13)
+                .fontColor([this.state.include ? Colors.interfaceAccent : Colors.secondary])
+              Text(tr('chat_forward_questions')).fontSize(13).fontColor(this.state.include ? Colors.interfaceAccent : Colors.secondary)
+            }
+          }.padding({left:8,right:8}).backgroundColor(this.state.include ? Colors.accentWell : Color.Transparent)
+            .border({width:this.state.include ? 0 : .5,color:Colors.divider,radius:24})
+            .accessibilityText(tr('chat_forward_questions')).accessibilitySelected(this.state.include)
+            .onClick(()=>this.state.setInclude(this.source,!this.state.include)).id('chat.pickQuestions')
           }
         }.layoutWeight(1).justifyContent(FlexAlign.End)
       }.width('100%')
@@ -60,7 +68,8 @@ export struct PhoneChatPickBar {
         this.action(tr('chat_forward_action'),$r('sys.symbol.arrowshape_turn_up_right'),'chat.pickForward',()=>this.state.forwardPicks(this.source))
         this.action(tr('copy'),$r('sys.symbol.doc_text_on_doc_text'),'chat.pickCopy',()=>this.copy(false))
         this.action(tr('chat_forward_export'),$r('sys.symbol.picture_on_square'),'chat.pickExport',()=>this.copy(true))
-      }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(14)
+      }.width('100%').backgroundColor(Colors.surface).borderRadius(14)
+        .outline({width:Colors.styleID==='island' ? 0 : .5,color:Colors.styleEdge || Colors.divider,radius:14})
       if(this.state.error){Text(trError(this.state.error)).fontSize(13).fontColor(Colors.danger)}
     }.width('100%').padding({left:16,right:16,top:8,bottom:8})
   }
@@ -83,6 +92,16 @@ export struct PhoneChatForwardPicker {
   }
   private searchField:SearchController=new SearchController();
   @Computed get refs():Record<string,Object>[] {return this.state.previews(this.source);}
+  @Computed get previewMeta():string {
+    if(!this.refs.length) return '';
+    const ref=this.refs[0],machine=Wire.text(ref,'machine'),at=Date.parse(Wire.text(ref,'time'));
+    if(this.refs.length!==1 || !Number.isFinite(at)) return machine;
+    const date=new Date(at),today=new Date();
+    const options:Intl.DateTimeFormatOptions={hour:'numeric',minute:'2-digit'};
+    if(date.toDateString()!==today.toDateString()){options.month='short';options.day='numeric';}
+    const time=new Intl.DateTimeFormat(this.source.language==='default' ? undefined : this.source.language,options).format(date);
+    return machine ? machine+' · '+time : time;
+  }
   @Computed get groups():ForwardSection[] {return this.state.sections(this.source);}
   private async pick(row:ResourceRow):Promise<void>{if(await this.state.choose(this.source,row))this.onTarget(row);}
   private async newAgent():Promise<void>{if(await this.state.chooseNewAgent(this.source))this.onNewAgent();}
@@ -137,11 +156,19 @@ export struct PhoneChatForwardPicker {
               this.option(tr('chat_forward_select'),'', $r('sys.symbol.checkmark_circle'),'forward.selectMessages',()=>this.state.selectInstead(this.source))
               Divider().color(Colors.divider)
             }
-            Column({space:4}){
-              Text(heading(this.refs)).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Colors.ink).maxLines(2)
-              if(this.refs.length && Wire.text(this.refs[0],'machine')){Text(Wire.text(this.refs[0],'machine')).fontSize(12).fontColor(Colors.secondary)}
-              Text(this.refs.map((r:Record<string,Object>)=>summary(r)).join('\n')).fontSize(14).fontColor(Colors.secondary).maxLines(this.refs.length>1?3:2).textOverflow({overflow:TextOverflow.Ellipsis})
-            }.alignItems(HorizontalAlign.Start).width('100%').padding(16).backgroundColor(Colors.sheetCard).id('forward.preview')
+            Column() {
+              Row({space:7}) {
+                Rect().width(3).alignSelf(ItemAlign.Stretch).fill(Colors.interfaceAccent).borderRadius(1.5)
+                Column({space:3}) {
+                  Row({space:4}) {
+                    SymbolGlyph($r('sys.symbol.arrowshape_turn_up_right')).fontSize(13).fontColor([Colors.interfaceAccent])
+                    Text(heading(this.refs)).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Colors.interfaceAccent).maxLines(2)
+                  }
+                  if(this.previewMeta){Text(this.previewMeta).fontSize(12).fontColor(Colors.secondary)}
+                  Text(this.refs.map((r:Record<string,Object>)=>summary(r)).join('\n')).fontSize(14).fontColor(Colors.secondary).maxLines(this.refs.length>1?3:2).textOverflow({overflow:TextOverflow.Ellipsis})
+                }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+              }.width('100%').padding({left:8,right:12,top:6,bottom:6}).backgroundColor(Colors.accentWell).borderRadius(9)
+            }.width('100%').padding({left:16,right:16,top:8,bottom:8}).backgroundColor(Colors.sheetCard).id('forward.preview')
           }.width('100%').borderRadius(14).clip(true)
           if(!this.state.query.trim()){
             Column(){
