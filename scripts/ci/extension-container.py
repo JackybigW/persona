@@ -27,6 +27,8 @@ def run_probe(image, name, directory, apparmor, profile_check):
               "--mount", "type=bind,src=" + str(directory) + ",dst=/probe,readonly",
               "--env=HOME=/home/persona", image, "/bin/sh", "-ec",
               'test "$(id -u)" != 0; '
+              'uname -a; '
+              'grep -a -F "subset=pid" /usr/bin/bwrap >/dev/null; '
               'test ! -u /usr/bin/bwrap; '
               'grep -q "^CapEff:[[:space:]]*0000000000000000$" /proc/self/status; '
               'grep -q "^NoNewPrivs:[[:space:]]*1$" /proc/self/status; '
