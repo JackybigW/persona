@@ -250,7 +250,15 @@ object AssistantLines {
         else -> null
     }
 
-    fun time(iso: String?): Instant? = iso?.let { runCatching { Instant.parse(it) }.getOrNull() }
+    fun time(iso: String?): Instant? {
+        if (iso.isNullOrEmpty()) return null
+        val last = iso[iso.length - 1]
+        if (last == 'Z' || last == 'z') {
+            val fast = persona.core.contracts.parseTime(iso)
+            if (fast != null) return fast
+        }
+        return runCatching { Instant.parse(iso) }.getOrNull()
+    }
 
     /** "Today · Tue, Nov 3", "Yesterday · …", or the date: which one, and whether the year shows (the app words it). */
     fun dayLabel(date: LocalDate, today: LocalDate = LocalDate.now()): DayLabel = DayLabel(date, when (date) {

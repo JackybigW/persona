@@ -141,10 +141,10 @@ fun ChatListEffects(
                 // do not, and they leave the keyboard up (#4210).
                 focusManager.clearFocus()
                 keyboard?.hide()
-                state.epoch++
-                state.dragged = true
-                state.restored = true
-                state.position = state.position.copy(followsEnd = false)
+                if (!state.restored || !state.dragged || state.programmaticScroll) state.epoch++
+                if (!state.dragged) state.dragged = true
+                if (!state.restored) state.restored = true
+                if (state.position.followsEnd) state.position = state.position.copy(followsEnd = false)
                 freeze()
             }
         }

@@ -186,4 +186,20 @@ class AssistantLinesTest {
         assertEquals(DayLabel(today.minusDays(1), DayLabel.Kind.Yesterday), AssistantLines.dayLabel(today.minusDays(1), today))
         assertEquals(DayLabel(LocalDate.of(2025, 11, 3), DayLabel.Kind.OtherYear), AssistantLines.dayLabel(LocalDate.of(2025, 11, 3), today))
     }
+
+    @Test fun timeFastPathMatchesInstantParseAcrossValidAndInvalidInputs() {
+        for (iso in listOf(
+            "2026-11-23T12:34:56Z",
+            "2026-11-23T12:34:56.789Z",
+            "2026-11-23T12:34:56.123456789Z",
+            "2026-11-23T12:34:56z",
+            "1999-12-31T23:59:59Z",
+            "2026-11-23T20:34:56+08:00",
+        )) {
+            assertEquals(iso, Instant.parse(iso), AssistantLines.time(iso))
+        }
+        for (invalid in listOf(null, "", "   ", "not-a-timestamp", "2026-13-40T99:00:00Z")) {
+            assertNull(invalid.toString(), AssistantLines.time(invalid))
+        }
+    }
 }

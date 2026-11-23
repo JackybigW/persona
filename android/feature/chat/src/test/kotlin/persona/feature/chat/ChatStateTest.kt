@@ -14,6 +14,11 @@ import persona.core.designsystem.resolveStatusLine
 import persona.core.domain.lines.isLiveStatus
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -189,5 +194,162 @@ class ChatStateTest {
         assertFalse(AnswerBuilder.build(plan, AnswerAction.ApproveAll).allowed)
         val question = Interaction("question", kind = "question", questions = listOf(Question("选择", options = listOf(QuestionOption("选项（推荐）")))))
         assertEquals(mapOf("选择" to "选项（推荐）"), AnswerBuilder.build(question, AnswerAction.PickOption).resolution?.answers)
+    }
+
+    @Test fun backgroundLinesNeverBlocksMainThreadFreezeIsFrozenFollowOrUnreadCount() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val workerRef = AtomicReference<Thread?>(null)
+        val workerError = AtomicReference<Throwable?>(null)
+        val timeline = ChatTimeline(beforeMemo = {
+            if (Thread.currentThread() === workerRef.get()) {
+                entered.countDown()
+                assertTrue(release.await(5, TimeUnit.SECONDS))
+            }
+        })
+        val user = Item("user#0", 1, role = "user", kind = "text", text = "Start")
+        val thought = Item("thought#0", 2, role = "assistant", kind = "thinking", text = "Working")
+        val initial = listOf(user, thought)
+        val newerReply = Item("reply#0", 3, role = "assistant", kind = "text", text = "New reply")
+        val withNewer = initial + newerReply
+
+        val worker = Thread {
+            try {
+                val _ = timeline.lines(initial, live = true, open = emptySet())
+            } catch (t: Throwable) {
+                workerError.set(t)
+            }
+        }
+        workerRef.set(worker)
+        worker.start()
+        try {
+            assertTrue("background lines() did not enter memoLock", entered.await(5, TimeUnit.SECONDS))
+            // Main-thread timeline queries and freeze transitions must never contend with memoLock.
+            assertFalse(timeline.isFrozen())
+            assertTrue(timeline.freezeChanged(initial))
+            assertTrue(timeline.isFrozen())
+            assertFalse(timeline.freezeChanged(initial))
+            assertEquals(1, timeline.newMessageCount(withNewer, below = null, lastRead = null))
+            // An unfrozen lines() pass is still in flight, so projection must still reconcile once it settles.
+            assertFalse(timeline.matchesLastProjection(initial, live = true, open = emptySet()))
+        } finally {
+            release.countDown()
+            worker.join(5_000)
+        }
+        assertFalse("worker thread did not finish", worker.isAlive)
+        assertNull(workerError.get())
+
+        // The racing unfrozen pass backfilled frozenLiveId so the frozen view preserves the live turn that was running.
+        val frozen = timeline.lines(withNewer, live = false, open = emptySet())
+        assertFalse(frozen.lines.any { it.holds(newerReply.id) })
+        assertTrue(frozen.lines.filterIsInstance<ChatLine.Work>().last().live)
+
+        assertTrue(timeline.followChanged())
+        assertFalse(timeline.followChanged())
+        val resumed = timeline.lines(withNewer, live = false, open = emptySet())
+        assertTrue(resumed.lines.any { it.holds(newerReply.id) })
+    }
+
+    @Test fun concurrentSearchItemsAndUiControlsNeverDeadlockOrThrow() {
+        val timeline = ChatTimeline()
+        val base = (1..200).map { seq ->
+            Item("m$seq#0", seq, role = if (seq % 2 == 1) "user" else "assistant", kind = "text", text = "Message $seq")
+        }
+        val extended = base + Item("m201#0", 201, role = "assistant", kind = "text", text = "Followup")
+        val executor = Executors.newFixedThreadPool(3)
+        try {
+            val backgroundLines = executor.submit {
+                repeat(150) { i ->
+                    val list = if (i % 2 == 0) base else extended
+                    val snap = timeline.lines(list, live = i % 3 == 0, open = emptySet())
+                    assertTrue(snap.lines.isNotEmpty())
+                }
+            }
+            val backgroundSearch = executor.submit {
+                repeat(150) { i ->
+                    val list = if (i % 2 == 0) base else extended
+                    assertTrue(timeline.searchItems(list).isNotEmpty())
+                }
+            }
+            val uiLoop = executor.submit {
+                repeat(200) { i ->
+                    if (i % 2 == 0) {
+                        val _ = timeline.freezeChanged(base)
+                        val _ = timeline.isFrozen()
+                        val _ = timeline.newMessageCount(extended, below = null, lastRead = null)
+                    } else {
+                        val _ = timeline.followChanged()
+                        val _ = timeline.isFrozen()
+                    }
+                }
+            }
+            backgroundLines.get(15, TimeUnit.SECONDS)
+            backgroundSearch.get(15, TimeUnit.SECONDS)
+            uiLoop.get(15, TimeUnit.SECONDS)
+        } finally {
+            executor.shutdownNow()
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS))
+        }
+    }
+
+    @Test fun matchesLastProjectionAndFrozenLinesCacheAvoidRedundantRecomputation() {
+        val memoCalls = AtomicInteger(0)
+        val timeline = ChatTimeline(beforeMemo = { memoCalls.incrementAndGet() })
+        val items = listOf(
+            Item("u1#0", 1, role = "user", kind = "text", text = "Question"),
+            Item("a1#0", 2, role = "assistant", kind = "text", text = "Answer"),
+        )
+        val initial = timeline.lines(items, live = false, open = emptySet())
+        assertEquals(1, memoCalls.get())
+
+        // Freezing at the bottom with the already-projected items requires no new background projection.
+        assertTrue(timeline.freezeChanged(items))
+        assertTrue(timeline.matchesLastProjection(items, live = false, open = emptySet()))
+        assertFalse(timeline.freezeChanged(items))
+
+        // Returning to the bottom while nothing changed also matches the existing projection.
+        assertTrue(timeline.followChanged())
+        assertTrue(timeline.matchesLastProjection(items, live = false, open = emptySet()))
+
+        // Freezing with a streaming overlay (different list instance) must trigger a projection refresh.
+        val streamingOverlay = items.toList()
+        assertTrue(timeline.freezeChanged(streamingOverlay))
+        assertFalse(timeline.matchesLastProjection(items, live = false, open = emptySet()))
+
+        // While frozen, newer messages past the boundary hit the LinesCache after the first frozen build.
+        val withNew1 = items + Item("a2#0", 3, role = "assistant", kind = "text", text = "New 1")
+        val withNew2 = withNew1 + Item("a3#0", 4, role = "assistant", kind = "text", text = "New 2")
+        val frozen1 = timeline.lines(withNew1, live = false, open = emptySet())
+        assertEquals(2, memoCalls.get())
+        val frozen2 = timeline.lines(withNew2, live = false, open = emptySet())
+        assertSame(frozen1, frozen2)
+        assertEquals(2, memoCalls.get())
+        assertEquals(initial.lines, frozen1.lines)
+
+        // Following after newer messages arrived invalidates the match so live items are projected.
+        assertTrue(timeline.followChanged())
+        assertFalse(timeline.matchesLastProjection(withNew2, live = false, open = emptySet()))
+    }
+
+    @Test fun itemBlockPartMatchesOriginalSubstringParsingOnEdgeCases() {
+        for (id in listOf(
+            "",
+            "plain",
+            "#",
+            "a#",
+            "msg#0",
+            "msg#12",
+            "a#1#2",
+            "msg#-3",
+            "msg#+4",
+            "msg#abc",
+            "msg#12a",
+            "msg#2147483647",
+            "msg#2147483648",
+            "msg#9999999999999",
+        )) {
+            val expected = id.substringAfterLast('#', "").toIntOrNull() ?: 0
+            assertEquals("id=$id", expected, itemBlockPart(id))
+        }
     }
 }

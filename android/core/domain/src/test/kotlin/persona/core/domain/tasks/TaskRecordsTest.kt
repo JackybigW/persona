@@ -127,4 +127,54 @@ class TaskRecordsTest {
         // a kind this build doesn't know still reads as unknown
         assertEquals("unknown", JsonCodec.decodeFromString(FeedItem.serializer(), """{"id":"x","kind":"later_kind"}""").kind)
     }
+
+    @Test fun mergeHandlesReplannedTodosProjectedOverridesAndReceiptReportIds() {
+        val oldPlan = TaskPlan("plan-old", "main", listOf(PlanTask("Old task", todoId = "t1")), "started", at(1))
+        val newPlan = TaskPlan("plan-new", "main", listOf(PlanTask("New task", todoId = "t1")), "started", at(5))
+        val todo = Todo("t1", "Replanned task", origin = "main", planId = "plan-new", createdAt = at(2))
+        val projected = listOf(
+            persona.core.contracts.AssistantTaskCard(
+                id = "plan:plan-old:0",
+                todoId = "t1",
+                planId = "plan-old",
+                index = 0,
+                at = at(1),
+                state = "started",
+                receiptId = "rc-extra",
+                reportId = "rp-extra",
+            ),
+            persona.core.contracts.AssistantTaskCard(
+                id = "plan:plan-new:0",
+                todoId = "t1",
+                planId = "plan-new",
+                index = 0,
+                at = at(5),
+                state = "started",
+                receiptId = "rc-extra",
+                reportId = "rp-extra",
+            ),
+        )
+        val mergedFeed = listOf(
+            item("plan-old-feed", 1, "plan", "plan-old"),
+            item("plan-new-feed", 5, "plan", "plan-new"),
+            item("task-t1", 6, "task", "t1"),
+            item("rc-extra", 7, "receipt", null, "title" to "Replanned task", "summary" to "Done"),
+            item("rp-extra", 8, "report", null, "text" to "Progress"),
+            item("task-t1", 9, "task", "t1"),
+        )
+        val merged = AssistantTaskCards.merge(
+            feed = mergedFeed,
+            plans = mapOf(oldPlan.id to oldPlan, newPlan.id to newPlan),
+            todos = listOf(todo),
+            projected = projected,
+        )
+        assertEquals(1, merged.size)
+        val card = merged.single()
+        assertEquals("plan-new", card.identity.planId)
+        assertEquals(newPlan, card.plan)
+        assertEquals(todo, card.todo)
+        assertEquals(listOf("task-t1", "rc-extra", "rp-extra"), card.records.map { it.id })
+        assertEquals("rc-extra", card.receipt?.id)
+        assertEquals("rp-extra", card.report?.id)
+    }
 }
