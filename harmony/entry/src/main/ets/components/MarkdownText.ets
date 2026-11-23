@@ -18,6 +18,7 @@ export struct MarkdownText {
   @Param agentReply: boolean = false;
   @Param agentFontScale: number = 1;
   @Param recapReading: boolean = false;
+  @Param profileReading: boolean = false;
   @Param dockPlan: boolean = false;
   @Param paragraphLineSpacingEm: number = 0.26;
   @Event onLink: (url: string) => void = (_url: string) => {};
@@ -39,10 +40,12 @@ export struct MarkdownText {
   @Computed get recapProse(): boolean { return this.recapReading && this.chatReply && !this.dockPlan; }
   @Computed get agentBodyVp(): number { return agentReplyBodySize(this.agentFontScale); }
   @Computed get agentHanVp(): number { return agentReplyBodySize(this.agentFontScale, true); }
+  // The recording profile uses MarkdownUI's display face at larger reading sizes. Its standard face already matches.
+  @Computed get profileDisplayProse():boolean { return this.profileReading && this.agentBodyVp >= 20; }
   @Computed get promptBodyVp(): number { return Math.min(53, Math.max(14, Tokens.body * this.agentFontScale)); }
 
-  private inlineSpacing(size: number, lineSpacingEm: number): number {
-    if (this.recapProse) return 0;
+  private inlineSpacing(size: number, lineSpacingEm: number, readingBody:boolean = false): number {
+    if (this.recapProse || readingBody && this.profileDisplayProse) return 0;
     if (this.recapReading) return this.readingPoints(size) * (this.dockPlan ? 0.37 : lineSpacingEm);
     return 0;
   }
@@ -132,7 +135,7 @@ export struct MarkdownText {
         readingBody && (this.scaleAgentProse || this.fixedType) ? String(this.agentBodyVp) + 'vp' : this.readingFont(size))
       .fontColor(quiet ? this.secondary : this.foreground).fontWeight(weight)
       .lineHeight(this.inlineLineHeight(size, readingBody, lineSpacingEm, nodes, promptBody))
-      .lineSpacing(LengthMetrics.vp(this.inlineSpacing(size, lineSpacingEm)), { onlyBetweenLines: true })
+      .lineSpacing(LengthMetrics.vp(this.inlineSpacing(size, lineSpacingEm, readingBody)), { onlyBetweenLines: true })
       .textAlign(alignment).wordBreak(breakAll ? WordBreak.BREAK_ALL : WordBreak.BREAK_WORD)
       .copyOption(this.nativeTextSelection ? CopyOptions.LocalDevice : CopyOptions.None).onTextSelectionChange((start: number, end: number) => this.onSelectionChange(end > start))
       .width(this.fitContent ? undefined : '100%')
@@ -168,8 +171,8 @@ export struct MarkdownText {
 
   @Builder blockView(block: MarkdownBlock, first: boolean = false) {
     if (block.kind === 'paragraph') {
-      this.inlineText(block.inlines, this.paragraphLineSpacingEm, Tokens.body, FontWeight.Normal,
-        TextAlign.Start, false, false, this.recapProse)
+      this.inlineText(block.inlines, this.profileDisplayProse ? 0.26 : this.paragraphLineSpacingEm, Tokens.body, FontWeight.Normal,
+        TextAlign.Start, false, false, this.recapProse || this.profileDisplayProse)
     } else if (block.kind === 'heading') {
       Column() {
         this.inlineText(block.inlines, 0.26, this.headingSize(block.level),

@@ -171,7 +171,7 @@ test('full recap Markdown grows past interface type, with the body-relative read
     renderer.agentBodyVp=points;
     assert.ok(Math.abs(parseFloat(renderer.inlineLineHeight(17,true,0.26,[]))-advance)<0.001);
   }
-  assert.match(markdown, /\.lineSpacing\(LengthMetrics\.vp\(this\.inlineSpacing\(size, lineSpacingEm\)\), \{ onlyBetweenLines: true \}/);
+  assert.match(markdown, /\.lineSpacing\(LengthMetrics\.vp\(this\.inlineSpacing\(size, lineSpacingEm, readingBody\)\), \{ onlyBetweenLines: true \}/);
 });
 
 test('recap history announces its count and identifies the newest entry only in a group', () => {
@@ -226,4 +226,34 @@ test('a recap dismissal belongs to its hub and session and an older storage read
   reads.get(address).resolve(stored.get(address));await Promise.resolve();assert.equal(v.open(),false);
   v.message={...v.message,recaps:[{id:'a'},{id:'new'}]};v.syncOwner();assert.equal(v.open(),true);
   v.active=false;v.syncOwner();v.dismiss();assert.equal(writes.length,1);
+});
+
+test('a recording profile retains its standard body and uses the measured mixed-script face and single line advance at display sizes',async()=>{
+ const {agentReplyBodySize,hasHanProse,markdownProseRuns}=await import('../entry/src/main/ets/core/Markdown.ts');
+ const markdown=readFileSync(new URL('../entry/src/main/ets/components/MarkdownText.ets',import.meta.url),'utf8');
+ const model=readFileSync(new URL('../entry/src/main/ets/components/KnowledgeWorkspacePage.ets',import.meta.url),'utf8');
+ const getters=['scaleAgentProse','recapProse','agentBodyVp','agentHanVp','profileDisplayProse']
+   .map(name=>markdown.match(new RegExp('  @Computed (get '+name+'\\(\\)[^\\n]+)'))?.[1]);
+ assert.ok(getters.every(Boolean));
+ const environment={fontScale:1};
+ const Renderer=new Function('agentReplyBodySize','hasHanProse','nativeEnvironment','Tokens',
+   'return '+stripTypeScriptTypes('class Renderer {\n'+getters.concat(['inlineLineHeight','inlineSpacing','readingPoints','readingFont','proseFont']
+     .map(name=>method(name,markdown))).join('\n')+'\n}'))(agentReplyBodySize,hasHanProse,environment,{body:17});
+ const p=Object.assign(new Renderer(),{profileReading:true,recapReading:true,agentFontScale:1});
+ const nodes=[{kind:'text',text:'[0:00] 核对项目工作树、知识库分类以及会议摘要。'}];
+ assert.deepEqual(markdownProseRuns(nodes[0].text).map(r=>r.han),[false,true]);
+ assert.equal(p.profileDisplayProse,false);
+ assert.equal(p.readingFont(17),'17vp');
+ assert.equal(p.inlineSpacing(17,0.45,false),17*0.45);
+ p.agentFontScale=environment.fontScale=3.2;
+ assert.equal(p.profileDisplayProse,true);assert.equal(p.agentBodyVp,48);
+ assert.equal(p.proseFont(true),'45.293vp');assert.equal(p.proseFont(false),undefined);
+ assert.equal(p.inlineSpacing(17,0.26,true),0);
+ assert.ok(Math.abs(parseFloat(p.inlineLineHeight(17,true,0.26,nodes))-(69+1/3))<0.001);
+ assert.equal(Math.floor((330-140)/p.agentHanVp),4);assert.equal(Math.floor(330/p.agentHanVp),7);
+ assert.equal(Math.floor((330-140)/48),3);assert.equal(Math.floor(330/48),6);
+ assert.equal(p.inlineSpacing(17,0.45,false),48*0.45,'headings, inline code and other block layouts retain their existing reading metrics');
+ p.profileReading=false;assert.equal(p.profileDisplayProse,false);
+ assert.match(model,/MarkdownText\(\{text:Wire\.text\(this\.workspace\.detail,'summary'\),recapReading:true,profileReading:true,\s*agentFontScale:nativeEnvironment.fontScale/);
+ assert.match(model,/\.height\(this\.recordingMetric\(52\.3,59\.3\)\)[^\n]+id\('knowledge\.facts\.open'\)/);
 });
