@@ -45,6 +45,9 @@ type fleetBook struct {
 	reportSent map[string]time.Time
 	// cardTell serializes telling the hub a card with checking it is still held (fleet_ix.go tellCard).
 	cardTell sync.Mutex
+	// A card can be withdrawn while it is being told. Reconnect takes both locks to order its
+	// complete inventory with new cards and withdrawals on the same connection.
+	cardEnd sync.Mutex
 	// codexAnnounced: Codex card id -> when it was announced (fleet_ix_codex.go)
 	codexAnnounced map[string]time.Time
 	// codexEnded: Codex card id -> when the node stopped listing it (fleet_ix_codex.go)
