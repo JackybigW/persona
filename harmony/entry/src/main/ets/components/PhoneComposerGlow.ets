@@ -48,7 +48,7 @@ export struct PhoneComposerGlow {
   private paint(): void {
     const ctx = this.ctx, w = this.frameWidth, h = this.frameHeight;
     if (!this.ready || w <= 40 || h <= 40) return;
-    const inset = 20, r = Math.max(0, Math.min(25, (h - 2 * inset) / 2));
+    const inset = 18.5, r = Math.max(0, Math.min(25, (h - 2 * inset) / 2));
     const colors = this.env.dark ? DARK : LIGHT;
     const angle = this.reduced ? 0 : Date.now() % 3000 / 3000 * 2 * Math.PI;
     const color = ctx.createConicGradient(angle, w / 2, h / 2);
@@ -64,10 +64,11 @@ export struct PhoneComposerGlow {
     ctx.closePath();
     ctx.strokeStyle = color;
     ctx.globalAlpha = .035; ctx.lineWidth = 40; ctx.stroke();
-    ctx.globalAlpha = .045; ctx.lineWidth = 30; ctx.stroke();
-    ctx.globalAlpha = .11; ctx.lineWidth = 19; ctx.stroke();
-    ctx.globalAlpha = .2; ctx.lineWidth = 11; ctx.stroke();
-    ctx.globalAlpha = .31; ctx.lineWidth = 6; ctx.stroke();
+    ctx.globalAlpha = .04; ctx.lineWidth = 30; ctx.stroke();
+    ctx.globalAlpha = .055; ctx.lineWidth = 19; ctx.stroke();
+    ctx.globalAlpha = .065; ctx.lineWidth = 11; ctx.stroke();
+    ctx.globalAlpha = .09; ctx.lineWidth = 6; ctx.stroke();
+    ctx.globalAlpha = .24; ctx.lineWidth = 4; ctx.stroke();
     ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.stroke();
     if (!this.reduced) {
       const highlight = ctx.createConicGradient(angle, w / 2, h / 2);

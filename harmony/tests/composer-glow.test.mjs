@@ -30,7 +30,7 @@ test('a reduced-motion reply draws a stationary colored rim and schedules no hig
   r.advance();
   r.rim.paint();
   assert.deepEqual(r.phases,[0,0]);
-  assert.deepEqual(r.alpha,[.035,.045,.11,.2,.31,1,.035,.045,.11,.2,.31,1]);
+  assert.deepEqual(r.alpha,[.035,.04,.055,.065,.09,.24,1,.035,.04,.055,.065,.09,.24,1]);
   assert.equal(r.callbacks.size,0);
 });
 
