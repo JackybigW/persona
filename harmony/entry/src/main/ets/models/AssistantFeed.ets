@@ -1,3 +1,5 @@
+import type { BriefAction, BriefRoute } from './BriefRowActions';
+import { BriefRowLedger, briefLedgerFor, briefRowPath, briefTake, briefWritable } from './BriefRowActions';
 import { receiptWireState } from './AssistantReceipt';
 import { Wire, ResourceRow } from './Wire';
 import type { ClientModel } from './ClientModel';
@@ -73,6 +75,7 @@ export class PlanEditTask {
 /** Scoped, in-memory projection of one assistant conversation's real Hub feed. */
 @ObservedV2
 export class AssistantFeedModel {
+  @Trace briefRows: BriefRowLedger = new BriefRowLedger();
   @Trace loading: boolean = false;
   @Trace loadingMore: boolean = false;
   @Trace error: string = '';
@@ -167,6 +170,7 @@ export class AssistantFeedModel {
     let repository: HubRepository;
     try { repository = model.repo(); } catch (_) { this.error = 'offline'; return; }
     this.client = model;
+    this.briefRows = briefLedgerFor(model);
     this.repository = repository;
     this.clientGeneration = model.connectionGeneration();
     this.scopeKey = model.scope();
@@ -244,6 +248,78 @@ export class AssistantFeedModel {
 
   private feedPath(cursor: string = '', since: string = ''): string {
     return conversationFeedPath(this.conversationId, this.owner, cursor, since);
+  }
+
+  briefOutcome(section: string, row: Record<string,Object>): string {
+    return this.current(this.generation) ? this.briefRows.outcome(this.scopeKey,section,row) : '';
+  }
+  briefError(section: string, row: Record<string,Object>): string {
+    return this.current(this.generation) ? this.briefRows.error(this.scopeKey,section,row) : '';
+  }
+
+  private briefRoute(item: Record<string,Object>, section: string, row: Record<string,Object>, visible: () => boolean): BriefRoute | undefined {
+    const client=this.client, repository=this.repository, run=this.generation, route=this.routeSnapshot();
+    const itemId=Wire.text(item,'id'), id=Wire.text(row,'id'), round=Wire.text(row,'asked_at');
+    if (!client || !repository || !itemId || !id || !['accept','later'].includes(section) || Wire.text(item,'kind')!=='brief' ||
+        Wire.text(item,'conversation',this.conversationId)!==this.conversationId || Wire.text(item,'manager',this.owner)!==this.owner ||
+        Wire.text(item,'group',client.profile.id)!==client.profile.id) return undefined;
+    const known=section==='accept' ? client.todos.filter((r:ResourceRow) => r.id===id && (!r.group || r.group===client.profile.id)) : [];
+    const local=this.directoryTodos.find((v:Record<string,Object>) => Wire.text(v,'id')===id);
+    const own=known.find((r:ResourceRow) => (r.manager || this.owner)===this.owner);
+    if (!own && !local && known.length>1) return undefined;
+    // A manager's briefing can mention tasks supervised outside this conversation. Use a known todo's owner,
+    // never an arbitrary manager supplied by an embedded row. Later questions always belong to their feed.
+    const targetTodo=own || (!local && known.length===1 ? known[0] : undefined);
+    const manager=section==='accept' && targetTodo ? targetTodo.manager || this.owner : this.owner;
+    let destination: ClientModel | undefined;
+    let destinationGeneration=-1, destinationScope='';
+    let destinationRepository: HubRepository | undefined;
+    const current = (): boolean => {
+      if (!this.current(run) || !this.routeIsCurrent(route) || !visible() || !client.connected ||
+          client.selected.kind!=='conversation' || !briefWritable(client.selected.data())) return false;
+      if (destination && (!destination.connected || !destination.owns(destinationGeneration,destinationScope) ||
+          destination.profile.id!==client.profile.id || destination.profile.manager!==manager || destination.repo()!==destinationRepository)) return false;
+      const live=this.items.find((v:Record<string,Object>) => Wire.text(v,'id')===itemId);
+      if (!live || Wire.text(live,'kind')!=='brief' || Wire.text(live,'conversation',this.conversationId)!==this.conversationId ||
+          Wire.text(live,'manager',this.owner)!==this.owner || !briefWritable(live)) return false;
+      const match=Wire.rows(Wire.object(live,'body'),section).find((v:Record<string,Object>) => Wire.text(v,'id')===id &&
+        (section==='later' || Wire.text(v,'asked_at')===round && Wire.text(v,'outcome')===Wire.text(row,'outcome') &&
+          Wire.text(v,'recommend')===Wire.text(row,'recommend')));
+      if (!match || !briefWritable(match) || Wire.text(match,'manager',manager)!==manager) return false;
+      if (section==='later') return true;
+      const fresh=this.directoryTodos.find((v:Record<string,Object>) => Wire.text(v,'id')===id);
+      if (fresh && (Wire.text(fresh,'manager',this.owner)!==manager || !briefWritable(fresh))) return false;
+      if (!targetTodo) return true;
+      const visibleTodo=client.todos.find((r:ResourceRow) => r.id===id && (!r.group || r.group===client.profile.id) &&
+        (r.manager || this.owner)===manager);
+      return !!visibleTodo && briefWritable(visibleTodo.data());
+    };
+    if (!current()) return undefined;
+    const load=async ():Promise<HubRepository> => {
+      if (!targetTodo || manager===this.owner) return repository;
+      const view=await client.viewFor(targetTodo);
+      if (!current() || !view.connected || view.profile.id!==client.profile.id || view.profile.manager!==manager) throw new Error('request_updated');
+      destination=view; destinationGeneration=view.connectionGeneration(); destinationScope=view.scope(); destinationRepository=view.repo();
+      return destinationRepository;
+    };
+    return {scope:this.scopeKey,manager:manager,loadRepository:load,current:current,
+      blocked:(path:string):boolean => (destination || client).operationBlocked(path),
+      reloadTodos:async ():Promise<void> => { if (this.current(run)) await this.refreshTodos(run); }};
+
+  }
+
+  canBriefAction(item: Record<string,Object>, section: string, row: Record<string,Object>, action: BriefAction): boolean {
+    if (this.briefOutcome(section,row)) return false;
+    if (action==='handled' ? section!=='later' : section!=='accept' || !Wire.text(row,'asked_at').trim() ||
+        (action==='accept' ? !briefTake(row) : Wire.text(row,'outcome').trim()!=='decide')) return false;
+    const route=this.briefRoute(item,section,row,() => true);
+    return !!route && !route.blocked(briefRowPath(route.manager,Wire.text(row,'id'),action));
+  }
+
+  async performBriefAction(item: Record<string,Object>, section: string, row: Record<string,Object>, action: BriefAction,
+    visible: () => boolean): Promise<boolean> {
+    const route=this.briefRoute(item,section,row,visible);
+    return route ? this.briefRows.perform(route,section,row,action) : false;
   }
 
   private ownerPath(path: string): string { return this.owner ? path + '?manager=' + segment(this.owner) : path; }
