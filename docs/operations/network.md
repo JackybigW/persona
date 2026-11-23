@@ -115,6 +115,30 @@ openssl x509 -req -in hub.csr -CA <ca>.crt -CAkey <ca>.key -CAcreateserial -days
 
 On iOS, install the CA as a profile, then turn it on under Settings › General › About › Certificate Trust Settings. Then set `public_url` to the `https://` address so that new pairings and links use it. Pair each Apple device again, and remove its old device so that its old token stops working. The hub does not renew a custom certificate, so reissue it before it expires. Persona Link pins the key, which does not change.
 
+## Office network mode
+
+Use this when an organization runs the hub for its own people: the hub, its computers and the phones work only inside the organization's network, and phones join it through the organization's VPN. Set `security.private_network_only: true` in hub.json and restart the hub (`server/internal/hub/private_network.go`):
+
+```json
+{
+  "public_url": "https://<internal hub name>:18662",
+  "public": { "tls_listen": ":18662", "advertise": ["https://<internal hub name>:18662"] },
+  "security": { "private_network_only": true, "plaintext_loopback_only": true },
+  "update": { "url": "file:///<internal release mirror>" }
+}
+```
+
+What the switch does:
+
+- **No answer to the internet.** Every request from a public source gets `403 private_network_only` on both listeners, health and pairing included, whatever the firewall lets through. Loopback, private and on-link addresses and `security.trusted_cidrs` (the VPN's range) reach the routes as before; see [source classification](#source-classification-and-reverse-proxies).
+- **Refused settings.** The hub does not start, and `personad hub doctor` names each one, while hub.json has `public.ddns`, `public.advertise_ipv6: true`, a public IP literal in `public_url` or `public.advertise`, `security.allow_public_plaintext`, `sharing.public_origin`, `update.development`, or a machine of kind `tailcat` or with `tailcat_addr`. Names are not resolved: the organization's DNS answers for them.
+- **No global IPv6 candidates.** Without `public.advertise_ipv6`, the hub hands out no global IPv6 address it finds on its interfaces.
+- **Updates only from the organization.** The build's own update source is not used: the hub checks for releases, and offers the Android app, only from `update.url`; without it there are no update checks. Node builds follow the same source unless `node_packages.url` names one.
+- **Pushes with the hub's own key, content-free.** The publisher's [push relay](push-relay.md) is never used, so a hub without `~/.persona/apns.json` sends no Apple pushes. With the key, every alert to Apple is content-free: title "Persona" and a localized "New message"; the phone shows the details once the app opens over the organization's network. When the phone has registered a push key with the hub (the app sends it with a relay grant), the payload also travels sealed to that key in `e`, and the notification service extension shows the full notification; background pushes and urgent calls need that key and are not sent without it. Apple sees which device is pushed and when, never the content. Live Activities are not pushed, because iOS reads their content in the clear.
+- **No tailcat.** The manager never dials tailcat, and every node it connects stops its tailcat endpoint (`node.configure private_network`). Delete `~/.persona/tailcat.json` on those computers so the endpoint does not start again before the hub connects. Connect computers with Persona Link instead ([link.md](link.md)).
+
+Not covered: what the manager reaches because the administrator turned it on (model providers, mail, Lark, GitHub and other connectors, extension markets, Web Push to browsers). Allow those destinations in the firewall's outbound rules; allow `api.push.apple.com:443` for pushes.
+
 ## Candidate addresses and DDNS
 
 Candidates sort `ipv6`, `name`, `lan`, `ipv4`, HTTPS first within each type. Linux reads flags and lifetimes through netlink, normally excluding temporary, deprecated, tentative, DAD-failed, and expired global IPv6, virtual interfaces, link-local, and documentation prefixes. ULA is `lan`. Public IPv4 is advertised only by explicit configuration; no automatic NAT discovery or inbound public-IPv4 verification currently.
@@ -145,6 +169,32 @@ iOS implementation (#4670): Settings › hub › Addresses keeps a paired hub's 
 - Known gap against the spec above: iOS does not hold plain HTTP to the LAN or check the peer address. An `http://` address works as the paired one does, on any host, and the device token goes over it unencrypted. Add `http://` addresses only for networks you trust (a VPN overlay, the LAN).
 - Typing an address: one without a scheme gets `https://` in front, a bare IP or `localhost` too (`http://` only when typed), and the line under the field shows the full address **Add Address** will add. An address that still can't be read, a scheme other than http or https, or one the hub has already (scheme and host in any case, the default port written or not) is said on that line instead, and Add stays off (`HubAddressInput`, `apple/Shared/Hubs.swift`).
 - Settings › hub shows the address in use under the hub's name, and the Addresses page marks it **In Use**.
+- **What each try came to** (#11390, `HubOutcome`, `apple/Shared/HubOutcome.swift`): the probe gives each address one outcome instead of yes or no. Only
+  **Answers** passes, so which address is taken, the order, the grace, the probe's 3-second timeout and the retries are as above.
+  - **Answers**: a healthy hub answer (`ok`), with the paired hub's `hub_id` on an added address.
+  - **Certificate not trusted**: TLS failed the system's trust (an unknown root such as the managed self-signed certificate above, a wrong host name, an
+    expired certificate). Kept apart from the rest: without pinning the phone can't tell the hub's own self-signed certificate from someone else's.
+    Checked on an iOS 27.0 simulator against local endpoints: a self-signed certificate, an unknown root, a wrong host name and an expired certificate
+    all fail as `NSURLErrorServerCertificateUntrusted` (-1202), the request and the socket alike; a server that hangs up during the handshake, or a
+    plain HTTP port asked for HTTPS, fails as `NSURLErrorSecureConnectionFailed` (-1200) without the server's trust, which counts as Couldn't connect.
+  - **Not your hub**: an added address answered with another `hub_id`. On a private address (loopback, LAN IPv4, link-local, ULA, `localhost`, `.local`;
+    `HubAddressScope`) it counts as Couldn't connect, since there it only says another device has that address on this network, unless every address
+    the attempt tries is private, as Android does (`HubRouteSelector.worst`). The paired address is not checked here: another `hub_id` there is left to the hello.
+  - **Couldn't connect**: refused, timed out, host not found, connection lost, a TLS handshake cut short, or not a healthy hub answer (another status, no
+    `hub_id` where one is expected, `ok` not true, Cloudflare Access answering, the socket turned down with 401).
+  - **Unknown**: the probe was cut short: another address won and the rest were cancelled, a newer attempt replaced this one (Retry Now, the network
+    coming back, a renewed credential), a restored SSH tunnel came up first (the race in "Connecting to hub through SSH (fallback when direct access
+    fails)"), or the app went to the background before it finished (so does a later probe of the same recheck asked while the app was away; one asked
+    after the app came back says what it came to). The line keeps Unknown until the address is tried again: within about 3 s after a replaced attempt,
+    but after a restored tunnel won, at the tunnel's check of the direct way 2 minutes later, or sooner if the socket reconnects meanwhile (away from
+    home with an SSH tunnel, the home address can show Unknown that long after each return to the front).
+  - A group with one address and no tunnel is never probed: its outcome comes from the socket's own attempt, classified the same way. Otherwise the
+    probe says, and the socket replaces only an Answers that the same attempt's own probe found at the address it then failed to open, so each attempt
+    counts once per address. Through a tunnel no probe hands the socket an address: a tunnel set to be used every time asks none, and when the restore
+    race's tunnel wins, an address that answered meanwhile keeps its Answers (the socket's failure is the tunnel's); a pick that was cancelled or
+    replaced keeps what its probes came to and hands the socket nothing. Connection Details lists the addresses with their outcomes
+    (`docs/apple/ios.md`, "Connection status (slow / offline networks)"); Developing Persona counts opens by them weekly
+    (`docs/operations/developing-persona.md`, "Connection tally (iOS)").
 - Not yet: the hub's own list (`/api/v1/endpoints`) does not feed this list, and the watch, widgets and other extensions keep the paired address.
 - DEBUG builds: `-seedHubAddresses <base64 of a [HubAddress] JSON>` sets the first hub's added addresses, `-tab settings -openHubAddresses YES` opens its page, and `-showHubAddressDraft <text>` starts its field with that text (screenshots).
 

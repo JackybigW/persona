@@ -39,10 +39,12 @@ type Client struct {
 	domain           string
 	http             *http.Client
 
-	mu      sync.Mutex
-	token   string
-	console string // the developer console this client links out to, when not what the domain says (tests)
-	expires time.Time
+	mu         sync.Mutex
+	token      string
+	console    string // the developer console this client links out to, when not what the domain says (tests)
+	expires    time.Time
+	refresh    chan struct{}
+	generation uint64
 }
 
 func New(appID, appSecret, domain string) *Client {
@@ -59,35 +61,63 @@ func (c *Client) AppID() string { return c.appID }
 
 func (c *Client) Domain() string { return c.domain }
 
-// APIError is Feishu's {code, msg} for a failed call.
-type APIError struct {
-	Op   string
-	Code int
-	Msg  string
-}
-
-func (e *APIError) Error() string {
-	return fmt.Sprintf("feishu %s: %d %s", e.Op, e.Code, e.Msg)
-}
-
-// Token-related codes: the token expired or is not valid any more; one fresh token and one retry fix it.
-func tokenGone(code int) bool { return code == 99991663 || code == 99991664 || code == 99991661 }
-
 func (c *Client) tenantToken(ctx context.Context, fresh bool) (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !fresh && c.token != "" && time.Now().Before(c.expires) {
-		return c.token, nil
+	var waited bool
+	var generation uint64
+	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		c.mu.Lock()
+		if waited {
+			// A successful exchange since we joined satisfies even a forced refresh.
+			// Failure leaves the generation unchanged, so try with our own context.
+			fresh = c.generation == generation
+		}
+		if pending := c.refresh; pending != nil {
+			waited, generation = true, c.generation
+			c.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-pending:
+				// Recheck the current exchange and cache; this result may be superseded.
+				continue
+			}
+		}
+		if !fresh && c.token != "" && time.Now().Before(c.expires) {
+			token := c.token
+			c.mu.Unlock()
+			return token, nil
+		}
+		pending := make(chan struct{})
+		c.refresh = pending
+		c.mu.Unlock()
+
+		token, expires, err := c.fetchTenantToken(ctx)
+		c.mu.Lock()
+		if err == nil {
+			c.token, c.expires = token, expires
+			c.generation++
+		}
+		c.refresh = nil
+		close(pending)
+		c.mu.Unlock()
+		return token, err
 	}
+}
+
+// fetchTenantToken performs HTTP outside the cache lock using the refreshing caller's context.
+func (c *Client) fetchTenantToken(ctx context.Context) (string, time.Time, error) {
 	body, _ := json.Marshal(map[string]string{"app_id": c.appID, "app_secret": c.appSecret})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.domain+"/open-apis/auth/v3/tenant_access_token/internal", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 	defer resp.Body.Close()
 	var out struct {
@@ -97,14 +127,12 @@ func (c *Client) tenantToken(ctx context.Context, fresh bool) (string, error) {
 		Expire int    `json:"expire"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("feishu token: HTTP %d: %w", resp.StatusCode, err)
+		return "", time.Time{}, fmt.Errorf("feishu token: HTTP %d: %w", resp.StatusCode, err)
 	}
 	if out.Code != 0 || out.Token == "" {
-		return "", &APIError{Op: "token", Code: out.Code, Msg: out.Msg}
+		return "", time.Time{}, &APIError{Op: "token", Code: out.Code, Msg: out.Msg}
 	}
-	c.token = out.Token
-	c.expires = time.Now().Add(time.Duration(max(out.Expire-300, 60)) * time.Second)
-	return c.token, nil
+	return out.Token, time.Now().Add(time.Duration(max(out.Expire-300, 60)) * time.Second), nil
 }
 
 const (
@@ -150,6 +178,7 @@ func (c *Client) callBody(ctx context.Context, op, method, path string, payload 
 		}
 		return lastErr
 	}
+	refreshed := false             // a forced refresh is allowed once, independently of transient attempts
 	forcedFresh, waits := false, 0 // forcedFresh makes the next token fetch bypass the cache (after a tokenGone answer); waits counts backoff slots used
 	for attempt := 0; attempt < callMaxAttempts; attempt++ {
 		tok, err := c.tenantToken(ctx, forcedFresh)
@@ -213,14 +242,18 @@ func (c *Client) callBody(ctx context.Context, op, method, path string, payload 
 					}
 					retry = true
 				case env.Code != 0:
-					if tokenGone(env.Code) && attempt == 0 {
-						forcedFresh = true
+					if tokenGone(env.Code) && !refreshed && attempt+1 < callMaxAttempts {
+						refreshed, forcedFresh = true, true
 						continue // one fresh token, one immediate retry, no backoff slot spent
 					}
 					lastErr = &APIError{Op: op, Code: env.Code, Msg: env.Msg}
 					// The per-chat limit is waited out only on a POST that gets here idempotent: a send or reply with a uuid,
 					// which lands once. A card update that meets it is its caller's to slow down (it sends a newer card).
 					retry = env.Code == codeRateLimited || env.Code == codeChatRateLimited && method == http.MethodPost
+				case resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices:
+					// A gateway's JSON may omit code or report zero despite rejecting the request.
+					// Keep its body out of the error and never decode it as a successful receipt.
+					lastErr = fmt.Errorf("feishu %s: HTTP %d", op, resp.StatusCode)
 				case out == nil:
 					return nil
 				case len(env.Data) > 0 && string(env.Data) != "null":
@@ -436,43 +469,6 @@ func (c *Client) UpdateCard(ctx context.Context, messageID, card string) error {
 	return c.call(ctx, "update card", http.MethodPatch, "/open-apis/im/v1/messages/"+url.PathEscape(messageID), map[string]any{"content": card}, nil)
 }
 
-// Item is a message read back (GET /open-apis/im/v1/messages/:id): a quoted message, or a merged forward and the
-// messages in it (those have UpperMessageID set).
-type Item struct {
-	MessageID      string `json:"message_id"`
-	ChatID         string `json:"chat_id"`
-	ParentID       string `json:"parent_id"`
-	UpperMessageID string `json:"upper_message_id"`
-	ThreadID       string `json:"thread_id"` // the topic it is in, empty outside one
-	MsgType        string `json:"msg_type"`
-	CreateTime     string `json:"create_time"` // Unix milliseconds
-	Deleted        bool   `json:"deleted"`
-	Sender         struct {
-		ID         string `json:"id"`
-		IDType     string `json:"id_type"`
-		SenderType string `json:"sender_type"` // user | app
-	} `json:"sender"`
-	Body struct {
-		Content string `json:"content"`
-	} `json:"body"`
-	Mentions []struct {
-		Key  string `json:"key"`
-		Name string `json:"name"`
-	} `json:"mentions"`
-}
-
-// At is when the message was sent.
-func (it Item) At() time.Time { return msTime(it.CreateTime) }
-
-// MentionList is the message's mentions, for ParseContent to turn its @_user_N keys back into names.
-func (it Item) MentionList() []Mention {
-	var out []Mention
-	for _, m := range it.Mentions {
-		out = append(out, Mention{Key: m.Key, Name: m.Name})
-	}
-	return out
-}
-
 func (c *Client) Message(ctx context.Context, messageID string) ([]Item, error) {
 	var out struct {
 		Items []Item `json:"items"`
@@ -501,6 +497,7 @@ var ErrTooLarge = errors.New("feishu download: too large")
 func (c *Client) Resource(ctx context.Context, messageID, key, kind string, limit int64) ([]byte, string, error) {
 	u := c.domain + "/open-apis/im/v1/messages/" + url.PathEscape(messageID) + "/resources/" + url.PathEscape(key) + "?type=" + url.QueryEscape(kind)
 	var lastErr error
+	refreshed := false
 	forcedFresh, waits := false, 0
 	for attempt := 0; attempt < callMaxAttempts; attempt++ {
 		tok, err := c.tenantToken(ctx, forcedFresh)
@@ -513,8 +510,8 @@ func (c *Client) Resource(ctx context.Context, messageID, key, kind string, limi
 		switch {
 		case err == nil:
 			return b, ct, nil
-		case errors.As(err, &apiErr) && tokenGone(apiErr.Code) && attempt == 0:
-			forcedFresh = true
+		case errors.As(err, &apiErr) && tokenGone(apiErr.Code) && !refreshed && attempt+1 < callMaxAttempts:
+			refreshed, forcedFresh = true, true
 			continue // one fresh token, one immediate retry, no backoff slot spent
 		case !retry:
 			return nil, "", err
@@ -570,89 +567,4 @@ func (c *Client) resourceOnce(ctx context.Context, u, tok string, limit int64) (
 		return nil, "", false, 0, fmt.Errorf("%w: larger than %d MB", ErrTooLarge, limit>>20)
 	}
 	return b, resp.Header.Get("Content-Type"), false, 0, nil
-}
-
-// Refused: Feishu will not take this message however often it is sent (the card's content refused, the bot not in
-// the chat or not allowed to reach the user, the app missing a permission); sending it again cannot help.
-func Refused(err error) bool {
-	switch errorCode(err) {
-	case 230099, 230025, 200621, 200830, 230002, 230006, 230013, 99991672, 99991679:
-		return true
-	}
-	return false
-}
-
-// RateLimited: Feishu refused the call for coming too often (230020: too many messages into one chat, or a message
-// updated too often; 230429: the operation's frequency limit; 99991400: the app's rate limit; HTTP 429).
-func RateLimited(err error) bool {
-	switch errorCode(err) {
-	case 230020, 230429, 99991400, http.StatusTooManyRequests:
-		return true
-	}
-	return err != nil && strings.Contains(err.Error(), "HTTP 429")
-}
-
-// MessageGone: the message to update was withdrawn (230011) or deleted (230110).
-func MessageGone(err error) bool {
-	c := errorCode(err)
-	return c == 230011 || c == 230110
-}
-
-// Transient: the call failed for a reason that may pass, so trying again later can work: Feishu gave no answer at all
-// (the network, a timeout, the connection to the hub), it limited the rate, a server failed (5xx) or the token had to be
-// renewed. Any other answer is Feishu's word on that message or chat (deleted, past its edit period, not a card, not
-// allowed) and will not change.
-func Transient(err error) bool {
-	if err == nil {
-		return false
-	}
-	c := errorCode(err)
-	return c == 0 || RateLimited(err) || c >= 500 && c < 600 || tokenGone(c)
-}
-
-// ChatRefused: Feishu said the bot cannot send into that chat: it is not in it (230002) or the chat was dissolved
-// (232009). Nothing was sent. Also when the error came over the bus as text.
-func ChatRefused(err error) bool {
-	c := errorCode(err)
-	return c == 230002 || c == 232009
-}
-
-// errorCode is an APIError's code, also when it came over the bus as text ("feishu <op>: <code> <msg>"); 0 if none.
-func errorCode(err error) int {
-	var e *APIError
-	if errors.As(err, &e) {
-		return e.Code
-	}
-	if err == nil {
-		return 0
-	}
-	msg := err.Error()
-	i := strings.Index(msg, "feishu ")
-	if i < 0 {
-		return 0
-	}
-	j := strings.Index(msg[i:], ": ")
-	if j < 0 {
-		return 0
-	}
-	f := strings.Fields(msg[i+j+2:])
-	if len(f) == 0 {
-		return 0
-	}
-	n, _ := strconv.Atoi(f[0])
-	return n
-}
-
-// CardRejected: Feishu refused a card's content (a field it does not take, Markdown it cannot read, too large); the
-// hub sends the text as rich text instead.
-func CardRejected(err error) bool {
-	var e *APIError
-	if !errors.As(err, &e) {
-		return false
-	}
-	switch e.Code {
-	case 230099, 230025, 200621, 200830:
-		return true
-	}
-	return strings.Contains(strings.ToLower(e.Msg), "card")
 }

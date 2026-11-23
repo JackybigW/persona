@@ -1,9 +1,7 @@
 import Foundation
 import Observation
 import PersonaWire
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// Hub-wide todo list management (docs/assistant/todos.md, issue #401):
 /// The hub's todos, cached locally in StateCache, refreshed on {"type":"todos"} WS event and (re)connect.
@@ -17,8 +15,14 @@ final class TodoStore {
             byID = Self.index(todos)
             let q = QuietTasks(todos)
             if q != quiet { quiet = q } // read by the badges and the Mac's menu bar: told only when it changes
+            let f = Self.taskFollowers(todos)
+            if f != taskFollowers { taskFollowers = f } // read by Move To…: told only when it changes (P5)
         }
     }
+    /// The Agents that follow their task (#11391, rule 1 of the placement): the active Agents of the open to-dos a
+    /// conversation supervises (a direction's leader or the main conversation), as "machine/session". Move To… is not
+    /// offered for them or the sub-agent sessions under them; the hub's 409 `direction_supervised_task` covers a lag.
+    private(set) var taskFollowers: Set<String> = []
     private(set) var byID: [String: TodoItem] = [:]
     /// The quiet tasks and their agents (#1731), which stay off the island, notifications and badges.
     private(set) var quiet = QuietTasks()
@@ -39,6 +43,13 @@ final class TodoStore {
     private(set) var counts: TodoCounts?
     /// The places (`GET /api/v1/todos/places`), read with the list while V1 is on and the hub lists `todo_places`.
     private(set) var places: TodoPlaces?
+    /// When the hub last answered a read of the list (kept with the views): the list says it while the hub is out of reach.
+    private(set) var readAt: Date?
+    /// How many reads of the list have begun: a write the hub answered is let go once a read begun after it has landed
+    /// (`TodoOutbox`).
+    @ObservationIgnored private(set) var readsBegun = 0
+    /// The `readAt` the views' cache entry was last written with.
+    @ObservationIgnored private var readAtKept: Date?
     /// Whether the views are known: kept from the last run, or a read of the list ended (answered or failed). Until
     /// then the V1 list draws nothing rather than filing its rows by the app's rules first and by the views a moment
     /// later.
@@ -71,6 +82,15 @@ final class TodoStore {
     @ObservationIgnored private var lastTimerRead = Date.distantPast
     /// Ends the first V1 launch's wait for the views (`viewsRead`) when the first read is slow.
     @ObservationIgnored private var holdTimer: Task<Void, Never>?
+    /// The hub listed `todo_places` in this run: its places are read on when a later hello leaves it out (a manager
+    /// reconnecting, as `TodosV1` keeps the view), so the place the owner picked never widens under them; only a 404 or
+    /// 405, or another hub, takes them away (plan S2-1).
+    @ObservationIgnored private var placesListed = false
+    /// The client the places route answered "not there" (404, 405): asked again only once the hello lists `todo_places`
+    /// anew, or for another hub or assistant, not on every read of the list (a 304 included).
+    @ObservationIgnored private var placesRefused: APIClient?
+    /// Whether the last hello read listed `todo_places`: one that lists it again asks the route again.
+    @ObservationIgnored private var placesFeature = false
     /// Counts again each `Timing.rulesTick` while a row is filed by the app's own rules, which read the clock.
     @ObservationIgnored private var rulesClock: Task<Void, Never>?
     /// The scene is in front: the timer runs only then (P9).
@@ -95,6 +115,11 @@ final class TodoStore {
         var api: @MainActor () -> APIClient? = { nil }
         /// The time the rows are filed at: the app's own rules read it (tests move it).
         var now: @MainActor () -> Date = { Date() }
+        /// The list's writes still on this device (`TodoOutbox.pending`): the rows and the numbers show them at once.
+        var pending: @MainActor () -> [String: TodoCountsSource.Pending] = { [:] }
+        /// The hub answered read `n` of the list (`readsBegun`), which has landed: the list's writes it shows are let go,
+        /// those that could not reach it go again. Only while V1 is on: no write is made without it.
+        var answered: @MainActor (_ read: Int) -> Void = { _ in }
         var timing = Timing()
 
         /// How long the store waits (tests make these short).
@@ -125,7 +150,9 @@ final class TodoStore {
                   loadCache: { StateCache.load(TodoStore.viewStateName, as: TodoViewCache.self) },
                   saveCache: { cache in
                       if let cache { StateCache.save(TodoStore.viewStateName, cache) } else { StateCache.remove(TodoStore.viewStateName) }
-                  })
+                  },
+                  pending: { TodoOutbox.shared.pending },
+                  answered: { TodoOutbox.shared.hubAnswered(read: $0) })
         }
     }
 
@@ -163,7 +190,7 @@ final class TodoStore {
 
     /// The manager a new to-do of `owner` is made for and stamped with; nil with one manager, and before the roster is
     /// read.
-    private func manager(of owner: Owner) -> String? {
+    func manager(of owner: Owner) -> String? {
         guard managers.known(), let scope = managers.scope() else { return nil }
         switch owner {
         case .current: return scope.current
@@ -197,12 +224,13 @@ final class TodoStore {
         self.managers = managers
         self.v1 = v1
         viewSaver = Throttle(first: v1.timing.saveFirst, gap: v1.timing.saveGap)
-        countsSource = TodoCountsSource(scope: managers.scope, lookup: v1.lookup, now: v1.now)
+        countsSource = TodoCountsSource(scope: managers.scope, lookup: v1.lookup, now: v1.now, pending: v1.pending)
         let initial = cachedTodos ?? StateCache.load(Self.stateName, as: [TodoItem].self) ?? []
         let initialIndex = Self.index(initial)
         todos = initial
         byID = initialIndex
         quiet = QuietTasks(initial)
+        taskFollowers = Self.taskFollowers(initial) // as `todos`' didSet would, which a stored initial value skips
         lastPushed = initialIndex
         self.cacheWriter = cacheWriter
         self.hubListChanged = hubListChanged
@@ -214,13 +242,14 @@ final class TodoStore {
                 views = mine
                 counts = kept.counts
                 places = kept.places
+                readAt = kept.readAt
+                readAtKept = kept.readAt
                 changes = Self.changeMoments(views)
                 viewsRead = true
                 // The numbers the last run showed, until this one counts (the current assistant is the app model's).
                 countsSource.seed(kept.shownCounts, places: kept.shownPlaces)
             }
         }
-        #if canImport(UIKit)
         if followsScene {
             active = UIApplication.shared.applicationState == .active
             let center = NotificationCenter.default
@@ -231,7 +260,6 @@ final class TodoStore {
                 @Sendable [weak self] _ in MainActor.assumeIsolated { self?.sceneActive(false) }
             })
         }
-        #endif
         boundHold()
         // Switching assistants counts again inside the source: the clock follows whatever moved `byRules`.
         countsSource.byRulesChanged = { [weak self] in self?.armRulesClock() }
@@ -243,6 +271,15 @@ final class TodoStore {
         var result: [String: TodoItem] = [:]
         for todo in list { result[todo.id] = todo }
         return result
+    }
+
+    /// `taskFollowers` of `list`: the hub's `openSupervisedTask` (not done, a supervisor named) and its active Agents.
+    nonisolated static func taskFollowers(_ list: [TodoItem]) -> Set<String> {
+        var out: Set<String> = []
+        for todo in list where todo.doneAt == nil && !(todo.supervision?.supervisor ?? "").isEmpty {
+            for agent in todo.agents where agent.isActive { out.insert(agent.machineID + "/" + agent.sessionID) }
+        }
+        return out
     }
 
     /// The to-dos the pages list: the current assistant's, on a hub with several. `todos` stays whole: an agent's to-do
@@ -288,6 +325,11 @@ final class TodoStore {
         views = [:]
         counts = nil
         places = nil
+        placesListed = false
+        placesRefused = nil
+        placesFeature = false
+        readAt = nil
+        readAtKept = nil
         viewsRead = false
         changes = []
         firedFor = .distantPast
@@ -345,6 +387,8 @@ final class TodoStore {
         guard let api = (injected ?? AppModel.shared.api)?.manager(nil) else { return }
         let requestedGeneration = generation
         let requestedRevision = mutationRevision
+        readsBegun += 1
+        let readNumber = readsBegun
         activeReadRevision = requestedRevision
         loading = true
         defer {
@@ -368,8 +412,13 @@ final class TodoStore {
             let list = page.list ?? []
             isSupported = true
             spacesSupported = TodosLogic.supportsSpaces(list)
+            let at = v1.now()
+            readAt = at
             apply(list, recounting: false)
             applyView(page.views, page.counts)
+            // When it was read is kept with the views, at least once a minute when nothing else changed: a relaunch while
+            // offline says the time the hub last answered, not the last time a view changed.
+            if readAtKept.map({ at.timeIntervalSince($0) >= 60 }) ?? true { persistView() }
             recount()
             error = nil
             viewsRead = true
@@ -379,6 +428,7 @@ final class TodoStore {
                 hubListChanged()
             }
             await readPlaces(api, listChanged: answer.list != nil, generation: requestedGeneration)
+            if v1.isOn(), generation == requestedGeneration { v1.answered(readNumber) }
         } catch let apiErr where TodosLogic.isOldHub(apiErr) {
             guard generation == requestedGeneration, mutationRevision == requestedRevision, !Task.isCancelled else { return }
             // Older hub without todos: hide entrance without error
@@ -412,25 +462,32 @@ final class TodoStore {
         armTimer()
     }
 
-    /// The places, read with the list while V1 is on and the hub lists them: again only when the list changed (a 304
-    /// changes none of its numbers). A hub or manager without the route ("not there"), or a hub whose hello stopped
-    /// listing them, has none (All only); any other failure keeps the last until the next read.
+    /// The places, read with the list while V1 is on and the hub has listed them in this run: again only when the list
+    /// changed (a 304 changes none of its numbers). A hub or manager without the route ("not there"), or a hub that has
+    /// not listed them, has none (All only), and is not asked again until its hello lists them anew; any other failure
+    /// keeps the last until the next read.
     private func readPlaces(_ api: APIClient, listChanged: Bool, generation requested: Int) async {
         guard v1.isOn() else { return }
-        guard v1.features().places else {
+        let listed = v1.features().places
+        if listed, !placesFeature { placesRefused = nil }
+        placesFeature = listed
+        if listed { placesListed = true }
+        guard placesListed else {
             guard places != nil else { return }
             places = nil
             persistView()
             recount()
             return
         }
-        guard listChanged || places == nil else { return }
+        guard !api.sameSettingsScope(as: placesRefused), listChanged || places == nil else { return }
         do {
             let read = try await api.todoPlaces()
             guard generation == requested, !Task.isCancelled, read != places else { return }
             places = read
         } catch let error where TodoNotThere.matches(error) {
-            guard generation == requested, places != nil else { return }
+            guard generation == requested else { return }
+            placesRefused = api
+            guard places != nil else { return }
             places = nil
         } catch {
             return
@@ -442,10 +499,11 @@ final class TodoStore {
     /// Read when the write is made, so a burst of reads is written once, with the numbers they ended on.
     private func persistView() {
         guard v1.isOn(), let save = v1.saveCache else { return }
+        readAtKept = readAt
         viewSaver.run { [weak self] in
             guard let self else { return }
             save(TodoViewCache(views: views, counts: counts, places: places, shownCounts: countsSource.counts,
-                               shownPlaces: countsSource.places))
+                               shownPlaces: countsSource.places, readAt: readAt))
         }
     }
 
@@ -622,20 +680,48 @@ final class TodoStore {
                 try await updatePlan(id: id, APIClient.TodoPlanChange(due: due), api: api)
                 return true
             } catch {
-                // Back as it was: only this to-do, so what else changed meanwhile stays.
-                guard generation == targetGeneration else { return false }
-                mutationRevision += 1
-                var back = todos
-                if let idx = back.firstIndex(where: { $0.id == id }) {
-                    back[idx] = before
-                    apply(back)
-                }
-                // Felt as well as shown (offline has its own haptic, in `notDone`).
-                if !error.isOffline { Haptics.error() }
-                AppModel.shared.show(error)
+                putBack(before, generation: targetGeneration, error)
                 return false
             }
         }
+    }
+
+    /// Files to-do `id` under a knowledge-base project (its slug, "" for none; the To-dos list's menu, #10465): drawn there
+    /// at once, as `reschedule` moves a due date; a failed save puts it back and says why. The task ends with whether it
+    /// was saved.
+    @discardableResult
+    func refile(_ id: String, project: String, api: APIClient? = nil) -> Task<Bool, Never> {
+        guard let before = todo(id: id) else { return Task { false } }
+        let targetGeneration = generation
+        mutationRevision += 1
+        var updated = todos
+        if let idx = updated.firstIndex(where: { $0.id == id }) {
+            updated[idx].project = project.isEmpty ? nil : project
+            apply(updated)
+        }
+        return Task {
+            do {
+                try await updatePlan(id: id, APIClient.TodoPlanChange(project: project), api: api)
+                return true
+            } catch {
+                putBack(before, generation: targetGeneration, error)
+                return false
+            }
+        }
+    }
+
+    /// A change drawn before the hub answered failed: the to-do back as it was (only it, so what else changed meanwhile
+    /// stays), and why, felt as well as shown (offline has its own haptic, in `notDone`).
+    private func putBack(_ before: TodoItem, generation targetGeneration: Int, _ error: Error) {
+        guard generation == targetGeneration else { return }
+        mutationRevision += 1
+        var back = todos
+        if let idx = back.firstIndex(where: { $0.id == before.id }) {
+            back[idx] = before
+            apply(back)
+        }
+        if !error.isOffline { Haptics.error() }
+        AppModel.shared.show(error)
     }
 
     /// `api` is the client to write through (tests pass a fake hub's); the app uses the current hub connection.
@@ -719,6 +805,11 @@ final class TodoStore {
         try await confirmed(id, api: api) { try await $0.clearSomeday(id: id) }
     }
 
+    /// Applies a write's returned to-do immediately, then confirms it with the same list read as other confirmed writes.
+    func applyConfirmed(_ result: TodoItem, api: APIClient) async throws {
+        try await confirmed(result.id, api: api) { _ in result }
+    }
+
     /// Restore on an inactive to-do: the hub's, so every device sees it (the app's own rules keep theirs on the device,
     /// `TodoRestores`, for hubs without `todo_view`).
     func restore(id: String, api injected: APIClient? = nil) async throws {
@@ -737,6 +828,62 @@ final class TodoStore {
         if let idx = updated.firstIndex(where: { $0.id == id }) { updated[idx] = res } else { updated.insert(res, at: 0) }
         apply(updated)
         await confirmWrite(api: api)
+    }
+
+    /// One of the list's writes held on the device (`TodoOutbox`), sent with its op id through the to-do's own assistant
+    /// (`manager`, its stamp when the list no longer has it; a new one's, the assistant it is made for). Its answer takes
+    /// the row's place, and the list is read again for the view. Answers the new to-do's id for a create.
+    /// `answered`: told as the hub answers, before the row is put in its place, with the new to-do's id and how many reads
+    /// had begun: the outbox keeps it on disk as answered (never sent again), and lets it go once a later read lands.
+    func write(_ write: TodoOutbox.Write, todo id: String, manager stamp: String?, opID: UUID,
+               answered: @MainActor (TodoOutbox.Answer) -> Void = { _ in }, api injected: APIClient? = nil) async throws -> String? {
+        let owner = byID[id]?.manager ?? stamp
+        guard let api = (injected ?? AppModel.shared.api)?.manager(managers.naming(owner)) else {
+            throw APIError(status: 0, message: String(localized: "Not connected to a hub [Todo Store 04f822]"))
+        }
+        let targetGeneration = generation
+        var created: String?
+        switch write {
+        case .done(let done):
+            let res = try await stamped(api.setTodoDone(id: id, done: done, opID: opID), as: owner)
+            answered(.init(read: readsBegun))
+            guard generation == targetGeneration else { return nil }
+            replace(res)
+        case .someday(let on):
+            let res = try await stamped(on ? api.setSomeday(id: id, until: nil, opID: opID) : api.clearSomeday(id: id, opID: opID),
+                                        as: owner)
+            answered(.init(read: readsBegun))
+            guard generation == targetGeneration else { return nil }
+            replace(res)
+        case .delete:
+            do {
+                try await api.deleteTodo(id: id, opID: opID)
+            } catch where TodoNotThere.deleted(error) {
+                // Gone already (deleted on another device, or a repeat whose first answer was lost): what this one asked for.
+            }
+            answered(.init(read: readsBegun))
+            guard generation == targetGeneration else { return nil }
+            mutationRevision += 1
+            apply(todos.filter { $0.id != id })
+        case .create(let title, let notes, let dueAt, let dueDate, let project):
+            let res = try await stamped(api.createTodo(title: title, notes: notes, dueAt: dueAt, dueDate: dueDate, project: project,
+                                                       opID: opID), as: stamp)
+            // Before its row is put in: the one recount that follows sees the hub's row and no longer the drawn one.
+            answered(.init(created: res.id, read: readsBegun))
+            guard generation == targetGeneration else { return res.id }
+            created = res.id
+            replace(res)
+        }
+        await confirmWrite(api: api)
+        return created
+    }
+
+    /// `item` in its row's place, a new one first; a read already in flight cannot put the old one back.
+    private func replace(_ item: TodoItem) {
+        mutationRevision += 1
+        var updated = todos
+        if let idx = updated.firstIndex(where: { $0.id == item.id }) { updated[idx] = item } else { updated.insert(item, at: 0) }
+        apply(updated)
     }
 
     func linkAgent(todoID: String, machineID: String, sessionID: String, api injected: APIClient? = nil) async throws {
@@ -864,4 +1011,6 @@ nonisolated struct TodoViewCache: Codable, Equatable, Sendable {
     /// The numbers and places the pages showed (`TodoCountsSource`, the current assistant's), drawn in the first frame.
     var shownCounts: TodoCounts?
     var shownPlaces: [TodoPlace]?
+    /// When the hub last answered a read of the list (`TodoStore.readAt`).
+    var readAt: Date?
 }

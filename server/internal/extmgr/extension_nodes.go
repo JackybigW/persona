@@ -385,15 +385,24 @@ func putNodePackage(ctx context.Context, m *Machine, prog proto.PluginNodeProgra
 // nodeInit is the initialize p's program on a computer gets: the configuration, and only the secrets its manifest
 // sends to computers (node.secrets); no hub token (no hub_api on computers, plan "Decisions").
 func (ps *extensions) nodeInit(ctx context.Context, p *extension.Extension) (json.RawMessage, error) {
-	all, err := ps.programSecrets(ctx, p.Record.ID)
+	live := ps.reg.SnapshotExact(p.Record.ID)
+	stored, err := ps.reg.Secrets(ctx, p.Record.ID)
 	if err != nil {
 		return nil, err
 	}
-	secrets := map[string]string{}
+	selected := map[string]string{}
 	for _, name := range p.Manifest.Node.Secrets {
-		if v, ok := all[name]; ok {
-			secrets[name] = v
+		if live != nil && live.IsLiveEntrySecret(name) {
+			continue // entry secrets are hub-only, even if a fixed declaration has the same flat name
 		}
+		if v, ok := stored[name]; ok {
+			selected[name] = v
+		}
+	}
+	// Resolve only values the node can receive. An unavailable hub-only entry reference must not block node startup.
+	secrets, err := ps.resolveStored(ctx, p.Record.ID, selected)
+	if err != nil {
+		return nil, err
 	}
 	params := extension.InitializeParams{Hub: extension.HubInfo{ExtensionPoints: extension.PointVersions(), Capabilities: extension.HubCapabilities()},
 		Extension: extension.ExtensionInfo{ID: p.Record.ID, Version: p.Record.Version}, Config: ps.reg.Config(p), Secrets: secrets,
@@ -605,6 +614,9 @@ func (h *Manager) syncExtensionNode(ctx context.Context, p *extension.Extension,
 		return nil
 	}
 	st, prog := h.startExtensionNode(ctx, p, m)
+	// A state the machine reports after this answer but before this write (a program that stops right after it
+	// started) would be overwritten by the answer until the next sync or report. Not observed: of 557 traced sync
+	// writes none was such an answer (#13643); a sync asked after a report records a newer state, as it should.
 	ps.keepNodeState(id, p.Record.Version, m.cfg.ID, st)
 	return prog
 }

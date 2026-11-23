@@ -1,6 +1,7 @@
 // Pure logic of a session's files / Git panels and the file viewer (docs/apple/ios.md "File viewer", the session page's
 // "Files" / Git; iOS: FilesPane, GitPane, FileViewer, Persona/Code). No DOM here: tested in files.test.ts.
 
+import { BASE } from "./base";
 import { decodeURIComponentSafe } from "./uri";
 
 // ── wire types (docs/protocol/protocol.md: /machines/{mid}/fs, /file, /git/*) ─────────
@@ -158,11 +159,38 @@ export function below(root: string, path: string): string[] | null {
   return p.slice(r.length + 1).split("/").filter(Boolean);
 }
 
+/** Whether `ref` starts with a Windows drive letter and separator (`C:\…` or `C:/…`). */
+export function isWindowsDrivePath(ref: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(ref.trim());
+}
+
+/** Whether `ref` is an internal hub API route (`/api/v1/…` or `${BASE}/api/v1/…`), not a local file path. */
+function isHubRoutePath(ref: string): boolean {
+  const lower = ref.toLowerCase();
+  if (lower.startsWith("/api/v1/")) return true;
+  if (BASE) {
+    const prefix = `${BASE.toLowerCase()}/api/v1/`;
+    if (lower.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+/** Line number from a Markdown link fragment (`#L12` or `#L12-L20`), or undefined. */
+export function linkLine(ref: string): number | undefined {
+  const hash = ref.indexOf("#");
+  if (hash < 0) return undefined;
+  const m = /^#L(\d{1,7})(?:-L?\d{1,7})?$/i.exec(ref.slice(hash).trim());
+  const n = m ? Number(m[1]) : 0;
+  return n > 0 ? n : undefined;
+}
+
 /** A path a Markdown file refers to (an image, a link), resolved against the file's folder; "" for a web URL / anchor. */
 export function resolveRef(baseDir: string, ref: string): string {
-  const src = ref.trim().split(/[?#]/)[0];
-  if (!src || !isMachineRef(ref)) return "";
+  const trimmed = ref.trim().replace(/^<|>$/g, "");
+  const src = trimmed.split(/[?#]/)[0];
+  if (!src || !isMachineRef(trimmed)) return "";
   const path = decodeURIComponentSafe(src);
+  if (WINDOWS_PATH.test(path)) return windowsResolve(path.startsWith("\\\\") ? "\\\\" + path.slice(2).split(/[\\/]+/).slice(0, 2).join("\\") : path.slice(0, 2) + "\\", path.startsWith("\\\\") ? path.slice(2).split(/[\\/]+/).slice(2).join("\\") : path.slice(3));
   if (path.startsWith("~") || path.startsWith("/")) return normalizePath(path);
   if (WINDOWS_PATH.test(baseDir)) return windowsResolve(baseDir, path);
   return normalizePath(joinPath(baseDir, path));
@@ -182,10 +210,11 @@ function windowsResolve(dir: string, rel: string): string {
   return (unc ? "\\\\" : "") + out.join("\\") + (out.length === root && !unc ? "\\" : "");
 }
 
-/** A reference that points into the machine (relative, absolute or ~/), not a URL or an in-page anchor. */
+/** A reference that points into the machine (relative, absolute, ~/ or Windows drive), not a URL, hub route or in-page anchor. */
 export function isMachineRef(ref: string): boolean {
-  const r = ref.trim();
-  if (!r || r.startsWith("#") || r.startsWith("//")) return false;
+  const r = ref.trim().replace(/^<|>$/g, "");
+  if (!r || r.startsWith("#") || r.startsWith("//") || isHubRoutePath(r)) return false;
+  if (isWindowsDrivePath(r)) return true;
   return !/^[a-z][a-z0-9+.-]*:/i.test(r);
 }
 
@@ -327,6 +356,8 @@ export function splitDiff(diff: string): Record<string, string> {
   const res: Record<string, string> = {};
   let path: string | null = null;
   let buf: string[] = [];
+  let hdr = false;
+  const unq = (s: string) => (s[0] === '"' ? unquoteGitPath(s.slice(1, -1)) : s);
   const flush = () => {
     if (path !== null) res[path] = buf.join("\n");
   };
@@ -334,10 +365,17 @@ export function splitDiff(diff: string): Record<string, string> {
     if (line.startsWith("diff --git ")) {
       flush();
       buf = [];
+      hdr = true;
       // The -z file list uses raw paths; the diff headers may quote the same names.
-      const quoted = / "b\/((?:[^"\\]|\\.)*)"$/.exec(line);
+      const s = line.slice(11);
+      const m = (s.length - 1) >> 1;
+      const q = / "b\/((?:[^"\\]|\\.)*)"$/.exec(line);
       const i = line.lastIndexOf(" b/");
-      path = quoted ? unquoteGitPath(quoted[1]) : i >= 0 ? line.slice(i + 3) : null;
+      path = q ? unquoteGitPath(q[1]) : s.slice(m, m + 3) === " b/" && s.slice(2, m) === s.slice(m + 3) ? s.slice(m + 3) : i >= 0 ? line.slice(i + 3) : null;
+    } else if (hdr) {
+      if (line.startsWith("@@")) hdr = false;
+      else if (/^(rename|copy) to /.test(line)) path = unq(line.replace(/^(rename|copy) to /, ""));
+      else if (/^\+\+\+ "?b\//.test(line)) path = unq(line.slice(4))?.slice(2) ?? null;
     }
     buf.push(line);
   }

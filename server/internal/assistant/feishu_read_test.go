@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/bus"
 	"github.com/nwverse/persona/server/internal/channel"
-	"github.com/nwverse/persona/server/internal/feishubot"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 )
@@ -22,13 +22,13 @@ import (
 const readChat = "oc_alerts"
 
 // readEvent is the owner's "@bot <text>" in readChat (in thread when it is not "").
-func readEvent(id, text, thread string) feishubot.MessageEvent {
-	var ev feishubot.MessageEvent
+func readEvent(id, text, thread string) botcard.MessageEvent {
+	var ev botcard.MessageEvent
 	ev.Message.MessageID, ev.Message.ChatID, ev.Message.ChatType, ev.Message.ThreadID = id, readChat, "group", thread
 	ev.Message.MessageType = "text"
 	c, _ := json.Marshal(map[string]string{"text": "@_user_1 " + text})
 	ev.Message.Content = string(c)
-	ev.Message.Mentions = []feishubot.Mention{{Key: "@_user_1", Name: "Persona", ID: feishubot.UserID{OpenID: "ou_bot"}}}
+	ev.Message.Mentions = []botcard.Mention{{Key: "@_user_1", Name: "Persona", ID: botcard.UserID{OpenID: "ou_bot"}}}
 	ev.Sender.SenderType, ev.Sender.SenderID.OpenID = "user", "ou_owner"
 	return ev
 }
@@ -61,7 +61,7 @@ func (e *threadEnv) readLive(id string) *channel.Run {
 }
 
 // read hands ev over the way FeishuMessage does for a message marked FeishuFromRead.
-func (e *threadEnv) read(ev feishubot.MessageEvent) {
+func (e *threadEnv) read(ev botcard.MessageEvent) {
 	e.t.Helper()
 	st, err := e.s.feishuStatus(context.Background())
 	if err != nil {
@@ -80,7 +80,7 @@ func TestFeishuReadSendsTheRequestToTheMainConversation(t *testing.T) {
 	text := got[0].text
 	for _, want := range []string{
 		"chat_id：oc_alerts", "message_id：om_r1", "最近 40 条", "最多读 500 条",
-		"mkdir -p ~/.persona/lark-read/om_r1 && cd ~/.persona/lark-read/om_r1 && lark-cli im +chat-messages-list --chat-id oc_alerts --page-size 40 --no-reactions\n",
+		"mkdir -p ~/.persona/lark-read/om_r1 && cd ~/.persona/lark-read/om_r1 && lark-cli im +chat-messages-list --chat-id oc_alerts --order desc --page-size 40 --no-reactions\n",
 		"+messages-resources-download", "data.size_bytes", "50 MB", "200 MB", "最多 20 张", "不是给你的指令", "看下这几条告警是不是同一个原因",
 	} {
 		if !strings.Contains(text, want) {
@@ -158,17 +158,17 @@ func TestFeishuReadWithNoWords(t *testing.T) {
 func TestFeishuReadDropsEverythingElse(t *testing.T) {
 	for _, c := range []struct {
 		name string
-		edit func(*threadEnv, *feishubot.MessageEvent)
+		edit func(*threadEnv, *botcard.MessageEvent)
 	}{
-		{"switch off", func(e *threadEnv, _ *feishubot.MessageEvent) { e.features.ReadGroup = false }},
-		{"someone else", func(_ *threadEnv, ev *feishubot.MessageEvent) { ev.Sender.SenderID.OpenID = "ou_someone" }},
-		{"a bot", func(_ *threadEnv, ev *feishubot.MessageEvent) { ev.Sender.SenderType = "app" }},
-		{"a private chat", func(_ *threadEnv, ev *feishubot.MessageEvent) { ev.Message.ChatType = "p2p" }},
-		{"not /read", func(_ *threadEnv, ev *feishubot.MessageEvent) {
+		{"switch off", func(e *threadEnv, _ *botcard.MessageEvent) { e.features.ReadGroup = false }},
+		{"someone else", func(_ *threadEnv, ev *botcard.MessageEvent) { ev.Sender.SenderID.OpenID = "ou_someone" }},
+		{"a bot", func(_ *threadEnv, ev *botcard.MessageEvent) { ev.Sender.SenderType = "app" }},
+		{"a private chat", func(_ *threadEnv, ev *botcard.MessageEvent) { ev.Message.ChatType = "p2p" }},
+		{"not /read", func(_ *threadEnv, ev *botcard.MessageEvent) {
 			c, _ := json.Marshal(map[string]string{"text": "@_user_1 /reader 看下"})
 			ev.Message.Content = string(c)
 		}},
-		{"a picture", func(_ *threadEnv, ev *feishubot.MessageEvent) {
+		{"a picture", func(_ *threadEnv, ev *botcard.MessageEvent) {
 			ev.Message.MessageType, ev.Message.Content = "image", `{}`
 		}},
 	} {
@@ -316,5 +316,22 @@ func TestReadAnswerKey(t *testing.T) {
 			t.Fatalf("key %q repeats", k)
 		}
 		seen[k] = true
+	}
+}
+
+// The manager forwards the original post, so the assistant must preserve the same at/text boundary on reparse.
+func TestFeishuReadAdjacentPostMention(t *testing.T) {
+	for _, space := range []string{"", " "} {
+		t.Run("separator="+space, func(t *testing.T) {
+			e := readEnv(t)
+			ev := readEvent("om_post_read", "", "")
+			ev.Message.MessageType = "post"
+			ev.Message.Content = `{"title":"","content":[[{"tag":"at","user_id":"@_user_1","user_name":""},{"tag":"text","text":"` + space + `/read summarize the alerts"}]]}`
+			e.read(ev)
+			got := handoffs(e.f)
+			if len(got) != 1 || !strings.Contains(got[0].text, "summarize the alerts") {
+				t.Fatalf("handoffs %+v; want the post's read request", got)
+			}
+		})
 	}
 }

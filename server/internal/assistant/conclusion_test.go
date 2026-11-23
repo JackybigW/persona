@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/db"
-	"github.com/nwverse/persona/server/internal/feishubot"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 )
@@ -67,6 +67,11 @@ func conclusionServiceOn(t *testing.T, st Store, onlyConclusions bool) (s *Servi
 func reviewTask(t *testing.T, s *Service, todo string, args map[string]any) string {
 	t.Helper()
 	args["todo_id"] = todo
+	if args["verdict"] == reviewAccepted {
+		if _, supplied := args["checks"]; !supplied {
+			args["checks"] = completeReviewChecks(todoNow(s, todo))
+		}
+	}
 	asDecision(args)
 	raw, _ := json.Marshal(args)
 	res, err := s.runTool(context.Background(), "server", "conv1", "task_review", raw)
@@ -332,7 +337,7 @@ func TestBriefingSaysTheSameVerdictAsTheCard(t *testing.T) {
 	waitsForReview(t, s, f, todo.ID, "查了，做不了")
 	judgeConcluded(t, s, todo.ID)
 	const verdict = "⛔ 做不了：对方接口不对外开放"
-	if len(cardsWith(posts(), feishubot.EscapeMarkdown(verdict))) != 1 {
+	if len(cardsWith(posts(), botcard.EscapeMarkdown(verdict))) != 1 {
 		t.Fatalf("the card does not say %q", verdict)
 	}
 	facts := s.briefFactsAt(ctx, time.Now(), "")
@@ -347,7 +352,7 @@ func TestBriefingSaysTheSameVerdictAsTheCard(t *testing.T) {
 		t.Fatalf("the brief's row %+v", row)
 	}
 	card, _, _ := s.briefCard(facts, "早报", "")
-	if js := card.JSON(); !strings.Contains(js, feishubot.EscapeMarkdown(verdict)) || !strings.Contains(js, "知道了") {
+	if js := card.JSON(); !strings.Contains(js, botcard.EscapeMarkdown(verdict)) || !strings.Contains(js, "知道了") {
 		t.Fatalf("the briefing card does not say it:\n%s", js)
 	}
 	var onBoard bool
@@ -382,7 +387,7 @@ func TestRecommendationThatCannotReachTheAgentIsNotTaken(t *testing.T) {
 	}
 	// The Lark button: an error toast with the reason, saying nothing was taken (not "kept in the todo").
 	notTaken := i18n.T(s.botLang(ctx), "assistant-reports.accept_not_taken", i18n.Args{"error": "node down"})
-	press := &feishubot.CardAction{}
+	press := &botcard.CardAction{}
 	press.Action.Value = map[string]any{"a": "accept", "id": todo.ID}
 	if r := s.botCardAction(ctx, press, ""); r == nil || r.Toast == nil ||
 		r.Toast.Type != "error" || r.Toast.Content != notTaken {
@@ -479,7 +484,7 @@ func TestLateTaskDecisionDoesNotSendAfterCompletion(t *testing.T) {
 					t.Fatal("the old decision is still pending")
 				}
 				if !reopen {
-					s.taskWorking(context.Background(), "box", "s1")
+					s.taskWorking(context.Background(), "box", "s1", startRow{})
 					if got := todoNow(s, todo.ID); got.DoneAt == nil || got.DoneBy != "" {
 						t.Fatalf("late supervisor work changed the user's completion: %+v", got)
 					}
@@ -511,7 +516,7 @@ func TestCompletedTaskDirectMessageStillReachesAgent(t *testing.T) {
 		!strings.HasSuffix(prompt, "Check one more case") {
 		t.Fatalf("unknown stop was resumed or lost the user's message: %v", starts)
 	}
-	s.taskWorking(context.Background(), "box", "s1")
+	s.taskWorking(context.Background(), "box", "s1", startRow{})
 	if todoNow(s, todo.ID).DoneAt == nil {
 		t.Fatal("direct user input reopened a user-completed task")
 	}
@@ -667,5 +672,41 @@ func TestDecisionAnsweredInWordsStaysDecidedWhenTheSendFails(t *testing.T) {
 	s.acceptReply(ctx, "om_again", "直接全量吧", false, a.MessageID)
 	if n := len(sentToAgent(f)); n != sent {
 		t.Fatalf("%d sends after the failed one: the hub resent it", n-sent)
+	}
+}
+
+func TestFeishuConclusionQuestionGoesToSupervisorWithoutAnswering(t *testing.T) {
+	s, f, todo, _, _ := conclusionService(t, false)
+	ctx := t.Context()
+	waitsForReview(t, s, f, todo.ID, "Two options: start with ten percent or defer the rollout.")
+	reviewTask(t, s, todo.ID, map[string]any{"verdict": "needs_user", "reason": "Which rollout do you want?", "recommend": "Start with ten percent"})
+	a := askOf(s, todo.ID)
+	status, err := s.feishuStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := len(sentToAgent(f))
+	var ev botcard.MessageEvent
+	ev.Message.ChatType, ev.Message.ParentID, ev.Message.MessageType = "p2p", a.MessageID, "text"
+	ev.Message.MessageID, ev.Message.Content = "om_background", `{"text":"能补充一下这个决定的背景吗"}`
+	s.feishuMessage(ev, status, "")
+	task := todoNow(s, todo.ID)
+	if got := askOf(s, todo.ID); got == nil || !got.AcceptedAt.IsZero() || task.Supervision.State != reviewNeedsUser ||
+		task.DoneAt != nil || len(sentToAgent(f)) != before {
+		t.Fatalf("the question changed the decision or sent to the Agent: ask=%+v task=%+v sends=%v", got, task.Supervision, sentToAgent(f))
+	}
+	text := sendOnceText(f)
+	if !strings.Contains(text, "能补充一下这个决定的背景吗") || !strings.Contains(text, todo.ID) {
+		t.Fatalf("question and task context did not reach supervisor: %q", text)
+	}
+	// The existing option still answers this exact card after the clarification.
+	ev.Message.MessageID, ev.Message.Content = "om_choice", `{"text":"B"}`
+	s.feishuMessage(ev, status, "")
+	if got := askOf(s, todo.ID); got == nil || got.AcceptedAt.IsZero() {
+		t.Fatalf("explicit option did not answer: %+v", got)
+	}
+	sends := sentToAgent(f)[before:]
+	if len(sends) != 1 || !strings.Contains(sends[0], "先不动") {
+		t.Fatalf("agent got %v, want just the selected option", sends)
 	}
 }

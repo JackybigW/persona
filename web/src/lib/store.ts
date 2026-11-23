@@ -1,4 +1,5 @@
 import { refreshAgentsDisplay, resetAgentsDisplay } from "./agents-display";
+import { setPublishedImageLimits } from "./image-limits";
 import { forgetSentHistory } from "./send-history";
 import { availableConversation, clearConversationDeletions, conversationDeleted, conversationKeyDeleted, deletedConversation, hasDeletedConversations, rememberConversationDeleted } from "./conversation-deleted";
 import { compatibleEnvelope, setCompatibilityFeatures } from "./compatibility";
@@ -8,15 +9,17 @@ import { compatibleEnvelope, setCompatibilityFeatures } from "./compatibility";
 import { chosenManager, defaultKnown, defaultManager, fromShownManager, noteConversation, noteItemManager, onDefaultManager, onManagerChoice, shownManager } from "./manager-choice";
 import { BASE } from "./base";
 import { mainConversationMachine, clearMemoryPages, discardFeedCache, feedCacheScope, readFeedCache } from "./feed-cache";
+import { clearAssistantSnapshot, readAssistantSnapshot, writeAssistantSnapshot } from "./assistant-snapshot";
 import { useRef, useSyncExternalStore } from "react";
 import { AGENTS_PAGE_COUNTS_FEATURE, agentsChanged, refreshAgentPrefs, refreshAgentSessions, resetAgents, setAgentListMode, setPersonalPageCounts } from "./agents";
 import { onRuntimeChanges, runtimeAgents, runtimeIdentity, runtimeRemoval, runtimeSessions, SESSIONS_LOOKUP_FEATURE, SESSIONS_PAGE_COUNTS_FEATURE, setRuntimePageCounts, supportsPagedAgents } from "./runtime-list";
+import { isHeldLevel } from "./attention";
 import { sameValue } from "./stable-lines";
 import { SESSIONS_LIST_CHANGES_FEATURE, SESSIONS_LIST_FEATURE, type ListCounts } from "./session-list";
 import { SESSIONS_HIERARCHY_FEATURE } from "./child-sessions";
 import { SESSIONS_SIDE_FOLD_FEATURE, setSideFold } from "./side-fold";
 import { applySessionDelta, SESSIONS_DELTA_FEATURE, sessionRefreshed, sessionSnapshot } from "./sessions-delta";
-import { dueMarks, heldRows, liveMarks, markOver, newMark, nextDue, seenCopy, unansweredMarks, unseen, type SeenMark, type SeenMarks } from "./seen-outbox";
+import { dueMarks, heldRows, liveMarks, newMark, nextDue, seenCopy, settleMarks, unansweredMarks, unseen, type SeenMark, type SeenMarks } from "./seen-outbox";
 import { probeEdge } from "./edge-auth";
 import { api, ApiError, CLIENT_FEATURES, CLIENT_PONG_TIMEOUT, CLIENT_PLATFORM, CLIENT_VERSION, errorText, getToken, credentialOwner, sessionPath } from "./api";
 import { helloDeviceId } from "./device-id";
@@ -27,6 +30,7 @@ import { NO_PINS, pinsOf, type AgentPins } from "./pins";
 import type { AssistantInfo, Interaction, Item, Machine, MeshHub, Session } from "./types";
 import type { Resolution } from "./answered";
 import { answersIn, type DelegatedAnswer, type Reanswer } from "./delegate";
+import { nextLaunchExpiry, registerLaunchRowObserver, settledLaunches } from "./launch-handoff";
 import type { AgentLaunch } from "./new-agent";
 import { isSpacesSupported, makeSessionLookup, type SessionLookup, type Todo } from "./todos";
 import { releaseAttachments } from "./attachments";
@@ -35,7 +39,7 @@ import type { OutboxEntry } from "./outbox";
 import { NO_LINK, RESTARTING_MS, type ConnLink } from "./connection";
 import { unreachable } from "./shell";
 import { setOfflineProbe } from "./feedback";
-import { readDirectionTree } from "./direction-names";
+import { isExternalDirection, readDirectionTree } from "./direction-names";
 import { unlistedConversations } from "./conversation-origins";
 import { directionTreeAwaitsHello } from "./direction-tree";
 import { configureMessageFeedback, resetMessageFeedback } from "./message-send";
@@ -66,6 +70,8 @@ export interface State {
   version: string;
   /** What the hub can do (hello `features`): terminal_stream, terminal_control… */
   features: string[];
+  /** Whether the hub's push grading switch is enabled (`hello.push_grading` / `push_grading` event). */
+  pushGrading: boolean;
   /** This hub's name and its interconnected group (docs/archive/operations/plan-hub-mesh.md 2.6); empty on older hubs. */
   hubName: string;
   mesh: MeshHub[];
@@ -104,11 +110,26 @@ export interface State {
   spacesSupported: boolean;
 }
 
+function currentAssistantSnapshot(page: string) {
+  const kept = readAssistantSnapshot(page);
+  if (kept && !page && defaultKnown() && kept.manager && kept.manager !== defaultManager()) {
+    clearAssistantSnapshot(page);
+    return null;
+  }
+  return kept;
+}
+
+const initialAssistantPage = chosenManager() ?? "";
+const initialAssistant = currentAssistantSnapshot(initialAssistantPage);
+let restoredAssistant = initialAssistant ? { page: initialAssistantPage, manager: initialAssistant.manager } : null;
+let defaultAssistantRetry = "";
+
 let state: State = {
   conn: "connecting",
   link: { ...NO_LINK, networkUp: networkUp() },
   version: "",
   features: [],
+  pushGrading: false,
   hubName: "",
   mesh: [],
   machines: [],
@@ -121,7 +142,7 @@ let state: State = {
   answered: {},
   delegated: {},
   reanswered: {},
-  assistant: null,
+  assistant: initialAssistant?.assistant ?? null,
   assistantError: null,
   mutes: { spaces: [], sessions: [], allowed: [] },
   pins: NO_PINS,
@@ -171,31 +192,53 @@ function set(patch: Partial<State>) {
     if (patch.assistant?.conversations.every(availableConversation) === false) next.assistant = { ...patch.assistant, conversations: patch.assistant.conversations.filter(availableConversation) };
   }
   state = holdSeen(next, patch);
+  state = settleLaunchState(state, patch);
   if (viewed.size && ("sessions" in patch || "sessionSummaries" in patch || "assistant" in patch)) seeViewed(false);
   if (pushing) notifySoon();
   else notify();
 }
 
-/** Rows whose seen mark still waits for the hub are shown seen, whichever way they came in (a push, a page of the
- *  list, an HTTP answer); marks the hub's rows show recorded, or no longer about this turn, go (lib/seen-outbox.ts). */
+let handoffTimer: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleLaunchExpiry(launches: Record<string, AgentLaunch>, now: number) {
+  clearTimeout(handoffTimer);
+  handoffTimer = undefined;
+  const delay = nextLaunchExpiry(launches, now);
+  if (delay === undefined) return;
+  handoffTimer = setTimeout(() => {
+    handoffTimer = undefined;
+    const rows = [...Object.values(state.sessions).flat(), ...state.sessionSummaries];
+    const next = settledLaunches(state.launches, rows, Date.now());
+    if (next !== state.launches) set({ launches: next });
+  }, delay + 10);
+}
+
+/** Settles ready launch handoffs once hub session rows confirm working / terminal state or the handoff window expires (#12380). */
+function settleLaunchState(next: State, patch: Partial<State>): State {
+  if (!Object.keys(next.launches).length || !("sessions" in patch || "sessionSummaries" in patch || "launches" in patch)) return next;
+  const now = Date.now();
+  const rows = [...Object.values(next.sessions).flat(), ...next.sessionSummaries];
+  const launches = settledLaunches(next.launches, rows, now);
+  scheduleLaunchExpiry(launches, now);
+  return launches === next.launches ? next : { ...next, launches };
+}
+
+registerLaunchRowObserver((rows) => {
+  if (!Object.keys(state.launches).length) return;
+  const launches = settledLaunches(state.launches, rows, Date.now());
+  if (launches !== state.launches) set({ launches });
+});
+
+/** Rows whose seen mark still holds them are shown seen, whichever way they came in (a push, a page of the list, an
+ *  HTTP answer). A mark the hub's rows show recorded settles (it holds only rows read before, for SEEN_SETTLE_MS: the
+ *  sidebar's own list may not have read since); one whose agent moved on (a new turn, work, a question) goes
+ *  (lib/seen-outbox.ts). */
 function holdSeen(next: State, patch: Partial<State>): State {
   if (!Object.keys(next.seen).length || !("sessions" in patch || "sessionSummaries" in patch || "assistant" in patch || "seen" in patch)) return next;
   const now = Date.now();
   let marks = liveMarks(next.seen, now);
-  const over: string[] = [];
-  const settle = (rows: Session[]) => {
-    for (const s of rows) {
-      const id = runtimeIdentity(s);
-      if (marks[id] && markOver(s, marks[id], now)) over.push(id);
-    }
-  };
-  Object.values(next.sessions).forEach(settle);
-  settle(next.sessionSummaries);
-  if (over.length) {
-    const kept: Record<string, SeenMark> = { ...marks };
-    for (const id of over) delete kept[id];
-    marks = kept;
-  }
+  for (const rows of Object.values(next.sessions)) marks = settleMarks(rows, marks, now);
+  marks = settleMarks(next.sessionSummaries, marks, now);
   const sessions: Record<string, Session[]> = {};
   let changed = false;
   for (const [mid, rows] of Object.entries(next.sessions)) {
@@ -245,7 +288,7 @@ const SUMMARY_FLAGS = ["quiet", "awaits_reply", "starting", "awaiting_first_mess
  *  carries (state, last words, markers), and the details it never carries (items' arrays, queued) stay. */
 function listedOver(row: Session, listed: Session): Session {
   if (typeof listed.waiting !== "boolean") return sameValue(listed, row) ? row : listed;
-  const next: Session = { ...row, ...listed, background_working: listed.background_working, background_waiting: listed.background_waiting };
+  const next: Session = { ...row, ...listed, background_working: listed.background_working, background_waiting: listed.background_waiting, background_stalled_since: listed.background_stalled_since };
   for (const key of SUMMARY_FLAGS) if (!(key in listed)) delete next[key];
   return sameValue(next, row) ? row : next;
 }
@@ -737,6 +780,7 @@ let authenticatedSocket: WebSocket | null = null;
 let socketToken = "";
 let retry = 0;
 let retryTimer: number | undefined;
+let sidebarTimer: ReturnType<typeof setTimeout> | undefined;
 let lastMessage = 0;
 let lastPing = 0;
 let stopped = true;
@@ -776,12 +820,23 @@ export function sayHello() {
 
 export function connect() {
   setCompatibilityFeatures([]);
+  const cold = stopped && !state.loaded;
   stopped = false;
   clearTimeout(retryTimer);
   ws?.close();
   socketChanged(false);
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   socketToken = getToken();
+  if (cold && socketToken) {
+    const owner = credentialOwner();
+    // Give a fast hello the only read. If it takes longer, show the REST snapshots while waiting for the socket.
+    // The normal hello refresh still covers changes between these snapshots and the start of the event stream.
+    sidebarTimer = setTimeout(() => {
+      if (owner !== credentialOwner()) return;
+      void refreshAssistant().catch(() => {});
+      void refreshTodos();
+    }, 250);
+  }
   directionTreeAwaitsHello(true); // its hello reads the direction tree: the screens wait for that read
   const sock = new WebSocket(`${proto}//${location.host}${BASE}/api/v1/ws?${wsQuery(socketToken, cursor, [SESSIONS_LIST_FEATURE, SESSIONS_LIST_CHANGES_FEATURE, SESSIONS_DELTA_FEATURE, SESSION_LIVE_FEATURE, "extension_ui_stream_v1", "persona_contracts_v1"])}`);
   ws = sock;
@@ -887,6 +942,7 @@ export function disconnect() {
   stopped = true;
   // a reconnect scheduled after a drop would otherwise fire connect(), which clears stopped (signed out: an empty token)
   clearTimeout(retryTimer);
+  clearTimeout(sidebarTimer);
   back();
   ws?.close();
   ws = null;
@@ -917,7 +973,9 @@ export function checkSocket() {
 setInterval(() => checkSocket(), 5_000);
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !stopped && (!ws || Date.now() - lastMessage > 40_000)) connect();
+    if (!pageInFront()) return;
+    if (pushedHidden) todosPushed();
+    if (!stopped && (!ws || Date.now() - lastMessage > 40_000)) connect();
   });
 }
 if (typeof window !== "undefined") {
@@ -938,7 +996,7 @@ async function followDirections(changed = false) {
   const a = state.assistant;
   if (!ids || !a) return;
   const known = new Set(a.conversations.map((c) => c.session_id));
-  if (ids.some((id) => !known.has(id))) void refreshAssistant().catch(() => {});
+  if (ids.some((id) => !known.has(id) && !isExternalDirection(id))) void refreshAssistant().catch(() => {});
   else if (JSON.stringify(ids) !== JSON.stringify((a.leaders ?? []).filter((id) => id !== a.main))) set({ assistant: { ...a, leaders: ids } });
 }
 
@@ -956,7 +1014,9 @@ function onMessage(msg: Record<string, unknown>) {
   cursor = msg.type === "hello" ? afterHello(cursor, msg) : afterEvent(cursor, msg);
   switch (msg.type) {
     case "hello": {
+      clearTimeout(sidebarTimer);
       receiptOwner = msg.message_send_state === 1 ? credentialOwner() : undefined;
+      setPublishedImageLimits(msg.image_limits);
       setCompatibilityFeatures(Array.isArray(msg.features) ? msg.features as string[] : []);
       const mesh = (msg.mesh as { hubs?: MeshHub[] } | undefined)?.hubs;
       // a hub that folds side sessions into their parent's chat (#7944): set before the features, which redraw the lists
@@ -966,6 +1026,7 @@ function onMessage(msg: Record<string, unknown>) {
         link: { ...state.link, nextTry: 0, restarting: false, networkUp: true },
         version: String(msg.server_version ?? ""),
         features: Array.isArray(msg.features) ? (msg.features as string[]) : [],
+        pushGrading: msg.push_grading === true,
         hubName: typeof msg.hub_name === "string" ? msg.hub_name : "",
         mesh: Array.isArray(mesh) ? mesh : [],
       });
@@ -1066,13 +1127,24 @@ function onMessage(msg: Record<string, unknown>) {
     }
     case "interaction": {
       const ix = msg.interaction as Interaction;
-      if (!endedHere.has(ix.id)) changeInteraction(ix.id, ix);
+      const prev = state.interactions.find((i) => i.id === ix.id);
+      if (!endedHere.has(ix.id)) {
+        changeInteraction(ix.id, ix);
+        refreshCountsForCard(prev, ix);
+      }
       break;
     }
-    case "interaction_resolved":
+    case "interaction_resolved": {
+      const id = msg.id as string;
+      const prev = state.interactions.find((i) => i.id === id);
       if (msg.answered_by === "assistant") answeredForUser(msg);
-      changeInteraction(msg.id as string, null);
-      cardWithdrawn(msg.id as string);
+      changeInteraction(id, null);
+      cardWithdrawn(id);
+      refreshCountsForCard(prev, undefined);
+      break;
+    }
+    case "push_grading":
+      set({ pushGrading: msg.enabled === true });
       break;
     case "interaction_reanswered":
       noteReanswer(msg.id as string, answersIn((msg.resolution as { answers?: unknown } | undefined)?.answers));
@@ -1251,6 +1323,7 @@ export function upsertSession(s: Session, opts: { undelivered?: boolean } = {}) 
     else if (!x.assistant) merged.undelivered = opts.undelivered ? s.undelivered : x.undelivered; // an Agent's (#10661)
     merged.background_working = s.background_working;
     merged.background_waiting = s.background_waiting;
+    merged.background_stalled_since = s.background_stalled_since;
     // An optimistic action can start from getSession's summary fallback. A later complete info response must
     // drop its scalar summary markers, or they keep overriding the complete task arrays indefinitely.
     if (typeof s.waiting !== "boolean") {
@@ -1352,6 +1425,20 @@ function syncAssistant(mid: string, list: Session[]): Partial<State> {
 let ixRev = 0;
 const ixChanges = new Map<string, { rev: number; ix: Interaction | null }>();
 const IX_CHANGES_KEPT = 500;
+
+function refreshCountsForCard(prev: Interaction | undefined, next: Interaction | undefined) {
+  if (!isHeldLevel(prev?.push_level) && !isHeldLevel(next?.push_level)) return;
+  if (supportsPagedAgents(state.features)) {
+    const agentsList = runtimeAgents.getSnapshot();
+    if (agentsList.loaded || agentsList.loading || agentsList.error !== null) runtimeAgents.invalidate();
+  } else if (state.features.includes(SESSIONS_LIST_FEATURE)) {
+    runtimeSessions.invalidate();
+  }
+}
+
+export function setPushGrading(pushGrading: boolean) {
+  if (state.pushGrading !== pushGrading) set({ pushGrading });
+}
 
 function changeInteraction(id: string, ix: Interaction | null) {
   ixChanges.delete(id); // re-inserted: the oldest are dropped first
@@ -1472,16 +1559,17 @@ export function dropDelegated(id: string) {
 // Every request for a list the page keeps whole (/todos, /assistant), numbered: an answer to a request sent before the
 // one already applied is older than what the page shows (refresh() waits for /sessions too, seconds on a busy hub) and
 // must not put the old list back.
-function numbered<T>(path: string) {
+function numbered<T>(path: string, read: () => Promise<T> = () => api<T>(path)) {
   let asked = 0;
   let applied = 0;
   return {
     ask() {
       const n = ++asked;
-      const answer = api<T>(path);
+      const owner = credentialOwner();
+      const answer = read();
       /** Whether this answer may be applied (no later request's answer is in place); if so it is the one in place now. */
       const fresh = () => {
-        if (n < applied) return false;
+        if (n < applied || owner !== credentialOwner()) return false;
         applied = n;
         return true;
       };
@@ -1494,7 +1582,34 @@ function numbered<T>(path: string) {
   };
 }
 
-const todosAsked = numbered<{ todos: Todo[] }>("/todos");
+// The last to-do list the hub answered and its validator (#9590; the `GET /api/v1/todos` row in docs/assistant/todos.md):
+// the hub tags its merged list with `ETag: W/"t1-<hash of its bytes>"` and answers a read naming that tag with a 304 and
+// no body. Most {"type":"todos"} pushes change nothing the list holds, and the whole list is hundreds of KB on a busy
+// hub, so a read sends the tag and a 304 applies the kept answer again, as a 200 with those same bytes would. Memory
+// only, one login's: reset() drops it, and a tag kept under another login is not sent.
+let keptTodos: { owner: string; etag: string; revision: string; answer: { todos: Todo[] } } | null = null;
+
+async function readTodos(): Promise<{ todos: Todo[] }> {
+  const owner = credentialOwner();
+  const kept = keptTodos?.owner === owner ? keptTodos : null;
+  let status = 0;
+  let reply: Headers | undefined;
+  const answer = await api<{ todos: Todo[] }>("/todos", {
+    headers: kept?.etag ? { "If-None-Match": kept.etag } : undefined,
+    onResponse: (headers, code) => { status = code; reply = headers; },
+  });
+  const etag = reply?.get("ETag") ?? "";
+  const revision = reply?.get("X-Persona-Todos-Revision") ?? "";
+  if (status === 304 && kept) {
+    if (revision) kept.revision = revision;
+    return kept.answer;
+  }
+  // a hub without either validator keeps nothing, and the next read is whole as before
+  if (owner === credentialOwner()) keptTodos = etag || revision ? { owner, etag, revision, answer } : null;
+  return answer;
+}
+
+const todosAsked = numbered<{ todos: Todo[] }>("/todos", readTodos);
 const assistantAsked = numbered<AssistantInfo>("/assistant");
 
 // refresh() calls, numbered the same way: one that started before the last one applied, or before reset(), is older
@@ -1520,16 +1635,11 @@ export async function refresh() {
   // the answers count only if this page changes nothing while they are on their way, and had no change out when they left
   const mutesAt = mutesSaves.out ? -1 : mutesSaves.rev;
   const pinsAt = pinsSaves.out ? -1 : pinsSaves.rev;
-  const asked = todosAsked.ask();
   // The main conversation must not wait for the slowest sidebar request. refreshAssistant also guards
   // against an earlier login or manager's answer and invalidates a superseded cached main conversation.
   const assistantDone = refreshAssistant().catch(() => {});
-  // the todos go in as soon as they answer: By to-do (the default, #2812) waits for them, not for /sessions, which can
-  // take seconds on a busy hub while the socket has pushed the sessions already
-  const todosDone = asked.answer.then(
-    (res) => applyTodos({ status: "fulfilled", value: res }, asked.fresh),
-    (reason: unknown) => applyTodos({ status: "rejected", reason }, asked.fresh),
-  );
+  // By to-do (the default, #2812) can use the to-dos as soon as they answer.
+  const todosDone = refreshTodos();
   const [sessions, interactions, machines, mutes, pins] = await Promise.allSettled([
     state.features.includes(SESSIONS_LIST_FEATURE)
       ? runtimeSessions.load().then(() => null)
@@ -1606,24 +1716,33 @@ export function dropTodo(id: string) {
   set({ todos: state.todos.filter((t) => t.id !== id) });
 }
 
-// A push that says the to-dos changed ({"type":"todos"}, a task's feed item) comes in bursts: the hub sends one per write,
-// and a supervised task's report, stage and links land within the same second. Every GET /todos is the whole list (tens
-// of KB on a busy hub), so pushes read it one at a time: one that lands while such a read is out asks for one more read
-// after it, however many land meanwhile. What this page itself just changed still reads at once (refreshTodos).
-let pushedRead = false;
-let pushedAgain = false;
+// A push that says the to-dos changed ({"type":"todos"}, a task's feed item) comes in bursts. Settle 200 ms, then ask
+// the hub's cheap merged revision when every manager supports it (#13804). Only a changed revision reads the complete
+// list. Hidden pages leave the pending push until they become visible; old hubs keep the original full-read path.
+// What this page itself just changed still reads at once (refreshTodos).
+// The loop itself loads on the first push, not with the first screen. The epoch drops a load that reset beat.
+let pushedEpoch = 0;
+let pushedHidden = false; // only a failed hidden import; the loaded loop owns its own pending push
+let resetPushedTodos: () => void = () => {};
 
 export function todosPushed() {
-  if (pushedRead) {
-    pushedAgain = true;
-    return;
-  }
-  pushedRead = true;
-  void refreshTodos().finally(() => {
-    pushedRead = false;
-    if (!pushedAgain) return;
-    pushedAgain = false;
-    todosPushed();
+  const epoch = pushedEpoch;
+  void import("./todo-pushes").catch(() => null).then((m) => {
+    if (epoch !== pushedEpoch) return;
+    pushedHidden = false;
+    if (!m) {
+      if (pageInFront()) void refreshTodos();
+      else pushedHidden = true;
+      return;
+    }
+    resetPushedTodos = m.reset;
+    // Positional hooks keep their property names out of the first-screen chunk; the lazy module names the tuple.
+    m.push([
+      () => hubHas(state.features, "todo_revision") && keptTodos?.owner === credentialOwner() ? keptTodos.revision : "",
+      refreshTodos,
+      pageInFront,
+      api,
+    ]);
   });
 }
 
@@ -1643,18 +1762,44 @@ export function patchAssistant(patch: Partial<Omit<AssistantInfo, "conversations
   if (a) set({ assistant: { ...a, ...patch } });
 }
 
+/** A different default owns every no-header answer still on its way. Retire those reads and ask once for the new one. */
+function replaceDefaultAssistant() {
+  const manager = defaultManager();
+  if (defaultAssistantRetry === manager) return;
+  defaultAssistantRetry = manager;
+  assistantAsked.forget();
+  restoredAssistant = null;
+  assistantByManager.delete("");
+  clearAssistantSnapshot("");
+  set({ assistant: null, assistantError: null });
+  void refreshAssistant().catch(() => {});
+}
+
 /** Reads the page's assistant again; true when its answer is the one in place now (not one a later answer, or another
  *  manager's page, made old meanwhile). */
 export async function refreshAssistant(): Promise<boolean> {
-  const asked = assistantAsked.ask();
   const from = pageOf();
+  if (!state.assistant) {
+    const kept = currentAssistantSnapshot(from);
+    restoredAssistant = kept ? { page: from, manager: kept.manager } : null;
+    if (kept) set({ assistant: kept.assistant, assistantError: null });
+  }
+  const asked = assistantAsked.ask();
   try {
     const a = await asked.answer;
     if (!asked.fresh() || from !== pageOf()) return false;
     const assistant = { ...a, conversations: (a.conversations ?? []).filter(availableConversation) };
+    const manager = assistant.manager || from || (defaultKnown() ? defaultManager() : "");
+    if (!from && defaultKnown() && manager && manager !== defaultManager()) {
+      replaceDefaultAssistant();
+      return false;
+    }
+    defaultAssistantRetry = "";
     const scope = feedCacheScope();
     const cached = readFeedCache(scope);
     if (cached && (cached.manager ?? "") === from && (cached.machineID !== mainConversationMachine(assistant) || cached.sessionID !== assistant.main)) discardFeedCache(scope);
+    restoredAssistant = null;
+    writeAssistantSnapshot(from, manager, assistant);
     assistantByManager.set(cacheKey(), assistant);
     // its conversations' own requests (feed, stop…) go to it, whichever manager the page shows later
     // (the default's are not noted: with no header the hub finds their manager itself)
@@ -1695,7 +1840,14 @@ onManagerChoice(() => {
   drawnPage = { page, manager };
   if (same) return;
   assistantAsked.forget();
-  set({ assistant: assistantByManager.get(cacheKey()) ?? null, assistantError: null });
+  restoredAssistant = null;
+  let assistant = assistantByManager.get(cacheKey());
+  if (!assistant) {
+    const kept = currentAssistantSnapshot(page);
+    assistant = kept?.assistant;
+    if (kept) restoredAssistant = { page, manager: kept.manager };
+  }
+  set({ assistant: assistant ?? null, assistantError: null });
   void refreshAssistant().catch(() => {});
 });
 
@@ -1703,6 +1855,17 @@ onManagerChoice(() => {
 onDefaultManager((was) => {
   if (!was.settled && drawnPage.page === "") drawnPage = { page: "", manager: defaultManager() };
   const kept = assistantByManager.get("");
+  const current = pageOf() === "" ? restoredAssistant?.manager || state.assistant?.manager || kept?.manager : undefined;
+  const staleKept = kept?.manager && kept.manager !== defaultManager();
+  if (staleKept) {
+    assistantByManager.delete("");
+    clearAssistantSnapshot("");
+  }
+  if (current && current !== defaultManager()) {
+    replaceDefaultAssistant();
+    return;
+  }
+  if (staleKept) return;
   if (was.settled || !kept) return;
   assistantByManager.delete("");
   assistantByManager.set(defaultManager(), kept);
@@ -1827,9 +1990,14 @@ export function reset() {
   endedHere.clear();
   // a /todos or /assistant answer still on its way belongs to the old login
   todosAsked.forget();
-  pushedAgain = false; // the next login reads its own list
+  keptTodos = null; // and its list's validators
+  pushedEpoch++;
+  pushedHidden = false;
+  resetPushedTodos();
   assistantAsked.forget();
   assistantByManager.clear();
+  restoredAssistant = null;
+  defaultAssistantRetry = "";
   // and so do the pins and mutes of a refresh() or a failed save still on its way
   mutesSaves.rev++;
   pinsSaves.rev++;
@@ -1846,6 +2014,8 @@ export function reset() {
   clearMemoryPages();
   clearTimeout(seenTimer);
   seenTimer = undefined;
+  clearTimeout(handoffTimer);
+  handoffTimer = undefined;
   Object.values(state.launches).forEach((launch) => releaseAttachments(launch.attachments));
   set({
     machines: [],
@@ -1870,6 +2040,8 @@ export function reset() {
     todosError: null,
     spacesSupported: true,
     loaded: false,
+    features: [],
+    pushGrading: false,
     conn: "connecting",
     link: { ...NO_LINK, networkUp: networkUp() },
   });

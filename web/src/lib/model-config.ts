@@ -1,4 +1,5 @@
 import { t } from "../i18n";
+import { agentName, isTraeCli, normalizeTraeCliName } from "./agent-kind";
 import { MANAGER_HEADER } from "./manager-choice";
 import { api, enc } from "./api";
 import type { ProviderAPI, ProviderModel } from "./providers";
@@ -21,6 +22,8 @@ export interface ModelProvider {
   id: string;
   name: string;
   kind: "api" | "launcher" | "plugin";
+  /** Launcher provenance: "persona" for managed providers, else "zshrc" / "path" / "builtin" / runtime name. */
+  source?: string;
   agent?: string;
   api?: ProviderAPI;
   /** A current hub accepts purpose effort on this Chat connection; absent on older hubs. */
@@ -128,7 +131,7 @@ export function runtimeLabel(id: string | undefined, agent?: string): string {
   if (agent === "codex") return "Codex CLI";
   if (agent === "agy") return "Antigravity ACP";
   if (agent === "omp") return "omp CLI";
-  if (agent === "traex") return "TRAEX CLI";
+  if (isTraeCli(agent)) return agentName(agent);
   return RUNTIMES.find((r) => r.id === (id || "cli"))?.label ?? id!;
 }
 
@@ -138,9 +141,13 @@ export const modelPurpose = (id: string, manager?: string) => api<ModelPurposeBo
  *  set up, whose id means nothing to a person (docs/assistant/onboarding.md 4.5). */
 export function providerName(id: string | undefined, providers: ModelProvider[] = []): string | undefined {
   if (!id) return undefined;
-  const name = providers.find((v) => v.id === id)?.name;
-  if (name) return name;
-  return id.startsWith("legacy.") ? undefined : id;
+  const name = providers.find((v) => v.id === id)?.name || "";
+  return modelProviderTitle({ id, name }) || (id.startsWith("legacy.") ? undefined : id);
+}
+
+export function modelProviderTitle({ id, name }: Pick<ModelProvider, "id" | "name">): string {
+  const launcher = id.startsWith("launcher.") ? id.slice("launcher.".length) : "";
+  return isTraeCli(launcher) ? normalizeTraeCliName(name || launcher) : name;
 }
 
 export function modelSummary(p: ModelPurpose, providers: ModelProvider[] = []): string {

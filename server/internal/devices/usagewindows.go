@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,6 +61,18 @@ func (u *usageWindowsHub) invalidate() {
 	u.mu.Lock()
 	u.at = time.Time{}
 	u.mu.Unlock()
+}
+
+// providers are the providers of the accounts the last poll found (what the usage bars could show), for the admin
+// page's choice of providers to hide.
+func (u *usageWindowsHub) providers() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	var out []string
+	for _, a := range u.merged {
+		out = append(out, canonicalUsageProvider(a.Provider))
+	}
+	return out
 }
 
 // usageSources are the machines whose node may be asked: the off switch in hub.json is honoured here as well as by
@@ -188,9 +201,21 @@ func (u *usageWindowsHub) poll(ctx context.Context, sources []usageSource, now t
 // samples are marked stale according to their source. Accounts show where they were seen and the gateway's name when
 // available. The most used accounts come first, stale ones last.
 func mergeUsageAccounts(in []proto.UsageAccount, now time.Time) []proto.UsageAccount {
-	var live []proto.UsageAccount
+	var live, passed []proto.UsageAccount
 	for _, a := range in {
 		if now.Sub(a.SampledAt) > usageHubMaxAge {
+			continue
+		}
+		if a.Pass { // an extension's row stands as it was sent
+			if a.Windows == nil {
+				a.Windows = []proto.UsageWindow{}
+			}
+			a.ID = usageRowID(a.Provider, "extension|"+a.Origin)
+			a.Provider = canonicalUsageProvider(a.Provider)
+			staleAt := a.SampledAt.Add(usageGatewayStaleAfter)
+			a.StaleAt = &staleAt
+			a.Stale = a.Stale || now.After(staleAt)
+			passed = append(passed, a)
 			continue
 		}
 		var wins []proto.UsageWindow
@@ -225,8 +250,10 @@ func mergeUsageAccounts(in []proto.UsageAccount, now time.Time) []proto.UsageAcc
 	}
 	type key struct {
 		provider string
+		scope    string
 		minutes  int
 		resets   int64
+		local    bool
 	}
 	seen := map[key]int{}
 	codexAccounts := map[string]int{}
@@ -261,11 +288,16 @@ func mergeUsageAccounts(in []proto.UsageAccount, now time.Time) []proto.UsageAcc
 			}
 			continue
 		}
+		provider := canonicalUsageProvider(a.Provider)
 		for _, w := range a.Windows {
 			if w.ResetsAt == nil || w.Model != "" {
 				continue
 			}
-			k := key{a.Provider, w.WindowMinutes, w.ResetsAt.Unix()}
+			k := key{provider: provider, minutes: w.WindowMinutes, resets: w.ResetsAt.Unix()}
+			if provider == antigravityUsageProvider {
+				// Reconcile local and external Antigravity windows individually in the display response.
+				k.scope, k.local = antigravityQuotaScope(a, w), a.Local
+			}
 			j, ok := seen[k]
 			if !ok {
 				seen[k] = i
@@ -377,7 +409,9 @@ func mergeUsageAccounts(in []proto.UsageAccount, now time.Time) []proto.UsageAcc
 		}
 		acct.Sources, acct.Machines = uniqueSorted(sources), uniqueSorted(machines)
 		acct.Ref, acct.Origin = firstOf(members, func(m proto.UsageAccount) string { return m.Ref }), firstOf(members, func(m proto.UsageAccount) string { return m.Origin })
+		// Row IDs predate provider aliases and are stored by clients that pin accounts.
 		acct.ID = usageAccountID(acct)
+		acct.Provider = canonicalUsageProvider(acct.Provider)
 		gateway := len(newest.Sources) > 0 && !newest.Local
 		after := usageHubStaleAfter
 		if gateway {
@@ -424,16 +458,24 @@ func mergeUsageAccounts(in []proto.UsageAccount, now time.Time) []proto.UsageAcc
 			a.Name = fmt.Sprintf("%s %d", a.Name, n)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Stale != out[j].Stale {
-			return !out[i].Stale
+	sortUsageAccounts(out)
+	return append(out, passed...) // an extension's rows last, in the order it gave them
+}
+
+func sortUsageAccounts(accounts []proto.UsageAccount) {
+	sort.SliceStable(accounts, func(i, j int) bool {
+		a, b := accounts[i], accounts[j]
+		if a.Pass || b.Pass {
+			return !a.Pass // keep extension rows last and in their original order
 		}
-		if a, b := mostUsed(out[i]), mostUsed(out[j]); a != b {
+		if a.Stale != b.Stale {
+			return !a.Stale
+		}
+		if a, b := mostUsed(a), mostUsed(b); a != b {
 			return a > b
 		}
-		return out[i].ID < out[j].ID
+		return a.ID < b.ID
 	})
-	return out
 }
 
 // isBalanceSample: a sample of a provider that reports a prepaid balance instead of rate-limit windows (#11825). The
@@ -524,10 +566,37 @@ func usageRowID(provider, key string) string {
 func (d *Devices) usageWindowRoutes(api *http.ServeMux) {
 	api.HandleFunc("GET /api/v1/usage/windows", func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
-		accounts := d.usageWin.poll(r.Context(), d.usageSources(), now)
-		if accounts == nil {
-			accounts = []proto.UsageAccount{}
-		}
-		writeJSON(w, map[string]any{"accounts": accounts, "checked_at": now.UTC()})
+		hidden := d.usageGW.config().HiddenProviders
+		writeJSON(w, usageWindowsAnswer(hideUsageProviders(d.usageWin.poll(r.Context(), d.usageSources(), now), hidden), hidden, now))
 	})
+}
+
+// usageWindowsAnswer is the body of GET /api/v1/usage/windows. hidden_providers (#13179) names the providers the owner
+// left out of the bars, so a client does not list them some other way (the web's "not connected" rows); it is left
+// out when nothing is hidden, so the answer is what it was before.
+func usageWindowsAnswer(accounts []proto.UsageAccount, hidden []string, now time.Time) map[string]any {
+	if accounts == nil {
+		accounts = []proto.UsageAccount{}
+	}
+	out := map[string]any{"accounts": reconcileAntigravityUsage(accounts, now), "checked_at": now.UTC()}
+	if len(hidden) > 0 {
+		out["hidden_providers"] = hidden
+	}
+	return out
+}
+
+// hideUsageProviders drops the accounts of the providers the owner chose to hide from the usage bars (#11753). It
+// works on the answer, not on the poll: the scheduler's capacity view reads the same poll and keeps counting them.
+func hideUsageProviders(in []proto.UsageAccount, hidden []string) []proto.UsageAccount {
+	if len(hidden) == 0 || len(in) == 0 {
+		return in
+	}
+	out := make([]proto.UsageAccount, 0, len(in))
+	for _, a := range in {
+		provider := canonicalUsageProvider(a.Provider)
+		if !slices.ContainsFunc(hidden, func(p string) bool { return canonicalUsageProvider(p) == provider }) {
+			out = append(out, a)
+		}
+	}
+	return out
 }

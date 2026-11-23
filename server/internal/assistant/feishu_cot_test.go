@@ -3,13 +3,14 @@ package assistant
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/channel"
-	"github.com/nwverse/persona/server/internal/feishubot"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/rpc"
@@ -18,7 +19,7 @@ import (
 // The words a turn says before a tool call go into the process; the words it ends with (its answer) do not.
 func TestCotEventsHoldTheAnswerBack(t *testing.T) {
 	var p cotProgress
-	start := func(first string) []feishubot.CotEvent { return feishubot.CotStart("c1", "cot1", first) }
+	start := func(first string) []botcard.CotEvent { return botcard.CotStart("c1", "cot1", first) }
 	items := []proto.Item{
 		{ID: "a", Role: "assistant", Kind: proto.KindText, Text: "我先查一下"},
 		{ID: "b", Role: "assistant", Kind: proto.KindToolUse, ToolUseID: "tu1", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"ls"}`)},
@@ -70,7 +71,7 @@ func cotHub(t *testing.T, refuse bool) (*Service, *[]map[string]any, *[]string) 
 	})
 	f.answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 		var m struct {
-			Events []feishubot.CotEvent `json:"events"`
+			Events []botcard.CotEvent `json:"events"`
 		}
 		_ = json.Unmarshal(p, &m)
 		for _, e := range m.Events {
@@ -84,7 +85,28 @@ func cotHub(t *testing.T, refuse bool) (*Service, *[]map[string]any, *[]string) 
 	})
 	f.answerApp(AppFeishu, FeishuReact, func(json.RawMessage) (any, error) { return map[string]any{}, nil })
 	f.answerApp(AppFeishu, FeishuUnreact, func(json.RawMessage) (any, error) { return map[string]any{}, nil })
-	return newTestService(t, f), posts, &calls
+	s := newTestService(t, f)
+	t.Cleanup(func() {
+		s.chans.mu.Lock()
+		var workers []*cotWorker
+		for _, p := range s.chans.live {
+			if p.native != nil {
+				workers = append(workers, p.native)
+			}
+		}
+		s.chans.mu.Unlock()
+		for _, w := range workers {
+			w.abort()
+		}
+		for _, w := range workers {
+			select {
+			case <-w.done:
+			case <-time.After(2 * time.Second):
+				t.Error("native worker did not stop during cleanup")
+			}
+		}
+	})
+	return s, posts, &calls
 }
 
 func cotRun(s *Service) (*channel.Run, *chanLive) {
@@ -171,7 +193,7 @@ func TestCotAppendTriedAgainSendsItOnce(t *testing.T) {
 	var got []string
 	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 		var m struct {
-			Events []feishubot.CotEvent `json:"events"`
+			Events []botcard.CotEvent `json:"events"`
 		}
 		_ = json.Unmarshal(p, &m)
 		for _, e := range m.Events {
@@ -212,10 +234,10 @@ func TestCotFirstToolCallHasItsParagraph(t *testing.T) {
 	r, prog := cotRun(s)
 	withCot(s, r)
 	prog.items = prog.items[1:] // straight into the tool call
-	var events []feishubot.CotEvent
+	var events []botcard.CotEvent
 	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 		var m struct {
-			Events []feishubot.CotEvent `json:"events"`
+			Events []botcard.CotEvent `json:"events"`
 		}
 		_ = json.Unmarshal(p, &m)
 		events = append(events, m.Events...)
@@ -331,7 +353,7 @@ func TestFeishuProgressCardThrottled(t *testing.T) {
 		*posts = append(*posts, m)
 		return map[string]any{}, reply
 	})
-	reply = &feishubot.APIError{Op: "update card", Code: 230020, Msg: "This operation triggers the frequency limit."}
+	reply = &botcard.APIError{Op: "update card", Code: 230020, Msg: "This operation triggers the frequency limit."}
 	sink.progress(ctx, r, 5*time.Second, steps, "")
 	if len(*posts) != 2 {
 		t.Fatalf("limited update not tried: %v", *posts)
@@ -347,7 +369,7 @@ func TestFeishuProgressCardThrottled(t *testing.T) {
 	if len(*posts) != 3 || !strings.Contains((*posts)[2]["card"].(string), "10 秒") {
 		t.Fatalf("latest after the backoff: %v", *posts)
 	}
-	reply = &feishubot.APIError{Op: "update card", Code: 230011, Msg: "The message is recalled."}
+	reply = &botcard.APIError{Op: "update card", Code: 230011, Msg: "The message is recalled."}
 	sink.progress(ctx, r, 11*time.Second, steps, "")
 	if r.Ext["card"] != "" {
 		t.Fatalf("withdrawn card kept: %v", r.Ext)
@@ -390,7 +412,7 @@ func TestProcessPanelShortUnchanged(t *testing.T) {
 	for i := 0; i < 41; i++ {
 		steps = append(steps, fmt.Sprintf("运行 `cmd%02d`", i))
 	}
-	c := feishubot.NewCard("", "", "")
+	c := botcard.NewCard("", "", "")
 	processPanel(i18n.ZhHans, c, steps)
 	js := c.JSON()
 	for _, want := range []string{"已调用 41 次工具", "…前面还有 1 步", "- 运行 `cmd40`"} {
@@ -405,10 +427,10 @@ func TestProcessPanelShortUnchanged(t *testing.T) {
 
 // A pathological panel bounds itself: the oldest calls hide first, the newest stay.
 func TestProcessPanelPathologicalBounded(t *testing.T) {
-	c := feishubot.NewCard("", "", "")
+	c := botcard.NewCard("", "", "")
 	processPanel(i18n.ZhHans, c, pathologicalSteps(40))
 	js := c.JSON()
-	if got := len(js) - len(feishubot.NewCard("", "", "").JSON()); got > processPanelMaxBytes {
+	if got := len(js) - len(botcard.NewCard("", "", "").JSON()); got > processPanelMaxBytes {
 		t.Fatalf("panel is %d JSON bytes, want <= %d", got, processPanelMaxBytes)
 	}
 	for _, want := range []string{"已调用 40 次工具", "…前面还有 20 步", "运行20", "运行39"} {
@@ -433,7 +455,7 @@ func TestCotAppendGoesOnFromTheFailedChunk(t *testing.T) {
 			proto.Item{ID: "r" + id, Role: "user", Kind: proto.KindToolResult, ToolUseID: id, Text: "ok"})
 	}
 	prog.items = items
-	var got []feishubot.CotEvent
+	var got []botcard.CotEvent
 	n := 0
 	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 		n++
@@ -441,7 +463,7 @@ func TestCotAppendGoesOnFromTheFailedChunk(t *testing.T) {
 			return nil, feishuAPIError(99991400)
 		}
 		var m struct {
-			Events []feishubot.CotEvent `json:"events"`
+			Events []botcard.CotEvent `json:"events"`
 		}
 		_ = json.Unmarshal(p, &m)
 		got = append(got, m.Events...)
@@ -473,7 +495,7 @@ func TestCotCallsShownBeforeARestartAreSettled(t *testing.T) {
 	var events []string
 	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 		var m struct {
-			Events []feishubot.CotEvent `json:"events"`
+			Events []botcard.CotEvent `json:"events"`
 		}
 		_ = json.Unmarshal(p, &m)
 		for _, e := range m.Events {
@@ -499,8 +521,8 @@ func TestCotCallsShownBeforeARestartAreSettled(t *testing.T) {
 // held back behind the thinking that came after them); thinking after the turn's last words goes in as it ends.
 func TestCotThinkingWaitsForTheWordsBeforeIt(t *testing.T) {
 	var p cotProgress
-	start := func(first string) []feishubot.CotEvent { return feishubot.CotStart("c1", "cot1", first) }
-	paras := func(ev []feishubot.CotEvent) string {
+	start := func(first string) []botcard.CotEvent { return botcard.CotStart("c1", "cot1", first) }
+	paras := func(ev []botcard.CotEvent) string {
 		var out []string
 		for _, e := range ev {
 			if e.Type == "REASONING_MESSAGE_CONTENT" {
@@ -564,7 +586,7 @@ func TestCotAppendWithoutReplyIsNotSentAgain(t *testing.T) {
 		s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(p json.RawMessage) (any, error) {
 			n++
 			var m struct {
-				Events []feishubot.CotEvent `json:"events"`
+				Events []botcard.CotEvent `json:"events"`
 			}
 			_ = json.Unmarshal(p, &m)
 			for _, e := range m.Events {
@@ -593,22 +615,26 @@ func TestCotEndIsTriedAgain(t *testing.T) {
 	saved := cotEndTries
 	cotEndTries = []time.Duration{0, 0, 0}
 	defer func() { cotEndTries = saved }()
-	s, posts, calls := cotHub(t, false)
-	r, _ := cotRun(s)
-	withCot(s, r)
-	feishuSink{s}.progress(context.Background(), r, time.Second, nil, "")
-	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(json.RawMessage) (any, error) { return nil, feishuAPIError(99991400) })
-	n := 0
-	s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotComplete, func(json.RawMessage) (any, error) {
-		n++
-		if n < 3 {
-			return nil, feishuAPIError(99991400)
-		}
-		*calls = append(*calls, "complete")
-		return map[string]any{}, nil
-	})
-	s.finishChannelRun(r, &channel.Result{Answer: "结论"})
-	if n != 3 || !strings.HasSuffix(strings.Join(*calls, " "), "complete") || len(*posts) != 1 {
-		t.Fatalf("tries %d, calls %v, posts %v", n, *calls, *posts)
+	for _, failure := range []error{feishuAPIError(99991400), rpc.NotSent(context.DeadlineExceeded), errors.Join(rpc.ErrNotWritten, context.Canceled)} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			s, posts, calls := cotHub(t, false)
+			r, _ := cotRun(s)
+			withCot(s, r)
+			feishuSink{s}.progress(context.Background(), r, time.Second, nil, "")
+			s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotAppend, func(json.RawMessage) (any, error) { return nil, feishuAPIError(99991400) })
+			n := 0
+			s.hub.(*fakeHub).answerApp(AppFeishu, FeishuCotComplete, func(json.RawMessage) (any, error) {
+				n++
+				if n < 3 {
+					return nil, failure
+				}
+				*calls = append(*calls, "complete")
+				return map[string]any{}, nil
+			})
+			s.finishChannelRun(r, &channel.Result{Answer: "结论"})
+			if n != 3 || !strings.HasSuffix(strings.Join(*calls, " "), "complete") || len(*posts) != 1 {
+				t.Fatalf("tries %d, calls %v, posts %v", n, *calls, *posts)
+			}
+		})
 	}
 }

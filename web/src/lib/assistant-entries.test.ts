@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../spec/fixtures/entries/cases.json";
-import { assistantEntries, decisionLaterKey } from "./assistant-entries";
+import { assistantEntries, decisionLaterKey, needsYouBySupervisor } from "./assistant-entries";
 import { triageTodos } from "./todo-triage";
 import { makeSessionLookup } from "./todos";
 import type { FeedItem, TaskPlan } from "./feed";
@@ -223,14 +223,14 @@ describe("the entries' open-to-do count follows the To-dos page's rule", () => {
     expect(openTaskItems(run([freshTodo]))[0]!.countsOpen).toBe(true);
   });
 
-  it("keeps a seen review visible under Persona reviewing, not Needs you, but counts it only while the page still has it open", () => {
+  it("keeps a seen review under Persona reviewing and counted until it is accepted", () => {
     const review = { at: stale, verdict: "needs_user" as const, note: "Choose the route." };
     const seen = base("review-seen", stale, { seen_at: stale, supervision: { supervisor: "main", state: "pending_review", reviews: [review], updated_at: stale } });
     const got = run([seen]);
     expect(got.needsYou).toEqual([]);
     expect(got.review.map((i) => i.key)).toEqual(["task:review-seen"]);
-    expect(openTaskItems(got)[0]!.countsOpen).toBe(false);
-    // nobody looked at the finished turn yet: the page keeps it in Just finished, so it still counts
+    // #8678 owns the neutral placement; #5732 keeps Seen a receipt, never acceptance or filing.
+    expect(openTaskItems(got)[0]!.countsOpen).toBe(true);
     const unseen = base("review-unseen", stale, { supervision: { supervisor: "main", state: "pending_review", reviews: [review], updated_at: stale } });
     expect(openTaskItems(run([unseen]))[0]!.countsOpen).toBe(true);
   });
@@ -254,7 +254,7 @@ describe("the entries' open-to-do count follows the To-dos page's rule", () => {
     const pageOpen = triageTodos(todos, makeSessionLookup([workingSession, loneAgent]), now).open;
     const chipOpen = openTaskItems(got).filter((i) => i.countsOpen).length;
     expect(chipOpen).toBe(pageOpen);
-    expect(chipOpen).toBe(3); // Working, unexpired parked and the unseen review; inactivity alone does not end an explicit wait.
+    expect(chipOpen).toBe(4); // Working, parked and both unaccepted reviews; stale shelves and done do not count.
     expect(got.review.map((i) => i.key)).toEqual(["task:review-unseen", "task:review-seen"]);
     expect(got.needsYou.some((i) => i.kind === "plan")).toBe(true);
     expect(got.running.some((i) => i.kind === "agent")).toBe(true);
@@ -316,6 +316,16 @@ describe("Finished in the Assistant's entries", () => {
     expect([...got.needsYou, ...got.running, ...got.shelved, ...got.parked, ...got.review]).toEqual([]);
   });
 
+  it("files closed pending-review tasks as finished only within the completion window", () => {
+    const supervision = { supervisor: "main", state: "pending_review" as const };
+    const got = run([
+      done("recent-review", "2026-11-10T08:30:00Z", { supervision }),
+      done("expired-review", "2026-11-08T08:00:00Z", { supervision }),
+    ]);
+    expect(got.finished.map((item) => item.key)).toEqual(["task:recent-review"]);
+    expect([...got.needsYou, ...got.running, ...got.shelved, ...got.parked, ...got.review]).toEqual([]);
+  });
+
   it("keeps a row once it is opened: seeing it changes only that it is new", () => {
     const task = done("opened", "2026-11-10T08:30:00Z");
     expect(run([task]).finished.map((i) => [i.key, i.fresh])).toEqual([["task:opened", true]]);
@@ -372,4 +382,73 @@ describe("Persona reviewing in the Assistant's entries", () => {
     expect(got.parked).toEqual([]);
     expect(got.needsYou).toEqual([]);
   });
+});
+
+
+// What a task's supervising conversation handles is not the owner's: a supervised task's failed start (its supervisor
+// retries or remedies it) and an Agent's card its supervisor holds (delegating) are in progress, not Needs you; the
+// same card once passed up to the owner, and an unsupervised failed start, still are.
+describe("what a supervisor holds in the Assistant's entries", () => {
+  const now = Date.parse("2026-11-10T09:00:00Z");
+  const at = "2026-11-10T08:00:00Z";
+  const supervision = { supervisor: "lead", state: "", reviews: [], updated_at: at } as unknown as Todo["supervision"];
+  const asking: Session = { machine_id: "box", session_id: "ask", title: "ask", cwd: "/w", state: "needs_you", status: "blocked", updated_at: at } as Session;
+  const card = (delegating: boolean): Interaction => ({ id: "ix_1", machine_id: "box", session_id: "ask", kind: "question", created_at: at, ...(delegating ? { delegating } : {}) }) as Interaction;
+  const failed = (patch: Partial<Todo> = {}): Todo => ({ id: "failed", title: "failed", origin: "main", created_at: at, updated_at: at, done_at: at, start_error: "Desk Mac is offline", agents: [], ...patch }) as Todo;
+  const withAgent = (patch: Partial<Todo> = {}): Todo => ({ id: "asks", title: "asks", origin: "main", created_at: at, updated_at: at, agents: [{ machine_id: "box", session_id: "ask", linked_at: at }], ...patch }) as Todo;
+  const run = (todos: Todo[], interactions?: Interaction[]) => assistantEntries({ conversation: "main", main: "main", todos, sessions: interactions ? [asking] : [], interactions: interactions ?? [], plans: {}, feed: [], now });
+  const keys = (items: { key: string }[]) => items.map((item) => item.key);
+
+  it("leaves a supervised failed start with its supervisor, and an unsupervised one with the owner", () => {
+    expect(keys(run([failed({ supervision })]).needsYou)).toEqual([]);
+    expect(keys(run([failed({ supervision })]).running)).toEqual(["task:failed"]);
+    expect(keys(run([failed()]).needsYou)).toEqual(["task:failed"]);
+  });
+
+  it("leaves a card the supervisor holds with it, and shows the same card once it reaches the owner", () => {
+    const held = run([withAgent({ supervision })], [card(true)]);
+    expect(keys(held.needsYou)).toEqual([]);
+    expect(keys(held.running)).toEqual(["task:asks"]);
+    expect(keys(run([withAgent({ supervision })], [card(false)]).needsYou)).toEqual(["task:asks"]);
+  });
+});
+
+describe("pending plans across Persona conversations", () => {
+  const at = "2026-11-21T01:00:00Z";
+  const plan = (id: string, conversation: string, state: TaskPlan["state"] = "open"): TaskPlan => ({
+    id, conversation, state, created_at: at, tasks: [],
+  });
+  const plans = { local: plan("local", "main"), routine: plan("routine", "routine-chat"),
+    side: plan("side", "side-chat"), done: plan("done", "routine-chat", "dismissed") };
+  const entries = (conversation: string, main?: string) => assistantEntries({
+    conversation, main, plans, todos: [], sessions: [], interactions: [], feed: [],
+  }).needsYou;
+
+  it("shows every open plan in Main, attributed to its source", () => {
+    const items = entries("main", "main");
+    expect(items.map((item) => item.key)).toEqual(["plan:local", "plan:routine", "plan:side"]);
+    expect(needsYouBySupervisor(items, "main").map((group) => [group.supervisor, group.items.map((item) => item.key)]))
+      .toEqual([["main", ["plan:local"]], ["routine-chat", ["plan:routine"]], ["side-chat", ["plan:side"]]]);
+  });
+
+  it("excludes another manager's pending plan from Main", () => {
+    const result = assistantEntries({ conversation: "main", main: "main", manager: "home",
+      plans: { home: { ...plan("home", "routine"), manager: "home" }, work: { ...plan("work", "work-chat"), manager: "work" } },
+      todos: [], sessions: [], interactions: [], feed: [],
+    });
+    expect(result.needsYou.map((item) => item.key)).toEqual(["plan:home"]);
+  });
+
+  it("keeps a side conversation scoped, including before Main is known", () => {
+    expect(entries("side-chat", "main").map((item) => item.key)).toEqual(["plan:side"]);
+    expect(entries("side-chat").map((item) => item.key)).toEqual(["plan:side"]);
+  });
+});
+
+
+it("keeps Health plans out of Main while retaining them in their own conversation", () => {
+ const plans: Record<string, TaskPlan> = { health: {id:"health",conversation:"health-chat",space:"health",state:"open",tasks:[]} };
+ const input = {main:"main",plans,todos:[],sessions:[],interactions:[],feed:[]};
+ expect(assistantEntries({...input,conversation:"main"}).needsYou).toEqual([]);
+ expect(assistantEntries({...input,conversation:"health-chat"}).needsYou.map((item)=>item.key)).toEqual(["plan:health"]);
 });

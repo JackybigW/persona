@@ -274,7 +274,7 @@ struct NewChatView: View {
     private var promptHint: String {
         if codexNeedsFirst { return String(localized: "What should Codex do? (Required: Codex starts a session only after the first message)") }
         if codex { return String(localized: "What should Codex do? (Optional: you can also send it later, here or in its terminal)") }
-        // Claude only for Claude Code: a Paseo provider such as Grok, TRAEX or a runtime's agent is just the agent (#8144).
+        // Claude only for Claude Code: a Paseo provider such as Grok, TRAE CLI or a runtime's agent is just the agent (#8144).
         if startAgent != "claude" { return String(localized: "What should the agent do? (Optional)") }
         return String(localized: "What should Claude do? (Optional)")
     }
@@ -331,15 +331,8 @@ struct NewChatView: View {
     }
 
     @ViewBuilder private var promptField: some View {
-        #if os(macOS)
-        // A grouped Mac form shows a titled field as label + trailing value: the prompt took the right half.
-        TextField(promptHint, text: $prompt, prompt: Text(promptHint), axis: .vertical)
-            .labelsHidden()
-            .lineLimit(3...10)
-        #else
         TextField(promptHint, text: $prompt, axis: .vertical)
             .lineLimit(3...10)
-        #endif
     }
 
     var body: some View {
@@ -611,14 +604,6 @@ struct NewChatView: View {
                     attachments.cancelUploads()
                     dismiss()
                 }
-                #if os(macOS)
-                // A Mac sheet's primary button sits beside Cancel and answers ⏎ (docs/apple/mac.md「Mapping from iOS」).
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(starting ? startingLabel : String(localized: "Start Chat")) { Task { await start() } }
-                        .lineLimit(1)
-                        .disabled(starting || loading || presetNeedsModels || !ready)
-                }
-                #endif
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: Theme.Space.s) {
@@ -704,9 +689,8 @@ struct NewChatView: View {
                 if prompt.isEmpty { prompt = initialPrompt }
                 if !forwardedAttached {
                     forwardedAttached = true
-                    for img in forwardedImages.prefix(MessagePhotos.limit) {
-                        if let p = MessagePhotos.payload(img) { attachments.images.append(p) }
-                    }
+                    // no computer picked yet: past the hub's pictures one is turned away with a word, never dropped silently
+                    for img in forwardedImages { attachments.add(img, model: model, to: nil) }
                 }
                 if let preset { machineID = preset.machineID; cwd = preset.cwd } else { pickDefaultMachine() }
             }
@@ -715,18 +699,18 @@ struct NewChatView: View {
             .onChange(of: machineID) { _, now in
                 attachments.computerChanged(to: now) { model.machine(MachineRef(path: $0))?.name }
             }
-            .photosPicker(isPresented: $showPhotos, selection: $photoPicks, maxSelectionCount: MessagePhotos.limit,
+            .photosPicker(isPresented: $showPhotos, selection: $photoPicks, maxSelectionCount: model.imageLimits(ref.group).perMessage,
                           matching: .images, preferredItemEncoding: .current)
             .onChange(of: photoPicks) { _, items in
                 guard !items.isEmpty else { return }
                 Task {
-                    await attachments.load(items, model: model)
+                    await attachments.load(items, model: model, to: ref)
                     photoPicks = []
                 }
             }
             .fileUploadPicker(isPresented: $showFiles) { urls in attachments.upload(urls, to: ref, model: model) }
             .fullScreenCover(isPresented: $showCamera) {
-                CameraPicker { img in attachments.add(img, model: model) }.ignoresSafeArea()
+                CameraPicker { img in attachments.add(img, model: model, to: ref) }.ignoresSafeArea()
             }
             #if DEBUG && (os(iOS) || os(visionOS))
             // `-openNewAgentAttachments photo,build.log`: once this computer's launchers are in, the made-up photo
@@ -736,7 +720,7 @@ struct NewChatView: View {
                 debugAttached = true
                 for name in list.split(separator: ",").map(String.init) {
                     if name == "photo" {
-                        attachments.add(ChatView.debugPhoto, model: model)
+                        attachments.add(ChatView.debugPhoto, model: model, to: ref)
                         continue
                     }
                     let url = FileManager.default.temporaryDirectory.appending(path: name)
@@ -771,12 +755,6 @@ struct NewChatView: View {
                 childSource = nil
             }
         }
-        #if os(macOS)
-        // On the stack, not its root: with the minimum size on the form, pushing Launcher / Folder shrank a sheet opened
-        // from Agents' New Session to the pushed list's own height, zero (#303). Also gives the grouped form to sheets
-        // that miss macLook's (Knowledge › Start Agent).
-        .macSheet()
-        #endif
     }
 
     private var launcherByHand: Binding<String> {
@@ -1217,6 +1195,25 @@ struct NewChatView: View {
             let name = tabName.trimmingCharacters(in: .whitespacesAndNewlines)
             // The first message: a todo's context block (when a todo is handed over), then what was typed.
             let outgoing = contextBlock.map { p.isEmpty ? $0 : "\($0)\n\n\(p)" } ?? p
+            if StartModes.terminalTraex(runEntry) {
+                let first = FirstMessage.text(prompt: prompt, contextBlock: contextBlock, paths: attachments.paths,
+                                              photos: attachments.images.count)
+                if !first.isEmpty && attachments.isEmpty {
+                    // A terminal Traex makes its own session from the inline prompt, as Android and the web start it.
+                    // Do not reuse Claude's pre-assigned id or send the text again as an ordinary message (#1842).
+                    let s = try await api.start(.init(machineID: ref.id, cwd: dir, launcher: runLauncher, agentType: "traex", prompt: first,
+                                                      workspaceID: targetPreset?.workspaceID, host: targetPreset?.host,
+                                                      model: sentModel, tabName: name.isEmpty ? nil : name,
+                                                      nameHint: nameHint ?? (p.isEmpty ? nil : p), todoID: todoID))
+                    UserDefaults.standard.set(launcher, forKey: "launcher.\(machineID)")
+                    UserDefaults.standard.set(cwd, forKey: "cwd.\(machineID)")
+                    record(setup)
+                    Haptics.success()
+                    model.adopt(s)
+                    onStarted(s)
+                    return
+                }
+            }
             if inlineFirst {
                 // Codex picks its thread's id once it has the first message: it goes with the start, which answers
                 // with that thread (one session, already working on it). With none, the start answers with Codex

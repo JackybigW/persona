@@ -11,10 +11,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import persona.core.navigation.InboxRoute
+import persona.core.navigation.LarkMessagesRoute
 import persona.core.navigation.Navigator
 import persona.core.contracts.api.ManagerPins
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import persona.core.inbox.*
 
 /** The shell supplies the chat Markdown renderer and its existing image viewer for external thread pictures. */
 typealias InboxPictureMarkdown = @Composable (String, ReplyImageSource, Modifier) -> Unit
@@ -24,19 +26,29 @@ internal val LocalInboxPictureMarkdown = staticCompositionLocalOf<InboxPictureMa
 internal fun InboxPictureText(text: String, source: ReplyImageSource?) {
     val pictures = LocalInboxPictureMarkdown.current
     if ("![" in text && source != null && pictures != null) pictures(text, source, Modifier)
-    else androidx.compose.material3.Text(text, style = persona.core.designsystem.PersonaTheme.type.body,
-        color = persona.core.designsystem.PersonaTheme.palette.ink)
+    else persona.core.designsystem.ReadingContent {
+        androidx.compose.material3.Text(text, style = persona.core.designsystem.PersonaTheme.type.body,
+            color = persona.core.designsystem.PersonaTheme.palette.ink)
+    }
 }
 
 val LocalInboxRepository = staticCompositionLocalOf<InboxRepository?> { null }
 internal val LocalInboxNavigator = staticCompositionLocalOf<Navigator?> { null }
 
 @Serializable @SerialName("persona.feature.inbox.LarkRoute")
-data class LarkRoute(val feedId: String, val itemId: String? = null, val startPosition: Long? = null) : NavKey
+data class LarkRoute(
+    val feedId: String,
+    val itemId: String? = null,
+    val startPosition: Long? = null,
+    /** Only the optional Messages browser may reuse its summary; Inbox and deep links keep their established lookup. */
+    val fromMessages: Boolean = false,
+) : NavKey
 
 fun EntryProviderScope<NavKey>.inboxEntries(
     navigator: Navigator,
     repository: InboxRepository? = null,
+    /** A real pairing is still assembling its repository; keep a restored route in loading rather than deleting it. */
+    larkMessagesLoading: Boolean = false,
     /** The hub's connectors (their threads and replies); null in demo mode: a connector's item opens its detail page. */
     connectors: persona.core.contracts.api.ConnectorsManagement? = null,
     mailTransport: persona.core.contracts.api.MailTransport? = null,
@@ -61,6 +73,16 @@ fun EntryProviderScope<NavKey>.inboxEntries(
             val opener = LocalLarkLinkOpener.current
             MailScreen(source, pinnedMail, route, navigator,
                 onMailAskAi, onMailOpenLink ?: { url -> opener?.invoke(url, null); Unit })
+        }
+    }
+    entry<LarkMessagesRoute> {
+        val source = repository ?: LocalInboxRepository.current ?: injectedInboxRepository()
+        val messages by source.larkMessages.collectAsStateWithLifecycle()
+        val connection by source.connectionState.collectAsStateWithLifecycle(
+            initialValue = persona.core.contracts.api.ConnectionState.Connecting,
+        )
+        CompositionLocalProvider(LocalInboxNavigator provides navigator, LocalInboxPictureMarkdown provides pictureMarkdown) {
+            messages?.let { LarkMessagesScreen(it, connection, navigator) } ?: LarkMessagesUnavailable(larkMessagesLoading)
         }
     }
     entry<LarkRoute> { route ->

@@ -12,7 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/nwverse/persona/server/internal/feishubot"
+	"github.com/nwverse/persona/server/internal/assistant/repository"
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/lazyre"
 	"github.com/nwverse/persona/server/internal/proto"
@@ -161,7 +162,11 @@ func stageOf(text string) (stage, pr string) {
 // advanceTaskReply handles progress and final answers identically, including the running-hub deploy check.
 func (s *Service) advanceTaskReply(ctx context.Context, t Todo, machine, session, text string) bool {
 	if urls := taskRepositoryReportLinks(text); len(urls) > 0 {
-		if err := s.importReportedLinks(ctx, t.ID, urls, "pull_request"); err != nil {
+		roleByURL := map[string]string{}
+		for raw := range referenceReportLinks(text, urls) {
+			roleByURL[raw] = repository.LinkRoleReference
+		}
+		if err := s.importReportedLinks(ctx, t.ID, urls, "pull_request", roleByURL); err != nil {
 			s.logf("task %s: repository links not saved: %v", t.ID, err)
 		}
 	}
@@ -290,6 +295,12 @@ func (s *Service) forgetTaskPR(ctx context.Context, id, pr, replacement string) 
 		return fmt.Errorf("task %s: stages could not be read", id)
 	}
 	cur := b.stages[id]
+	if replacement == "" {
+		if err := s.forgetReportedPRLinks(ctx, id); err != nil {
+			b.mu.Unlock()
+			return err
+		}
+	}
 	removed := cur.PR == pr
 	history := slices.DeleteFunc(slices.Clone(cur.PRs), func(p string) bool { return p == pr })
 	changed := removed || len(history) != len(cur.PRs)
@@ -343,6 +354,39 @@ func (s *Service) forgetTaskPR(ctx context.Context, id, pr, replacement string) 
 	return nil
 }
 
+// forgetReportedPRLinks removes the pull-request links imported from the task's reports, while preserving issue links
+// and every other kind of evidence. Revision-checked writes fail closed if the catalog changed meanwhile.
+func (s *Service) forgetReportedPRLinks(ctx context.Context, id string) error {
+	st, ok := s.store().(todoRepositoryStore)
+	if !ok {
+		return nil
+	}
+	set, err := st.TodoRepositories(ctx, id)
+	if err != nil {
+		return fmt.Errorf("task %s: read repository links to remove a non-PR: %w", id, err)
+	}
+	for _, row := range set.Repositories {
+		kept := make([]repository.LinkInput, 0, len(row.Links))
+		changed := false
+		for _, link := range row.Links {
+			if link.Kind == "pull_request" {
+				changed = true
+				continue
+			}
+			kept = append(kept, repository.LinkInput{URL: link.CanonicalURL, Kind: link.Kind, Number: link.Number, Title: link.Title})
+		}
+		if !changed {
+			continue
+		}
+		revision := set.Revision
+		if _, err := st.SetTodoRepositoryLinks(ctx, id, row.RepoID, repository.LinksInput{ExpectedRevision: &revision, Links: kept}); err != nil {
+			return fmt.Errorf("task %s: remove non-PR repository links: %w", id, err)
+		}
+		set.Revision++
+	}
+	return nil
+}
+
 // taskReport notes a change of task t for the next card. ix: what it asks (needs).
 func (s *Service) taskReport(t Todo, state, machine string, session [2]string, text string, ix *proto.Interaction) {
 	if t.Origin == "" || s.isLeaderRef(t.Origin) { // a task leader's worker is no task of the owner's chat (task_leader.go)
@@ -384,7 +428,7 @@ func (s *Service) setTaskStage(ctx context.Context, id, stage, pr string) {
 
 func (s *Service) setTaskStageKind(ctx context.Context, id, stage, pr, kind string, verified bool) {
 	if pr != "" {
-		if err := s.importReportedLinks(ctx, id, []string{pr}, ""); err != nil {
+		if err := s.importReportedLinks(ctx, id, []string{pr}, "", nil); err != nil {
 			s.logf("task %s: repository link not saved: %v", id, err)
 		}
 	}
@@ -613,13 +657,13 @@ func (s *Service) sendReports() {
 		}
 		return keep[i].todo < keep[j].todo // identical timestamps stay in a stable, repost-safe order
 	})
-	var cards []*feishubot.Card
+	var cards []*botcard.Card
 	var fallbacks []string
 	if f.ReportSteps {
 		cards, fallbacks = s.reportCards(ctx, keep)
 	} else {
 		c, fb := s.goalCard(ctx, keep)
-		cards, fallbacks = []*feishubot.Card{c}, []string{fb}
+		cards, fallbacks = []*botcard.Card{c}, []string{fb}
 	}
 	// A notifications companion takes the report (feishu_companions.go); the decisions' own cards, which answer for
 	// the owner, still go to the chat below.
@@ -655,7 +699,7 @@ func (it *reportItem) stuck() bool {
 
 // goalCard is the goal-level card for stuck tasks: for each, the goal, where it is now and one line of evidence with its
 // link (#3218). items are sorted; past goalCardMaxItems a line counts the rest.
-func (s *Service) goalCard(ctx context.Context, items []*reportItem) (*feishubot.Card, string) {
+func (s *Service) goalCard(ctx context.Context, items []*reportItem) (*botcard.Card, string) {
 	l, web := s.botLang(ctx), s.webBase(ctx)
 	names := s.feishuDirections(ctx)
 	var titles, lines []string
@@ -670,7 +714,7 @@ func (s *Service) goalCard(ctx context.Context, items []*reportItem) (*feishubot
 	}
 	status := i18n.T(l, "assistant-reports.goal_stuck_title", i18n.Args{"n": len(items)})
 	title := reportTitle(l, titles, status)
-	c := feishubot.NewCard(title, feishubot.Red, title).Tag(i18n.T(l, "assistant-reports.tag_stuck"), feishubot.Red)
+	c := botcard.NewCard(title, botcard.Red, title).Tag(i18n.T(l, "assistant-reports.tag_stuck"), botcard.Red)
 	for i, line := range lines {
 		if i > 0 {
 			c.HR()
@@ -696,7 +740,7 @@ func goalLines(l i18n.Lang, web string, t Todo, it *reportItem, direction string
 	if it.session[1] != "" && web != "" {
 		link = sessionLink(web, it.session[0], it.session[1], false)
 	}
-	evidence := feishubot.EscapeMarkdown(clip(oneLine(it.text), 80))
+	evidence := botcard.EscapeMarkdown(clip(oneLine(it.text), 80))
 	if link != "" {
 		a := "[" + i18n.T(l, "assistant-reports.goal_open") + "](" + link + ")"
 		evidence = strings.TrimSpace(evidence + " " + a)
@@ -704,7 +748,7 @@ func goalLines(l i18n.Lang, web string, t Todo, it *reportItem, direction string
 	if evidence == "" {
 		evidence = i18n.T(l, "assistant-reports.goal_no_evidence")
 	}
-	return i18n.T(l, "assistant-reports.goal_lines", i18n.Args{"goal": feishubot.EscapeMarkdown(direction + clip(oneLine(t.Title), 80)),
+	return i18n.T(l, "assistant-reports.goal_lines", i18n.Args{"goal": botcard.EscapeMarkdown(direction + clip(oneLine(t.Title), 80)),
 		"now": now, "evidence": evidence})
 }
 
@@ -774,11 +818,11 @@ func (s *Service) botCardOut(id string) bool {
 type reportEntry struct {
 	title   string
 	md      string
-	buttons []feishubot.Button
+	buttons []botcard.Button
 	bytes   int // marshaled JSON length of its Markdown block plus button row
 }
 
-func (s *Service) reportCards(ctx context.Context, items []*reportItem) ([]*feishubot.Card, []string) {
+func (s *Service) reportCards(ctx context.Context, items []*reportItem) ([]*botcard.Card, []string) {
 	l, web, stages := s.botLang(ctx), s.webBase(ctx), s.todoStages(ctx)
 	names := s.feishuDirections(ctx)
 	es, needs := make([]reportEntry, len(items)), 0
@@ -794,7 +838,7 @@ func (s *Service) reportCards(ctx context.Context, items []*reportItem) ([]*feis
 		}
 		md, buttons := s.reportItemView(l, web, stages, t, it, direction)
 		es[i] = reportEntry{title: title, md: md, buttons: buttons}
-		es[i].bytes = feishuElBytes(func(c *feishubot.Card) {
+		es[i].bytes = feishuElBytes(func(c *botcard.Card) {
 			c.Markdown(md)
 			if len(buttons) > 0 {
 				c.Buttons(buttons...)
@@ -802,9 +846,9 @@ func (s *Service) reportCards(ctx context.Context, items []*reportItem) ([]*feis
 		})
 	}
 	head1, headN := reportCardHeads(l, needs, len(items))
-	hr := feishuElBytes(func(c *feishubot.Card) { c.HR() })
+	hr := feishuElBytes(func(c *botcard.Card) { c.HR() })
 	segs := reportCardSegments(es, head1, headN, hr)
-	cards, fallbacks := make([]*feishubot.Card, 0, len(segs)), make([]string, 0, len(segs))
+	cards, fallbacks := make([]*botcard.Card, 0, len(segs)), make([]string, 0, len(segs))
 	offset := 0
 	for k, seg := range segs {
 		c, fb := reportCardOne(l, seg, k, len(segs), offset, needs, len(items))
@@ -814,8 +858,8 @@ func (s *Service) reportCards(ctx context.Context, items []*reportItem) ([]*feis
 }
 
 // feishuElBytes is the JSON length of add()'s elements; json.Marshal escapes &<>, Card.JSON does not, so it errs high.
-func feishuElBytes(add func(*feishubot.Card)) int {
-	c := feishubot.NewCard("", "", "")
+func feishuElBytes(add func(*botcard.Card)) int {
+	c := botcard.NewCard("", "", "")
 	add(c)
 	n := 0
 	for _, el := range c.Body.Elements {
@@ -843,11 +887,11 @@ func reportCardHeads(l i18n.Lang, needs, total int) (head1, headN int) {
 	if needs > 0 {
 		first = i18n.T(l, "assistant-reports.title_needs", i18n.Args{"n": needs}) + part
 	}
-	c1 := reportCardStart(l, first, feishubot.Orange)
+	c1 := reportCardStart(l, first, botcard.Orange)
 	c1.Markdown("**" + i18n.T(l, "assistant-reports.decide") + "**")
 	c1.Markdown("**" + i18n.T(l, "assistant-reports.progress") + "**")
 	plain := i18n.T(l, "assistant-reports.title", i18n.Args{"n": total}) + part
-	cN := reportCardStart(l, plain, feishubot.Blue)                    // suffix measured with the longest part too
+	cN := reportCardStart(l, plain, botcard.Blue)                      // suffix measured with the longest part too
 	cN.Markdown("**" + i18n.T(l, "assistant-reports.progress") + "**") // a progress label may land past card 1
 	// Each escaped rune in the new header and its 60-rune chat preview costs
 	// at most six JSON bytes (e.g. a control character).
@@ -878,10 +922,10 @@ func reportCardSegments(es []reportEntry, head1, headN, hr int) [][]reportEntry 
 }
 
 // reportCardOne builds one segment; k is its 0-based index of n, off its first item's global position.
-func reportCardOne(l i18n.Lang, seg []reportEntry, k, n, off, needs, total int) (*feishubot.Card, string) {
-	title, template := i18n.T(l, "assistant-reports.title", i18n.Args{"n": total}), feishubot.Blue
+func reportCardOne(l i18n.Lang, seg []reportEntry, k, n, off, needs, total int) (*botcard.Card, string) {
+	title, template := i18n.T(l, "assistant-reports.title", i18n.Args{"n": total}), botcard.Blue
 	if needs > 0 && k == 0 { // only the first card carries the decisions
-		title, template = i18n.T(l, "assistant-reports.title_needs", i18n.Args{"n": needs}), feishubot.Orange
+		title, template = i18n.T(l, "assistant-reports.title_needs", i18n.Args{"n": needs}), botcard.Orange
 	}
 	if n > 1 {
 		title += i18n.T(l, "assistant-reports.part", i18n.Args{"k": k + 1, "n": n})
@@ -910,25 +954,25 @@ func reportCardOne(l i18n.Lang, seg []reportEntry, k, n, off, needs, total int) 
 }
 
 // reportCardStart is a report card's header: its title, its colour (orange while it carries decisions) and its kind.
-func reportCardStart(l i18n.Lang, title, template string) *feishubot.Card {
-	return feishubot.NewCard(title, template, title).Tag(i18n.T(l, "assistant-reports.tag_report"), feishubot.Neutral)
+func reportCardStart(l i18n.Lang, title, template string) *botcard.Card {
+	return botcard.NewCard(title, template, title).Tag(i18n.T(l, "assistant-reports.tag_report"), botcard.Neutral)
 }
 
 // reportStateColors are the colours of an item's state tag: waiting for the owner orange, failed or cut off red, a
 // turn finished blue (the task goes on), done green.
-var reportStateColors = map[string]string{reportNeeds: feishubot.Orange, reportFailed: feishubot.Red,
-	reportInterrupted: feishubot.Red, reportDone: feishubot.Blue, reportClosed: feishubot.Green}
+var reportStateColors = map[string]string{reportNeeds: botcard.Orange, reportFailed: botcard.Red,
+	reportInterrupted: botcard.Red, reportDone: botcard.Blue, reportClosed: botcard.Green}
 
 // reportItemView renders one item's Markdown body and its link buttons (task page, PR, agent chat).
-func (s *Service) reportItemView(l i18n.Lang, web string, stages map[string]todoStage, t Todo, it *reportItem, direction string) (string, []feishubot.Button) {
+func (s *Service) reportItemView(l i18n.Lang, web string, stages map[string]todoStage, t Todo, it *reportItem, direction string) (string, []botcard.Button) {
 	var md strings.Builder
 	color := reportStateColors[it.state]
 	if color == "" {
-		color = feishubot.Neutral
+		color = botcard.Neutral
 	}
-	md.WriteString(feishubot.InlineTag(i18n.T(l, "assistant-reports.state_"+it.state), color) + " **" + feishubot.EscapeMarkdown(direction+clip(oneLine(t.Title), 40)) + "**")
+	md.WriteString(botcard.InlineTag(i18n.T(l, "assistant-reports.state_"+it.state), color) + " **" + botcard.EscapeMarkdown(direction+clip(oneLine(t.Title), 40)) + "**")
 	if it.machine != "" {
-		md.WriteString(" · " + feishubot.EscapeMarkdown(it.machine))
+		md.WriteString(" · " + botcard.EscapeMarkdown(it.machine))
 	}
 	if t.StageKind != "general" {
 		if t.Stage == "" {
@@ -939,20 +983,20 @@ func (s *Service) reportItemView(l i18n.Lang, web string, stages map[string]todo
 	if text := strings.TrimSpace(it.text); text != "" {
 		// Charts become numbers first, as the bot's answers and the briefing card do: clipMarkdown drops a persona-card
 		// block it cannot draw down to its title, so a chart in the answer would reach the owner without its numbers.
-		md.WriteString("\n" + feishubot.CardMarkdown(clipMarkdown(feishubot.PersonaCards(text), 300)))
+		md.WriteString("\n" + botcard.CardMarkdown(clipMarkdown(botcard.PersonaCards(text), 300)))
 	}
 	if it.state == reportNeeds {
 		md.WriteString("\n" + i18n.T(l, "assistant-reports.answer_below"))
 	}
-	var bs []feishubot.Button
+	var bs []botcard.Button
 	if link := todoLink(web, t.ID); link != "" {
-		bs = append(bs, feishubot.PageBtn(i18n.T(l, "assistant-reports.open_task"), link))
+		bs = append(bs, botcard.PageBtn(i18n.T(l, "assistant-reports.open_task"), link))
 	}
 	if pr := stages[t.ID].PR; pr != "" {
-		bs = append(bs, feishubot.LinkBtn(i18n.T(l, "assistant-reports.open_pr"), pr))
+		bs = append(bs, botcard.LinkBtn(i18n.T(l, "assistant-reports.open_pr"), pr))
 	}
 	if it.session[1] != "" && web != "" {
-		bs = append(bs, feishubot.PageBtn(i18n.T(l, "assistant-reports.open_agent"), sessionLink(web, it.session[0], it.session[1], false)))
+		bs = append(bs, botcard.PageBtn(i18n.T(l, "assistant-reports.open_agent"), sessionLink(web, it.session[0], it.session[1], false)))
 	}
 	return md.String(), bs
 }

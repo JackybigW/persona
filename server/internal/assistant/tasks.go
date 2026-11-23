@@ -74,6 +74,17 @@ type PlanTask struct {
 	Speed              string `json:"speed,omitempty"`
 	Tier               string `json:"tier,omitempty"`
 	Permission         string `json:"permission,omitempty"`
+	// StartPermission is the effective mode of the last started assignment, not a caller choice. It lets task_spawn
+	// recover that mode when an older node omits the live parent permission.
+	StartPermission string `json:"start_permission,omitempty"`
+	// CallerPermission is the permission the caller actually named: empty when it named none, before the card or a
+	// start settles Permission. Nil is an opaque legacy row whose Permission is retained rather than guessing its source.
+	// The hub owns this pointer; tool input cannot set it directly.
+	CallerPermission *string `json:"caller_permission,omitempty"`
+	// RetryFromAgent and RetryFromAllowAll describe the failed start's actual agent. They are hub-owned, refreshed for
+	// every retry, and persisted so queueing or a cross-machine reroute cannot reinterpret a machine-local launcher name.
+	RetryFromAgent    string `json:"retry_from_agent,omitempty"`
+	RetryFromAllowAll bool   `json:"retry_from_allow_all,omitempty"`
 	// Ultracode: the agent starts with Claude Code's ultracode on (#12). A pointer so that an edit from the card can
 	// turn it off, and one from a client that does not know it keeps the assistant's choice.
 	Ultracode *bool `json:"ultracode,omitempty"`
@@ -85,6 +96,11 @@ type PlanTask struct {
 	// OwnerStarted: the owner tapped Start on the plan's card (POST …/start), as against the hub starting it without
 	// asking; the hub's, never what a tool call or an edit says. What a suggested rule counts (rule_suggest.go, #4929).
 	OwnerStarted bool `json:"owner_started,omitempty"`
+	// MemoryTopic: the categories the plan's words were tagged with when they made it wait for the owner's Start
+	// (task_plan's confirmation decision, #13532): a start carries a sensitive memory entry only when it is OwnerStarted
+	// and this carries every one of the entry's categories (memory_handoff.go). The hub's: set when the plan is made,
+	// never what a tool call or an edit says.
+	MemoryTopic []string `json:"memory_topic,omitempty"`
 	// CloseTabOnAccept is set only by the owner's Start request.
 	CloseTabOnAccept   bool               `json:"close_tab_on_accept,omitempty"`
 	TerminalTarget     taskTerminalTarget `json:"terminal_target,omitzero"`
@@ -123,16 +139,16 @@ type PlanTask struct {
 	// StartedWhy: why the assistant starts this on its own, when the owner did not just ask for it.
 	StartedWhy string     `json:"started_why,omitempty"`
 	Brief      *TaskBrief `json:"brief,omitempty"`
-	// Supervisor: the leader conversation the main conversation handed the task to (task_plan's supervisor, #3608);
-	// "" the plan's own conversation supervises it, as before.
+	// Supervisor: optional initial direction lead chosen by main. Otherwise a planning lead supervises its own
+	// work and ordinary conversations use main. The durable task ledger takes precedence after a transfer.
 	Supervisor string `json:"supervisor,omitempty"`
 	// ReuseTodo: the todo this task runs on instead of a new one (task_plan's todo_id, #5279): one this conversation
 	// opened that has no agent yet, such as the todo a Lark topic opened (feishu_thread_open.go). Checked when the
 	// plan is made and again when it starts; it is not what the apps send back with an edit.
 	ReuseTodo string `json:"reuse_todo,omitempty"`
-	// Role: "leader" makes the task's agent a task leader that may hand out workers beneath this task (task_leader.go,
-	// #3656); "" is an ordinary worker. Only a supervising conversation's task_plan sets it. Parent: the leader's task
-	// this task is a worker of; the hub's, never what a tool call or an edit says.
+	// Role: every new task declares "worker" or "leader". A leader may hand out workers beneath its task
+	// (task_leader.go, #3656); a role-less task in a legacy stored plan remains an ordinary worker. Parent: the
+	// leader's task this task is a worker of; the hub's, never what a tool call or an edit says.
 	Role   string `json:"role,omitempty"`
 	Parent string `json:"parent,omitempty"`
 	// PartOf and After: the request the task's to-do is a piece of and the pieces of it the to-do waits for
@@ -144,6 +160,9 @@ type PlanTask struct {
 	// Project: the knowledge-base project the task's todo goes in (#2581, todo_project.go), checked and kept as its slug
 	// when the plan is made; "" for none.
 	Project string `json:"project,omitempty"`
+	// SkipProjectMemory omits the automatic project/direction handoff for this start only. It is persisted so queued
+	// starts, retries and reloads keep the caller's choice; the assignment and to-do decisions are unaffected (#13538).
+	SkipProjectMemory bool `json:"skip_project_memory,omitempty"`
 	// Attachments: pictures and files the user gave the assistant for this task, by their paths on AttachFrom, the
 	// assistant's computer (#2437, attachments.go); Mentioned: those of them the prompt names by path without listing
 	// them. Checked when the plan is made; copied to the task's computer when it starts. AttachFrom and Mentioned are
@@ -193,18 +212,24 @@ type PlanTask struct {
 	rememberKind bool
 	// task_spawn preserves the caller's mode instead of applying a fresh task's Claude-family permission default.
 	preservePermission bool
-	// A spawned session can inherit a known launcher default even when agent.new configures another model.
-	launcherDefaultModel bool
+	// LauncherDefaultModel selects the launcher's own model instead of a matching Agents binding. It is hub-owned:
+	// task_spawn sets it for an explicitly empty parent model, and a launcher-only retry override sets it too. Its
+	// absence on a legacy plan keeps that row's opaque launch unchanged.
+	LauncherDefaultModel bool `json:"launcher_default_model,omitempty"`
 	// planFirst: start defaults asked for the self-planning constraint in the prompt (start_defaults.go); never
 	// serialized, this try only.
 	planFirst bool
 	// callerPick: the launcher, model, effort, tier, permission mode and ultracode the task named itself, kept from its
 	// first start try in this process, so every try starts from them again whichever start-defaults rule fits it.
-	// Never serialized: the task as stored keeps its own value for whatever a policy filled in (storedLaunch).
+	// Never serialized: the task as stored keeps its own launch, not what a tier, Model configuration › Agents or a
+	// policy filled in for a start (storedLaunch, #12618).
 	callerPick *startPick
 	// startFilled: what the start-defaults policy filled in on this start try (start_defaults.go): the next try goes
 	// back to callerPick first, and the plan keeps the task's own value for exactly those. Never serialized.
 	startFilled startFill
+	// startNamed: what this start try put in place of the launch resolved for the task, which the task names from then
+	// on as its card shows it (storedLaunch). Never serialized; this try only.
+	startNamed startNamed
 	// startedAgent is the kind this start's answer reported, or the explicitly resolved launcher kind when that answer omitted it.
 	// Kept only until the Agent is linked; never serialized.
 	startedAgent string
@@ -227,6 +252,7 @@ func (t *PlanTask) normalizeReadonlyPermission(mode string) {
 
 // TaskPlan is a plan the assistant handed the user.
 type TaskPlan struct {
+	Space        string     `json:"space,omitempty"`
 	ID           string     `json:"id"`
 	Conversation string     `json:"conversation"`
 	Tasks        []PlanTask `json:"tasks"`
@@ -342,6 +368,10 @@ type tasksState struct {
 	// the task's agent link or failure is recorded.
 	workspaceMu     sync.Mutex
 	workspaceClaims map[string]string
+	// workspaceQueueMu serializes deterministic FIFO dequeues for occupied existing workspaces (task_workspace_queue.go).
+	workspaceQueueMu     sync.Mutex
+	workspaceDispatching map[string]bool
+	lastWorkspaceQueueAt time.Time
 	// turns: the turns completion handling took up, kept in the database (task_turns.go).
 	turns turnsState
 	// quiet: the verdicts on task Agents' turns with no output, and the agents Persona's Stop interrupted (silent_turns.go).
@@ -352,7 +382,8 @@ func newTasksState() tasksState {
 	return tasksState{recoverBefore: time.Now(), plans: map[string]*TaskPlan{}, feed: map[string][]FeedItem{},
 		working: map[string]time.Time{}, receipted: map[string]time.Time{}, retrying: map[string]*taskStart{},
 		outcomes: map[string]time.Time{}, reusing: map[string]bool{}, taking: map[string]*taskStart{}, sendsOut: map[[2]string]*sendsOut{},
-		sendsRetryAfter: sendsRetryEvery,
+		workspaceDispatching: map[string]bool{},
+		sendsRetryAfter:      sendsRetryEvery,
 		turns: turnsState{again: map[string]bool{}, looked: map[turnRecoveryKey]turnLook{}, recovering: map[string]bool{}, tries: map[string]int{},
 			retry:   map[turnRecoveryKey]turnRetry{},
 			judging: map[string]int{}, closed: map[SessionRef]turnLook{}}}
@@ -432,7 +463,15 @@ func planFromRow(row db.TaskPlanRow) *TaskPlan {
 }
 
 // movePlan moves p from state from to its State with its Tasks; false when someone else moved it first.
-func (s *Service) movePlan(ctx context.Context, p *TaskPlan, from string) (bool, error) {
+func (s *Service) movePlan(ctx context.Context, p *TaskPlan, from string) (moved bool, err error) {
+	if from == planOpen && p.State != planOpen {
+		// the card is decided (started, not started, withdrawn): its push leaves the phones it went to (planPushOver)
+		defer func() {
+			if moved && err == nil {
+				s.planPushOver(p.ID)
+			}
+		}()
+	}
 	p.UpdatedAt = time.Now().UTC()
 	st := s.store()
 	if st == nil {
@@ -474,7 +513,7 @@ func (s *Service) patchPlanTask(ctx context.Context, planID string, i int, chang
 			return errPlanNotFound
 		}
 		if err == nil && row != nil {
-			s.event(ctx, map[string]any{"type": "task_plan", "plan": planFromRow(*row)})
+			s.event(ctx, map[string]any{"type": "task_plan", "plan": s.planWithSpace(ctx, planFromRow(*row))})
 		}
 		return err
 	}
@@ -489,7 +528,7 @@ func (s *Service) patchPlanTask(ctx context.Context, planID string, i int, chang
 	if ok, err := s.movePlan(ctx, p, planStarted); err != nil || !ok {
 		return err
 	}
-	s.event(ctx, map[string]any{"type": "task_plan", "plan": p})
+	s.event(ctx, map[string]any{"type": "task_plan", "plan": s.planWithSpace(ctx, p)})
 	return nil
 }
 
@@ -865,7 +904,7 @@ func (s *Service) taskRoutes() {
 			planErr(w, err)
 			return
 		}
-		apierr.WriteJSON(w, map[string]any{"plan": p})
+		apierr.WriteJSON(w, map[string]any{"plan": s.planWithSpace(r.Context(), p)})
 	})
 	s.handle("POST /api/v1/task-plans/{id}/dismiss", func(w http.ResponseWriter, r *http.Request) {
 		if !fullRole(r) {
@@ -873,11 +912,19 @@ func (s *Service) taskRoutes() {
 			return
 		}
 		p, err := s.dismissPlan(r.Context(), r.PathValue("id"))
+		// Don't Start on a card already started, dismissed or withdrawn elsewhere (another device, the conversation's
+		// task_plan_withdraw) while no event reached this client: answer with the plan as it is, so the client's card
+		// shows what happened instead of a 409 the user can only tap again (an iOS app held such a card until restarted).
+		if errors.Is(err, errPlanNotOpen) {
+			if cur, lerr := s.loadPlan(r.Context(), r.PathValue("id")); lerr == nil && cur.State != planOpen {
+				p, err = cur, nil
+			}
+		}
 		if err != nil {
 			planErr(w, err)
 			return
 		}
-		apierr.WriteJSON(w, map[string]any{"plan": p})
+		apierr.WriteJSON(w, map[string]any{"plan": s.planWithSpace(r.Context(), p)})
 	})
 	s.handle("POST /api/v1/todos/{id}/retry", func(w http.ResponseWriter, r *http.Request) {
 		if !fullRole(r) {
@@ -926,6 +973,11 @@ func (s *Service) taskRoutes() {
 			apierr.Write(w, http.StatusBadRequest, errFeedCursor)
 			return
 		}
+		ext := r.Header.Get(RoleHeader) == roleExtension
+		if ext && s.feedHiddenFromExtension(r.Context(), r.PathValue("id")) { // feed_scope.go
+			apierr.Write(w, http.StatusNotFound, errNoSuchConversation)
+			return
+		}
 		var items []FeedItem
 		var nextCursor string
 		var err error
@@ -943,8 +995,28 @@ func (s *Service) taskRoutes() {
 			return
 		}
 		plans := s.feedPlans(r.Context(), items)
+		var pendingIDs []string
+		// Main watches pending plans from every conversation of this manager. Extension
+		// tokens retain their existing conversation-only feed and visibility rules.
+		if !ext && r.PathValue("id") == s.settings(r.Context()).Main {
+			pending, readErr := s.mainPendingPlans(r.Context())
+			if readErr != nil {
+				apierr.Write(w, http.StatusServiceUnavailable, readErr)
+				return
+			}
+			pendingIDs = make([]string, 0, len(pending))
+			for _, p := range pending {
+				pendingIDs = append(pendingIDs, p.ID)
+				plans[p.ID] = p
+			}
+		}
+
+		var shown func(TaskCard) bool
+		if ext {
+			items, plans, shown = s.extensionFeed(r.Context(), items, plans)
+		}
 		for id, p := range plans {
-			plans[id] = s.planWithSuggestion(r.Context(), p, s.requestLang(r))
+			plans[id] = s.planWithSpace(r.Context(), s.planWithSuggestion(r.Context(), p, s.requestLang(r)))
 		}
 		if items == nil {
 			items = []FeedItem{}
@@ -968,7 +1040,13 @@ func (s *Service) taskRoutes() {
 		if cardErr != nil {
 			s.logf("feed: task card projection: %v", cardErr)
 		}
+		if shown != nil && cards != nil {
+			cards = slices.DeleteFunc(cards, func(c TaskCard) bool { return !shown(c) })
+		}
 		out := map[string]any{"items": items, "plans": plans, "task_cards": cards, "views": views, "view_actions": actions, "view_blocks": blocks}
+		if pendingIDs != nil {
+			out["pending_plan_ids"] = pendingIDs
+		}
 		if paginated {
 			out["next_cursor"] = nextCursor
 		}

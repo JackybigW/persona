@@ -25,6 +25,7 @@ TEST_ONLY_TARGET_EXCEPTIONS = {
 TEST_ONLY_SCHEME_EXCEPTIONS = {
     'AboutVersionAccessibilityHost': 'Runs only the standalone About row accessibility UI tests (#11150).',
     'AboutVersionVisualTests': 'Builds PersonaTests without PersonaUITests for About row visual comparisons (#11150).',
+    'PersonaOfflineUnitTests': 'Builds and runs offline PersonaTests without PersonaUITests (#12474).',
 }
 
 
@@ -100,7 +101,7 @@ class AppleRenameTests(unittest.TestCase):
 
     def test_about_version_test_only_exceptions_are_narrow_and_reasoned(self):
         expected_targets = {'AboutVersionAccessibilityHost', 'AboutVersionAccessibilityUITests'}
-        expected_schemes = {'AboutVersionAccessibilityHost', 'AboutVersionVisualTests'}
+        expected_schemes = {'AboutVersionAccessibilityHost', 'AboutVersionVisualTests', 'PersonaOfflineUnitTests'}
         for exceptions, expected in ((TEST_ONLY_TARGET_EXCEPTIONS, expected_targets),
                                      (TEST_ONLY_SCHEME_EXCEPTIONS, expected_schemes)):
             self.assertEqual(set(exceptions), expected)
@@ -122,8 +123,10 @@ class AppleRenameTests(unittest.TestCase):
             'Persona/Intents/AskPersonaIntent.swift': ['AskPersonaIntent'],
             'Persona/Intents/PersonaStatusIntent.swift': ['PersonaStatusIntent'],
             'Persona/Intents/PersonaShortcuts.swift': ['PersonaShortcuts'],
-            'PersonaWidgets/PersonaControls.swift': ['AskPersonaControl', 'PersonaAgentsControl', 'DictatePersonaControl'],
-            'LiveActivity/PersonaControlIntents.swift': ['OpenPersonaAssistantIntent', 'OpenPersonaAgentsIntent', 'OpenPersonaDictationIntent'],
+            'PersonaWidgets/PersonaControls.swift': ['AskPersonaControl', 'PersonaAgentsControl', 'DictatePersonaControl',
+                                                     'CallPersonaControl'],
+            'LiveActivity/PersonaControlIntents.swift': ['OpenPersonaAssistantIntent', 'OpenPersonaAgentsIntent',
+                                                         'OpenPersonaDictationIntent', 'OpenPersonaCallIntent'],
             'LiveActivity/PersonaActivityAttributes.swift': ['PersonaActivityAttributes'],
         }
         for path, names in expected.items():
@@ -135,6 +138,7 @@ class AppleRenameTests(unittest.TestCase):
         self.assertIn('kind: "persona.control.ask"', controls)
         self.assertIn('kind: "persona.control.agents"', controls)
         self.assertIn('kind: "persona.control.dictate"', controls)
+        self.assertIn('kind: "persona.control.call"', controls)
         info = plistlib.loads((APPLE / 'PersonaNotify/Info.plist').read_bytes())
         self.assertEqual(info['NSExtension']['NSExtensionPrincipalClass'], '$(PRODUCT_MODULE_NAME).NotificationService')
         self.assertIn('PersonaPushKeychainGroup', info)
@@ -181,7 +185,8 @@ class AppleRenameTests(unittest.TestCase):
         selection = root.split('private var usesShell: Bool {', 1)[1].split('\n    }', 1)[0]
         self.assertRegex(selection, r'#if os\(visionOS\)[\s\S]*?return false')
         # Active compact width still selects the shell; #2836 holds that width while iOS snapshots the app away.
-        self.assertRegex(selection, r'#elseif os\(iOS\)\s+return \(heldWidthClass \?\? widthClass\) == \.compact \|\| flipped\s+#else\s+return false')
+        # No other platform since the Mac app went (#13611): iOS is the last branch.
+        self.assertRegex(selection, r'#elseif os\(iOS\)\s+return \(heldWidthClass \?\? widthClass\) == \.compact \|\| flipped\s+#endif')
         # The Sidebar layout when it is chosen, at every width (#6332: the drawer on a phone, the column at regular width);
         # otherwise the shell at compact width, else the tabs. Nothing picked is Merged where wide and the shell at compact
         # width (#4206, NavigationLayout.effective).

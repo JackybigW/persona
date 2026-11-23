@@ -7,6 +7,7 @@ import {
   buildLauncher,
   extractEfforts,
   normalizeModels,
+  parseAcpEffortOptions,
   parseAcpModelOptions,
   parseCliModels,
   qualifyModelId,
@@ -32,6 +33,18 @@ test('stripJsonc and readConfiguredModel handle comments, trailing commas, and U
     writeFileSync(join(dir, 'opencode.jsonc'), raw)
     assert.equal(readConfiguredModel({ configDir: dir }), 'opencode-go/claude-sonnet-4-6')
     assert.equal(readConfiguredModel({ configDir: join(dir, 'missing') }), '')
+
+    const withCommaBracesInStrings = `{
+      "pattern": "\\",}",
+      "items": "[a, b,]",
+      "model": "opencode-go/claude-sonnet-4-6", // trailing comma before comment
+    }`
+    const parsedStrings = JSON.parse(stripJsonc(withCommaBracesInStrings))
+    assert.equal(parsedStrings.pattern, '",}')
+    assert.equal(parsedStrings.items, '[a, b,]')
+    assert.equal(parsedStrings.model, 'opencode-go/claude-sonnet-4-6')
+    writeFileSync(join(dir, 'opencode.jsonc'), withCommaBracesInStrings)
+    assert.equal(readConfiguredModel({ configDir: dir }), 'opencode-go/claude-sonnet-4-6')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -130,6 +143,11 @@ test('resolveModel handles provider/model, nested slashes, provider:model, bare 
     providerID: 'openrouter',
     modelID: 'anthropic/claude-3.7-sonnet',
   })
+  assert.deepEqual(resolveModel('openrouter:anthropic/claude-3.7-sonnet', catalog), {
+    id: 'openrouter/anthropic/claude-3.7-sonnet',
+    providerID: 'openrouter',
+    modelID: 'anthropic/claude-3.7-sonnet',
+  })
   assert.deepEqual(resolveModel('gpt-5', catalog), {
     id: 'openai/gpt-5',
     providerID: 'openai',
@@ -155,4 +173,49 @@ test('buildLauncher populates name, display_name, agent, model, and models', () 
     model: 'opencode-go/gpt-5',
     models,
   })
+})
+
+test('resolveModel matches bare IDs containing colons or slashes and rejects ambiguous bare IDs across providers', () => {
+  const catalog = [
+    { id: 'ollama/llama3:8b', name: 'ollama/Llama 3 8B' },
+    { id: 'openrouter/anthropic/claude-x', name: 'openrouter/Claude X' },
+    { id: 'openai/gpt-5', name: 'openai/GPT-5', default: true },
+    { id: 'openrouter/gpt-5', name: 'openrouter/GPT-5' },
+  ]
+  assert.deepEqual(resolveModel('llama3:8b', catalog), {
+    id: 'ollama/llama3:8b',
+    providerID: 'ollama',
+    modelID: 'llama3:8b',
+  })
+  assert.deepEqual(resolveModel('anthropic/claude-x', catalog), {
+    id: 'openrouter/anthropic/claude-x',
+    providerID: 'openrouter',
+    modelID: 'anthropic/claude-x',
+  })
+  assert.throws(
+    () => resolveModel('gpt-5', catalog),
+    (err) => err.code === 'bad_request' && err.message.includes('openai/gpt-5') && err.message.includes('openrouter/gpt-5'),
+  )
+  // Unknown colon-bearing string with non-provider prefix is rejected rather than turned into a bogus provider.
+  assert.throws(
+    () => resolveModel('unknown-tag:8b', catalog),
+    (err) => err.code === 'bad_request',
+  )
+})
+
+test('parseAcpEffortOptions extracts variant/reasoning_effort/thought_level options and normalizeModels separates explicitDefault', () => {
+  const parsed = parseAcpEffortOptions([
+    { id: 'mode', category: 'mode', currentValue: 'build', options: [] },
+    {
+      id: 'variant',
+      category: 'reasoning',
+      currentValue: 'high',
+      options: [{ value: 'low' }, { value: 'high' }, { value: 'custom' }],
+    },
+  ])
+  assert.deepEqual(parsed, { configId: 'variant', currentEffort: 'high', efforts: ['low', 'high'] })
+
+  const noDefault = normalizeModels([{ providerID: 'p', id: 'm1' }, { providerID: 'p', id: 'm2' }])
+  assert.equal(noDefault.explicitDefault, '')
+  assert.equal(noDefault.defaultModel, 'p/m1')
 })

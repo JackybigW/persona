@@ -6,7 +6,10 @@
 // The switch stays within its header slots; History is a destination under Agents (#10240).
 import { href, onLinkClick, type Route } from "../lib/router";
 import { useScopedCounts } from "../lib/current-assistant";
+import { heldOnlyNeeds } from "../lib/attention";
 import { othersWaiting } from "../lib/sessions";
+import { supervisorHeldOnly } from "../lib/supervisor-held";
+import { useStore } from "../lib/store";
 import type { Session } from "../lib/types";
 import { cx, IconButton } from "../ui/atoms";
 import { HEADER_SLOT, HEADER_SLOT_END, HEADER_SLOT_START } from "./chat/header";
@@ -31,7 +34,9 @@ function WaitingBadge({ count, className }: { count: number; className?: string 
  *  off where the header's switch already shows that number. */
 export function ChatSidebarButton({ session, counted, onClick }: { session?: Session; counted: boolean; onClick: () => void }) {
   const { badge, quietCounted } = useScopedCounts();
-  const waiting = counted ? othersWaiting(badge, session, quietCounted) : 0;
+  // left out of the badge already: graded to wait, or waiting only on cards its task's supervisor holds
+  const held = useStore((s) => !!session && ((Boolean(s.pushGrading) && heldOnlyNeeds(session, s.interactions)) || supervisorHeldOnly(s.interactions).has(`${session.machine_id}/${session.session_id}`)));
+  const waiting = counted ? othersWaiting(badge, session, quietCounted, held) : 0;
   const label = t("chat-chatview.sidebar");
   return (
     <span className="relative flex shrink-0 lg:hidden">

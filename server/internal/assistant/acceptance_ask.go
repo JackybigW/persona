@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwverse/persona/server/internal/feishubot"
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/prompts"
 )
@@ -110,9 +110,8 @@ func (s *Service) assistantAccepts(ctx context.Context, t Todo, a acceptAsk) {
 // NoCard), for retryAcceptance.
 func (s *Service) postAsk(ctx context.Context, t Todo, a acceptAsk) bool {
 	b := &s.accept
-	if a.Conclusion && !a.ForBriefing {
-		// The accepted task is already closed. Keep its complete conclusion and round key before any provider call:
-		// a manager exit inside that call must leave retryAcceptance something to deliver (#10393).
+	if !a.ForBriefing && (a.Conclusion || t.Supervision.state(t) == reviewUserCheck) {
+		// Keep the complete ask and its key before a provider call so a restart can retry the same card (#10393).
 		b.mu.Lock()
 		if c := b.asks[t.ID]; c != nil && c.AskedAt.IsZero() {
 			a.Earlier = c.Earlier
@@ -125,7 +124,7 @@ func (s *Service) postAsk(ctx context.Context, t Todo, a acceptAsk) bool {
 		}
 		b.mu.Unlock()
 		if err != nil {
-			s.logf("task %s: conclusion: save before send: %v (tried again on the next tick)", t.ID, err)
+			s.logf("task %s: acceptance: save before send: %v (tried again on the next tick)", t.ID, err)
 			return false
 		}
 	}
@@ -225,7 +224,7 @@ func (s *Service) acceptLines(ctx context.Context, t Todo, machine, session, rep
 
 // acceptCard is the "Please verify" card (again: the morning's reminder), or how it ended (accepted): the verdict line on
 // top, then the three lines. A conclusion has its own card (conclusionCard).
-func (s *Service) acceptCard(ctx context.Context, t Todo, a acceptAsk, again bool) *feishubot.Card {
+func (s *Service) acceptCard(ctx context.Context, t Todo, a acceptAsk, again bool) *botcard.Card {
 	if a.Conclusion {
 		return s.conclusionCard(ctx, t, a)
 	}
@@ -235,24 +234,28 @@ func (s *Service) acceptCard(ctx context.Context, t Todo, a acceptAsk, again boo
 		head = "assistant-reports.accept_again"
 	}
 	title := s.feishuDirection(ctx, t, s.feishuDirections(ctx)) + i18n.T(l, head, i18n.Args{"task": clip(oneLine(t.Title), 30)})
-	color := feishubot.Orange // the owner is to check it
+	color := botcard.Orange // the owner is to check it
 	if !a.AcceptedAt.IsZero() {
-		color = feishubot.Grey
+		color = botcard.Grey
 	}
-	c := feishubot.NewCard(title, color, title).Tag(i18n.T(l, "assistant-reports.tag_accept"), feishubot.Neutral)
+	c := botcard.NewCard(title, color, title).Tag(i18n.T(l, "assistant-reports.tag_accept"), botcard.Neutral)
 	link := i18n.T(l, "assistant-reports.accept_no_link")
 	if a.Link != "" {
-		link = "[" + feishubot.EscapeMarkdown(clip(a.Link, 80)) + "](" + a.Link + ")"
+		link = "[" + botcard.EscapeMarkdown(clip(a.Link, 80)) + "](" + a.Link + ")"
 	}
-	c.Markdown("**" + feishubot.EscapeMarkdown(verdictText(l, &a)) + "**")
-	c.Markdown(i18n.T(l, "assistant-reports.accept_lines", i18n.Args{"changed": feishubot.EscapeMarkdown(a.Changed), "link": link,
-		"how": feishubot.EscapeMarkdown(a.How)}))
+	c.Markdown("**" + botcard.EscapeMarkdown(verdictText(l, &a)) + "**")
+	how := a.How
+	if how == "" {
+		how = i18n.T(l, "assistant-reports.accept_how_default")
+	}
+	c.Markdown(i18n.T(l, "assistant-reports.accept_lines", i18n.Args{"changed": botcard.EscapeMarkdown(a.Changed), "link": link,
+		"how": botcard.EscapeMarkdown(how)}))
 	if !a.AcceptedAt.IsZero() {
 		return c.Note(acceptedNote(l, &a))
 	}
-	bs := []feishubot.Button{feishubot.Btn(i18n.T(l, "assistant-reports.accept_pass"), feishubot.Primary, map[string]any{"a": "accept", "id": t.ID})}
+	bs := []botcard.Button{botcard.Btn(i18n.T(l, "assistant-reports.accept_pass"), botcard.Primary, map[string]any{"a": "accept", "id": t.ID})}
 	if a.Link != "" {
-		bs = append(bs, feishubot.LinkBtn(i18n.T(l, "assistant-reports.accept_open"), a.Link))
+		bs = append(bs, botcard.LinkBtn(i18n.T(l, "assistant-reports.accept_open"), a.Link))
 	}
 	c.Buttons(bs...)
 	return c.Note(i18n.T(l, "assistant-reports.accept_reply_hint"))

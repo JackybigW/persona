@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { startFakeNode, until } from '../../runtime-sdk/testing/fake-node.js'
 import { toAgyId } from '../lib/map.js'
@@ -30,6 +31,40 @@ async function fixture(t, options = {}) {
   const request = (method, session) => calls().findLast((entry) => entry.method === method && entry.params?.sessionId === toAgyId(session))
   return { node, runtime, assistantDir, calls, pids, start, call, request }
 }
+
+test('Assistant context is embedded data, never a slash command appended to the first or next request', async (t) => {
+  const { calls, start, call, request } = await fixture(t)
+  const session = await start({ assistant: true })
+  // Task titles in a snapshot can mention commands for completely different conversations.
+  const snapshot = '<persona-context>\n- Fix an update offer before /compact and preserve /model picks.\n</persona-context>'
+  const messages = ['Check whether this provider supports a usage source.', 'Keep the existing provider configuration.']
+  for (const [index, text] of messages.entries()) {
+    await call('send', session, { assistant: true, text, context: snapshot })
+    await until('prompt completed', () => calls().filter((entry) => entry.ended === toAgyId(session)).length === index + 1)
+    const blocks = request('session/prompt', session).params.prompt
+    assert.deepEqual(blocks, [
+      { type: 'resource', resource: { uri: 'persona-context:///snapshot.txt', mimeType: 'text/plain', text: snapshot } },
+      { type: 'text', text },
+    ])
+    assert.equal(blocks.filter((block) => block.type === 'text').some((block) => block.text.includes('/compact')), false)
+  }
+  // The owner's explicit native command still travels alone and can be interpreted by agy.
+  await call('send', session, { assistant: true, text: '/compact' })
+  await until('manual command completed', () => calls().filter((entry) => entry.ended === toAgyId(session)).length === 3)
+  assert.deepEqual(request('session/prompt', session).params.prompt, [{ type: 'text', text: '/compact' }])
+})
+
+test('plain Assistant snapshots are wrapped as resource content without changing user whitespace', async (t) => {
+  const { calls, start, call, request } = await fixture(t)
+  const session = await start({ assistant: true })
+  const text = '  First request.\nKeep this line.  '
+  await call('send', session, { assistant: true, text, context: '  A note about /compact in another task.  ' })
+  await until('prompt completed', () => calls().some((entry) => entry.ended === toAgyId(session)))
+  assert.deepEqual(request('session/prompt', session).params.prompt, [
+    { type: 'resource', resource: { uri: 'persona-context:///snapshot.txt', mimeType: 'text/plain', text: '<persona-context>\nA note about /compact in another task.\n</persona-context>' } },
+    { type: 'text', text },
+  ])
+})
 
 test('Agents share their own worker; a stall, recycle, or crash there does not interrupt an Assistant', async (t) => {
   const { node, runtime, assistantDir, calls, pids, start, call, request } = await fixture(t, { promptInactivityMs: 200 })
@@ -124,6 +159,19 @@ test('an unexpected Assistant worker exit clears just its PID; the next send res
   await until('closed worker removed', () => !pids()[crashed])
   assert.deepEqual(pids(), { [stable]: stablePID })
   assert.throws(() => process.kill(restarted, 0), { code: 'ESRCH' })
+})
+
+// An Assistant that supervises Agents in this companion hears from them when their turns end: its worker stays warm
+// while one runs, and the idle timeout counts from the end of the last (#13471).
+test('an Agent turn running in this companion keeps idle Assistant workers warm', async (t) => {
+  const { pids, start, call, assistantDir } = await fixture(t, { assistantAcpIdleMs: 350, promptInactivityMs: 0 })
+  const agent = await start({ prompt: 'hold' })
+  const assistant = await start({ cwd: assistantDir })
+  const worker = await until('assistant worker reported', () => pids()[assistant])
+  await delay(1500)
+  assert.equal(pids()[assistant], worker, 'the idle Assistant worker was retired while an Agent turn ran')
+  assert.equal((await call('interrupt', agent)).settled, true)
+  await until('assistant worker retired after the Agent turn', () => !pids()[assistant], 5000)
 })
 
 test('a send during idle retirement waits for the old worker to exit before starting a replacement', async (t) => {

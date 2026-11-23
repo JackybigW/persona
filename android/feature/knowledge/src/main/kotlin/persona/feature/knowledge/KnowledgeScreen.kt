@@ -58,6 +58,7 @@ import persona.core.contracts.AgentState
 import persona.core.contracts.Machine
 import persona.core.contracts.Session
 import persona.core.contracts.api.*
+import persona.core.contracts.isTraeCliId
 import persona.core.navigation.AppTab
 import persona.core.navigation.ChatRoute
 import persona.core.navigation.ConversationKind
@@ -72,7 +73,6 @@ import java.time.OffsetDateTime
 import androidx.annotation.StringRes
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /** Timeline lines shown before "Show all", related entries of one kind before "All" (as iOS and the old app). */
 private const val LOG_SHOWN = 6
@@ -456,7 +456,9 @@ internal fun KnowledgeDetailScreen(
                     if (profileText.isNotBlank()) item("profile", contentType = "markdown") {
                         JSectionHeader(stringResource(if (recording) R.string.knowledge_recording_summary else R.string.knowledge_profile))
                         JGroupItem(GroupPosition.Single) {
-                            Box(Modifier.padding(horizontal = rowPadding, vertical = Tokens.Space.m)) { KnowledgeMarkdown(profileText) }
+                            Box(Modifier.padding(horizontal = rowPadding, vertical = Tokens.Space.m)) {
+                                ReadingContent { KnowledgeMarkdown(profileText) }
+                            }
                         }
                     }
                     facts?.let { recordingBookmarks(it) }
@@ -476,7 +478,7 @@ internal fun KnowledgeDetailScreen(
                             share = { markdown ->
                                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, markdown)
                                     .putExtra(Intent.EXTRA_SUBJECT, entry?.name.orEmpty())
-                                runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                                val _ = runCatching { context.startActivity(Intent.createChooser(send, null)) }
                             },
                         )) { at -> minutesClock(recorded, at) }
                     } }
@@ -532,7 +534,7 @@ private fun LazyListScope.agents(agents: List<Session>, navigator: Navigator) {
         val status = session.agentState.status()
         AgentRow(session.displayTitle, status, onClick = { navigator.navigate(ChatRoute(session.machineId, session.sessionId, ConversationKind.Agent)) },
             position = GroupPosition.of(index, agents.size), preview = session.workLine(java.time.Instant.now())?.text() ?: session.lastText, statusText = status.localizedLabel,
-            agent = session.agentLabel.takeIf { session.agent in setOf("codex", "traex") },
+            agent = session.agentLabel.takeIf { session.agent == "codex" || isTraeCliId(session.agent) },
             facts = listOf(RowFact(listOf(session.machineId, session.folderName).filter { it.isNotBlank() }.joinToString(" / "))))
     }
 }
@@ -642,7 +644,9 @@ private fun LazyListScope.recordingTranscript(facts: RecordingFacts, segments: L
                     clockText(facts, segment.start)?.let {
                         Text(it, style = PersonaTheme.type.caption, color = PersonaTheme.palette.ink3, maxLines = 1)
                     }
-                    SelectionContainer { Text(segment.text.trim(), style = PersonaTheme.type.body, color = PersonaTheme.palette.ink) }
+                    SelectionContainer {
+                        ReadingContent { Text(segment.text.trim(), style = PersonaTheme.type.body, color = PersonaTheme.palette.ink) }
+                    }
                 }
             }
         }

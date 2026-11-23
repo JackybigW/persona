@@ -152,6 +152,13 @@ func relayErrCode(err error) (code string, coded bool) {
 	return "", false
 }
 
+// roleChangeBusy is the node's specific refusal to replace a still-working process after its task-follow-up role
+// changed. Other busy codes (compaction, an adapter, a hand-over) keep their ordinary retry behavior.
+func roleChangeBusy(err error) bool {
+	code, _ := relayErrCode(err)
+	return code == assistantwire.CodeConversationBusy
+}
+
 // refusedForGood: the relay send failed with err, and the conversation will never take the message.
 func refusedForGood(err error) bool {
 	return err != nil && relayFailureOf(err) == relayFailedRefused
@@ -182,7 +189,7 @@ func (s *Service) relayRefused(machine, to string, msg relayMsg, err error) (sta
 	case msg.Tool == askAnswerTool && strings.HasPrefix(msg.From, approvalResultFrom):
 		// It waits for the conversation the approval came from: it has no fallback (deliverApprovalResults). A
 		// runtime conversation that cannot take it at all ends it with the owner's push, as it always did (#10338).
-		if code == assistantwire.CodeSupervisionRuntime {
+		if supervisionRefusalCode(code) {
 			return false, push
 		}
 		what = "an approval result stays queued"
@@ -257,20 +264,26 @@ func (s *Service) moveRelay(to string, msg relayMsg) bool {
 
 // reportRelayRefused pushes the owner that conversation to refused a message of kind tool for good (code): it was not
 // delivered and will not be sent again. A supervision message's push says the task is still there to open, and with
-// assistant_supervision_runtime that the follow-up needs a Claude Code or Codex conversation; any other message's
+// assistant_supervision_runtime that the follow-up needs a compatible launcher on this computer; any other message's
 // says that this runtime cannot take Persona's separate instructions, or else that an update was refused.
 func (s *Service) reportRelayRefused(ctx context.Context, machine, to, tool, code string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	lang := s.lang(ctx)
-	s.push(ctx, Notification{DeviceID: machine, SessionID: to,
-		Title: i18n.T(lang, "assistant-conversations.relay_delivery_failed"), Body: i18n.T(lang, relayRefusedBody(tool, code))})
+	args := i18n.Args{}
+	if supervisionRefusalCode(code) {
+		args = s.supervisionLauncherArgs(ctx, machine, lang)
+	}
+	s.push(withCard(ctx, cardRelayRefusal), Notification{DeviceID: machine, SessionID: to,
+		Title: i18n.T(lang, "assistant-conversations.relay_delivery_failed"), Body: i18n.T(lang, relayRefusedBody(tool, code), args)})
 }
 
 // relayRefusedBody is the key of the push's text when a message of kind tool is refused for good with code.
 func relayRefusedBody(tool, code string) string {
-	runtime := code == assistantwire.CodeSupervisionRuntime
+	runtime := supervisionRefusalCode(code)
 	switch {
+	case code == assistantwire.CodeSupervisionAccount:
+		return "rpc-errors.assistant_supervision_account"
 	case tool == superviseTool && runtime:
 		return "assistant-conversations.supervision_delivery_failed"
 	case tool == superviseTool:

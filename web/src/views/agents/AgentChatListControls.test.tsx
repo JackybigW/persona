@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { seedAgentsDisplay } from "../../lib/agents-display";
 vi.hoisted(() => {
   const g = globalThis as Record<string, unknown>;
   g.ResizeObserver ??= class {
@@ -68,6 +69,8 @@ let root: Root;
 beforeEach(() => {
   localStorage.clear();
   reset();
+  // Settings › Agents: the Filter is on for these tests (it is off until the hub says so)
+  seedAgentsDisplay({ show_botmux: true, configured: true, show_filter: true });
   resetAgentListFilters();
   vi.stubGlobal(
     "fetch",
@@ -251,6 +254,7 @@ describe("Agents list Filter menu (#4397) on the title row, the search in ⌘K (
   // 44 px box, as the fold-all button is
   it("gives Filter, ⋯ and + a 44 px box of their own on a touch screen", async () => {
     seed();
+    getState().features = ["agent_session_archives"];
     await act(async () => {
       root.render(<Sidebar route={{ name: "home" }} onSearch={() => {}} onNewAgent={() => {}} />);
     });

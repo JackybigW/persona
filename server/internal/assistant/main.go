@@ -343,8 +343,9 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 	var svc *Service
 	var ext *extmgr.Manager
 	// ConfigFile: its usage section (the account-pool gateways and their keys) is the devices', read and written there.
-	devs := devices.New(devices.Options{Store: database, ConfigFile: o.ConfigFile, TailcatKey: o.TailcatKey, ManagerID: o.ID,
-		Logf: log.New(stderr, "devices: ", log.LstdFlags).Printf,
+	devs := devices.New(devices.Options{PackageHub: func() *bus.Client { return bh.Client() }, Store: database, ConfigFile: o.ConfigFile, TailcatKey: o.TailcatKey, ManagerID: o.ID,
+		Logf:         log.New(stderr, "devices: ", log.LstdFlags).Printf,
+		ProjectState: func(st devicewire.States) devicewire.States { return svc.logicalProjectStates(st) },
 		Answer: func(ctx context.Context, machine, method string, params json.RawMessage) (any, bool, error) {
 			if !waitsOnPerson(method) && method != "mcp.tools" { // discovery watches reconnect after restart; actual tool calls hold idle
 				svc.nodeAnswering.Add(1)
@@ -362,6 +363,7 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 		Detached:               func(machine string) { svc.NodeDetached(machine) },
 		HiddenAgentDirsChanged: func(machine string) { svc.HiddenAgentDirsChanged(machine) },
 		Location:               func() *time.Location { return svc.location(context.Background()) },
+		UpdateHandoffGrace:     func() time.Duration { return nodeUpdateHandoffGraceOf(svc.hello(context.Background())) },
 		PromptLanguage:         func() string { return answerLanguage(svc.hello(context.Background()).Locale) },
 		// The extensions' part of a node's connection and its events (internal/extmgr).
 		Own:         func(ctx context.Context, machine string) map[string]json.RawMessage { return ext.Own(ctx, machine) },
@@ -380,7 +382,14 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 		Connected: func() bool { return bh.Client().Peer() != nil },
 		// The official DeepSeek launchers' prepaid balances (#11825): the manager holds their sealed keys.
 		LauncherBalances: func(ctx context.Context) ([]proto.UsageAccount, bool) { return svc.LauncherBalances(ctx) },
-		Hub:              lazyHost{c: func() *bus.Client { return bh.Client() }}})
+		// Usage sources of type extension (#12402): the extensions are made below; ext is read when a source is due.
+		UsageExtension: func(ctx context.Context, id, launcher string) (json.RawMessage, error) {
+			if ext == nil {
+				return nil, errors.New("extensions are not running")
+			}
+			return ext.UsageQuery(ctx, id, launcher)
+		},
+		Hub: lazyHost{c: func() *bus.Client { return bh.Client() }}})
 	// The extensions, connectors and bots (internal/extmgr): the data directory here, its own sections in manager.json
 	// (as moveConfig read and checked them) and its own secret.key.
 	ext = extmgr.New(extmgr.Options{Dir: home, ConfigFile: o.ConfigFile, Config: o.ExtConfig, SecretKey: o.SecretKey,
@@ -426,7 +435,8 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 	// providers' keys are sealed with its own secret.key.
 	assistantStore := repositorystore.New(database)
 	svc = New(Options{Hub: bh, Store: func() Store { return assistantStore }, Logf: logf, Devices: devs,
-		KB: &KBOptions{Dir: o.KBDir, KeyDir: o.HandlesDir}, SecretKey: o.SecretKey,
+		ModulesOff: ReadModuleSwitch(ctx, assistantStore, logf), // the built-in modules switched off (modules.go)
+		KB:         &KBOptions{Dir: o.KBDir, KeyDir: o.HandlesDir}, SecretKey: o.SecretKey,
 		Trust: devs, AgentDirs: devs, ID: o.ID, Build: version, RepositoryConfig: o.ConfigFile,
 		RemoteImageCache: filepath.Join(home, "cache", "remote-images")})
 	svc.SetExtensions(ext) // the connectors', Cua's and ego's tools, in this process (fleet_tools.go)
@@ -446,11 +456,21 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 		defer close(extDone)
 		_ = ext.Run(ctx) // after ctx: stops the extensions' programs (they are the manager's children)
 	}()
+	var developmentDone chan *managerupdate.DevelopmentImage
 	if o.ID != "assistant" {
+		developmentDone = make(chan *managerupdate.DevelopmentImage, 1)
 		go func() {
+			var image *managerupdate.DevelopmentImage
+			defer func() { developmentDone <- image }()
 			if err := bh.Wait(ctx); err == nil {
 				if err := managerupdate.MarkReady(home, build); err != nil {
 					logf("manager update readiness: %v", err)
+				}
+				image = followDevelopment(ctx, home, build, devs, func(ctx context.Context) (bool, string) {
+					return managerIdle(ctx, bh, svc, ext)
+				}, logf)
+				if image != nil {
+					stop()
 				}
 			}
 		}()
@@ -459,6 +479,11 @@ func run(ctx context.Context, build update.Build, o runOptions) error {
 	stop() // a refused token ends Run before ctx: the computers and the extensions stop with it
 	<-done
 	<-extDone
+	if developmentDone != nil {
+		if image := <-developmentDone; image != nil {
+			return image
+		}
+	}
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}

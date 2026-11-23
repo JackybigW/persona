@@ -140,6 +140,36 @@ chosen by a `runtime` in the main chat's model binding. Each pair keeps working:
 | Session rows | `runtime` and `runtime_fallback` are no longer produced, and the hub drops them from an older node's report. Clients read their absence as the CLI. |
 | The runtime package | The Agent SDK runtime package (`persona-agent-sdk-runtime`, under its older `jarvis-` name too) is no longer carried. An older node that looks for it finds none and runs the CLI, its existing fallback. Copies already unpacked under a node's `runtime-packages/` are unused and not cleaned up. |
 
+### Inbox AI-twin permission mode (#13245)
+
+The AI twin's own saved mode is authorization metadata, not a caller's model choice. The manager sends it as
+`inbox_permission_mode` on `assistant.send`, `session.send` and `assistant.model`, separately from the ordinary
+`permission_mode`. The dedicated field needs no version negotiation and does not raise the protocol floor:
+
+| Pair | What happens |
+| --- | --- |
+| New manager, new node | The node applies the AI twin's own supported mode to new chats and stopped-process resumes. Plan, unknown values and an unsupported resolved mode stay in `default`; a live process keeps its current mode. |
+| New manager, older node | The older node ignores the dedicated field and retains its previous `default` clamp. The setting takes effect after the node is updated. |
+| Older manager, new node | The dedicated field is absent, so the node stays in `default` even if the older manager supplied an ordinary caller `permission_mode`. That caller value never elevates Inbox. |
+| Rollback after an explicit bypass | A live process keeps the mode it started with. If an older manager or node drives its next stopped-process resume without the dedicated field, that resume returns to `default`. |
+
+Origin attestation, the Inbox MCP/tool gate and Lark outbound policy are unchanged in every combination.
+
+### Ordinary assistant permission defaults on resume (#13653)
+
+The manager sends its current default as `default_permission_mode` and marks a deliberate generic choice with
+`permission_mode_explicit` on `assistant.send`, `session.send` and `assistant.model`. The node persists that explicit
+provenance as `app_mode_explicit` in the existing `node_model` JSON. Neither field changes the model fingerprint, the
+public client API or the Inbox/guest policy.
+
+| Pair or state | What happens |
+| --- | --- |
+| New manager, new node | A new or stopped Claude Code process uses the explicit conversation mode first, then the current manager default, then legacy state/transcript evidence. A live process keeps its current mode. |
+| New manager, older node | The older node ignores both fields and retains its legacy resume behavior until updated. Initial starts still receive the ordinary `permission_mode`. |
+| Older manager, new node | Both fields are absent, so the node retains the legacy `AppMode` / in-memory / transcript precedence and built-in `bypassPermissions` fallback. |
+| Non-Claude launcher | The manager omits the resume default and the node keeps legacy `AppMode` / in-memory / transcript precedence, even when the declared mode list contains that default. An explicit generic `permission_mode` follows its existing path. |
+| Legacy Claude state without `app_mode_explicit` | Its `AppMode` is treated as inherited when a current manager supplies a default. An explicit choice made after the upgrade persists with the marker and wins thereafter. |
+
 ### Node connection lanes (#10660)
 
 A manager and a node built since #10660 frame their connection on four lanes (protocol.md "Lanes"); any older end
@@ -200,6 +230,47 @@ it reads the extra fields without saving. After such a write, a copy of the sett
 profile's `keep`: a quiet one leaves its computer's list again and its automatic archive goes on, while the book stays
 as it was. Rolling forward lists again the ones that only dropped out of a computer's list; one the older manager's
 automatic archive took stays archived until the owner restores it, as nothing restores an archive by itself.
+
+### Resumes a computer has nothing of, and an extension's resumes (#10941)
+
+Since #10941 a node refuses a Claude Code resume of an id it has no transcript, start or record of with
+`resume_unknown`, before any tab opens, and a node that announces `resume_outside_health` also checks an extension's
+resume of a chat its computer does not list (protocol.md `session.start`). The hub, the devices manager, the assistant
+manager and the node may each be older:
+
+| Pair | What happens |
+| --- | --- |
+| New hub, new node | An extension's resume of an unlisted chat goes on marked `resume_outside_health`; the node resumes it only outside the health space, and its `resume_unknown` reaches the extension as the hub's own 404. The owner's resumes are never marked. |
+| New hub, older node | The node does not announce `resume_outside_health`, so the hub resumes for an extension only a chat the computer lists outside the space (404 otherwise; 503 `sessions_not_listed`, retryable, before the hub has had a list of that computer since it started, and while it has no word of the node at all, as after a devices manager restarted without its saved state). The owner's resumes behave as that node always did, including a start under an id it has nothing of. |
+| New devices manager, node older than the hub last heard | A marked start toward a node that does not announce the check is refused `node_outdated` (409) and nothing starts. |
+| Older devices manager, new hub and node | The manager passes a start's params on as they came, so the node gets the mark. |
+| Older hub, new node | The hub never marks a resume and lets an extension resume any id its computer is asked for, as before #10941. The node still refuses an id it has nothing of, so no conversation starts under the id of another; a transcript it has is resumed, health space included. |
+| New node, older hub: the owner's wording | `resume_unknown` comes with the node's own words, in Chinese: an older hub has no wording of that code in the reader's language. A hub since #10941 words it in en, zh-Hans and ja (`rpc-errors.resume_unknown`). |
+| New node, older assistant manager: launcher health | A hub since #10941 does not report a `resume_unknown` refusal to the manager (`StartEnded`). An older hub does, and a manager from before #10941 counts it against the launcher: the launcher shows as failing on that computer until its next check passes (`docs/server/launcher-health.md`). It takes a Resume of an id the computer has nothing of, which the apps offer only for chats a computer listed; updating the hub and its managers before the nodes avoids it. |
+| New node, an Agent an older node started through an engine runtime (Paseo, Cindy) | A node since #10941 keeps its record of every Agent it starts through an engine runtime, the folder the check reads, marked with the engine that started it (`engine_runtime`). An older node kept one only for a start with a creation identity (an owner's start from an app), unmarked, so an extension's Agent it started has none the check takes: once its engine no longer lists it, the extension's resume answers 404 and only the owner resumes it. |
+| New node, older devices manager: the record's `engine_runtime` | The manager stores a node's records as its own type, which has no `engine_runtime` before #10941, so it drops the mark. Until the node restarts nothing changes (the node keeps its records in memory); after a restart its Agents' records come back unmarked, and an extension's resume of one its engine no longer lists answers 404: only the owner resumes it. The mark is written only when an Agent starts, so updating the manager later does not bring it back for those Agents. Update the devices manager with the hub, before the nodes. |
+| Any node: a terminal chat's record | A terminal record alone no longer lets an extension resume a chat its computer does not list (its transcript gone, or a first start that failed): every resume writes the record anew with the folder it names. Nothing is stored for it; the owner's resumes are unchanged. |
+
+The records are the node's own (the hub keeps its copy, as for any start), of the same shape an older node already
+writes for a start with a creation identity, plus `engine_runtime` in the model settings the hub keeps with each one
+(no table changes), so rolling the node back leaves them to be read as those, the mark ignored. Nothing else is
+stored: rolling either side back or forward changes only what the next resume does.
+
+### Outside reporting directions (#8236)
+
+The manager migration `20261120081453_outside_directions.sql` adds only `assistant_outside_directions`; existing
+settings, directions, conversations and to-do ownership are not rewritten. A new manager on an older database therefore
+starts with no outside bindings until one is created. The table is separate because an older settings writer does not
+know the outside marker and would otherwise discard it.
+
+An older manager or hub has neither new write route nor `leaders.write`; those calls keep its previous 404 / 403
+behavior. A new CLI talking to an older node receives its legacy `unknown kind` answer and exits unavailable without
+retrying. `leaders.read` keeps its existing routes and events. On rollback, an older manager does not read the outside
+binding table or emit `external` / Agent-target metadata, and its legacy direction code may treat the stored opaque id
+as a conversation id; outside directions are therefore not a supported rollback interface. Existing
+conversation-backed directions keep their old behavior. Rolling forward again rejoins bindings that remain in the
+table to the surviving direction records; an owner or older manager removing a direction from `assistant.leaders`
+still ends its current membership as before.
 
 ### Launcher default models (#4663)
 

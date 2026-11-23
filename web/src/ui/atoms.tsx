@@ -615,9 +615,11 @@ export function Menu({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the handlers read `live`; only the menu's anchor and close change them
   }, [anchor, onClose, id, focusScoped]);
 
+  const inSidePanel = Boolean(anchor?.closest?.("[data-side-panel]"));
   const panelProps = (depth: number) => ({
     id,
     depth,
+    inSidePanel,
     items: levels[depth],
     active: actives[depth] ?? -1,
     confirming,
@@ -674,11 +676,12 @@ type Place =
 
 /** One level of a menu: the rows, the highlight gliding under them, a rename input or a failure where they call for it. */
 function MenuPanel({
-  id, depth, items, active, confirming, renaming, busy, failure, rows: report, keyed, place, header, headerAsWritten, loading, loadError,
+  id, depth, inSidePanel, items, active, confirming, renaming, busy, failure, rows: report, keyed, place, header, headerAsWritten, loading, loadError,
   onHover, onEnter, onLeave, onChoose, onRename, onCancelRename,
 }: {
   id: string;
   depth: number;
+  inSidePanel?: boolean;
   items: MenuItem[];
   active: number;
   confirming: string | null;
@@ -783,6 +786,7 @@ function MenuPanel({
       role={reading ? "dialog" : "menu"}
       aria-label={reading ? (header ?? items[0].label) : undefined}
       data-menu={id}
+      data-side-panel={inSidePanel ? "" : undefined}
       className="fixed z-50 max-h-[calc(100dvh-(--spacing(4)))] overflow-y-auto rounded-[10px] bg-surface p-1 shadow-overlay"
       style={{ ...pos, animation: `pop-in 160ms ${EASE} both`, transformOrigin: origin }}
       onMouseEnter={onEnter}
@@ -1128,6 +1132,11 @@ export function Dialog({
   const body = useRef<HTMLDivElement>(null);
   useSheetReveal(body, open && sheet);
   const backdrop = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (body.current) body.current.scrollTop = 0;
+    if (backdrop.current) backdrop.current.scrollTop = 0;
+  }, [open]);
   // what it showed when last open: a caller may clear what the body reads once it is closed, while it still leaves
   const kept = useRef({ title, children, footer });
   if (open) kept.current = { title, children, footer };
@@ -1169,7 +1178,7 @@ export function Dialog({
             <IconButton icon="x" label={t("ui-atoms.close")} onClick={onClose} size={26} iconSize={14} />
           </div>
         )}
-        <div ref={body} className={cx("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4", !shown.footer && "max-sm:pb-[calc(16px+env(safe-area-inset-bottom))]")}>{shown.children}</div>
+        <div ref={body} data-dialog-body className={cx("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4 [overflow-anchor:none]", !shown.footer && "max-sm:pb-[calc(16px+env(safe-area-inset-bottom))]")}>{shown.children}</div>
         {/* data-dialog-footer: what a toast on a phone keeps clear of (Toasts) */}
         {shown.footer && <div data-dialog-footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-inset px-4 py-2.5 max-sm:pb-[calc(10px+env(safe-area-inset-bottom))]">{shown.footer}</div>}
       </div>

@@ -15,7 +15,8 @@ import { NAV_PAGES } from "./persona-nav";
 import { adoptOverview, getOverviewPrefs, isSection, keepSections, noteOverviewKept, noteSectionsLocal, onOverviewSaved, overviewChosen, overviewElsewhere, overviewKept, readOverview, sectionsLocal, type CardEntry, type SectionEntry } from "./overview-cards";
 import { adoptSidebarPrefs, chosen, getSidebarPrefs, onSidebarPrefsSaved } from "./sidebar-pages";
 import { isResumed } from "./reconnect";
-import { navigate, type Route } from "./router";
+import { navigate, parse, type Route } from "./router";
+import { enabledNavItems } from "../core/module-host";
 import { onHubEvent, useStore } from "./store";
 
 const KEY = "persona.startPage";
@@ -63,7 +64,10 @@ export function startRoute(key: string): Route | null {
     const at = key.indexOf("/");
     return at > 2 && at < key.length - 1 ? { name: "extension", extension: key.slice(2, at), ui: key.slice(at + 1) } : null;
   }
-  return key !== "settings" && (NAV_PAGES as readonly string[]).includes(key) ? ({ name: key } as Route) : null;
+  if (key !== "settings" && (NAV_PAGES as readonly string[]).includes(key)) return { name: key } as Route;
+  // a feature module's page while the module is there (core/module-host.ts)
+  const page = enabledNavItems().find((m) => m.key === key);
+  return page ? parse(page.path) : null;
 }
 
 // The start page this load opened on and its address, until it is known whether the page is there (useStartPageCheck).
@@ -119,6 +123,25 @@ export function useStartPageCheck(listed: (key: string) => boolean, extensionPag
     if (gone && location.pathname === opened.path) navigate({ name: "persona" }, true);
     opened = null;
   });
+}
+
+/** Saves `key` ("" for the main chat) locally, then to the hub. A hub without the route keeps it here; any other
+ *  refusal restores the previous choice and is returned for the caller to report. Kept with the navigation state,
+ *  not with the Settings page's larger UI graph or its error strings. */
+export async function saveStartPage(key: string): Promise<unknown | undefined> {
+  const was = startPage();
+  keepStartPage(key);
+  if (startPageSynced() === false) return; // this browser only
+  try {
+    const r = await api<{ start?: string }>("/navigation", { method: "PUT", json: { start: key } });
+    noteStartPageSynced();
+    if (startPage() === key) keepStartPage(r.start ?? key);
+  } catch (e) {
+    noteStartPageSynced(e);
+    if (startPageSynced() === false) return;
+    if (startPage() === key) keepStartPage(was);
+    return e;
+  }
 }
 
 // The sidebar's arrangement (lib/sidebar-pages.ts) goes the same way: each change made here is sent; while one is on its

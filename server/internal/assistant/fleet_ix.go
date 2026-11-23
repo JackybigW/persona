@@ -13,6 +13,7 @@ import (
 	approvalops "github.com/nwverse/persona/server/internal/approval"
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/compat"
+	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/devicewire"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/prompts"
@@ -61,6 +62,9 @@ type pending struct {
 	graceEnded bool
 	// expired: it ended because its time ran out, unanswered (await); finished() reads it.
 	expired bool
+	// endedBy is who gave the answer claimed on it, for the history (interactions.ended_by, recordEndBy): a device,
+	// the assistant, a kept "Always"… "" while none is claimed, or when the way it came does not say.
+	endedBy string
 	// announced: a screen card that rang (announce), carried through a detach (screenGone.announced), so the card
 	// read again once the node is back rings at the window's end only if its predecessor never did (#4979).
 	announced bool
@@ -218,6 +222,11 @@ func (s *Service) markTold(ix proto.Interaction) {
 // nodeInteraction is a node's interaction.create: allowed right away when "Always allow in this session" already covers it, else
 // shown and waited for.
 func (s *Service) nodeInteraction(ctx context.Context, ix proto.Interaction) (proto.Resolution, error) {
+	// These capabilities are manager-minted only. A node cannot turn its card
+	// into an exact owner-action proposal or exempt it from expiry.
+	ix.ApprovalBatchID, ix.ApprovalItemID = "", ""
+	ix.OwnerProposal, ix.NoExpiry = false, false
+	ix.OwnerApprovalPhrases = nil
 	if reservedCard(ix) {
 		return proto.Resolution{}, errReservedCard
 	}
@@ -255,7 +264,7 @@ func (s *Service) nodeInteraction(ctx context.Context, ix proto.Interaction) (pr
 		}
 	}
 	inAssistant := s.ixInAssistant(ctx, ix)
-	ix = nodeCard(ix, s.fleetStore() != nil, s.ixInHealth(ctx, ix), inAssistant)
+	ix = nodeCard(ix, s.fleetStore() != nil, s.ixPolicy(ctx, ix).ConfirmOutbound, inAssistant)
 	if ix.Kind == proto.IxPermission {
 		l := s.lang(ctx)
 		ix.ToolTitle = personaToolTitle(l, ix.ToolName, ix.ToolInput)
@@ -306,17 +315,31 @@ func (s *Service) waitInteraction(ctx context.Context, ix proto.Interaction) (pr
 }
 
 func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interaction, prepared *preparedApproval) (proto.Resolution, error) {
+	return s.waitInteractionReady(ctx, ix, prepared, nil)
+}
+
+// waitInteractionReady is waitInteractionPrepared with an optional registration
+// notification for server-owned proposal groups. The notification is closed
+// after the pending entry and its announcement exist, before this waiter blocks.
+func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction, prepared *preparedApproval, ready chan<- struct{}) (proto.Resolution, error) {
 	ix = cleanTitle(ix)
 	// Only an operation registered by this process can advertise clarification.
 	ix.CanClarify = prepared != nil
 	// A Just me turn's card, the node's or the manager's own (ask_user, a confirmation): pushed without its content,
 	// never to Lark or a channel (meeting_justme.go).
 	ix.Private = ix.Private || s.justMeNow(ix.MachineID, ix.SessionID)
-	if ix.ExpiresAt.IsZero() {
+	if ix.ExpiresAt.IsZero() && !persistentOwnerProposal(ix) {
 		ix.ExpiresAt = time.Now().Add(s.notifyTimings().hookTimeout()).UTC()
 	}
+	if !ownerActionProposal(ix) {
+		ix.NoExpiry = false
+	}
+	freshLogical, err := s.logicalPublishInteraction(ctx, ix)
+	if err != nil {
+		return proto.Resolution{}, err
+	}
 	again := false
-	if ix.Resumable {
+	if ix.Resumable && !freshLogical {
 		restartPrepared := false
 		s.fleet.mu.Lock()
 		if p := s.fleet.interactions[ix.ID]; p != nil && p.local == nil {
@@ -325,6 +348,14 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 				// initial wait. The disconnected context must not expire a card its
 				// resumable request has already reclaimed.
 				p.prepared.caller = ctx
+			} else if prepared != nil && !p.claimed {
+				// A card restored from Postgres after a manager restart has p.prepared == nil
+				// until its still-running hook reconnects with the prepared coordinator (#12918).
+				p.prepared = prepared
+				p.ix.CanClarify = true
+				if p.prepared.decisionDeadline.IsZero() {
+					p.prepared.decisionDeadline = p.ix.ExpiresAt
+				}
 			}
 			if p.graceEnded {
 				// The grace period ended and the card is being ended outside the lock (the history, the apps): the
@@ -350,6 +381,9 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 			}
 			if ix.Kind == proto.IxElicitation && !s.elicitationReachable(ix) {
 				_ = s.resolve(ix.ID, proto.Resolution{Dismiss: true})
+			}
+			if ready != nil {
+				close(ready)
 			}
 			// Resumable node cards reconnect through reporter-less interaction.create requests; MCP elicitation cards
 			// are not resumable, so this branch never has a wait reporter to restore.
@@ -423,7 +457,7 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 		s.finishPrepared(replaced, "cancelled")
 	}
 	for _, old := range dropped { // as a Codex card withdraws a screen card
-		s.recordEnd(old.ix.ID, "cancelled", nil)
+		s.recordEndBy(old.ix.ID, "cancelled", db.EndedByCleared, nil)
 		s.finished(old)
 	}
 	if again {
@@ -441,6 +475,9 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 	if prepared != nil {
 		s.startPreparedTimer(p)
 	}
+	if ready != nil {
+		close(ready)
+	}
 	resume := pushMCPInteraction(ctx, ix)
 	defer resume()
 	return s.await(ctx, p)
@@ -449,18 +486,26 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 // await blocks on a registered interaction. When ctx ends — the node's connection is gone — a resumable
 // interaction stays pending for its hook to claim again.
 func (s *Service) await(ctx context.Context, p *pending) (proto.Resolution, error) {
-	if p.prepared != nil {
-		return s.awaitPrepared(ctx, p)
-	}
 	s.fleet.mu.Lock()
+	if p.prepared != nil {
+		s.fleet.mu.Unlock()
+		return s.awaitPrepared(ctx, p, false)
+	}
 	if p.resolved == nil {
 		p.resolved = make(chan struct{})
 	}
 	resolved := p.resolved
-	s.fleet.mu.Unlock()
 	id := p.ix.ID
-	timer := time.NewTimer(time.Until(p.ix.ExpiresAt))
-	defer timer.Stop()
+	expiresAt := p.ix.ExpiresAt
+	persistent := persistentOwnerProposal(p.ix)
+	s.fleet.mu.Unlock()
+	var timer *time.Timer
+	var timeout <-chan time.Time
+	if !expiresAt.IsZero() && !persistent {
+		timer = time.NewTimer(time.Until(expiresAt))
+		timeout = timer.C
+		defer timer.Stop()
+	}
 	status := "cancelled"
 	select {
 	case <-resolved:
@@ -469,7 +514,7 @@ func (s *Service) await(ctx context.Context, p *pending) (proto.Resolution, erro
 	case r := <-p.done:
 		s.finishInteraction(id)
 		return r, nil
-	case <-timer.C:
+	case <-timeout:
 		status = "expired"
 	case <-ctx.Done():
 	}
@@ -500,27 +545,49 @@ func (s *Service) await(ctx context.Context, p *pending) (proto.Resolution, erro
 			s.finishInteraction(id)
 			return *p.resolution, nil
 		}
-		return proto.Resolution{Dismiss: true}, nil
+		return proto.Resolution{Dismiss: true, Reason: dismissedReason(status)}, nil
 	}
 	if s.fleet.interactions[id] != p {
 		s.fleet.mu.Unlock()
-		return proto.Resolution{Dismiss: true}, nil
+		// No longer the card pending under its id: a newer one replaced it, or it was cleared with the others.
+		return proto.Resolution{Dismiss: true, Reason: proto.DismissedCleared}, nil
+	}
+	if status == "cancelled" && persistentOwnerProposal(p.ix) {
+		// Only this caller is leaving. The durable proposal and every original
+		// surface remain pending; there is no interrupted Apply to replay.
+		s.fleet.mu.Unlock()
+		return proto.Resolution{Dismiss: true, Reason: "owner-action proposal remains pending"}, nil
 	}
 	if status == "cancelled" && p.ix.Resumable && s.orphanLocked(p) {
 		s.fleet.mu.Unlock()
-		return proto.Resolution{Dismiss: true}, nil // disconnected hook; a new one can resume
+		// disconnected hook; a new one can resume
+		return proto.Resolution{Dismiss: true, Reason: proto.DismissedWithdrawn}, nil
 	}
 	p.claimed, p.graceEnded = true, true
 	p.expired = status == "expired"
 	s.fleet.mu.Unlock()
-	s.recordEnd(id, status, nil)
+	s.recordEndBy(id, status, endedByOfStatus(status), nil)
 	s.finishInteraction(id)
-	return proto.Resolution{Dismiss: true}, nil
+	// Why nobody answered it, so that whoever waits on it never takes the end for the user's decline: its time
+	// ran out, or the one waiting went away first.
+	return proto.Resolution{Dismiss: true, Reason: dismissedReason(status)}, nil
+}
+
+// dismissedReason is the Reason of the Dismiss await hands back for a card that ended with status (its history's)
+// without an answer: its time ran out (expired), or the one waiting went away first (cancelled: withdrawn).
+func dismissedReason(status string) string {
+	if status == "expired" {
+		return proto.DismissedExpired
+	}
+	return proto.DismissedWithdrawn
 }
 
 // orphanLocked starts p's grace period: it ends (cancelled) unless its hook claims it again first. Callers hold
 // s.fleet.mu.
 func (s *Service) orphanLocked(p *pending) bool {
+	if persistentOwnerProposal(p.ix) {
+		return true // no grace deadline: the proposal itself is reconstructable
+	}
 	if p.orphaned != nil {
 		return true
 	}
@@ -584,15 +651,57 @@ func (s *Service) record(ix proto.Interaction) {
 }
 
 func (s *Service) recordEnd(id, status string, r *proto.Resolution) {
+	s.recordEndBy(id, status, "", r)
+}
+
+// recordEndBy is recordEnd that keeps who or what ended the card (interactions.ended_by, db.EndedBy*): by, or when by
+// is empty, what its status and its answer tell (endedByOf).
+func (s *Service) recordEndBy(id, status, by string, r *proto.Resolution) {
 	st := s.fleetStore()
 	if st == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), historyTimeout)
+	if by == "" {
+		by = endedByOf(status, r)
+	}
+	ctx, cancel := context.WithTimeout(db.WithEndedBy(context.Background(), by), historyTimeout)
 	defer cancel()
 	if err := st.FinishInteraction(ctx, id, status, r); err != nil {
 		s.logf("record interaction outcome: %v", err)
 	}
+}
+
+// endedByOf is who or what ended a card, as far as its history's status and the answer kept on it tell: someone who
+// answered for the user (AnsweredBy), a kept "Always allow", its time running out, its asker going away, or a newer
+// card. "" when they do not tell (an answer whose route does not say it came from a device).
+func endedByOf(status string, r *proto.Resolution) string {
+	if r != nil {
+		switch {
+		case r.AnsweredBy != "":
+			return r.AnsweredBy
+		case r.Remembered:
+			return db.EndedByRemembered
+		case r.Dismiss && (r.Reason == proto.DismissedCleared || r.Reason == "replaced"):
+			return db.EndedByCleared
+		case r.Dismiss && r.Reason == proto.DismissedWithdrawn:
+			return db.EndedByWithdrawn
+		case r.Dismiss && r.Reason == proto.DismissedExpired:
+			return db.EndedByExpired
+		}
+	}
+	return endedByOfStatus(status)
+}
+
+// endedByOfStatus is who or what ended a card nobody answered, by its history's status: its time ran out (expired), or
+// its asker went away (cancelled). "" for any other status.
+func endedByOfStatus(status string) string {
+	switch status {
+	case "expired":
+		return db.EndedByExpired
+	case "cancelled":
+		return db.EndedByWithdrawn
+	}
+	return ""
 }
 
 // errNotPending: the interaction was answered, withdrawn or expired already.
@@ -663,6 +772,9 @@ func (s *Service) resolveApproved(ctx context.Context, id string, r proto.Resolu
 		ownerSession = prepared.ix.SessionID
 	}
 	s.fleet.mu.Unlock()
+	if prepared != nil && ownerActionProposal(prepared.ix) {
+		return s.resolveOwnerProposal(ctx, prepared.ix, r, ownerActionCardProof(prepared.ix, "app"))
+	}
 	if ownerSession != "" {
 		// The web route resolves prepared cards directly instead of through Action;
 		// preserve the same owner-activity notification as every other answer path.
@@ -673,7 +785,15 @@ func (s *Service) resolveApproved(ctx context.Context, id string, r proto.Resolu
 
 func (s *Service) resolveAnswer(ctx context.Context, id string, r proto.Resolution, remember bool, authorization *standingResolution,
 	approver *assistantwire.HandoffApprover) error {
+	return s.logicalInteractionAnswer(ctx, id, r, func() error { return s.resolveActiveAnswer(ctx, id, r, remember, authorization, approver) })
+}
+
+func (s *Service) resolveActiveAnswer(ctx context.Context, id string, r proto.Resolution, remember bool, authorization *standingResolution,
+	approver *assistantwire.HandoffApprover) error {
 	r.ModeActor = nil // provenance is never taken from an answer body
+	// Who answered, for the history (interactions.ended_by): the route the apps answer through says it came from a
+	// device (db.WithEndedBy); someone answering for the user, or a kept "Always", says so in the answer itself.
+	by := cmpOr(endedByOf("", &r), db.EndedBy(ctx))
 	s.fleet.mu.Lock()
 	prepared := s.fleet.interactions[id]
 	isPrepared := prepared != nil && prepared.prepared != nil
@@ -765,6 +885,7 @@ func (s *Service) resolveAnswer(ctx context.Context, id string, r proto.Resoluti
 	} else if p != nil {
 		p.claimed = true
 		p.resolution = &r
+		p.endedBy = by
 		if durableQuestion(p.ix) || authorization != nil {
 			p.persisting = &questionPersistence{done: make(chan struct{})}
 			p.persistenceErr = nil
@@ -812,7 +933,7 @@ func (s *Service) resolveAnswer(ctx context.Context, id string, r proto.Resoluti
 		if kept.Text != "" {
 			kept.Text = redactedValue
 		}
-		s.recordEnd(id, status, &kept)
+		s.recordEndBy(id, status, by, &kept)
 		s.finished(p)
 		go s.InteractionResolved(context.Background(), InteractionResolved{Interaction: p.ix, Resolution: told, Status: status})
 		return err
@@ -826,7 +947,7 @@ func (s *Service) resolveAnswer(ctx context.Context, id string, r proto.Resoluti
 			return err
 		}
 	} else {
-		s.recordEnd(id, status, &told)
+		s.recordEndBy(id, status, by, &told)
 	}
 	s.channelsEnded(p.ix, &told)
 	go s.InteractionResolved(context.Background(), InteractionResolved{Interaction: p.ix, Resolution: told, Status: status})
@@ -927,6 +1048,11 @@ func hasSecretField(ix proto.Interaction) bool {
 }
 
 func (s *Service) finishInteraction(id string) {
+	if routes, ok := s.store().(logicalInteractionStore); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = routes.FinishConversationInteraction(ctx, id)
+		cancel()
+	}
 	s.fleet.mu.Lock()
 	p, ok := s.fleet.interactions[id]
 	delete(s.fleet.interactions, id)
@@ -1103,7 +1229,7 @@ func (s *Service) expireLoop(ctx context.Context) {
 		s.fleet.mu.Lock()
 		var ids []string
 		for id, p := range s.fleet.interactions {
-			if p.local != nil && time.Now().After(p.ix.ExpiresAt) {
+			if p.local != nil && !p.ix.ExpiresAt.IsZero() && time.Now().After(p.ix.ExpiresAt) {
 				ids = append(ids, id)
 			}
 		}
@@ -1140,6 +1266,18 @@ func (s *Service) askHub(ctx context.Context, ix proto.Interaction) (proto.Resol
 	if m, ok := s.fleetMachine(ix.MachineID); ok {
 		ix.MachineID = m.ID
 	}
+	if ix.Kind == proto.IxPermission && !ix.OwnerProposal && len(ix.ToolInput) > 0 {
+		if book, ok := newOwnerActionBook(s.store()); ok {
+			granted, err := book.consume(ctx, ix.MachineID, ix.SessionID, ix.ToolName, ix.ToolInput)
+			if err != nil {
+				return proto.Resolution{}, err
+			}
+			if granted {
+				allow := true
+				return proto.Resolution{Allow: &allow, Reason: "exact owner-action grant"}, nil
+			}
+		}
+	}
 	return s.waitInteraction(ctx, s.ownCard(ctx, ix))
 }
 
@@ -1158,16 +1296,16 @@ const maxAlwaysKeys = 32
 // nodeCard is a node's card as the apps get it. On an assistant conversation (assistant) only the manager keeps
 // Always (its agent is given no session rule): honored when the manager will remember the keys the card names
 // (remembering is a conversation's store), not when it names keys it will not (too many, a card with fields, no store),
-// names none (a gated command confirmed whole: nothing narrower to keep, #9075) or is a health conversation's
-// (confirmed each time). Any other node card keeps the apps' own rule (an Agents session's agent keeps it itself). A
+// names none (a gated command confirmed whole: nothing narrower to keep, #9075) or is a card of a space that confirms
+// (confirms: confirmed each time). Any other node card keeps the apps' own rule (an Agents session's agent keeps it itself). A
 // node names no tool for people, and has no say in either: only the manager does, on its own cards and on a node's
 // card for one of Persona's own MCP tools (personaToolTitle).
-func nodeCard(ix proto.Interaction, remembers, health, assistant bool) proto.Interaction {
+func nodeCard(ix proto.Interaction, remembers, confirms, assistant bool) proto.Interaction {
 	ix.AlwaysHonored, ix.ToolTitle, ix.ToolNameTitle = nil, "", ""
-	if ix.Kind != proto.IxPermission || ix.SessionID == "" || (len(ix.AlwaysKeys) == 0 && !health && !assistant) {
+	if ix.Kind != proto.IxPermission || ix.SessionID == "" || (len(ix.AlwaysKeys) == 0 && !confirms && !assistant) {
 		return ix
 	}
-	kept := remembers && !health && alwaysCard(ix)
+	kept := remembers && !confirms && alwaysCard(ix)
 	ix.AlwaysHonored = &kept
 	return ix
 }
@@ -1382,6 +1520,14 @@ func (s *Service) restoreInteractions(ctx context.Context) {
 		s.logf("expire stale interactions: %v", err)
 		return
 	}
+	// The database has now retained exactly the explicitly persistent proposal
+	// cards. Cancel only their nonpersistent durable counterparts left by the
+	// crashed caller; persistent proposals and recorded grants stay untouched.
+	if book, supported := newOwnerActionBook(s.store()); supported {
+		if err := book.cancelNonpersistentPending(ctx); err != nil {
+			s.logf("reconcile owner-action proposals after restart: %v", err)
+		}
+	}
 	for _, id := range cancelled {
 		s.hub.Tell(assistantwire.EventFleetResolved, assistantwire.FleetResolved{ID: id})
 	}
@@ -1415,6 +1561,8 @@ func (s *Service) restoreRoute(ctx context.Context, ix proto.Interaction) bool {
 	if !routable(ix) {
 		return false
 	}
+	s.supervise.routingMu.Lock()
+	defer s.supervise.routingMu.Unlock()
 	ladder, todo, home, ok := s.askLadder(ctx, ix)
 	if !ok {
 		return false

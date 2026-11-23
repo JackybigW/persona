@@ -67,7 +67,7 @@ func (x *workFirstFixture) start(t *testing.T, kind string) string {
 	began := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	s, err := x.n.startWorkAgent(ctx, x.n.hosts.Get(host.Herdr).(*herdrHost), x.home, kind, kind, "", "", agyFirstMessage, "w1", "")
+	s, err := x.n.startWorkAgent(ctx, x.n.hosts.Get(host.Herdr).(*herdrHost), x.home, kind, kind, "", "", "", agyFirstMessage, "w1", "")
 	if err != nil {
 		t.Fatalf("start: %v\nherdr calls:\n%s", err, strings.Join(x.f.trace(), "\n"))
 	}
@@ -220,6 +220,82 @@ func TestWorkAgentFirstMessageGivesUpAfterTries(t *testing.T) {
 	}
 	if p, ok := x.n.lostFirst.get(id); ok {
 		t.Errorf("still listed as lost after a message went in: %q", p.why)
+	}
+}
+
+// A start notice that appears after agyTrustFolder returned is dismissed with Esc before confirmWorkFirst retries
+// the dropped first message (#11345).
+func TestWorkAgentFirstRetryDismissesLateAgyNotice(t *testing.T) {
+	withAgyTrustWait(t, 2*time.Second)
+	var dismissed atomic.Bool
+	x := newWorkFirstFixture(t, agyAgent, func(submissions int, home string) any {
+		status := proto.StatusIdle
+		if submissions >= 2 && dismissed.Load() {
+			status = proto.StatusWorking
+		}
+		return agentWithStatus(agyAgent, status)(submissions, home)
+	})
+	x.f.after(func(c herdrCall) {
+		switch c.Method {
+		case "agent.prompt":
+			if x.submissions.Load() == 1 && !dismissed.Load() {
+				// Late announcement arrives after the initial prompt was dropped.
+				x.f.setScreen("w1:p2", agyNoticeScreen)
+			}
+		case "pane.send_keys":
+			if slices.Contains(keysOf(c), "escape") {
+				dismissed.Store(true)
+				x.f.setScreen("w1:p2", agyIdleScreen)
+			}
+		}
+	})
+	id := x.start(t, agyAgent)
+	if !dismissed.Load() {
+		t.Fatal("late start notice was not dismissed before retry")
+	}
+	if got := x.submissions.Load(); got != 2 {
+		t.Errorf("submitted %d times, want 2", got)
+	}
+	if p, ok := x.n.lostFirst.get(id); ok {
+		t.Errorf("listed as lost after retry: %q", p.why)
+	}
+}
+
+// A trust dialog that appears after agyTrustFolder timed out is answered before confirmWorkFirst retries the dropped
+// first message (#11345).
+func TestWorkAgentFirstRetryAnswersLateAgyTrustDialog(t *testing.T) {
+	withAgyTrustWait(t, 2*time.Second)
+	var trusted atomic.Bool
+	var prompts atomic.Int32
+	x := newWorkFirstFixture(t, agyAgent, func(_ int, home string) any {
+		status := proto.StatusIdle
+		if prompts.Load() >= 2 && trusted.Load() {
+			status = proto.StatusWorking
+		}
+		return agentWithStatus(agyAgent, status)(0, home)
+	})
+	x.f.after(func(c herdrCall) {
+		switch c.Method {
+		case "agent.prompt":
+			if prompts.Add(1) == 1 && !trusted.Load() {
+				x.f.setScreen("w1:p2", agyTrustScreen)
+			}
+		case "pane.send_keys":
+			if isEnter(c) {
+				trusted.Store(true)
+				x.f.setScreen("w1:p2", agyIdleScreen)
+			}
+		}
+	})
+	id := x.start(t, agyAgent)
+	if !trusted.Load() {
+		t.Fatal("late trust dialog was not answered before retry")
+	}
+	if got := prompts.Load(); got != 2 {
+		t.Errorf("prompted %d times, want 2", got)
+	}
+	if p, ok := x.n.lostFirst.get(id); ok {
+		t.Errorf("listed as lost after retry: %q", p.why)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,6 +38,10 @@ func configureSrv(t *testing.T, config, publish configAnswer) (*Client, *atomic.
 		okJSON(w, out)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/" { // a local node's port probe (node/ports.go), not a client call
+			http.NotFound(w, r)
+			return
+		}
 		switch r.URL.Path {
 		case "/open-apis/auth/v3/tenant_access_token/internal":
 			okJSON(w, map[string]any{"code": 0, "tenant_access_token": "tok", "expire": 7200})
@@ -64,6 +69,25 @@ func configureSrv(t *testing.T, config, publish configAnswer) (*Client, *atomic.
 
 func ok0(map[string]any) (int, string) { return 0, "" }
 
+// A Persona node on the machine running these tests probes the fake's port (GET /, node/ports.go): it is answered
+// 404 and is neither a config or publish call nor an unexpected one.
+func TestConfigureSrvIgnoresPortProbes(t *testing.T) {
+	c, configHits, publishHits := configureSrv(t, ok0, ok0)
+	req, err := http.NewRequest(http.MethodGet, c.Domain()+"/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("User-Agent", "persona-ports") // node.portProbeAgent
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound || configHits.Load() != 0 || publishHits.Load() != 0 {
+		t.Fatalf("a port probe: HTTP %d, config %d, publish %d", res.StatusCode, configHits.Load(), publishHits.Load())
+	}
+}
+
 func TestAutoConfigureSetsScopesEventsAndLongConnection(t *testing.T) {
 	noBackoff(t)
 	var sent map[string]any
@@ -90,6 +114,32 @@ func TestAutoConfigureSetsScopesEventsAndLongConnection(t *testing.T) {
 	}
 	if len(event["add_events"].([]any)) != len(configureEvents) {
 		t.Fatalf("add_events = %v, want %v", event["add_events"], configureEvents)
+	}
+}
+
+func TestAutoConfigureSubscribesToWelcomeWithoutRemovingExistingEvents(t *testing.T) {
+	noBackoff(t)
+	c, _, _ := configureSrv(t, func(in map[string]any) (int, string) {
+		event := in["event"].(map[string]any)
+		var added []string
+		for _, v := range event["add_events"].([]any) {
+			added = append(added, v.(string))
+		}
+		for _, want := range []string{
+			"im.message.receive_v1", "card.action.trigger", "p2p_chat_create", "im.message.recalled_v1",
+			"im.chat.access_event.bot_p2p_chat_entered_v1",
+		} {
+			if !slices.Contains(added, want) {
+				t.Errorf("add_events = %v, missing %q", added, want)
+			}
+		}
+		if _, ok := event["remove_events"]; ok {
+			t.Error("config must preserve the app's existing event subscriptions")
+		}
+		return 0, ""
+	}, ok0)
+	if rep := c.AutoConfigure(t.Context()); !rep.Configured || !rep.Published {
+		t.Fatalf("report = %+v", rep)
 	}
 }
 

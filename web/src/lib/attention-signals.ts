@@ -6,7 +6,7 @@ import { agentKey } from "./pins";
 import { homeKey } from "./folded-rows";
 import { useCounts, useAgentSessions } from "./sessions";
 import { getState, useStore, onHello, onHubEvent, send, sayHello, setHelloExtras, appSocketReady, connect, disconnect, DESKTOP_UNREGISTER_FEATURE } from "./store";
-import { answeredTags, attentionSoundEnabled, onAttentionSoundChange, badgeText, batchDue, finishedBatch, detectNewCards, detectTransitions, pickEvent, rateLimiter, SETTLE_MS, settledTags, suppressed, tabTitle, trackTurns, type Turn } from "./attention";
+import { answeredTags, attentionSoundEnabled, onAttentionSoundChange, badgeText, batchDue, finishedBatch, detectNewCards, detectTransitions, isHeldLevel, pickEvent, rateLimiter, SETTLE_MS, settledTags, suppressed, tabTitle, trackTurns, type Turn } from "./attention";
 import { claimNotification, closeNotification, dismissNotification, releaseClaim, FRONT_BEAT_MS, inQuietHours, loadNotifyPrefs, markFront, notificationText, notifyPrefs, waitingCard, otherTabInFront, postNotification, systemNotifyAllowed, systemNotifyActive, onSystemNotifyChange, wants, managerMuted } from "./notify";
 import { webPushFlag } from "./web-push-flag";
 import { defaultManager } from "./manager-choice";
@@ -16,6 +16,7 @@ import { href, navigate, parse } from "./router";
 import { hubNotice } from "./hub-notify";
 import { stripBase } from "./base";
 import { needsFieldValues } from "./quick-answers";
+import { supervisorHeld } from "./supervisor-held";
 import { t } from "../i18n";
 import { requestRoute } from "./card-focus";
 import type { AgentState, Interaction, Session } from "./types";
@@ -230,7 +231,8 @@ function notify(s: Session | undefined, kind: "needs" | "finished", card?: Inter
   const icon = document.querySelector<HTMLLinkElement>(ICONS)?.dataset.original ?? document.querySelector<HTMLLinkElement>(ICONS)?.href;
   // a permission card's gets Allow / Deny (#4464), when the session can be answered from here and nothing has to be
   // filled in first (fields: as the hub's push and the overview's quick answers); the rest need the conversation
-  const ix = waiting.ix?.kind === "permission" && !needsFieldValues(waiting.ix) && interactionCanAnswer(waiting.ix, s) ? waiting.ix.id : undefined;
+  // (never on a card a task's supervisor holds: it is not the user's to answer, lib/supervisor-held.ts)
+  const ix = waiting.ix?.kind === "permission" && !supervisorHeld(waiting.ix) && !needsFieldValues(waiting.ix) && interactionCanAnswer(waiting.ix, s) ? waiting.ix.id : undefined;
   // inside quiet hours a "Needs you" one comes without a sound (a finished one doesn't come at all: wants)
   postNotification({ title, body, tag, url: href(route), icon, ix, silent: inQuietHours(notifyPrefs()) }, () => navigate(route));
   return { about: waiting.ix?.id };
@@ -336,6 +338,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
   const sessions = useAgentSessions();
   const loaded = useStore((s) => s.loaded);
   const interactions = useStore((s) => s.interactions);
+  const pushGrading = Boolean(useStore((s) => s.pushGrading));
   useEffect(() => {
     if (loaded) loadNotifyPrefs().catch(() => {}); // the cached copy stays when the hub can't say
     // Web Push on in this browser (#7459): its subscription is still the hub's, in this page's language
@@ -363,9 +366,9 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
   useEffect(() => {
     if (!loaded) return;
     const now = Date.now();
-    const { next, events } = detectTransitions(prev.current, sessions, getState().mutes, interactions);
+    const { next, events } = detectTransitions(prev.current, sessions, getState().mutes, interactions, pushGrading);
     // a session already "Needs you" that gets another card speaks again (#4058)
-    const fresh = detectNewCards(cards.current, interactions, prev.current, next, sessions, bare.current, now);
+    const fresh = detectNewCards(cards.current, interactions, prev.current, next, sessions, bare.current, now, pushGrading);
     cards.current = fresh.ids;
     for (const k of bare.current) if (next.get(k) !== "needs_you") bare.current.delete(k);
     for (const e of fresh.events) bare.current.delete(e.key);
@@ -404,6 +407,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
     const find = (k: string) => latest.current.find((x) => agentKey(x) === k);
     // The finished turns of a batch make one notification (#4945): one alone is its own, as before.
     const flush = () => {
+      if (getState().pushGrading) return;
       const keys = batch.current.keys;
       batch.current = { keys: [], firstAt: 0 };
       const unread = new Map(latest.current.filter((x) => stateOf(x) === "unread").map((x) => [agentKey(x), sessionTitle(x)]));
@@ -455,6 +459,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
     for (const done of wanted.filter((e) => e.kind === "finished")) {
       const t = setTimeout(() => {
         timers.current.delete(t);
+        if (getState().pushGrading) return;
         const s = find(done.key);
         if (!s || stateOf(s) !== "unread") return;
         if (!first) speak("finished", done.key);
@@ -462,7 +467,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
       }, SETTLE_MS);
       timers.current.add(t);
     }
-  }, [sessions, interactions, loaded]);
+  }, [sessions, interactions, loaded, pushGrading]);
 
   // The hub's `notify` events (#8145, lib/hub-notify.ts): what the hub tells a phone of the conversations this page does
   // not follow itself (the assistant's), a notify_user, a decision, an alert. Asked for only while this page can alert
@@ -488,6 +493,10 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
     const offNotify = onHubEvent("notify", (msg) => {
       if (Date.now() < quietUntil.current) return;
       const state = getState();
+      const ixId = typeof msg.interaction_id === "string" ? msg.interaction_id : "";
+      const cardLevel = ixId ? state.interactions.find((c) => c.id === ixId)?.push_level : undefined;
+      const msgLevel = typeof msg.push_level === "string" ? msg.push_level : undefined;
+      if (state.pushGrading && (isHeldLevel(msgLevel) || isHeldLevel(cardLevel))) return;
       const n = hubNotice(msg, (k) => prev.current.has(k), state.interactions);
       if (!n) return;
       const mid = String(msg.machine_id ?? ""), sid = String(msg.session_id ?? "");
@@ -502,7 +511,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
       if (attentionSoundEnabled() && !hushed && !looking && allow.current(Date.now())) play("needs");
       if (unannounced() || !claimNotification(n.card ? `${n.tag}@${n.card}` : n.tag)) return;
       const ix = n.card ? state.interactions.find((c) => c.id === n.card) : undefined;
-      const answer = ix?.kind === "permission" && !needsFieldValues(ix) && interactionCanAnswer(ix, row) ? ix.id : undefined;
+      const answer = ix?.kind === "permission" && !supervisorHeld(ix) && !needsFieldValues(ix) && interactionCanAnswer(ix, row) ? ix.id : undefined;
       const route = parse(n.path);
       const icon = document.querySelector<HTMLLinkElement>(ICONS)?.dataset.original ?? document.querySelector<HTMLLinkElement>(ICONS)?.href;
       postNotification({ title: n.title, body: n.body, tag: n.tag, url: href(route), icon, ix: answer, silent: hushed }, () => navigate(route));
