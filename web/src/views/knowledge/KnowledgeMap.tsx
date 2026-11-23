@@ -230,6 +230,8 @@ function usePinchZoom(host: RefObject<HTMLDivElement | null>, zoom: number, setZ
 
 // ── page ────────────────────────────────────────────────
 const VIEWS: View[] = ["topics", "projects", "tree"];
+/** A segment of the header's tab bars (the views, By hierarchy | By tag). */
+const TAB = "h-7 whitespace-nowrap rounded-[7px] text-[12.5px]";
 const VIEW_LABEL: Record<View, string> = { topics: "knowledge-knowledgemap.view_topics", projects: "knowledge-knowledgemap.view_projects", tree: "knowledge-knowledgemap.view_tree" };
 const SUBTITLE: Record<View, string> = { topics: "knowledge-knowledgemap.subtitle_topics", projects: "knowledge-knowledgemap.subtitle_projects", tree: "knowledge-knowledgemap.subtitle_tree" };
 
@@ -310,7 +312,7 @@ export function KnowledgeMap({ onToggleSidebar }: { onToggleSidebar: () => void 
     <div role="tablist" aria-label={t("knowledge-knowledgemap.arrange")} className={cx("shrink-0 rounded-control bg-inset p-0.5 shadow-[inset_0_0_0_1px_var(--line)]", className)}>
       {(["tree", "tag"] as const).map((m) => (
         <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setSel(""); }}
-          className={cx("h-7 whitespace-nowrap rounded-[7px] px-2.5 text-[12.5px]", mode === m ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
+          className={cx(TAB, "px-2.5", mode === m ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
           {t(m === "tree" ? "knowledge-knowledgemap.by_hierarchy" : "knowledge-knowledgemap.by_tag")}
         </button>
       ))}
@@ -328,7 +330,7 @@ export function KnowledgeMap({ onToggleSidebar }: { onToggleSidebar: () => void 
         <div role="tablist" aria-label={t("knowledge-knowledgemap.views")} className="inline-flex shrink-0 rounded-control bg-inset p-0.5 shadow-[inset_0_0_0_1px_var(--line)]">
           {VIEWS.map((v) => (
             <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => pick(v)}
-              className={cx("h-7 whitespace-nowrap rounded-[7px] px-3 text-[12.5px]", view === v ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
+              className={cx(TAB, "px-3", view === v ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
               {t(VIEW_LABEL[v])}
             </button>
           ))}
