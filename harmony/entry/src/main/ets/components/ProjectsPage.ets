@@ -455,18 +455,27 @@ export struct ProjectsPage {
       if (this.hosts.length > 1 || this.catalog.browser.machine) this.machineFilter()
     }.width('100%').padding({bottom:8})
   }
+  private compactSearchIcon(): string {
+    return String(PhoneStyle.formSize(20, 27.33, nativeEnvironment.fontScale)) + 'vp';
+  }
+
+  private searchTextSize(): string {
+    return this.compact ? String(PhoneStyle.formSize(17, 22.2, nativeEnvironment.fontScale) * Math.min(1, nativeEnvironment.fontScale)) + 'vp' : '16fp';
+  }
+
   @Builder searchAndFilter() {
     Column({space:this.searchMode ? 20 : 6}) {
       Row({space:this.searchMode ? 11 : 8}) {
         Search({value:this.catalog.browser.query,placeholder:tr(this.compact ? 'agents_search_prompt' : 'project_search'),controller:this.searchField})
           .height(this.compact ? 44 : Math.max(40,21*nativeEnvironment.fontScale+12)).margin(this.compact ? 0 : {top:8,bottom:8}).layoutWeight(1)
-          .textFont({size:this.compact ? Tokens.interfaceFontVp(17,nativeEnvironment.fontScale) : '16fp'})
-          .placeholderFont({size:this.compact ? Tokens.interfaceFontVp(17,nativeEnvironment.fontScale) : '16fp'})
+          .textFont({size:this.searchTextSize()}).placeholderFont({size:this.searchTextSize()})
+          .searchIcon(this.compact ? {size:this.compactSearchIcon()} : undefined)
+          .cancelButton(this.compact ? {style:CancelButtonStyle.INPUT,icon:{size:this.compactSearchIcon()}} : undefined)
           .searchButton('').borderRadius(22).fontColor(Colors.ink).backgroundColor(Colors.surface)
           .onFocus(() => this.setSearchMode(true)).onClick(() => this.setSearchMode(true)).onChange((value:string) => this.search(value))
           .onSubmit(() => this.searchField.stopEditing()).id('projects.search')
         if (this.searchMode) {
-          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize('16vp').fontColor([Colors.ink]) }
+          Button({type:ButtonType.Circle}) { SymbolGlyph($r('sys.symbol.xmark')).fontSize(String(PhoneStyle.formSize(25.5,32,nativeEnvironment.fontScale))+'vp').fontColor([Colors.ink]) }
             .width(44).height(44).padding(0).backgroundColor(Colors.control)
             .accessibilityText(tr('cancel')).onClick(() => this.setSearchMode(false)).id('projects.search_cancel')
         } else if (this.hosts.length > 1 || this.catalog.browser.machine) this.machineFilter()
