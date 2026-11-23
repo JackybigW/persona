@@ -563,7 +563,14 @@ export async function brotliCopies(dir: string, files: string[]): Promise<{ file
 // one by one, the rest how they compress together). Overview by project adds 7 B in ja (the lazy import of
 // views/overview/ProjectOverview.tsx and the Classic layout switch, lib/overview-layout.ts): ja 484,878 B. 10 B of room
 // on top.
-export const FIRST_SCREEN_BUDGET = 484_888;
+// #13846: the module host serves the chat slots, Settings categories and card renderers (core/ChatSlots.tsx, the
+// served fields and the hub flag rule in core/module-host.ts, their places in views/chat/ChatView.tsx, Composer.tsx and
+// Interactions.tsx). 799 B in ja, measured in one environment against main 7be9a71cc (ja 484,445 B to 485,244 B; en
+// 481,786 B to 482,585 B, zh-Hans 482,421 B to 483,220 B). Main had 46 B of room, so the budget is main's 484,491 B
+// ceiling plus those 799 B. The web half of #13431 takes voice's first-screen parts off with the move into a module.
+// Merged, the four stacked branches add 284 B and Overview by project adds 7 B to main's 484,587 B ja first screen;
+// the module host adds its measured 799 B and main's 46 B of room is kept: 485,697 B.
+export const FIRST_SCREEN_BUDGET = 485_697;
 // The hash in a built file's name: the 8 characters of Rollup's [hash] (url-safe base64) between "-" and the
 // extension, as vite.config.ts names every chunk and asset ("assets/[name]-[hash].js", "[name]-[hash][extname]").
 const NAME_HASH = /-([A-Za-z0-9_-]{8})\.[^./]+$/;
