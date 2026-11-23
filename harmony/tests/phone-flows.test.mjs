@@ -709,7 +709,7 @@ test('the phone start action floats over the form and scrolls the last field cle
 
 test('clearing a compact settings query keeps the field active and dismissing still closes the sheet',()=>{
   const source=readFileSync(new URL('../entry/src/main/ets/components/SettingsDirectory.ets',import.meta.url),'utf8');
-  const clear=source.slice(source.indexOf('  @Builder clearSearchButton()'),source.indexOf('  private openEntry('));
+  const clear=source.slice(source.indexOf('  @Builder clearSearchButton()'),source.indexOf('  build() {',source.indexOf('  @Builder clearSearchButton()')));
   assert.match(clear,/this\.query=''; this\.onQueryChange\(''\)/);
   assert.match(clear,/requestFocus\('settings.search'\)/);
   assert.doesNotMatch(clear,/onDismissSearch/);

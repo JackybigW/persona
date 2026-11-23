@@ -206,17 +206,6 @@ export struct SettingsDirectory {
   private searchTextSize():string {
     return this.showDismissSearch ? String(this.searchSize(16.5,22)*Math.min(this.environment.fontScale,1))+'vp' : Tokens.interfaceFontVp(16,this.environment.fontScale);
   }
-  @Builder clearSearchButton() {
-    Button({type:ButtonType.Circle}) {
-      Stack() {
-        Circle().width(this.searchSize(17.33,23.33)).height(this.searchSize(17.33,23.33)).fill(Colors.ink)
-        PhoneOutlineIcon({name:'navigationClose',color:Colors.sheetControl,iconScale:this.searchSize(7.3,10)/17})
-      }.accessibilityLevel('no')
-    }.width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Color.Transparent)
-      .accessibilityText(tr('clear')).onClick(()=>{
-        this.query=''; this.onQueryChange(''); this.getUIContext().getFocusController().requestFocus('settings.search'); this.field.caretPosition(0);
-      }).id('settings.search.clear')
-  }
   private openEntry(id:string):void {
     this.field.stopEditing();
     this.onOpen(id);
@@ -257,6 +246,17 @@ export struct SettingsDirectory {
         }.width('100%').clip(true).backgroundColor(Colors.card(this.elevated)).borderRadius(PhoneStyle.cardRadius)
       }.width('100%')
     }
+  }
+  @Builder clearSearchButton() {
+    Button({type:ButtonType.Circle}) {
+      Stack() {
+        Circle().width(this.searchSize(17.33,23.33)).height(this.searchSize(17.33,23.33)).fill(Colors.ink)
+        PhoneOutlineIcon({name:'navigationClose',color:Colors.sheetControl,iconScale:this.searchSize(7.3,10)/17})
+      }.accessibilityLevel('no')
+    }.width(PhoneStyle.bar).height(PhoneStyle.bar).padding(0).backgroundColor(Color.Transparent)
+      .accessibilityText(tr('clear')).onClick(()=>{
+        this.query=''; this.onQueryChange(''); this.getUIContext().getFocusController().requestFocus('settings.search'); this.field.caretPosition(0);
+      }).id('settings.search.clear')
   }
   build() {
     List() {
