@@ -67,6 +67,7 @@ DOMAINS = [
     "starred_mock",  # Starred messages (/api/v1/assistant/starred…), MOCK_STARRED
     "page_counts_mock",  # A paged session read with its counts, MOCK_PAGE_COUNTS
     "task_skip_mock",  # One scheduled occurrence, MOCK_SKIP_OCCURRENCE
+    "watch_cards_mock",  # Overview's watch cards (/api/v1/assistant/watches…), MOCK_WATCH_CARDS
     "outside_directions_mock",  # conversationless reporting directions (#8236), MOCK_OUTSIDE_DIRECTIONS
     "direction_sessions_mock",  # Move To… and one direction's page (#11516), MOCK_DIRECTION_SESSIONS
     "dock_mock",  # more of the main conversation's tasks waiting in the To Decide pager (#12831), MOCK_DOCK

@@ -269,6 +269,7 @@ type Service struct {
 	admission      admissionBook     // admission.go: execution-agent resource and direction gate
 	adoptMu        sync.Mutex        // agent_control.go: one agent_supervise at a time
 	placeBook      placeBook         // places.go
+	watchBook      watchBook         // watch.go
 	accept         acceptBook        // acceptance.go
 	pushQuiet      quietSwitch       // push_quiet.go: the hub's low-distraction switch as last read
 	attention      attentionClock    // attention.go: the attention mode as last read, and its end
@@ -444,6 +445,7 @@ func New(o Options) *Service {
 	s.startRoutes()
 	s.skillRoutes()
 	s.workoutRoutes()
+	s.watchRoutes()
 	s.intakeRoutes()
 	s.scheduleRoutes()
 	s.scheduleGrantRoutes()

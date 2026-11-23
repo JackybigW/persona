@@ -46,7 +46,8 @@ var toolNames = []string{"resource_status", "ask_user", "notify_user", "supervis
 	"conversation_new", "conversation_send", "task_plan", "task_plan_withdraw", "task_review", "task_scope", "task_decided", "task_start_screen", "task_start_keys", "task_retry",
 	"todo_workspace", "todo_repositories_get", "todo_repositories_set", "todo_repository_links_set", "todo_repository_links_add", "todo_list", "todo_get", "todo_create", "todo_update", "todo_complete", "todo_reopen", "todo_delete", "concern_report",
 	"todo_sort",
-	"direction_name", "leader_progress", "decision_record", "decisions_query", "health_intake"}
+	"direction_name", "leader_progress", "decision_record", "decisions_query", "health_intake",
+	"watch_draft", "watch_confirm", "watch_list", "watch_update", "watch_delete", "watch_reorder", "watch_report"}
 
 // Tools are the assistant's tools (assistant.tools).
 func (s *Service) Tools(ctx context.Context) []proto.Tool {
@@ -217,6 +218,8 @@ func (s *Service) runTool(ctx context.Context, machine, self, name string, args 
 		return s.toolLeaderProgress(ctx, self, args)
 	case "concern_report":
 		return s.toolConcernReport(ctx, machine, self, args) // concerns.go
+	case "watch_draft", "watch_confirm", "watch_list", "watch_update", "watch_delete", "watch_reorder", "watch_report":
+		return s.toolWatch(ctx, machine, self, name, args) // watch_tools.go
 	case knowledgeSearchTool, knowledgeReadTool:
 		_, guest, err := s.guestOf(ctx, machine, self)
 		if err != nil || guest || s.isWorkMachine(machine) || isOutwardReader(ctx) {

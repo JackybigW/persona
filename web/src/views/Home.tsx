@@ -1,5 +1,5 @@
 // Overview: what needs you, what is running, what just finished — Beautiful UI's Task Rows — and the computers.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { SESSIONS_HIERARCHY_FEATURE } from "../lib/child-sessions";
 import { homeKey } from "../lib/folded-rows";
 import { ago, backgroundWaiting, interactionCanAnswer, sessionCan, sessionPreview, shortDuration, sourceSubtitle, sessionTitle, stateOf, tabLabel } from "../lib/format";
@@ -50,6 +50,9 @@ import { OverviewBody, type OverviewSections } from "./OverviewBody";
 import { TodoStageBar } from "./TodoStageBar";
 import { t } from "../i18n";
 import { markAllSeenLabel, STATE_LABEL, stateCount, stateName } from "../lib/state-labels";
+
+// The watch wall (views/watch/WatchWall.tsx, #13020) is a chunk of its own: Overview's first screen carries only this.
+const WatchWall = lazy(() => import("./watch/WatchWall"));
 
 function greeting() {
   const h = new Date().getHours();
@@ -304,6 +307,8 @@ export function Home({ onNewAgent, onToggleSidebar }: { onNewAgent: () => void; 
               number of cards pushes those off the first screen (#11147). Before the first snapshot the socket streams the
               machines' agents and cards in one by one, each moving the groups already painted, and "Loading" then went
               from over them: until it is in only "Loading" (where the sections begin), then all at once. */}
+          {/* the owner's watch cards first, above the sections and the extensions' cards (docs/assistant/watch-cards.md) */}
+          {!arranging && <Suspense fallback={null}><WatchWall /></Suspense>}
           <OverviewBody editing={arranging} onDone={() => setArranging(false)} sections={sections} start={!loaded && <Loading label={t("common.loading")} />} after={{ unread: quietCard }} />
         </div>
       </div>

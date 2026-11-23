@@ -3026,6 +3026,31 @@ section that holds what needs the user (Needs you, Stuck) has no switch and says
 `--ink-3` (3.4: a session that needs the user is never hidden); a hidden one is the same hairline outline as a hidden
 card, "Hidden" under its name. The greeting and its summary are not part of it and stay first. No new token or component.
 
+## Watch cards (web, #13020)
+
+The owner's watch cards (`docs/assistant/watch-cards.md`) are Overview's first block, above its sections and the
+extensions' cards: a heading ("Watching", the card count and, in `--red`, the alert count) over an adaptive grid of
+cards at least 240 px wide (`WATCH_GRID`). One card component, `WatchCard` (`web/src/views/watch/WatchCard.tsx`), draws
+every place a card appears (the wall and a project node's `ProjectWatchCards`):
+
+- Surface `rounded-card bg-surface shadow-card`, padding 14 px; the name in `text-meta` semibold (one line, the question
+  as its tooltip), a ⋯ `IconButton` for its actions, a `bell` when it has an alert rule.
+- The answer by display kind: **number** in `text-2xl` tabular figures with its unit in `--ink-3`; **status light** as an
+  8–10 px dot in `--green` / `--orange` / `--red` with its word in `text-card-title`; **table** in `bg-inset` at
+  `text-label`, at most 5 rows and "N more rows"; **trend** the number with a 96 × 32 sparkline (`--accent`, `--red`
+  when it alerts). The reading's line under it in `text-meta` `--ink-2`, at most two lines.
+- A tripped alert: a 2 px `--red` ring at half strength and an **Alert** tag (`bg-red-tint`, `--red`); a bad status
+  without an alert colours the value only. A paused card is drawn at 70% opacity and says Paused in its meta line.
+- A draft: a dashed `--line-strong` outline on the canvas (no surface), "Draft from Persona · add it?" in `--accent-ink`,
+  its preview as a two-column list and the two choices (primary **Add to Overview**, secondary **Discard**).
+- The meta line in `text-submeta` `--ink-3`: the refresh rule in the Scheduled tasks page's words (`ruleText`), when it
+  was updated, and its project (left out inside that project's own panel).
+- Reordering reuses "Arranging cards in place": the `grip`, an HTML drag onto another card (2 px inset `--accent` ring on
+  the target) and, for keyboard and touch, **Move earlier / Move later** in the ⋯ menu. Delete confirms in the menu row
+  (4.4), Discard on a draft does not ask (nothing ran yet).
+
+With no cards the wall is one line in `--ink-3` saying how to get one. No new token.
+
 ## Arranging conversations in place (#12017)
 
 The Assistant's ordinary conversations use the same progressive-disclosure pattern in the sidebar's Recent and in All
