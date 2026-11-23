@@ -1692,11 +1692,16 @@ export struct Conversation {
       Stack({ alignContent: Alignment.BottomEnd }) {
         this.transcriptList()
         if (this.jumpAvailable) {
-          Button({ type: ButtonType.Circle }) {
-            SymbolGlyph(IconActions.symbol('latest')).fontSize(18).fontColor([Colors.ink])
-          }.width(40).height(40).padding(0).backgroundColor(Colors.surface)
-            .border({ width: 0.7, color: Colors.divider, radius: 20 }).shadow(ShadowStyle.OUTER_DEFAULT_XS)
-            .responseRegion({ x: -3, y: -3, width: 46, height: 46 }).margin({ right: Tokens.page, bottom: Tokens.gap })
+          Button({ type: ButtonType.Normal }) {
+            Stack() {
+              SymbolGlyph(IconActions.symbol('latest')).fontSize(String(this.latestArrowSize)+'vp')
+                .fontWeight(FontWeight.Medium).fontColor([Colors.link])
+                .width(this.latestArrowSize).height(this.latestArrowSize)
+            }.width(this.latestDiameter).height(this.latestDiameter).borderRadius(this.latestDiameter/2).clip(true)
+              .backgroundColor(Colors.styleID==='glass' ? Color.Transparent : Colors.surface)
+              .backgroundBlurStyle(Colors.styleID==='glass' ? BlurStyle.COMPONENT_THIN : BlurStyle.NONE)
+          }.width(this.latestDiameter+10).height(this.latestDiameter).padding(0).backgroundColor(Color.Transparent)
+            .margin({ right: Tokens.page, bottom: 14 })
             .accessibilityText(tr('latest')).bindTips(tr('latest')).id('chat.latest')
             .onClick(() => this.jumpToLatest())
         }
@@ -1747,6 +1752,10 @@ export struct Conversation {
       .onReachEnd(() => { if (this.active && !this.readingRestoring) { this.atEnd = true; this.anchor.atEnd = true; this.jumpAvailable = false; } })
       .onScrollFrameBegin((offset: number) => { if (offset < 0 && !this.readingRestoring) { this.atEnd = false; this.anchor.atEnd = false; } return { offsetRemain: offset }; })
   }
+
+  // The iPhone glass button has a circular face inside a slightly wider native hit area.
+  @Computed get latestDiameter(): number { return PhoneStyle.formSize(54, 66.7, this.environment.fontScale); }
+  @Computed get latestArrowSize(): number { return PhoneStyle.formSize(18, 24, this.environment.fontScale); }
 
   private openQuestion(request: Decision): void {
     if (!this.active) return;

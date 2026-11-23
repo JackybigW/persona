@@ -41,6 +41,27 @@ test('unusable saved reading positions fall back to newest without admitting inv
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 const source=readFileSync(new URL('../entry/src/main/ets/components/Conversation.ets',import.meta.url),'utf8');
+test('the return-to-latest control scales its colored arrow within a larger independent touch area',()=>{
+ const style=readFileSync(new URL('../entry/src/main/ets/design/PhoneStyle.ets',import.meta.url),'utf8');
+ const body=style.match(/static formSize\([\s\S]*?\n  \}/)[0];
+ const tokensSource=readFileSync(new URL('../entry/src/main/ets/design/Tokens.ets',import.meta.url),'utf8');
+ const tokens=new Function('return '+stripTypeScriptTypes(tokensSource.slice(tokensSource.indexOf('export class Tokens')).replace('export class ','class ')))();
+ const size=new Function('Tokens','return '+stripTypeScriptTypes('class Size {'+body+'}'))(tokens);
+ const getters=['latestDiameter','latestArrowSize'].map(name=>{
+   const match=source.match(new RegExp('@Computed (get '+name+'\\(\\): number \\{[^}]+\\})'));
+   assert.ok(match,name);return match[1];
+ });
+ const control=new (new Function('PhoneStyle','return '+stripTypeScriptTypes('class Latest {'+getters.join('\n')+'}'))(size))();
+ for(const [scale,diameter,arrow] of [[1,54,18],[(1+tokens.interfaceFontMaxScale)/2,60.35,21],[3.2,66.7,24]]){
+   control.environment={fontScale:scale};
+   assert.ok(Math.abs(control.latestDiameter-diameter)<0.001);
+   assert.ok(Math.abs(control.latestArrowSize-arrow)<0.001);
+ }
+ const ui=source.slice(source.indexOf('if (this.jumpAvailable) {'),source.indexOf(".id('chat.latest')")+18);
+ assert.match(ui,/fontSize\(String\(this\.latestArrowSize\)\+'vp'\)/);
+ assert.match(ui,/fontColor\(\[Colors\.link\]\)/);
+ assert.match(ui,/width\(this\.latestDiameter\+10\)\.height\(this\.latestDiameter\)/);
+});
 test('initial type-change distance uses the actual measured tail and verification uses the observed endpoint',()=>{
  const Geometry=new Function('measuredReadingBoundary','Tokens','return '+stripTypeScriptTypes('class Geometry {'+method('readingBoundary')+'}'))(measuredReadingBoundary,{gap:8});
  const lines=[{},{}];
