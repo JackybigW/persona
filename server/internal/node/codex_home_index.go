@@ -2,10 +2,10 @@ package node
 
 import (
 	"os"
-
-	"github.com/nwverse/persona/server/internal/proto"
 	"sync"
 	"time"
+
+	"github.com/nwverse/persona/server/internal/proto"
 )
 
 // A discovered home can be on an offline mount or waiting for a folder permission.
@@ -46,7 +46,16 @@ func (n *Node) indexCodexHome(home string, deadline time.Time) bool {
 // Do not re-enter a filesystem scan the index has already timed out or another reader holds.
 func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
 	src, ok := n.codexSource(id)
-	if !ok || !n.indexCodexHome(src.home, deadline) {
+	if !ok {
+		// A pane can already have its own transcript before its home is in
+		// the Codex registry. The normal transcript lookup revalidates that
+		// path; it needs no inferred home or new public identity here.
+		n.mu.Lock()
+		path := n.paths[id]
+		n.mu.Unlock()
+		return path != ""
+	}
+	if !n.indexCodexHome(src.home, deadline) {
 		return false
 	}
 	c := rolloutCacheFor(src.home)
