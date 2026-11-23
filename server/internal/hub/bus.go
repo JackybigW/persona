@@ -410,9 +410,14 @@ func (h *Hub) managerHello(ctx context.Context, c *busConn, params json.RawMessa
 	if p.ID != c.ident.ID {
 		return c.refuse(h, fmt.Errorf("manager.hello says %q but the token is %q's", clip(p.ID, 64), c.ident.ID))
 	}
+	capabilities, cut := capabilityList(p.Capabilities)
 	if err := h.busAccept(ctx, c, busPresence{Host: clip(p.Host, 200), OS: clip(p.OS, 40), Arch: clip(p.Arch, 40),
-		Deploy: clip(p.Deploy, 40), Version: clip(p.Version, 80), Capabilities: capabilityList(p.Capabilities)}); err != nil {
+		Deploy: clip(p.Deploy, 40), Version: clip(p.Version, 80), Capabilities: capabilities}); err != nil {
 		return nil, err
+	}
+	if len(cut) > 0 {
+		h.logf("bus: [%s] hello names %d capabilities and the hub keeps %d: dropped %s (raise maxManagerCapabilities)",
+			c.ident.ID, len(capabilities)+len(cut), maxManagerCapabilities, strings.Join(cut[:min(len(cut), 8)], ", "))
 	}
 	if c.ident.Role == bus.RoleManager && !slices.Contains(p.Capabilities, assistantwire.CapabilityConfigOwn) {
 		h.bus.mu.Lock()
@@ -437,19 +442,24 @@ func (h *Hub) managerHello(ctx context.Context, c *busConn, params json.RawMessa
 }
 
 // maxManagerCapabilities bounds how many capabilities the hub keeps from a manager's hello. A capability past it is
-// dropped without a word, so the feature it gates never starts; the built-in manager alone says 32 (2026-11-23), and
-// TestManagerHelloCapabilitiesFit keeps room above that.
+// dropped, so the feature it gates never starts (managerHello logs which); the built-in manager alone says 33
+// (2026-11-24), and TestManagerHelloCapabilitiesFit keeps room above that.
 const maxManagerCapabilities = 64
 
-// capabilityList is a hello's capabilities, bounded: at most maxManagerCapabilities names of at most 64 bytes.
-func capabilityList(in []string) []string {
-	var out []string
+// capabilityList is a hello's capabilities, bounded: at most maxManagerCapabilities names of at most 64 bytes. cut is
+// the well-formed names past the limit, in the hello's order: what the hub drops that the manager means.
+func capabilityList(in []string) (out, cut []string) {
 	for _, c := range in {
-		if c = strings.TrimSpace(c); c != "" && len(c) <= 64 && len(out) < maxManagerCapabilities && !slices.Contains(out, c) {
+		if c = strings.TrimSpace(c); c == "" || len(c) > 64 || slices.Contains(out, c) || slices.Contains(cut, c) {
+			continue
+		}
+		if len(out) < maxManagerCapabilities {
 			out = append(out, c)
+		} else {
+			cut = append(cut, c)
 		}
 	}
-	return out
+	return out, cut
 }
 
 // busAccept makes c its identity's current connection, and hangs up the one it replaces.
