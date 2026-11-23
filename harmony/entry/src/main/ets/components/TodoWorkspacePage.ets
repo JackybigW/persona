@@ -603,21 +603,20 @@ export struct TodoWorkspacePage {
           .borderRadius(50).id('todos.review.'+binding.value.lead.id)
       }.constraintSize({maxWidth:'100%'})
   }
-  @Builder seenTint() {
-    Rect().width('100%').height(this.phoneMeasure(16.3,23.7)).radius(30).fill(Colors.accentWell).hitTestBehavior(HitTestMode.None)
-  }
   @Builder seenChip(current:()=>TodoWorkspaceItem) {
-    Button({type:ButtonType.Normal}) {
-      Row({space:4}) {
-        SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(this.phoneMeasure(13,19.5)+'vp')
-          .width(this.phoneMeasure(14,21.3)).height(this.phoneMeasure(14.3,21.7)).fontColor([Colors.interfaceAccent]).accessibilityLevel('no')
-        Text(tr('phone_todo_got_it')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
-          .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(Colors.interfaceAccent).maxLines(1)
-      }
-    }.height(this.phoneMeasure(14.3,21.7)).padding({left:6,right:6}).clip(false).backgroundColor(Color.Transparent)
-      .background(this.seenTint).responseRegion({x:0,y:-16,width:'100%',height:this.phoneMeasure(14.3,21.7)+32})
-      .accessibilityText(tr(current().kind==='concern' && !current().isDone() ? 'phone_todo_seen_open_a11y' : 'phone_todo_seen_done_a11y').replace('{title}',current().title))
-      .enabled(!this.workspace.saving).onClick(()=>this.workspace.markSeen(current())).id('todos.seen.'+current().id)
+    Stack() {
+      Button({type:ButtonType.Normal}) {
+        Row({space:4}) {
+          SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(this.phoneMeasure(13,19.5)+'vp')
+            .width(this.phoneMeasure(14,21.3)).height(this.phoneMeasure(14.3,21.7)).fontColor([Colors.interfaceAccent]).accessibilityLevel('no')
+          Text(tr('phone_todo_got_it')).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12))
+            .lineHeight(this.phoneMeasure(14.3,21.7)+'vp').fontColor(Colors.interfaceAccent).maxLines(1)
+        }
+      }.height(this.phoneMeasure(14.3,21.7)).padding({left:6,right:6}).clip(false).backgroundColor(Color.Transparent)
+        .responseRegion({x:0,y:-16,width:'100%',height:this.phoneMeasure(14.3,21.7)+32})
+        .accessibilityText(tr(current().kind==='concern' && !current().isDone() ? 'phone_todo_seen_open_a11y' : 'phone_todo_seen_done_a11y').replace('{title}',current().title))
+        .enabled(!this.workspace.saving).onClick(()=>this.workspace.markSeen(current())).id('todos.seen.'+current().id)
+    }.height(this.phoneMeasure(16.3,23.7)).backgroundColor(Colors.accentWell).borderRadius(30).margin({top:-1,bottom:-1})
   }
   @Builder phoneRowWords(binding:BoundRow<TodoWorkspaceGroup>) {
     Column({space:4}) {
