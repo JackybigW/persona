@@ -59,6 +59,35 @@ func reversibleResultText(r proto.ToolResult) string {
 	return strings.Join(out, "\n")
 }
 
+// With the module excluded, exercise the same proposed edit: the manager must
+// reject it locally and preserve even an explicit default or a stored null.
+func (tc reversibleSettingCase) rejectsWhenUnavailable(t *testing.T, s *Service, st *fleetMem, before, after string) bool {
+	t.Helper()
+	if tc.key != "assistant.briefing_waits" || s.modules.Loaded("briefing") {
+		return false
+	}
+	requireUnavailableBriefingAction(t, s, "set", after)
+	requireReversibleRaw(t, st, tc, before)
+	if len(s.pendingQuestions()) != 0 || len(reversibleRecords(st)) != 0 {
+		t.Fatal("an unavailable briefing setting left a card or an audit record")
+	}
+	return true
+}
+
+func requireUnavailableBriefingAction(t *testing.T, s *Service, action, value string) {
+	t.Helper()
+	const key = "assistant.briefing_waits"
+	f := s.hub.(*fakeHub)
+	before := len(f.appParams(AppSettings, AppTool))
+	r := callReversibleSettingAction(t.Context(), s, action, key, value, "conv1")
+	if !r.IsError || !strings.Contains(reversibleResultText(r), key) {
+		t.Fatalf("unavailable briefing setting %s = %+v", action, r)
+	}
+	if got := len(f.appParams(AppSettings, AppTool)); got != before {
+		t.Fatalf("manager sent its unavailable setting to the hub: %d additional calls", got-before)
+	}
+}
+
 func requireAutomaticReversibleSet(t *testing.T, s *Service, key, value string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -221,8 +250,14 @@ func reversibleRecords(st *fleetMem) []db.InteractionRecord {
 func TestReversibleSettingCandidatesRequireApprovalByDefault(t *testing.T) {
 	for _, tc := range reversibleSettingCases {
 		t.Run(tc.key, func(t *testing.T) {
-			s, _ := newReversibleSettingService(t, false)
+			s, st := newReversibleSettingService(t, false)
+			if tc.rejectsWhenUnavailable(t, s, st, `null`, tc.value) {
+				return
+			}
+			requireReversibleApproval(t, s, tc.key, tc.value, false)
+			requireReversibleRaw(t, st, tc, `null`)
 			q := requireReversibleApproval(t, s, tc.key, tc.value, true)
+			requireReversibleRaw(t, st, tc, tc.value)
 			if !strings.Contains(q.Summary, "16") && tc.key == "assistant.briefing_waits" {
 				t.Fatalf("briefing proposal does not show the new value: %q", q.Summary)
 			}
@@ -274,6 +309,9 @@ func TestBriefingWaitsExplicitDefaultNullNoopWhenSwitchOff(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	if reversibleSettingCases[2].rejectsWhenUnavailable(t, s, st, reversibleBriefingDefaultValue, `null`) {
+		return
+	}
 	r := callReversibleSetting(ctx, s, "assistant.briefing_waits", `null`)
 	if r.IsError || !strings.Contains(reversibleResultText(r), "unchanged") {
 		t.Fatalf("switch-off explicit-default null result = %+v %q", r, reversibleResultText(r))
@@ -288,6 +326,9 @@ func TestReversibleSettingsAutoApproveRestoreAndAudit(t *testing.T) {
 	for _, tc := range reversibleSettingCases {
 		t.Run(tc.key, func(t *testing.T) {
 			s, st := newReversibleSettingService(t, true)
+			if tc.rejectsWhenUnavailable(t, s, st, `null`, tc.value) {
+				return
+			}
 			requireAutomaticReversibleSet(t, s, tc.key, tc.value)
 			requireReversibleRaw(t, st, tc, tc.value)
 			recs := reversibleRecords(st)
@@ -379,6 +420,9 @@ func TestReversibleSettingsRestoreExplicitBeforeImages(t *testing.T) {
 			if err := st.PutSetting(context.Background(), settingsKey, tc.initial); err != nil {
 				t.Fatal(err)
 			}
+			if tc.reversibleSettingCase.rejectsWhenUnavailable(t, s, st, tc.undo, tc.value) {
+				return
+			}
 			requireAutomaticReversibleSet(t, s, tc.key, tc.value)
 			requireReversibleRaw(t, st, tc.reversibleSettingCase, tc.value)
 			requireAutomaticReversibleSet(t, s, tc.key, tc.undo)
@@ -401,6 +445,9 @@ func TestReversibleNullClearsExplicitDefaults(t *testing.T) {
 			s, st := newReversibleSettingService(t, true)
 			if err := st.PutSetting(context.Background(), settingsKey, tc.initial); err != nil {
 				t.Fatal(err)
+			}
+			if tc.reversibleSettingCase.rejectsWhenUnavailable(t, s, st, tc.explicit, `null`) {
+				return
 			}
 			requireAutomaticReversibleSet(t, s, tc.key, `null`)
 			requireReversibleRaw(t, st, tc.reversibleSettingCase, `null`)
@@ -444,6 +491,9 @@ func TestReversibleSettingsAuditRestoreRoundTripsRawState(t *testing.T) {
 			t.Run(setting.key+"/"+tc.name, func(t *testing.T) {
 				s, st := newReversibleSettingService(t, true)
 				putReversibleRaw(t, st, setting, tc.before)
+				if setting.rejectsWhenUnavailable(t, s, st, tc.before, tc.after) {
+					return
+				}
 				requireAutomaticReversibleSet(t, s, setting.key, tc.after)
 				requireReversibleRaw(t, st, setting, tc.after)
 				recs := reversibleRecords(st)
