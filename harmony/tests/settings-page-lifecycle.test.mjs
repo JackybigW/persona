@@ -15,7 +15,7 @@ test('the phone searches nested settings and restores exactly the query used to 
     .replace('@Computed ', '');
   const strings = new Map(JSON.parse(readFileSync(new URL('../entry/src/main/resources/zh_CN/element/string.json', import.meta.url))).string
     .map(entry => [entry.name, entry.value]));
-  const Search = new Function('tr','phoneSettingsSearchCatalog',stripTypeScriptTypes(catalog + labels + ' class Search {' + appear + lookup + '}')+';return Search')(key => strings.get(key) || key,phoneSettingsSearchCatalog);
+  const Search = new Function('tr','phoneSettingsSearchCatalog','canIUse',stripTypeScriptTypes(catalog + labels + ' class Search {' + appear + lookup + '}')+';return Search')(key => strings.get(key) || key,phoneSettingsSearchCatalog,()=>true);
   const page = new Search(), actions = [];
   Object.assign(page,{ initialQuery:' 深色  主题 ', label:id=>id, subtitle:()=>'', meeting:{open(){}}, readHubStatus(){}, field:{ stopEditing:()=>actions.push('dismiss') }, onOpen:id=>actions.push(id) });
   page.aboutToAppear();

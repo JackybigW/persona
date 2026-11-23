@@ -8335,6 +8335,102 @@
     {
       "name": "phone_screen_scroll_hint",
       "value": "用两指在电脑画面上拖动时，画面滚动的快慢。"
+    },
+    {
+      "name": "phone_native_alarms",
+      "value": "闹钟与计时器"
+    },
+    {
+      "name": "phone_search_alias_phone_native_alarms",
+      "value": "闹钟 计时器 定时器 时钟 叫醒 倒计时"
+    },
+    {
+      "name": "phone_alarm_empty",
+      "value": "没有闹钟或计时器"
+    },
+    {
+      "name": "phone_alarm_empty_note",
+      "value": "Persona 为你设定的闹钟和计时器会显示在这里。这里只显示 Persona 设定的，时钟 App 里的看不到。"
+    },
+    {
+      "name": "phone_native_timers",
+      "value": "计时器"
+    },
+    {
+      "name": "phone_native_alarms_only",
+      "value": "闹钟"
+    },
+    {
+      "name": "phone_native_timer",
+      "value": "计时器"
+    },
+    {
+      "name": "phone_native_alarm",
+      "value": "闹钟"
+    },
+    {
+      "name": "phone_alarm_allow",
+      "value": "允许使用闹钟"
+    },
+    {
+      "name": "phone_alarm_open_settings",
+      "value": "打开系统设置"
+    },
+    {
+      "name": "phone_delete_timer",
+      "value": "删除计时器"
+    },
+    {
+      "name": "phone_delete_alarm",
+      "value": "删除闹钟"
+    },
+    {
+      "name": "phone_delete_timer_note",
+      "value": "计时器会停止，不会响铃。"
+    },
+    {
+      "name": "phone_delete_alarm_note",
+      "value": "这个闹钟不会再响。"
+    },
+    {
+      "name": "phone_alarm_changed",
+      "value": "这个闹钟或计时器已更改，请刷新查看。"
+    },
+    {
+      "name": "phone_alarm_access_note",
+      "value": "允许通知后，可以管理 Persona 在这台设备上设置的闹钟和计时器。"
+    },
+    {
+      "name": "phone_timer_seconds",
+      "value": "{seconds} 秒"
+    },
+    {
+      "name": "phone_alarm_day_mon",
+      "value": "周一"
+    },
+    {
+      "name": "phone_alarm_day_tue",
+      "value": "周二"
+    },
+    {
+      "name": "phone_alarm_day_wed",
+      "value": "周三"
+    },
+    {
+      "name": "phone_alarm_day_thu",
+      "value": "周四"
+    },
+    {
+      "name": "phone_alarm_day_fri",
+      "value": "周五"
+    },
+    {
+      "name": "phone_alarm_day_sat",
+      "value": "周六"
+    },
+    {
+      "name": "phone_alarm_day_sun",
+      "value": "周日"
     }
   ]
 }

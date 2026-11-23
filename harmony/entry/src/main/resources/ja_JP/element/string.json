@@ -8335,6 +8335,102 @@
     {
       "name": "phone_screen_scroll_hint",
       "value": "コンピュータの画面を2本指でドラッグしたときの、スクロールの速さです。"
+    },
+    {
+      "name": "phone_native_alarms",
+      "value": "アラームとタイマー"
+    },
+    {
+      "name": "phone_search_alias_phone_native_alarms",
+      "value": "アラーム タイマー 時計 目覚まし カウントダウン"
+    },
+    {
+      "name": "phone_alarm_empty",
+      "value": "アラームやタイマーはありません"
+    },
+    {
+      "name": "phone_alarm_empty_note",
+      "value": "Persona が設定したアラームとタイマーがここに表示されます。表示されるのは Persona のものだけで、時計 App のものは表示されません。"
+    },
+    {
+      "name": "phone_native_timers",
+      "value": "タイマー"
+    },
+    {
+      "name": "phone_native_alarms_only",
+      "value": "アラーム"
+    },
+    {
+      "name": "phone_native_timer",
+      "value": "タイマー"
+    },
+    {
+      "name": "phone_native_alarm",
+      "value": "アラーム"
+    },
+    {
+      "name": "phone_alarm_allow",
+      "value": "アラームを許可"
+    },
+    {
+      "name": "phone_alarm_open_settings",
+      "value": "設定を開く"
+    },
+    {
+      "name": "phone_delete_timer",
+      "value": "タイマーを削除"
+    },
+    {
+      "name": "phone_delete_alarm",
+      "value": "アラームを削除"
+    },
+    {
+      "name": "phone_delete_timer_note",
+      "value": "タイマーは止まり、鳴りません。"
+    },
+    {
+      "name": "phone_delete_alarm_note",
+      "value": "このアラームは今後鳴りません。"
+    },
+    {
+      "name": "phone_alarm_changed",
+      "value": "アラームまたはタイマーが変更されました。更新してください。"
+    },
+    {
+      "name": "phone_alarm_access_note",
+      "value": "通知を許可すると、この端末で Persona が設定したアラームとタイマーを管理できます。"
+    },
+    {
+      "name": "phone_timer_seconds",
+      "value": "{seconds} 秒"
+    },
+    {
+      "name": "phone_alarm_day_mon",
+      "value": "月"
+    },
+    {
+      "name": "phone_alarm_day_tue",
+      "value": "火"
+    },
+    {
+      "name": "phone_alarm_day_wed",
+      "value": "水"
+    },
+    {
+      "name": "phone_alarm_day_thu",
+      "value": "木"
+    },
+    {
+      "name": "phone_alarm_day_fri",
+      "value": "金"
+    },
+    {
+      "name": "phone_alarm_day_sat",
+      "value": "土"
+    },
+    {
+      "name": "phone_alarm_day_sun",
+      "value": "日"
     }
   ]
 }

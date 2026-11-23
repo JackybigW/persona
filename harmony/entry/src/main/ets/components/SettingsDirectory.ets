@@ -38,6 +38,7 @@ function settingIcon(id:string):Resource {
     case 'extensions': return Symbols.apps;
     case 'phone_inbox_sources': return Symbols.inbox;
     case 'phone_live_screen': return $r('sys.symbol.desktop');
+    case 'phone_native_alarms': return $r('sys.symbol.bell');
     case 'phone_hubs': return $r('sys.symbol.link');
     case 'phone_pairing': return $r('sys.symbol.qrcode');
     case 'phone_settings_advanced': return $r('sys.symbol.slider_horizontal_2');
@@ -174,6 +175,7 @@ export struct SettingsDirectory {
     if (!query) return [];
     const words = query.split(/\s+/);
     const listed=phoneSettingsSearchCatalog.filter((id:string) => {
+      if (id==='phone_native_alarms' && !canIUse('SystemCapability.Notification.ReminderAgent')) return false;
       const aliases=tr('phone_search_alias_'+id);
       const terms = [settingLabel(id,this.label),aliases].join(' ').toLocaleLowerCase();
       return words.every((word:string) => terms.includes(word));
@@ -188,7 +190,7 @@ export struct SettingsDirectory {
         return Wire.bool(capability,'enabled') && Wire.bool(capability,'screen_sharing');
       });
     });
-    return phoneSettingsRows(this.advanced,group,this.model.features,!!this.model.profile.id&&!this.model.demo,screens);
+    return phoneSettingsRows(this.advanced,group,this.model.features,!!this.model.profile.id&&!this.model.demo,screens,canIUse('SystemCapability.Notification.ReminderAgent'));
   }
   private restoreSearchFocus(): void {
     const query=this.initialQuery, scope=this.model.scope();

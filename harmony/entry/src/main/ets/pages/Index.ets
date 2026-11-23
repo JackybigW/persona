@@ -27,6 +27,7 @@ import { PhoneIconButton, PhoneNavigationIcon, PhoneStyle } from '../design/Phon
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
 import { phoneAppearancePage, phoneSettingsLink, pushPhoneSetting } from '../core/PhoneSettingsNavigation';
 import { SettingsDirectory, PhoneSettingsOptions } from '../components/SettingsDirectory';
+import { PhoneAlarmsSettings } from '../components/PhoneAlarmsSettings';
 import { PhoneSettingsDevicePages } from '../components/PhoneSettingsDevicePages';
 import { PhoneDefaultPermissionSection } from '../components/PhoneDefaultPermissionSection';
 import { InboxSourcesNavigation } from '../models/InboxSources';
@@ -2033,6 +2034,8 @@ struct Index {
           onWeb:(address:string)=>this.openReader(address)}).layoutWeight(1)
       } else if (this.phoneSettingsPage==='phone_default_permissions') {
         List() { PhoneDefaultPermissionSection({model:this.model,elevated:true}) }.width('100%').layoutWeight(1).padding(16)
+      } else if (this.phoneSettingsPage==='phone_native_alarms') {
+        PhoneAlarmsSettings({elevated:true,active:this.phoneSettingsShown}).layoutWeight(1)
       } else if (['phone_hubs','phone_pairing','about','storage','phone_live_screen'].includes(this.phoneSettingsPage)) {
         PhoneSettingsDevicePages({model:this.model,elevated:true,page:this.phoneSettingsPage,
           onOpen:(key:string)=>this.openFromPhoneSettings(key),onPair:()=>this.pairFromSettings()}).layoutWeight(1)
@@ -2932,6 +2935,8 @@ struct Index {
           onWeb:(address:string)=>this.openReader(address)})
       } else if (name==='settings' && this.settingsKind(param)==='phone_default_permissions') {
         List() { PhoneDefaultPermissionSection({model:this.settingsModel(param)}) }.width('100%').height('100%').padding(16)
+      } else if (name==='settings' && this.settingsKind(param)==='phone_native_alarms') {
+        PhoneAlarmsSettings({active:this.activeChild===this.childKey(name,param)})
       } else if (name==='settings' && ['phone_hubs','phone_pairing','about','storage','phone_live_screen'].includes(this.settingsKind(param))) {
         PhoneSettingsDevicePages({model:this.settingsModel(param),page:this.settingsKind(param),onOpen:(key:string)=>this.openSettings(key),onPair:()=>this.pairFromSettings()})
       } else if (name === 'settings' && ['phone_agent_options','phone_language_options'].includes(this.settingsKind(param))) {

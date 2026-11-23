@@ -8331,6 +8331,102 @@
     {
       "name": "phone_screen_scroll_hint",
       "value": "How far a computer's screen scrolls when you drag two fingers on it."
+    },
+    {
+      "name": "phone_native_alarms",
+      "value": "Alarms and Timers"
+    },
+    {
+      "name": "phone_search_alias_phone_native_alarms",
+      "value": "alarm timer clock wake up countdown"
+    },
+    {
+      "name": "phone_alarm_empty",
+      "value": "No Alarms or Timers"
+    },
+    {
+      "name": "phone_alarm_empty_note",
+      "value": "Alarms and timers Persona sets for you show up here. Only Persona's are listed: the ones in the Clock app aren't."
+    },
+    {
+      "name": "phone_native_timers",
+      "value": "Timers"
+    },
+    {
+      "name": "phone_native_alarms_only",
+      "value": "Alarms"
+    },
+    {
+      "name": "phone_native_timer",
+      "value": "Timer"
+    },
+    {
+      "name": "phone_native_alarm",
+      "value": "Alarm"
+    },
+    {
+      "name": "phone_alarm_allow",
+      "value": "Allow Alarms"
+    },
+    {
+      "name": "phone_alarm_open_settings",
+      "value": "Open Settings"
+    },
+    {
+      "name": "phone_delete_timer",
+      "value": "Delete Timer"
+    },
+    {
+      "name": "phone_delete_alarm",
+      "value": "Delete Alarm"
+    },
+    {
+      "name": "phone_delete_timer_note",
+      "value": "The timer stops and won't ring."
+    },
+    {
+      "name": "phone_delete_alarm_note",
+      "value": "This alarm won't ring again."
+    },
+    {
+      "name": "phone_alarm_changed",
+      "value": "This alarm or timer has changed. Refresh to see its current state."
+    },
+    {
+      "name": "phone_alarm_access_note",
+      "value": "Allow notifications to manage alarms and timers set by Persona on this device."
+    },
+    {
+      "name": "phone_timer_seconds",
+      "value": "{seconds} seconds"
+    },
+    {
+      "name": "phone_alarm_day_mon",
+      "value": "Mon"
+    },
+    {
+      "name": "phone_alarm_day_tue",
+      "value": "Tue"
+    },
+    {
+      "name": "phone_alarm_day_wed",
+      "value": "Wed"
+    },
+    {
+      "name": "phone_alarm_day_thu",
+      "value": "Thu"
+    },
+    {
+      "name": "phone_alarm_day_fri",
+      "value": "Fri"
+    },
+    {
+      "name": "phone_alarm_day_sat",
+      "value": "Sat"
+    },
+    {
+      "name": "phone_alarm_day_sun",
+      "value": "Sun"
     }
   ]
 }

@@ -9,6 +9,7 @@ import nativeFontTests from '../test/NativeFont.test';
 import nativeSshTests from '../test/NativeSsh.test';
 import nativeRecordingTests from '../test/NativeRecording.test';
 import nativeMeetingAudioTests from '../test/NativeMeetingAudio.test';
+import nativeAlarmsTests from '../test/NativeAlarms.test';
 import nativeMeetingServicesTests from '../test/NativeMeetingServices.test';
 import nativePhoneTests from '../test/NativePhone.test';
 import nativeCoreTests from '../test/NativeCore.test';
@@ -29,6 +30,7 @@ export default class TestAbility extends UIAbility {
       else if (fixtureArgument('fontScale')) nativeFontTests();
       else if (fixtureArgument('sshFixtureFile')) nativeSshTests();
       else if (fixtureArgument('meetingAudioFixture')==='synthetic') nativeMeetingAudioTests();
+      else if (fixtureArgument('alarmFixture')==='synthetic') nativeAlarmsTests();
       else if (fixtureArgument('meetingReminderFixture')==='synthetic') nativeMeetingServicesTests();
       else if (fixtureArgument('recordingFixtureId')) nativeRecordingTests();
       else if (fixtureArgument('phoneCheck')) nativePhoneTests();
