@@ -251,7 +251,7 @@ class ShardTests(unittest.TestCase):
         self.assertIn('if [ "$shard" = managers ]; then shard_budget=900; fi', script)
         self.assertIn('ci_run "Server $shard tests with Postgres" "$shard_budget"', script)
         workflow = (ROOT / ".github/workflows/server-test.yml").read_text()
-        self.assertIn("timeout-minutes: 20", workflow)
+        self.assertIn("timeout-minutes: ${{ matrix.shard == 'build' && 30 || matrix.shard == 'managers' && 20 || 15 }}", workflow)
         # The inner Go timeout, test selection and assertions stay unchanged: a genuinely stuck test still gets 10m.
         shards = (ROOT / "scripts/ci/server-shards.py").read_text()
         self.assertIn('"--", "go", "test", "-json", "-p", str(workers), "-count=1", "-timeout=10m"]', shards)
