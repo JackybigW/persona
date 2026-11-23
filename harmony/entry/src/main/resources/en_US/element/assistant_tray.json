@@ -155,6 +155,22 @@
     {
       "name": "task_start_press",
       "value": "Press {value}"
+    },
+    {
+      "name": "tray_plan_start",
+      "value": "Start"
+    },
+    {
+      "name": "tray_plan_start_many",
+      "value": "Start {count} Tasks"
+    },
+    {
+      "name": "tray_plan_edit",
+      "value": "Edit"
+    },
+    {
+      "name": "tray_plan_dismiss",
+      "value": "Don't Start"
     }
   ]
 }
