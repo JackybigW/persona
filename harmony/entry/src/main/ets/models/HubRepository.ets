@@ -26,14 +26,15 @@ export class HubRepository {
     if (local) this.mutations = MutationStore.shared(local, JSON.stringify([config.hubId, config.managerId]));
   }
   async call(path: string, method: string = 'GET', body: Record<string, Object> = {}, op: string = '', admit?: () => boolean, completedAsAck: boolean = false,
-    acknowledged?: (result: Record<string, Object>) => boolean): Promise<Record<string, Object>> {
+    acknowledged?: (result: Record<string, Object>) => boolean, emptyRequest: boolean = false): Promise<Record<string, Object>> {
+    const payload=method==='GET' || emptyRequest && !Object.keys(body).length ? '' : JSON.stringify(body);
     if (method === 'GET' || !this.mutations) {
       if (admit && !admit()) throw new HttpFailure(0, 'request_updated', false);
-      const result = Wire.parse(await this.transport.request(path, method, method === 'GET' ? '' : JSON.stringify(body), op));
+      const result = Wire.parse(await this.transport.request(path, method, payload, op));
       if (acknowledged && !acknowledged(result)) throw new HttpFailure(0, 'result_unknown', true);
       return result;
     }
-    const payload = JSON.stringify(body), record = await this.mutations.begin(path, method, payload, op); this.changed();
+    const record = await this.mutations.begin(path, method, payload, op); this.changed();
     let pendingReceipt = false;
     try {
       if (admit && !admit()) { await this.mutations.finish(record, 'failed'); throw new HttpFailure(0, 'request_updated', false); }

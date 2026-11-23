@@ -35,6 +35,38 @@
     {
       "name": "tray_orphaned_closed",
       "value": "已关闭"
+    },
+    {
+      "name": "task_recovery_heading",
+      "value": "Agent 没开起来"
+    },
+    {
+      "name": "task_recovery_workspace_taken",
+      "value": "上次没开起来时留下的工作区还占着位置"
+    },
+    {
+      "name": "task_recovery_launcher_missing",
+      "value": "%1$@ 在这台电脑的终端里开不起来"
+    },
+    {
+      "name": "task_recovery_gone",
+      "value": "没有这个任务了"
+    },
+    {
+      "name": "task_recovery_starting",
+      "value": "正在开 Agent"
+    },
+    {
+      "name": "task_recovery_starting_detail",
+      "value": "开好以后这里就是它的对话。"
+    },
+    {
+      "name": "task_recovery_instead",
+      "value": "改用 %1$@"
+    },
+    {
+      "name": "task_recovery_remove_title",
+      "value": "移除任务？"
     }
   ]
 }

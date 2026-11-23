@@ -35,6 +35,38 @@
     {
       "name": "tray_orphaned_closed",
       "value": "closed"
+    },
+    {
+      "name": "task_recovery_heading",
+      "value": "The agent didn't start"
+    },
+    {
+      "name": "task_recovery_workspace_taken",
+      "value": "A workspace from an earlier try is still in the way"
+    },
+    {
+      "name": "task_recovery_launcher_missing",
+      "value": "%1$@ can't start in this computer's terminal"
+    },
+    {
+      "name": "task_recovery_gone",
+      "value": "This task is gone"
+    },
+    {
+      "name": "task_recovery_starting",
+      "value": "Starting the agent"
+    },
+    {
+      "name": "task_recovery_starting_detail",
+      "value": "Once it's up, its chat appears here."
+    },
+    {
+      "name": "task_recovery_instead",
+      "value": "Use %1$@ instead"
+    },
+    {
+      "name": "task_recovery_remove_title",
+      "value": "Remove task?"
     }
   ]
 }

@@ -6,6 +6,8 @@ import { InteractionDecisionForm } from './InteractionDecisionForm';
 import { util } from '@kit.ArkTS';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { nativeSheetInset } from '../platform/NativeInsets';
+import { TaskStartFailureSheet } from './TaskStartFailureSheet';
+import { TaskStartRecovery } from '../models/TaskStartRecovery';
 import { AssistantViewCard } from './AssistantViewCard';
 import { AssistantBriefCard } from './AssistantBriefCard';
 import { assistantCardResource } from '../models/AssistantCardLinks';
@@ -68,6 +70,10 @@ export struct AssistantCards {
   @Local editorInset: number = 0;
   @Local trayOpen: boolean = false;
   @Local boardOpen: boolean = false;
+  @Local private failureOpen:boolean=false;
+  @Local private recovery:TaskStartRecovery=new TaskStartRecovery();
+  private showFailureAfterBoard:boolean=false;
+  private failureRow:ResourceRow|undefined;
   @Local trayContentHeight: number = 0;
   @Local trayBucket: string = '';
   private trayOwner: string = '';
@@ -170,7 +176,7 @@ export struct AssistantCards {
   }
   private trayScope(): string { return JSON.stringify([this.model.scope(), this.model.connectionGeneration(), this.model.target()]); }
   @Monitor('active', 'model.selected', 'model.profile', 'model.connected', 'feed.conversationId')
-  trayOwnerChanged(): void { if (!this.active || this.trayOwner !== this.trayScope()) { this.trayOpen = false; this.boardOpen=false; } this.syncRequests(); }
+  trayOwnerChanged(): void { if (!this.active || this.trayOwner !== this.trayScope()) { this.trayOpen = false; this.boardOpen=false; this.hideFailure(); } this.syncRequests(); }
   private openTray(bucket: string): void {
     if (!this.active) return;
     if (this.trayOpen && this.trayBucket===bucket) { this.trayOpen=false; return; }
@@ -205,10 +211,44 @@ export struct AssistantCards {
   }
   private openBoardRow(entry: TaskTrayRow): void {
     if (!this.boardOpen || this.trayScope()!==this.trayOwner) return;
-    const row=this.boardRows.find((value:TaskTrayRow) => value.key()===entry.key())?.resource;
-    if (!row) return;
+    const actual=this.boardRows.find((value:TaskTrayRow) => value.key()===entry.key()), row=actual?.resource;
+    if (!row || !actual) return;
+    if (actual.kind==='todo' && actual.status==='failed') {
+      this.failureRow=row; this.showFailureAfterBoard=true;
+      const scope=this.trayScope(), id=row.id;
+      this.recovery.open(this.model,this.feed,row,()=>this.active && this.trayScope()===scope && this.failureRow?.id===id &&
+        (this.showFailureAfterBoard || this.failureOpen));
+      if (!this.recovery.id) { this.showFailureAfterBoard=false; this.failureRow=undefined; }
+      else { this.boardOpen=false; return; }
+    }
     this.boardOpen=false;
     if (row.kind==='session') this.onOpenSession(row); else this.onOpenTodo(row);
+  }
+  @Monitor('feed.todos','model.sessions','recovery.state') failureStarted():void {
+    if (!this.failureOpen || this.recovery.state!=='starting' || !this.failureRow || !this.active || this.trayScope()!==this.trayOwner) return;
+    const todo=this.feed.todo(this.failureRow.id);
+    if (Wire.text(todo,'origin')!==this.feed.conversationId || Wire.text(todo,'manager',this.feed.owner)!==this.feed.owner) return;
+    const agents=Wire.rows(todo,'agents').filter((a:Record<string,Object>)=>!Wire.text(a,'released_at') && !Wire.text(a,'dismissed_at'));
+    for (const agent of agents) {
+      const session=this.model.sessions.find((row:ResourceRow)=>row.manager===this.feed.owner && (!row.group || row.group===this.model.profile.id) &&
+        row.machine===Wire.text(agent,'machine_id') && (row.session||row.id)===Wire.text(agent,'session_id'));
+      if (session) { this.hideFailure(); this.onOpenSession(session); return; }
+    }
+  }
+  private hideFailure():void {
+    this.showFailureAfterBoard=false;this.failureOpen=false;this.failureRow=undefined;this.recovery.close();
+  }
+  private boardClosed():void {
+    this.boardOpen=false;
+    if (this.showFailureAfterBoard && this.active && this.trayScope()===this.trayOwner) {
+      this.failureOpen=true; this.showFailureAfterBoard=false;
+    }
+  }
+  @Builder failureDetail() {
+    TaskStartFailureSheet({recovery:this.recovery,onClose:()=>this.hideFailure(),onEdit:()=>{
+      const row=this.failureRow;
+      if(row && this.active && this.trayScope()===this.trayOwner) { this.hideFailure();this.onOpenTodo(row); }
+    }})
   }
   private boardSectionTitle(bucket: string): string {
     return tr(bucket==='needs' ? 'needs_you' : bucket==='working' ? 'working' : bucket==='failed' ? 'tray_did_not_start' :
@@ -270,7 +310,7 @@ export struct AssistantCards {
   @Local receiptView: AssistantReceiptProjection = projectAssistantReceipt({}, {}, false);
   @Local receiptViewStamp: string = '';
   aboutToAppear(): void { this.updateReceiptView(); this.syncRequests(); }
-  aboutToDisappear():void { if (this.dockOnly) this.onDockVisibility(false); this.offRequests?.(); this.offRequests=undefined; this.requests.clear(); this.subscribedOwner=''; this.requestModel=undefined; }
+  aboutToDisappear():void { this.hideFailure(); if (this.dockOnly) this.onDockVisibility(false); this.offRequests?.(); this.offRequests=undefined; this.requests.clear(); this.subscribedOwner=''; this.requestModel=undefined; }
   @Monitor('item', 'feed.items', 'feed.todos', 'feed.todosReady', 'feed.todoError', 'feed.busyKeys', 'feed.uncertainKeys', 'model.sessions', 'model.machines', 'model.unresolvedWrites', 'model.selected', 'model.profile', 'model.pendingDecisions', 'model.decision', 'model.connected')
   receiptFactsChanged(): void { this.updateReceiptView(); }
   private updateReceiptView(): void {
@@ -1063,7 +1103,9 @@ export struct AssistantCards {
       Column() {
         this.taskDock()
         Column().width(0).height(0).bindSheet($$this.boardOpen,this.taskBoard(),{height:'97.4%',preferType:SheetType.BOTTOM,
-          dragBar:false,showClose:false,onDisappear:()=>{this.boardOpen=false;}})
+          dragBar:false,showClose:false,onDisappear:()=>this.boardClosed()})
+        Column().width(0).height(0).bindSheet($$this.failureOpen,this.failureDetail(),{height:'97.4%',detents:['60%','97.4%'],detentSelection:'97.4%',
+          preferType:SheetType.BOTTOM,dragBar:false,showClose:false,onDisappear:()=>this.hideFailure()})
       }.width('100%')
         .bindSheet($$this.feed.editing, this.planEditor(), {
           title: { title: tr('assistant_feed_edit_plan') }, height: SheetSize.LARGE, showClose: true,

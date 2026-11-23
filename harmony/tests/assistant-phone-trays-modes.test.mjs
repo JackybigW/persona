@@ -231,3 +231,67 @@ test('expanding the current ordinary plan obtains its authorization once and nev
   view.activateTray(entry);loading=false;fresh=true;view.activateTray(entry);assert.deepEqual(seen,['one']);
   view.activateTray(entry);view.trayOwner='another';fresh=false;view.activateTray(entry);assert.equal(view.expandedEntry,'');assert.deepEqual(seen,['one']);
 });
+
+const {TaskStartRecovery}=await import('../entry/src/main/ets/models/TaskStartRecovery.ets');
+function recoveryCase() {
+  const row=ResourceRow.from({id:'failed',title:'Alignment',origin:'main',manager:'owner'},'todo');row.group='group';row.manager='owner';
+  const task={todo_id:'failed',machine:'mac',cwd:'/lab',launcher:'claude',error:'offline',retry_with:['codex']};
+  const plan={id:'plan',conversation:'main',state:'started',tasks:[task]};
+  const todo={id:'failed',origin:'main',manager:'owner',plan_id:'plan',title:'Alignment',done_at:'yesterday',start_error:'offline',agents:[]};
+  const calls=[],ctx={online:true,role:true,active:true,blocked:false,epoch:1,changed:undefined,fail:false,unknown:false,commit:()=>true,nextRead:undefined};
+  const feed={owner:'owner',conversationId:'main',todosReady:true,plans:{plan},todo:id=>id===todo.id?todo:{},refresh:async()=>{}};
+  const repo={call:async(path,method='GET',body={},op,admit,completed,ack,empty=false)=>{
+    calls.push({path,method,body,empty});
+    if(method==='GET'){
+      if(ctx.nextRead){const wait=ctx.nextRead;ctx.nextRead=undefined;await wait;}
+      return path.includes('task-plans')?{plan:structuredClone(plan)}:{todo:structuredClone(ctx.changed||todo)};
+    }
+    if(!admit())throw Object.assign(new Error('updated'),{status:409});
+    if(ctx.unknown)throw Object.assign(new Error('response lost'),{resultUnknown:true});
+    if(ctx.fail)throw Object.assign(new Error('refused'),{status:409});
+    const response=method==='DELETE'?{ok:true}:{todo:{...todo,start_error:'',done_at:null}};
+    if (!ack(response))throw Error('failed acknowledgement'); return response;
+  }};
+  const client={connected:true,profile:{manager:'owner',id:'group'},features:['task_retry_launcher'],repo:()=>repo,scope:()=> 'group:owner',
+    connectionGeneration:()=>ctx.epoch,owns:n=>n===ctx.epoch,canApprove:()=>ctx.role,operationBlocked:()=>ctx.blocked};
+  const ctl=new TaskStartRecovery();ctl.open(client,feed,row,()=>ctx.active);
+  return {ctl,ctx,client,feed,calls,todo,plan,task,row};
+}
+const settleRecovery=async ctl=>{for(let i=0;i<16&&ctl.busy;i++)await Promise.resolve();};
+test('an owned task failure rereads the target and its plan, submits one bodyless Retry, and retains the ordinary to-do',async()=>{
+ const {ctl,ctx,calls,todo}=recoveryCase();await settleRecovery(ctl);assert.equal(ctl.state,'ready');assert.equal(ctl.alternative,'codex');
+ let next;ctx.nextRead=new Promise(r=>next=r);const p=ctl.act('retry');assert.equal(await ctl.act('retry'),false);next();assert.equal(await p,true);
+ assert.deepEqual(calls.map(c=>[c.method,c.path]),[['GET','/api/v1/todos/failed?manager=owner'],['GET','/api/v1/task-plans/plan?manager=owner'],
+ ['GET','/api/v1/todos/failed?manager=owner'],['GET','/api/v1/task-plans/plan?manager=owner'],['POST','/api/v1/todos/failed/retry?manager=owner']]);
+ assert.equal(calls.at(-1).empty,true);assert.equal(ctl.state,'starting');assert.equal(todo.title,'Alignment');assert.equal(await ctl.act('retry'),false);
+});
+test('a different owner, failed round, revoked write authority or hidden sheet prevents retry and removal',async()=>{
+ for(const alter of [
+   v=>{v.ctx.role=false;},v=>{v.ctx.blocked=true;},v=>{v.ctx.epoch++;},v=>{v.ctx.active=false;},
+   v=>{v.ctx.changed={...v.todo,origin:'elsewhere'};},v=>{v.ctx.changed={...v.todo,manager:'other'};},v=>{v.ctx.changed={...v.todo,manager:null};},v=>{v.ctx.changed={...v.todo,manager:{}};},v=>{v.ctx.changed={...v.todo,read_only:true};},v=>{v.ctx.changed={...v.todo,can_write:false};},
+   v=>{v.ctx.changed={...v.todo,id:'substitute'};},v=>{v.ctx.changed={...v.todo,done_at:'newer'};},
+   v=>{v.ctx.changed={...v.todo,start_error:''};v.task.error='';},v=>{v.plan.conversation='another';},v=>{v.plan.manager='wrong';},v=>{v.plan.tasks=[];}
+ ]){
+  const v=recoveryCase();await settleRecovery(v.ctl);alter(v);
+  assert.equal(await v.ctl.act('retry'),false,String(alter));assert.equal(await v.ctl.act('remove'),false,String(alter));
+  assert.equal(v.calls.filter(c=>c.method!=='GET').length,0);
+ }
+});
+test('alternative retry requires the advertised launcher on the same attempt, and uncertain or denied retries never silently replay',async()=>{
+ const v=recoveryCase();await settleRecovery(v.ctl);assert.equal(await v.ctl.act('retry','other'),false);v.client.features=[];
+ assert.equal(await v.ctl.act('retry','codex'),false);assert.equal(v.calls.filter(c=>c.method==='POST').length,0);
+ const alt=recoveryCase();await settleRecovery(alt.ctl);assert.equal(await alt.ctl.act('retry','codex'),true);
+ assert.deepEqual(alt.calls.at(-1).body,{launcher:'codex'});assert.equal(alt.calls.at(-1).empty,false);
+ const x=recoveryCase();await settleRecovery(x.ctl);x.ctx.unknown=true;assert.equal(await x.ctl.act('retry'),false);assert.equal(x.ctl.state,'unknown');
+ await x.ctl.refresh();assert.equal(await x.ctl.act('retry'),false);assert.equal(x.calls.filter(c=>c.method==='POST').length,1);
+ const y=recoveryCase();await settleRecovery(y.ctl);y.ctx.fail=true;assert.equal(await y.ctl.act('retry'),false);assert.equal(y.ctl.error,'request_updated');
+ assert.equal(await y.ctl.act('retry'),false);const removed=recoveryCase();await settleRecovery(removed.ctl);assert.equal(await removed.ctl.act('remove'),true);
+ assert.deepEqual(removed.calls.filter(c=>c.method==='DELETE').map(c=>c.path),['/api/v1/todos/failed?manager=owner']);
+});
+
+test('failed task removal asks for confirmation only if an Agent has previously run',async()=>{
+ const plain=recoveryCase();await settleRecovery(plain.ctl);assert.equal(plain.ctl.confirmRemoval,false);
+ const prior=recoveryCase();prior.todo.agents.push({machine_id:'mac',session_id:'former',released_at:'yesterday'});
+ prior.ctl.open(prior.client,prior.feed,prior.row,()=>true);await settleRecovery(prior.ctl);assert.equal(prior.ctl.confirmRemoval,true);
+ assert.equal(prior.calls.filter(entry=>entry.method==='DELETE').length,0);
+});

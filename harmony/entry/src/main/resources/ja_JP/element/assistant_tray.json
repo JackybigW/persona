@@ -35,6 +35,38 @@
     {
       "name": "tray_orphaned_closed",
       "value": "終了済み"
+    },
+    {
+      "name": "task_recovery_heading",
+      "value": "エージェントを起動できませんでした"
+    },
+    {
+      "name": "task_recovery_workspace_taken",
+      "value": "前回の試行で作られた作業場所が残っています"
+    },
+    {
+      "name": "task_recovery_launcher_missing",
+      "value": "%1$@ はこのコンピューターのターミナルで開始できません"
+    },
+    {
+      "name": "task_recovery_gone",
+      "value": "このタスクはありません"
+    },
+    {
+      "name": "task_recovery_starting",
+      "value": "エージェントを起動中"
+    },
+    {
+      "name": "task_recovery_starting_detail",
+      "value": "起動すると、ここにチャットが表示されます。"
+    },
+    {
+      "name": "task_recovery_instead",
+      "value": "%1$@ で開始"
+    },
+    {
+      "name": "task_recovery_remove_title",
+      "value": "タスクを削除しますか？"
     }
   ]
 }

@@ -697,3 +697,13 @@ test('a removed-rename check atomically compares both original SQLite views and 
   const restored=new MutationStore(local,scope);await restored.load();assert.equal(restored.record(id).state,'checked');
   assert.equal(await local.get(oldKey),snapshot);
 });
+test('the task retry explicitly preserves the ordinary empty request through the journal and transport',async()=>{
+ const local=new MemoryStore(),repo=new HubRepository({managerId:'owner',hubId:'test'},local);
+ const writes=[];globalThis.__personaRequest=async(path,method,body,id)=>{writes.push({method,body,id});return '{"ok":true}';};
+ const acknowledged=result=>result.ok===true,path='/api/v1/todos/task/retry?manager=owner';
+ await repo.call(path,'POST',{},'',()=>true,false,acknowledged,true);
+ await repo.call(path,'POST',{launcher:'codex'},'',()=>true,false,acknowledged);
+ await repo.call('/other','POST',{},'',()=>true,false,acknowledged);
+ assert.deepEqual(writes.map(({body})=>body),['','{"launcher":"codex"}','{}']);
+ assert.equal(new Set(writes.map(x=>x.id)).size,3);assert.equal(repo.mutations.blocked().length,0);
+});
