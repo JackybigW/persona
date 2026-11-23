@@ -698,3 +698,11 @@ test('the compact meeting, knowledge and inbox header replaces its native button
   n.closeModuleMenu(next);assert.equal(n.moduleMenuShown,false);
   assert.match(shell,/ForEach\(\[this\.rootModuleMenuKind\(\)\],\(kind:string\) => \{\s*this\.phoneModuleMore\(kind,this\.menuOwner\(kind\)\)\s*\},\(kind:string\) => this\.menuOwner\(kind\)\)/);
 });
+
+test('the phone start action floats over the form and scrolls the last field clear of its actual height',()=>{
+  const start=formSource.slice(formSource.indexOf('  @Builder agentStartFooter()'),formSource.indexOf('  private async loadAgentLaunchers()'));
+  assert.match(start,/\.overlay\(this\.agentStartFooter\(\),\{align:Alignment\.Bottom\}\)/);
+  assert.match(start,/bottom:14\+this\.agentFooterHeight/);
+  assert.match(start,/\.onAreaChange\(\(_old:Area,current:Area\)=>\{\s*const height=Number\(current.height\)[^}]+this\.agentFooterHeight=height;/);
+  assert.match(start,/\.hitTestBehavior\(HitTestMode.Block\)\.enabled\(this\.canStartAgent\(\)\)/);
+});

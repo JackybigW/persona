@@ -224,6 +224,7 @@ struct Index {
   @Local recentAgentDirectories: LaunchChoice[] = [];
   private agentFormScroll: Scroller = new Scroller();
   private agentMessageFocused: boolean = false;
+  @Local agentFooterHeight: number = 0;
   @Local startFailure: string = '';
   @Local startWorktree: WorktreeActions = new WorktreeActions();
   private startTreeSource: ProjectWorktree | undefined;
@@ -2378,6 +2379,21 @@ struct Index {
       .accessibilityGroup(true).accessibilityText((row.title || row.id)+' · '+this.machineChoiceDetail(row))
       .accessibilitySelected(this.sameMachine(row,this.chosenAgentMachine())).onClick(() => this.pickAgentMachine(row)).id('agent.machine')
   }
+  @Builder agentStartFooter() {
+    Column({space:Tokens.gap}) {
+      if (this.startFailure) Text(trError(this.startFailure)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14))
+        .fontColor(Colors.danger).width('100%').padding(8).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius).id('agent.error')
+      Button(tr(this.creatingAgent || this.agentModel.operationBlocked('/api/v1/sessions') ? this.createAgentKey() : 'flow_start_chat'),{type:ButtonType.Capsule})
+        .height(PhoneStyle.formSize(60,69.3,this.environment.fontScale)).width('100%').backgroundColor(Colors.action).fontColor(Colors.onAction)
+        .borderWidth(Colors.systemControls ? 0.67 : 0).borderColor(Colors.prominentRim)
+        .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
+        .hitTestBehavior(HitTestMode.Block).enabled(this.canStartAgent()).onClick(() => this.createAgent()).id('agent.create')
+    }.width('100%').padding({left:24,right:24,top:7,bottom:this.agentActionBottom()})
+      .hitTestBehavior(HitTestMode.Transparent).onAreaChange((_old:Area,current:Area)=>{
+        const height=Number(current.height);
+        if (Number.isFinite(height) && height>0 && Math.abs(height-this.agentFooterHeight)>0.3) this.agentFooterHeight=height;
+      })
+  }
   @Builder newAgentForm() {
     if (this.agentPanel === 'worktree') {
       WorktreeSheet({form:this.startWorktree,onCancel:() => this.closeAgentPanel(),onRetry:() => this.makeChildFromAgent(),onSubmit:() => this.selectNewAgentTree(),onReconcile:(replay:boolean) => this.selectNewAgentTree(true,replay)})
@@ -2484,20 +2500,12 @@ struct Index {
               .onBlur(() => { this.agentMessageFocused = false; })
               .onChange((v:string) => { this.newTask = v; this.saveAgentDraft(); }).id('agent.task')
             if ((this.agentWorktree || this.pickedAgentTree) && !this.selectedAgentTree()) Text(tr('project_gone')).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14)).fontColor(Colors.danger).padding(8)
-          }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:14})
+          }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,bottom:14+this.agentFooterHeight})
             .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
         }.width('100%').layoutWeight(1).align(Alignment.TopStart)
           .onAreaChange((before:Area,after:Area) => this.agentDraftAreaChanged(before,after))
-        Column({space:Tokens.gap}) {
-          if (this.startFailure) Text(trError(this.startFailure)).fontSize(14).maxFontScale(Tokens.interfaceScaleFor(14))
-            .fontColor(Colors.danger).width('100%').padding(8).id('agent.error')
-          Button(tr(this.creatingAgent || this.agentModel.operationBlocked('/api/v1/sessions') ? this.createAgentKey() : 'flow_start_chat'),{type:ButtonType.Capsule})
-            .height(PhoneStyle.formSize(60,69.3,this.environment.fontScale)).width('100%').backgroundColor(Colors.action).fontColor(Colors.onAction)
-            .borderWidth(Colors.systemControls ? 0.67 : 0).borderColor(Colors.prominentRim)
-            .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontWeight(FontWeight.Medium)
-            .enabled(this.canStartAgent()).onClick(() => this.createAgent()).id('agent.create')
-        }.width('100%').padding({left:24,right:24,top:7,bottom:this.agentActionBottom()})
       }.width('100%').height('100%').backgroundColor(Colors.sheetBackground)
+        .overlay(this.agentStartFooter(),{align:Alignment.Bottom})
     }
   }
   private async loadAgentLaunchers(): Promise<void> {
