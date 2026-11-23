@@ -29,6 +29,16 @@ This table only points the way. Values and rules live in the sections it names, 
 | A new setting | Settings, showing its current value | principles 2 and 3 |
 | Any UI change | the UI change self-check | 1.4 |
 
+## Apple Health intake sync (#13291)
+
+Audience: people who want their Persona water and protein records in Apple Health. Reuse Settings › Health's
+`SettingsForm`, `SettingsSwitchRow`, secondary status text and caution color. The iPhone-only switch is off by default
+and hidden in demo mode. Its footer explains historical backfill, undo and keeping already written samples on
+disable. Status shows the last complete sync time, denied write types or the last failure. The Health home's final
+Today row uses the existing `NavigationLink` to this same page and disappears while sync is enabled for this hub.
+No new visual token, component style, polling loop or background task is introduced. All text ships in English,
+Simplified Chinese and Japanese; use Apple Health / Apple 健康 consistently.
+
 ## Product design principles
 
 The seven product design principles, with their rules, how to check each one and recent cases, live in `docs/design/PRINCIPLES.md`: 1 defaults first, 2 progressive disclosure, 3 user control, 4 consistency first, 5 model and product are separate, 6 rules are checkable, 7 fast, local-first and stateful. They decide product questions before any rule in this document applies. "Principle N" below refers to that numbering. Apple's Human Interface Guidelines are a source for this document, not its authority: what Persona takes from them is rewritten here as Persona rules (sections 2 to 6), and `docs/design/HIG_AUDIT.md` records where the code still falls short.
@@ -1923,6 +1933,12 @@ The web Changes panel's secondary file tree (#10477) reuses the existing `Resize
 
 ### 4.3 Feedback and haptics
 
+Settings › Hub uses the update group's status row for Web development progress. Pair the
+phase title with the localized step. Use a thin accent bar on the inset track when the
+step supplies a percentage, and the shared spinner while its total is unknown. Use
+`text-meta` for the phase and `text-label` for the step and measurements. Announce
+step changes through the live status label and let the measurements wrap at narrow widths.
+
 Message feedback (#5258, principle 7, super rule 5) reuses the chat's status line and pending bubble, not a new card or
 style. Show Sending immediately from local state, then Processing on the hub's `message_send_state` receipt; do not wait
 for a model token or overwrite `Session.status`. The pending-send overlay is scoped to the conversation and message,
@@ -2070,6 +2086,7 @@ loading/retry states and timestamps as other secondary views, and adds no primar
 
 - The system prompt appears right after pairing and at launch, with no in-app explanation first (`apple/Persona/App/PushRegistrar.swift:41-53`, the options at `:174`). Requested options include time-sensitive. When denied, Settings explains and deep-links; allowing it there registers when the app comes back (#1861). A confirmed outage also puts one `NoticeBanner` on Persona's main screen (#9612): plain words for what cannot reach this device and one repair action, with denied permission deep-linking to system Settings and other causes opening Notifications settings. Its ✕ hides it on this device (#12319): a build installed straight from Xcode never gets pushes and could not clear it. A closed cause stays hidden, per hub, until pushes reach the device there again; a different cause (notifications turned off, an update needed) or another hub shows its own notice, and Settings › Notifications always shows the status. Unknown or unchecked hubs, a healthy route and a route whose only problem is one failed push stay silent; raw relay, APNs, HTTP and credential details remain in Settings.
 - Foreground: the system banner, suppressed for the visible session. No custom in-app push banner.
+- Built-in water reminders use the system category `HEALTH_WATER` with Drank a Glass, Later and Log Another Amount (millilitre text input). All three run in the background; the hub's answer is a local notification. Receiving a reminder and completing an action refresh widget timelines. Repeated callbacks for the same reminder/button are coalesced per hub; failures allow a corrected retry. Log Water in Shortcuts returns the recorded amount and today's progress in a dialog, without opening the app.
 - Actions: Allow (needs unlock) and Deny on permissions; Approve and Send Back on plans; Reply on done (`apple/Persona/App/NotificationActions.swift:19-52`). Failures are posted as local notifications.
 - Live Activity: Allow and Deny buttons; Allow requires authentication. Stale after 15 minutes.
 - Recording Live Activity, a meeting app's (#8731 V4): the name with a still waveform (green while it records, gray paused) and the time, Persona's part and "Topic 2 / 4: <topic>", the latest line in quotes or Persona's answer in a purple box. Then Bookmark · Ask Persona (while Persona answers) · End, each with its words. A meeting's End opens the meeting and asks "End the Meeting?"; any other recording's Stop stops it at once, without unlocking (`docs/apple/live-activity.md`, "Recording"). In a room meeting with Talk (#3862 phase 4) **Talk** leads instead: its tap opens a talk window (Live Activity buttons can't be held), the button reads **Done** while it is open, the third line says "Listening to you…" and the island's mark is the talk mark.
@@ -3660,6 +3677,16 @@ confirmed, reversible choice (principle 3). It reuses each client's mode field, 
 confirmation; it adds no component, token or motion. `capabilities.modes` stays false on these rows, so clients
 older than the list show no Claude Code chips there.
 
+## Native permission defaults (#13286)
+
+Who it serves: people who use the Inbox's AI twin or start assistant conversations from iPhone or iPad and need to see what Persona may do without asking. These are secondary settings built from the existing `SettingsForm`, `Section`, menu `Picker`, `SheetClose` and permission-mode vocabulary.
+
+- **Settings › Models › AI twin** shows **Inbox Permissions** for the existing `inbox.agent.permission_mode`. An unset, Plan or unknown legacy value displays **Default Permissions**, never the parent Agents' Full access; Plan is not offered. An explicit supported choice saves with the model record, and Follow Agents writes `permission_mode: null`.
+- **Settings › Agent** shows **Default Permissions** for the existing `default_permission_mode`. A direction leader's title menu opens the same `DefaultPermissionsSettingsSection`; it is not a direction-specific override. The top bar owns the sheet so dismissing the menu does not remove its presenter. The setting applies only to new conversations without an explicit choice; existing conversations keep their current mode.
+- The new-conversation picker changes its local value immediately, sends one sparse write, keeps the hub-confirmed value and restores the previous value with an error toast if the write or confirmation fails.
+
+Reason: the native controls reuse the manager's existing settings and the Model Configuration record rather than creating a parallel store (principles 1, 3 and 4). The Inbox keeps its safe Ask First default independently of Agents, while every other launcher purpose keeps its ordinary inheritance and provider-specific list. No token, storage, motion or platform-specific visual pattern is added.
+
 ## Minutes cards (#5026)
 
 A recording's page on iPhone, once its minutes are ready (`docs/apple/recording.md`, "Minutes"): a segmented
@@ -4119,3 +4146,11 @@ through Configure runners, and saving an empty list disables polling.
 ## First-run pairing
 
 Center the Persona mark and title above the primary control. A phone opens its scanner. A browser takes a pairing link and submits it with the arrow inside the field group. Place the secondary actions in one centered row of icons with short labels. Keep the action and its label in a single tap target. Allow wrapping or stacking at larger text sizes. Help explains where to get a code or link. A warning about replacing an existing pairing stays beside the action.
+
+## Removable chips (#13500)
+
+A chip the user may take away (a space conversation's categories on iOS) is a `Chip` with the close mark whose tap opens
+a menu with one destructive Remove, never a bare x that removes on touch: a chip is small, and a slip should cost
+nothing. iOS draws the close mark before the words, where every `Chip` draws its symbol (#6578; the web puts its
+button after them), and the menu's label is a finger's height (`tapTargetHeight`). A chip the user may not take away carries the lock mark and is read as set by its owner. What was removed comes
+back from a + menu at the end of the row. The change shows at once and rolls back with a toast when the hub refuses it.
