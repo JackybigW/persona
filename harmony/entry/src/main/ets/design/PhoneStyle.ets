@@ -4,6 +4,15 @@ import { Tokens } from './Tokens';
 
 // Compact iPhone's inset lists share their margins, hierarchy and grouped surfaces with the phone shell.
 export class PhoneStyle {
+  static surfaceShadow(fallback: ShadowOptions): ShadowOptions {
+    if (Colors.styleID === 'clay') return {radius:12,color:Colors.styleShadow,offsetX:5,offsetY:8};
+    if (Colors.styleID === 'island') return {radius:20,color:Colors.styleShadow,offsetY:10};
+    if (Colors.styleID === 'lark') return {radius:0,color:Color.Transparent};
+    return fallback;
+  }
+  static surfaceEdgeWidth(fallback: number): number {
+    return Colors.styleID === 'clay' ? 1 : Colors.styleID === 'island' ? 0 : fallback;
+  }
   static readonly page: number = 16;
   static readonly cardRadius: number = 15;
   static readonly inset: number = 14;
@@ -43,7 +52,8 @@ export struct PhoneIconButton {
     Button({ type: ButtonType.Circle }) {
       SymbolGlyph(this.symbol).fontSize(String(19 * this.controlDiameter / PhoneStyle.bar) + 'vp').fontColor([this.tint])
     }.width(this.controlDiameter).height(this.controlDiameter).padding(0).backgroundColor(Colors.surface)
-      .border({ width: 0.5, color: Colors.divider, radius: this.controlDiameter / 2 })
+      .border({ width: PhoneStyle.surfaceEdgeWidth(.5), color: Colors.styleEdge || Colors.divider, radius: this.controlDiameter / 2 })
+      .shadow(PhoneStyle.surfaceShadow({radius:0,color:Color.Transparent}))
       .accessibilityText(this.label).bindTips(this.label).enabled(this.active).onClick(() => this.action()).id(this.identity)
   }
 }

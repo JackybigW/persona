@@ -718,7 +718,9 @@ struct Index {
           Blank().layoutWeight(1)
           Stack({alignContent:Alignment.Start}) {
             Row().width(this.peerSegmentWidth()).height(this.peerSegmentHeight()).borderRadius((this.peerSegmentHeight()+8)/2)
-              .backgroundColor(Colors.control).translate({x:(this.compactPeerIndex()+this.peerDrag)*this.peerSegmentWidth()})
+              .backgroundColor(Colors.styleID==='beautiful' ? this.environment.dark ? '#232427' : '#FFFFFF' : Colors.control)
+              .shadow({radius:Colors.styleID==='beautiful' ? 2 : 0,color:this.environment.dark ? '#33000000' : '#18000000',offsetY:1})
+              .translate({x:(this.compactPeerIndex()+this.peerDrag)*this.peerSegmentWidth()})
               .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
             Row() {
             this.placeButton('phone_assistant_title', 0, 'shell.persona', () => this.browsePeer(0))
@@ -733,8 +735,10 @@ struct Index {
               }
             }
             }
-          }.padding(4).borderRadius((this.peerSegmentHeight()+8)/2).backgroundColor(Colors.surface)
-            .border({width:0.5,color:Colors.divider,radius:(this.peerSegmentHeight()+8)/2})
+          }.padding(4).borderRadius((this.peerSegmentHeight()+8)/2)
+            .backgroundColor(Colors.styleID==='beautiful' ? this.environment.dark ? '#2B2C2F' : '#F2F2F3' : Colors.surface)
+            .border({width:PhoneStyle.surfaceEdgeWidth(.5),color:Colors.styleID==='beautiful' ? this.environment.dark ? '#2E3033' : '#ECEDEF' : Colors.styleEdge || Colors.divider,radius:(this.peerSegmentHeight()+8)/2})
+            .shadow(PhoneStyle.surfaceShadow({radius:0,color:Color.Transparent}))
           Blank().layoutWeight(1)
         } else if ((this.phoneTop === 'session' || this.phoneToolParent) && this.activeChild === this.childKey(this.phoneTop,this.phoneParam) && this.targetReady(this.phoneTop,this.phoneParam)) {
           PhoneSessionHeading({model:this.detailModel,space:this.phoneSessionSpace,heading:this.phonePageName()}).layoutWeight(1)

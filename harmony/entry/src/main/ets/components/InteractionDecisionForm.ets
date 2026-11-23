@@ -1,4 +1,5 @@
 import { IconActions } from '../design/IconActions';
+import { PhoneStyle } from '../design/PhoneStyle';
 import { LengthMetrics } from '@kit.ArkUI';
 import { nativeEnvironment } from '../platform/NativeEnvironment';
 import { QuestionDraft } from '../models/QuestionWorkspace';
@@ -1080,12 +1081,6 @@ export struct InteractionDecisionForm {
     const header=this.dockHeadingAway() ? 0 : this.dockTitleHeight || this.headerControlSide();
     return Math.max(44,this.heightLimit-header-this.inlineFooterHeight-(this.resizeDock ? 16 : 12)-16-(header>0 ? 12 : 0)-12);
   }
-  private dockSurfaceShadow(): ShadowOptions {
-    if (Colors.styleID === 'clay') return { radius: 12, color: Colors.styleShadow, offsetX: 5, offsetY: 8 };
-    if (Colors.styleID === 'island') return { radius: 20, color: Colors.styleShadow, offsetY: 10 };
-    if (Colors.styleID === 'lark') return { radius: 0, color: Color.Transparent };
-    return { radius: 8, color: nativeEnvironment.dark ? '#36000000' : '#15000000', offsetY: 2 };
-  }
   @Builder dockBacklight() {
     if (Colors.styleID === 'clay') {
       Rect().width('100%').height('100%').radius(22).fill(Colors.surface)
@@ -1129,8 +1124,8 @@ export struct InteractionDecisionForm {
     }.width('100%').padding({left:16,right:16,top:this.resizeDock && !this.cardFolded ? 0 : 12,bottom:16})
       .alignItems(HorizontalAlign.Start).backgroundColor(Colors.surface).borderRadius(22)
       .background(this.dockBacklight)
-      .outline({width:Colors.styleID==='island' ? 0 : Colors.styleID==='clay' ? 1 : Tokens.divider,color:Colors.styleEdge || Colors.divider,radius:22})
-      .shadow(this.dockSurfaceShadow()).id('interaction.card')
+      .outline({width:PhoneStyle.surfaceEdgeWidth(Tokens.divider),color:Colors.styleEdge || Colors.divider,radius:22})
+      .shadow(PhoneStyle.surfaceShadow({radius:8,color:nativeEnvironment.dark ? '#36000000' : '#15000000',offsetY:2})).id('interaction.card')
       .bindSheet($$this.fullPlan,this.planReader(),{height:SheetSize.LARGE,showClose:false,dragBar:false,preferType:SheetType.BOTTOM})
   }
   private inlineSpace(): number {
