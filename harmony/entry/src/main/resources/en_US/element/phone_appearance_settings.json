@@ -231,6 +231,14 @@
     {
       "name": "phone_look_scheme_footer",
       "value": "Match System follows your device. Choose Light or Dark to keep one appearance in Persona."
+    },
+    {
+      "name": "phone_look_color_footer",
+      "value": "Buttons, links, selections and your own bubbles use the theme color; Clay and Island use a light tint of it for the background. “Match Interface Style” uses each style's own colors."
+    },
+    {
+      "name": "phone_look_navigation_footer",
+      "value": "This choice applies immediately on this device."
     }
   ]
 }

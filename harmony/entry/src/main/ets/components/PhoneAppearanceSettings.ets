@@ -9,7 +9,7 @@ import { phoneInterfaceStyleChoices, phoneInterfaceStyleID } from '../core/Phone
 import { phoneAppearancePages } from '../core/PhoneSettingsNavigation';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 import { Colors } from '../design/Colors';
-import { PhoneSectionTitle, PhoneSettingsRow, PhoneStyle } from '../design/PhoneStyle';
+import { PhoneSettingsRow, PhoneStyle } from '../design/PhoneStyle';
 import { Symbols } from '../design/Symbols';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
@@ -164,21 +164,22 @@ export struct PhoneAppearanceSettings {
     }.width('100%').padding(16).backgroundColor(Colors.card(true)).borderRadius(PhoneStyle.cardRadius)
   }
   @Builder textSizeChoices() {
-    Column({space:8}) {
-      Text(tr('phone_look_text_size')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).width('100%')
+    Row({space:8}) {
+      Text(tr('phone_look_text_size')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).layoutWeight(1)
       Row({space:2}) {
         ForEach(['small','standard','large'], (key:string) => {
           Button({type:ButtonType.Capsule}) {
             Text(tr('phone_look_text_'+key)).fontSize(14).fontWeight(FontWeight.Medium).maxFontScale(Tokens.interfaceScaleFor(14))
               .fontColor(this.textSize.choice===key ? $r('app.color.phone_filter_segment_ink') : Colors.ink)
-          }.layoutWeight(1).height(36).padding({left:4,right:4}).borderRadius(Tokens.capsule)
+          }.layoutWeight(1).height(32).padding({left:3,right:3}).borderRadius(Tokens.capsule)
+            .responseRegion({x:0,y:-6,width:'100%',height:44})
             .backgroundColor(this.textSize.choice===key ? $r('app.color.phone_filter_segment_fill') : Color.Transparent)
             .accessibilityText(tr('phone_look_text_size')+' · '+tr('phone_look_text_'+key)).accessibilitySelected(this.textSize.choice===key)
             .enabled(this.active && this.textSize.ready && !this.textSize.saving)
             .onClick(() => { if (this.active && this.route==='phone_look_style') this.textSize.choose(key); }).id('settings.appearance.text.'+key)
         },(key:string)=>key)
-      }.width('100%').padding(2).backgroundColor(Colors.control).borderRadius(Tokens.capsule)
-    }.alignItems(HorizontalAlign.Start).width('100%').padding(16).backgroundColor(Colors.card(true)).borderRadius(PhoneStyle.cardRadius)
+      }.width(PhoneStyle.formSize(134,160,this.environment.fontScale)).padding(2).backgroundColor(Colors.control).borderRadius(Tokens.capsule)
+    }.width('100%').padding({left:20,right:20,top:12,bottom:12}).backgroundColor(Colors.card(true)).borderRadius(PhoneStyle.cardRadius)
   }
   @Builder styles() {
     Flex({wrap:FlexWrap.Wrap,alignItems:ItemAlign.Start}) {
@@ -256,13 +257,16 @@ export struct PhoneAppearanceSettings {
     return new ProjectAgent(ResourceRow.from(data,'session'),data);
   }
   @Builder agentSample(key: string) {
-    Column({space:8}) {
-      ForEach([true,false], (waiting: boolean) => {
-        AgentDirectoryRowContent({agent:this.sampleAgent(waiting),display:key,previewRow:true,activityList:true,
-          place:waiting ? 'weather › tests' : 'weather › widget',age:waiting ? '2'+tr('agent_time_minute_suffix') : tr('agent_time_just_now'),
-          fontScale:this.environment.fontScale,controlScale:Math.min(this.environment.fontScale,Tokens.interfaceFontMaxScale),
-          tint:waiting ? Colors.needsMark : Colors.workingMark})
-      }, (waiting:boolean) => String(waiting))
+    Column() {
+      Column({space:8}) {
+        ForEach([true,false], (waiting: boolean) => {
+          AgentDirectoryRowContent({agent:this.sampleAgent(waiting),display:key,previewRow:true,activityList:true,
+            place:waiting ? 'weather › tests' : 'weather › widget',age:waiting ? '2'+tr('agent_time_minute_suffix') : tr('agent_time_just_now'),
+            fontScale:this.environment.fontScale,controlScale:Math.min(this.environment.fontScale,Tokens.interfaceFontMaxScale),
+            tint:waiting ? Colors.needsMark : Colors.workingMark})
+        }, (waiting:boolean) => String(waiting))
+      }.width('100%').padding(key==='cards' ? 0 : 12)
+        .backgroundColor(key==='cards' ? Color.Transparent : Colors.card(true)).borderRadius(12)
     }.width('100%').padding(8).backgroundColor(Colors.sheetBackground).borderRadius(12).accessibilityLevel('no-hide-descendants')
   }
   @Builder choices(page: string) {
@@ -280,7 +284,9 @@ export struct PhoneAppearanceSettings {
           if (page==='phone_look_layout') this.agentSample(key)
           if ((page==='phone_look_layout' || page==='phone_look_navigation'))
             Text(tr(page+'_'+key+'_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary).width('100%')
-        }.width('100%').padding({left:18,right:18,top:12,bottom:12}).constraintSize({minHeight:44})
+        }.width('100%').padding({left:20,right:20,top:page==='phone_look_navigation' ? 18 : 12,bottom:page==='phone_look_navigation' ? 18 : 12})
+          .constraintSize({minHeight:page==='phone_look_scheme' ? PhoneStyle.formSize(52,59,this.environment.fontScale) :
+            page==='phone_look_navigation' ? PhoneStyle.formSize(289.7,340.3,this.environment.fontScale) : 44})
           .accessibilityGroup(true).accessibilityRole(AccessibilityRoleType.BUTTON).accessibilitySelected(this.selected(page)===key)
           .accessibilityText(this.label(page,key)+(page==='phone_look_navigation' || page==='phone_look_layout' ? ' · '+tr(page+'_'+key+'_note') : '')).enabled(this.active && this.look.ready)
           .onClick(() => this.select(page,key)).id('settings.appearance.'+page.slice('phone_look_'.length)+'.'+key)
@@ -299,14 +305,15 @@ export struct PhoneAppearanceSettings {
               .width('100%').height(PhoneStyle.formSize(40.3,47.5,this.environment.fontScale)).padding({left:20}).id('settings.appearance.section')
             this.overview()
           }
-          else if (page==='phone_look_color') this.colors()
+          else if (page==='phone_look_color') { this.colors(); this.caption('phone_look_color_footer'); }
           else if (page==='phone_look_style') { this.styles(); this.caption('phone_look_style_footer'); this.textSizeChoices(); this.caption('phone_look_text_footer'); }
           else {
-            if (page==='phone_look_layout') PhoneSectionTitle({text:tr('phone_look_layout_header')})
+            if (page==='phone_look_layout') Text(tr('phone_look_layout_header')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
+              .fontColor(Colors.secondary).width('100%').height(PhoneStyle.formSize(40.3,47.7,this.environment.fontScale)).padding({left:20})
             this.choices(page)
-            if (page==='phone_look_scheme') this.caption(page+'_footer')
+            if (page==='phone_look_scheme' || page==='phone_look_navigation') this.caption(page+'_footer')
           }
-        }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,top:page==='appearance' ? 0 : 32,bottom:28})
+        }.width('100%').alignItems(HorizontalAlign.Start).padding({left:16,right:16,top:page==='appearance' || page==='phone_look_layout' ? 0 : 35,bottom:28})
       }.width('100%').height('100%').scrollBar(BarState.Off).align(Alignment.TopStart)
         .backgroundColor(Colors.sheetBackground).id('settings.appearance.page.'+page)
     },(page:string)=>page)

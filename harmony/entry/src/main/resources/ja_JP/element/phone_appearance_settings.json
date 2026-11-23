@@ -231,6 +231,14 @@
     {
       "name": "phone_look_scheme_footer",
       "value": "システムに合わせると、デバイスの外観に従います。ライトまたはダークを選ぶと、Persona の外観が固定されます。"
+    },
+    {
+      "name": "phone_look_color_footer",
+      "value": "ボタン、リンク、選択状態、自分の吹き出しにテーマカラーが使われ、クレイとIslandの背景はその淡い色調になります。「UIスタイルに合わせる」では各スタイル本来の色を使います。"
+    },
+    {
+      "name": "phone_look_navigation_footer",
+      "value": "このデバイスにのみ適用され、選択するとすぐに切り替わります。"
     }
   ]
 }

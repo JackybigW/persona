@@ -231,6 +231,14 @@
     {
       "name": "phone_look_scheme_footer",
       "value": "跟随系统会使用设备当前的外观。选择浅色或深色后，Persona 会固定使用该外观。"
+    },
+    {
+      "name": "phone_look_color_footer",
+      "value": "按钮、链接、选中态和你自己的气泡用主题色，黏土和 Island 的底色是它的淡色调。「跟随界面风格」用每种风格原来的颜色。"
+    },
+    {
+      "name": "phone_look_navigation_footer",
+      "value": "只影响这台设备，选择后立即生效。"
     }
   ]
 }
