@@ -50,6 +50,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 		// accepted: work from the original brief left for a later decision or to-do.
 		DeferredScope  string `json:"deferred_scope"`
 		FollowUpTodoID string `json:"follow_up_todo_id"`
+		// accepted: the supervisor takes back the needs_user it raised and accepts the task itself, quietly: no
+		// conclusion card or push, its decision card closed as superseded (never recorded as the owner's choice).
+		WithdrawNeedsUser bool `json:"withdraw_needs_user"`
 		// parked (parked.go): until when it waits (a duration or a time; reason says for what), and on what kind of thing.
 		Until     string        `json:"until"`
 		WaitingOn string        `json:"waiting_on"`
@@ -69,6 +72,13 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	}
 	if a.ReworkKind != "" && a.Verdict != reviewRework {
 		return "", fmt.Errorf("rework_kind applies to rework only")
+	}
+	withdraw := a.WithdrawNeedsUser
+	if withdraw && (a.Verdict != reviewAccepted || a.UserCheck) {
+		return "", fmt.Errorf("withdraw_needs_user applies to accepted only (without user_check)")
+	}
+	if withdraw && a.Note == "" && strings.TrimSpace(a.Reason) == "" {
+		return "", fmt.Errorf("withdraw_needs_user: say in note why the user is not needed after all (the decision card is closed with it)")
 	}
 	if !validReworkKind(a.ReworkKind) {
 		return "", fmt.Errorf("rework_kind must be external_input, substantive_new, repeated_error or low_roi_edge")
@@ -150,6 +160,11 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	if t.Origin == "" || !allowed {
 		return "", fmt.Errorf("task %s was not handed out from this conversation", t.ID)
 	}
+	if withdraw {
+		if err := withdrawNeedsUserError(t, self, isMain); err != nil {
+			return "", err
+		}
+	}
 	if t.DoneAt != nil && (a.Verdict == reviewRework || a.Verdict == reviewNeedsUser || a.Verdict == reviewParked) {
 		return "", fmt.Errorf("task %s is done already (%s): hand out a new task for what is left", t.ID, cmp.Or(t.DoneReason, "closed"))
 	}
@@ -192,7 +207,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	restartUserCheck := t.Supervision.state(t) == reviewUserCheck && verdict != reviewAccepted
 	deliveryNote := ""
 	if verdict == reviewAccepted { // delivery_gate: owner wait & criteria first, then PR/issue/deploy gate (supervise_review_delivery.go)
-		if t.DoneAt == nil && t.Supervision != nil && t.Supervision.Waits != nil {
+		if t.DoneAt == nil && t.Supervision != nil && t.Supervision.Waits != nil && !withdraw {
 			w := *t.Supervision.Waits
 			return "", ownerWaitError(t.ID, &w)
 		}
@@ -219,7 +234,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	// A bare accept must not hide a result that does not settle the task from the owner's Needs-you list (#12026): a
 	// non-done closeout, a blocker only the owner can clear, or an inconclusive / partial result. user_check (the owner
 	// passes the result themselves) and a "cannot be done" outcome are deliberate closures the guard lets through.
-	if verdict == reviewAccepted && !a.UserCheck && a.Outcome != outcomeCannot {
+	// A withdrawn needs_user is exactly a task the owner was asked about: its supervisor took that back and decided it
+	// itself, so the owner-blocker words in the agent's own replies do not refuse it.
+	if verdict == reviewAccepted && !a.UserCheck && a.Outcome != outcomeCannot && !withdraw {
 		evidence := s.acceptGuardEvidence(ctx, t, note, strings.TrimSpace(a.Reason), checks)
 		if matched, _ := acceptGuardBlock(evidence); matched != "" {
 			return "", errors.New(acceptGuardRefusal(matched))
@@ -268,6 +285,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	var criteriaErr error
 	var v Supervision
 	var reviewedAt time.Time
+	withdrawGone := false // withdraw_needs_user, but the task stopped waiting for the user meanwhile: nothing is written
 	if ledger {
 		var followUpInvalid bool
 		var guard func(Todo) bool
@@ -281,7 +299,11 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 			}
 		}
 		v, _, err = s.updateSupervisionGuarded(ctx, t.ID, guard, func(v *Supervision) bool {
-			if verdict == reviewAccepted && t.DoneAt == nil && v.Waits != nil {
+			if withdraw && v.State != reviewNeedsUser {
+				withdrawGone = true
+				return false
+			}
+			if verdict == reviewAccepted && t.DoneAt == nil && v.Waits != nil && !withdraw {
 				w := *v.Waits
 				waiting = &w
 				return false
@@ -319,7 +341,7 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 				}
 			}
 			r := TaskReview{At: time.Now().UTC(), Verdict: verdict, Checks: checks, Note: note, UserCheck: a.UserCheck,
-				DeferredScope: a.DeferredScope, FollowUpTodoID: a.FollowUpTodoID}
+				DeferredScope: a.DeferredScope, FollowUpTodoID: a.FollowUpTodoID, WithdrewNeedsUser: withdraw}
 			reviewedAt = r.At
 			v.applyChecks(checks, r.At, "supervisor:"+self)
 			if verdict == reviewNeedsUser {
@@ -378,6 +400,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	}
 	if waiting != nil {
 		return "", ownerWaitError(t.ID, waiting)
+	}
+	if withdrawGone {
+		return "", fmt.Errorf("task %s no longer waits for the user (needs_user): nothing to withdraw; review it as usual", t.ID)
 	}
 	if restartUserCheck {
 		open := false
@@ -476,6 +501,10 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 				}
 				// A failed start was closed already: its review clears the error without inventing completion effects.
 				switch {
+				case closed && withdraw:
+					// The supervisor took its needs_user back: no conclusion card, no push, no closed report (the owner
+					// was never asked by anyone but the supervisor, and nothing of this is theirs to read).
+					s.dropTaskReport(t.ID)
 				case closed && ledger && verdict == reviewAccepted:
 					// The conclusion is the one push about it: its card, not a line in the task report (#1226).
 					s.dropTaskReport(t.ID)
@@ -502,6 +531,12 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 		against := terminalCleanupWords(cleanup) + result.words() + deliveryNote
 		if gaps := result.unsettled(); len(gaps) > 0 {
 			against += " You accepted it with criteria of its brief not shown met: if one no longer applies, say so with task_scope before accepting next time."
+		}
+		if withdraw {
+			s.todoPushOver(t.ID) // the next push about the to-do may ring again; nothing new goes out now
+			return fmt.Sprintf("Task %s: you withdrew its needs_user and accepted it yourself; it is closed. Its decision card "+
+				"is closed as superseded (not recorded as the user's choice), it left Needs you, and no conclusion card or "+
+				"push went out. Don't tell the user unless they asked about it.", t.ID) + against, nil
 		}
 		if ledger && verdict == reviewAccepted {
 			// Checked by the supervisor: its "Please verify" is passed, not left for the owner to press (#3240).
@@ -539,8 +574,9 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 			reversible = *a.Reversible
 		case !neverDefault(decision.WhyOwner):
 			// A default and a date (#3804): one that can be undone takes its recommendation after a day unless the review
-			// set its own deadline.
-			deadline, reversible = time.Now().Add(decisionDefaultAfter).UTC(), true
+			// set its own deadline. An explicit reversible=false keeps the date as a reminder only.
+			deadline = time.Now().Add(decisionDefaultAfter).UTC()
+			reversible = a.Reversible == nil || *a.Reversible
 		}
 		if !deadline.IsZero() {
 			conclusion.Deadline, conclusion.Reversible = deadline, reversible
@@ -665,6 +701,18 @@ func (s *Service) toolTaskReview(ctx context.Context, self string, args json.Raw
 	}
 	return fmt.Sprintf("Rework round %d of %d (stalled/low-ROI %d of %d) is %s. ", v.Round,
 		maxTotalReworkRounds, stalled, maxReworkRounds, sent) + reviewAgainNote, nil
+}
+
+// withdrawNeedsUserError refuses task_review withdraw_needs_user on task t from conversation self unless self
+// supervises t (its ledger names it, or it is the main conversation) and t still waits for the user (needs_user).
+func withdrawNeedsUserError(t Todo, self string, isMain bool) error {
+	if t.Supervision == nil || !isMain && t.Supervision.Supervisor != self {
+		return fmt.Errorf("task %s: only its supervisor or the main conversation withdraws its needs_user", t.ID)
+	}
+	if t.DoneAt != nil || t.Supervision.state(t) != reviewNeedsUser {
+		return fmt.Errorf("task %s does not wait for the user (needs_user): nothing to withdraw; review it as usual", t.ID)
+	}
+	return nil
 }
 
 // reviewAgainNote ends every rework reply: the supervisor is told where its next look comes from.
@@ -802,6 +850,7 @@ func (s *Service) reviewDoneTodo(ctx context.Context, id, reason string, accepte
 	}
 	// Recording an outcome and telling the planning conversation belong to a newly closed open task, not a failed start.
 	if ok && before.DoneAt == nil {
+		s.todoPushOver(id) // closed: nothing about it waits on the owner any more
 		if accepted && row.DoneAt != nil {
 			s.goRecordTaskOutcome(before, *row.DoneAt)
 			s.learnAcceptedEstimate(ctx, id)
