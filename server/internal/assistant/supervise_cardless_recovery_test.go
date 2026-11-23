@@ -529,17 +529,37 @@ func TestCardlessClaimMarkerFailureKeepsRecoveryRecord(t *testing.T) {
 	store.mu.Unlock()
 	s.superviseWatch(context.Background(), time.Now().Add(cardlessSettle+time.Minute))
 	stopCardlessManager(s)
+	if _, ok := storedSupervisePending(t, s)[todo.ID+"|"+sigCardlessWait]; !ok {
+		t.Fatal("the failed marker write left no durable claim for restart to recover")
+	}
+	if todoNow(s, todo.ID).Supervision.CardlessToldAt != nil || cardlessNotices(f) != 0 {
+		t.Fatal("the first manager acknowledged a claim whose marker write failed")
+	}
 	store.mu.Lock()
 	store.failMarker = false
 	store.mu.Unlock()
-	again, _ := restartedOn(t, store)
+	again, nextHub := restartedOn(t, store)
 	t.Cleanup(func() { stopCardlessManager(again) })
 	holdDigest(again)
-	if err := again.ensureTodosLoaded(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	again.restoreSupervisePending(context.Background())
-	if !slices.Contains(pendingKinds(again, todo.ID), sigCardlessWait) {
+	// Restoring the outbox arms the real timer. Inspect the restored claim before that timer can deliver and ACK it.
+	restored := func() bool {
+		again.supervise.digestMu.Lock()
+		defer again.supervise.digestMu.Unlock()
+		if err := again.ensureTodosLoaded(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		again.restoreSupervisePending(context.Background())
+		return slices.Contains(pendingKinds(again, todo.ID), sigCardlessWait)
+	}()
+	if !restored {
 		t.Fatal("the failed marker write left no durable claim for restart to recover")
+	}
+	flushCardlessClaim(again)
+	flushCardlessClaim(again)
+	if got := cardlessNotices(nextHub); got != 1 || todoNow(again, todo.ID).Supervision.CardlessToldAt == nil {
+		t.Fatalf("restored claim produced %d notices, want one notice with a persisted marker", got)
+	}
+	if _, ok := storedSupervisePending(t, again)[todo.ID+"|"+sigCardlessWait]; ok {
+		t.Fatal("the delivered claim remained in the durable outbox")
 	}
 }
