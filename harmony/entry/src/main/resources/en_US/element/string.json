@@ -8299,6 +8299,34 @@
     {
       "name": "phone_hub_update_available",
       "value": "Update Available"
+    },
+    {
+      "name": "phone_live_screen",
+      "value": "Live Screen"
+    },
+    {
+      "name": "phone_search_alias_phone_live_screen",
+      "value": "live screen screen route direct connection quality cellular mobile data hotspot scroll scrolling scroll speed two fingers"
+    },
+    {
+      "name": "phone_screen_scroll_speed",
+      "value": "Scroll Speed"
+    },
+    {
+      "name": "phone_screen_slower",
+      "value": "Slower"
+    },
+    {
+      "name": "phone_screen_default",
+      "value": "Default"
+    },
+    {
+      "name": "phone_screen_faster",
+      "value": "Faster"
+    },
+    {
+      "name": "phone_screen_scroll_hint",
+      "value": "How far a computer's screen scrolls when you drag two fingers on it."
     }
   ]
 }

@@ -2033,7 +2033,7 @@ struct Index {
           onWeb:(address:string)=>this.openReader(address)}).layoutWeight(1)
       } else if (this.phoneSettingsPage==='phone_default_permissions') {
         List() { PhoneDefaultPermissionSection({model:this.model,elevated:true}) }.width('100%').layoutWeight(1).padding(16)
-      } else if (['phone_hubs','phone_pairing','about','storage'].includes(this.phoneSettingsPage)) {
+      } else if (['phone_hubs','phone_pairing','about','storage','phone_live_screen'].includes(this.phoneSettingsPage)) {
         PhoneSettingsDevicePages({model:this.model,elevated:true,page:this.phoneSettingsPage,
           onOpen:(key:string)=>this.openFromPhoneSettings(key),onPair:()=>this.pairFromSettings()}).layoutWeight(1)
       } else if (this.phoneSettingsPage) {
@@ -2932,7 +2932,7 @@ struct Index {
           onWeb:(address:string)=>this.openReader(address)})
       } else if (name==='settings' && this.settingsKind(param)==='phone_default_permissions') {
         List() { PhoneDefaultPermissionSection({model:this.settingsModel(param)}) }.width('100%').height('100%').padding(16)
-      } else if (name==='settings' && ['phone_hubs','phone_pairing','about','storage'].includes(this.settingsKind(param))) {
+      } else if (name==='settings' && ['phone_hubs','phone_pairing','about','storage','phone_live_screen'].includes(this.settingsKind(param))) {
         PhoneSettingsDevicePages({model:this.settingsModel(param),page:this.settingsKind(param),onOpen:(key:string)=>this.openSettings(key),onPair:()=>this.pairFromSettings()})
       } else if (name === 'settings' && ['phone_agent_options','phone_language_options'].includes(this.settingsKind(param))) {
         PhoneSettingsOptions({model:this.model,page:this.settingsKind(param),label:(k:string):string => this.settingsLabel(k),onOpen:(k:string) => this.openSettings(k)})

@@ -8303,6 +8303,34 @@
     {
       "name": "phone_hub_update_available",
       "value": "アップデートあり"
+    },
+    {
+      "name": "phone_live_screen",
+      "value": "ライブ画面"
+    },
+    {
+      "name": "phone_search_alias_phone_live_screen",
+      "value": "ライブ画面 画面 経路 直接接続 画質 モバイル通信 インターネット共有 スクロール スクロールの速さ 2本指"
+    },
+    {
+      "name": "phone_screen_scroll_speed",
+      "value": "スクロールの速さ"
+    },
+    {
+      "name": "phone_screen_slower",
+      "value": "遅め"
+    },
+    {
+      "name": "phone_screen_default",
+      "value": "標準"
+    },
+    {
+      "name": "phone_screen_faster",
+      "value": "速め"
+    },
+    {
+      "name": "phone_screen_scroll_hint",
+      "value": "コンピュータの画面を2本指でドラッグしたときの、スクロールの速さです。"
     }
   ]
 }

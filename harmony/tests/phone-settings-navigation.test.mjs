@@ -37,3 +37,11 @@ test('Advanced only advertises the actual latest release or an update already in
   assert.equal(phoneHubUpdateMessage('available',true,'docker'),'phone_hub_new_image');
   assert.equal(phoneHubUpdateMessage('idle',true,'release'),'phone_hub_update_available');
 });
+
+test('Live Screen requires an advertised machine on Advanced and stays a directly searchable device setting',()=>{
+ assert.ok(!phoneSettingsRows(true,'device',[],true,false).includes('phone_live_screen'));
+ assert.ok(phoneSettingsRows(true,'device',[],true,true).includes('phone_live_screen'));
+ assert.ok(!phoneSettingsRows(false,'device',[],true,true).includes('phone_live_screen'));
+ assert.ok(phoneSettingsSearchCatalog.includes('phone_live_screen'));
+ assert.deepEqual(pushPhoneSetting([],'phone_live_screen'),['phone_live_screen']);
+});

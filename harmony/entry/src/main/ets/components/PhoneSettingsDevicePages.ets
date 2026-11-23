@@ -6,6 +6,8 @@ import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
 import { ClientModel } from '../models/ClientModel';
 import { HubProfile } from '../models/Wire';
+import { screenScrollPreference, ScreenScrollPreference } from '../platform/ScreenScrollPreference';
+import { screenScrollChoices } from '../core/ScreenWheel';
 import { LicenseNotices } from './LicenseNotices';
 
 @ComponentV2
@@ -21,11 +23,13 @@ export struct PhoneSettingsDevicePages {
   @Local dataBytes:number=-1;
   @Local storageError:boolean=false;
   @Local licenses:boolean=false;
+  @Local screenScroll:ScreenScrollPreference=screenScrollPreference;
   private active:boolean=false;
   aboutToAppear():void { this.active=true;this.load(); }
   aboutToDisappear():void { this.active=false; }
   @Monitor('page') changed():void { this.load(); }
   private async load():Promise<void> {
+    if (this.page==='phone_live_screen') this.screenScroll.load(this.getUIContext().getHostContext());
     if (this.page==='about') {
       try {
         const info=bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
@@ -64,6 +68,18 @@ export struct PhoneSettingsDevicePages {
           this.info(tr('phone_settings_build'),this.buildNumber || tr('unknown'))
           this.action(tr('diagnostics'),'settings.about.diagnostics',()=>this.onOpen('diagnostics'))
           this.action(tr('open_source_licenses'),'settings.about.licenses',()=>{this.licenses=true;})
+        } else if (this.page==='phone_live_screen') {
+          Text(tr('phone_screen_scroll_speed')).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Colors.secondary).padding(12)
+          ForEach(screenScrollChoices,(choice:string)=>{
+            Button({type:ButtonType.Normal}) { Row({space:8}) {
+              Text(tr('phone_screen_'+choice)).fontSize(17).fontColor(Colors.ink).layoutWeight(1)
+              if (this.screenScroll.choice===choice) SymbolGlyph($r('sys.symbol.checkmark')).fontSize(17).fontColor([Colors.link])
+            }.width('100%').padding({left:20,right:20}) }.width('100%').constraintSize({minHeight:48}).backgroundColor(Color.Transparent)
+              .accessibilitySelected(this.screenScroll.choice===choice).enabled(this.screenScroll.ready && !this.screenScroll.saving)
+              .onClick(()=>{this.screenScroll.choose(choice).then((saved:boolean)=>{if(this.active && !saved)this.getUIContext().getPromptAction().showToast({message:tr('cache_unavailable')});});})
+              .id('settings.live_screen.speed.'+choice)
+          },(choice:string)=>choice)
+          Text(tr('phone_screen_scroll_hint')).fontSize(13).fontColor(Colors.secondary).padding(16)
         } else if (this.page==='storage') {
           this.info(tr('phone_settings_data_size'),this.bytes(this.dataBytes))
           this.info(tr('phone_settings_cache_size'),this.bytes(this.cacheBytes))

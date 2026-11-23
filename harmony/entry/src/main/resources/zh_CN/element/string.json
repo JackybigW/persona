@@ -8303,6 +8303,34 @@
     {
       "name": "phone_hub_update_available",
       "value": "有新版本"
+    },
+    {
+      "name": "phone_live_screen",
+      "value": "实时屏幕"
+    },
+    {
+      "name": "phone_search_alias_phone_live_screen",
+      "value": "实时屏幕 屏幕 线路 直连 画质 蜂窝 移动数据 热点 滚动 滚动速度 双指"
+    },
+    {
+      "name": "phone_screen_scroll_speed",
+      "value": "滚动速度"
+    },
+    {
+      "name": "phone_screen_slower",
+      "value": "较慢"
+    },
+    {
+      "name": "phone_screen_default",
+      "value": "默认"
+    },
+    {
+      "name": "phone_screen_faster",
+      "value": "较快"
+    },
+    {
+      "name": "phone_screen_scroll_hint",
+      "value": "用两指在电脑画面上拖动时，画面滚动的快慢。"
     }
   ]
 }

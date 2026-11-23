@@ -37,6 +37,7 @@ function settingIcon(id:string):Resource {
     case 'connectors': return $r('sys.symbol.link');
     case 'extensions': return Symbols.apps;
     case 'phone_inbox_sources': return Symbols.inbox;
+    case 'phone_live_screen': return $r('sys.symbol.desktop');
     case 'phone_hubs': return $r('sys.symbol.link');
     case 'phone_pairing': return $r('sys.symbol.qrcode');
     case 'phone_settings_advanced': return $r('sys.symbol.slider_horizontal_2');
@@ -180,7 +181,14 @@ export struct SettingsDirectory {
     return listed.concat(LOCAL_SEARCH_ROUTES.filter((id:string)=>settingLabel(id,this.label).toLocaleLowerCase()===query));
   }
   private rows(group:string):string[] {
-    return phoneSettingsRows(this.advanced,group,this.model.features,!!this.model.profile.id&&!this.model.demo);
+    const screens=this.model.machines.some((machine:ResourceRow):boolean=>{
+      const data=machine.data();
+      return ['computer','browser'].some((service:string):boolean=>{
+        const capability=Wire.object(data,service);
+        return Wire.bool(capability,'enabled') && Wire.bool(capability,'screen_sharing');
+      });
+    });
+    return phoneSettingsRows(this.advanced,group,this.model.features,!!this.model.profile.id&&!this.model.demo,screens);
   }
   private restoreSearchFocus(): void {
     const query=this.initialQuery, scope=this.model.scope();

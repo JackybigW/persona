@@ -9,19 +9,20 @@ const coreGroups: Record<string,string[]> = {
 };
 const advancedGroups: Record<string,string[]> = {
   'assistant':['phone_knowledge_selection','phone_meeting_options','phone_agent_options'],
-  'device':['appearance','phone_language_options','translation','storage','phone'],
+  'device':['appearance','phone_language_options','phone_live_screen','translation','storage','phone'],
   'hub':['hub_update','managers','phone_look_avatar','phone_pairing']
 };
 export const phoneSettingsSearchCatalog:string[] = [
   'models','assistant','channels','connectors','phone_inbox_sources','extensions','phone_agent_options','appearance',
   'phone_language_options','notifications','translation','storage','about','phone_hubs','hub_update','managers','phone_look_avatar','phone_pairing',
   'triage','phone_agent_followup','phone_claude_config','phone_codex_config','phone_agy_config','phone_look_color','phone_look_style','phone_look_scheme',
-  'phone_knowledge_selection','phone_meeting_options','phone_agent_layout','phone','machines'
+  'phone_knowledge_selection','phone_meeting_options','phone_live_screen','phone_agent_layout','phone','machines'
 ];
 
-export function phoneSettingsRows(advanced:boolean,group:string,features:string[],paired:boolean):string[] {
+export function phoneSettingsRows(advanced:boolean,group:string,features:string[],paired:boolean,hasLiveScreen:boolean=false):string[] {
   const rows=(advanced ? advancedGroups : coreGroups)[group] || [];
   return rows.filter((id:string)=>{
+    if (id==='phone_live_screen') return hasLiveScreen;
     if (id==='phone_inbox_sources') return features.includes('inbox_sources');
     if (id==='extensions') return features.includes('extension_manager') || features.includes('plugin_manager');
     if (['phone_hubs','hub_update','managers'].includes(id)) return paired;
@@ -36,7 +37,7 @@ export function phoneAppearancePage(page: string): boolean {
 export function phoneSettingsLink(page: string): string {
   if (page === 'phone_agent_layout') return 'phone_look_layout';
   if (phoneAppearancePage(page) || ['phone_agent_options','phone_language_options','phone_meeting_options','phone_knowledge_selection',
-    'phone_settings_advanced','phone_inbox_sources','phone_default_permissions','phone_hubs','about','storage','phone_pairing'].includes(page)) return page;
+    'phone_settings_advanced','phone_inbox_sources','phone_default_permissions','phone_hubs','about','storage','phone_pairing','phone_live_screen'].includes(page)) return page;
   return '';
 }
 
