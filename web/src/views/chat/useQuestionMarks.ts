@@ -56,7 +56,8 @@ export function useQuestionMarks({ mid, sid, on, lines, busy, ticks, scroller }:
       const view = scroller.getBoundingClientRect();
       const seen: string[] = [];
       for (const [line, m] of unread) {
-        const row = scroller.querySelector(`[data-line="${CSS.escape(line)}"]`);
+        // the line's wrapper may draw no box of its own: its first child is the exchange (as NavRail measures it)
+        const row = scroller.querySelector(`[data-line="${CSS.escape(line)}"]`)?.firstElementChild;
         if (row && rowOpened(row.getBoundingClientRect(), view)) seen.push(m.key);
       }
       if (seen.length) markRead(seen);
@@ -65,7 +66,12 @@ export function useQuestionMarks({ mid, sid, on, lines, busy, ticks, scroller }:
     schedule();
     scroller.addEventListener("scroll", schedule, { passive: true });
     document.addEventListener("visibilitychange", schedule);
+    // the chat lays out after the marks arrive (a first page, pictures loading): look again when it changes size
+    const resize = new ResizeObserver(schedule);
+    resize.observe(scroller);
+    if (scroller.firstElementChild) resize.observe(scroller.firstElementChild);
     return () => {
+      resize.disconnect();
       if (frame) cancelAnimationFrame(frame);
       scroller.removeEventListener("scroll", schedule);
       document.removeEventListener("visibilitychange", schedule);
