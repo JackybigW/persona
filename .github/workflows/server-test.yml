@@ -55,6 +55,7 @@ jobs:
               sudo apt-get install -y --no-install-recommends apparmor
             fi
             sudo apparmor_parser -r deploy/docker/persona-hub.apparmor
+            echo "PERSONA_CI_HOST_APPARMOR_PARSER=1" >> "$GITHUB_ENV"
           fi
       - name: Server checks
         run: scripts/ci/server.sh "$CI_SERVER_SHARD"

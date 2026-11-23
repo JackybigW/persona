@@ -29,14 +29,18 @@ def main():
             run(["docker", "build", "--target", "sandbox-runtime", "--iidfile", str(directory / "image"), "."],
                 120, cwd=ROOT)
             image = (directory / "image").read_text().strip()
-            # Parse the optional host policy in a disposable userspace; never load host LSM policy.
+            # Syntax validation uses the parser that just loaded this profile on the hosted VM.
+            # Other hosts use Ubuntu userspace without loading a policy into the kernel.
             policy = directory / "persona-hub.apparmor"
             policy.write_text((ROOT / "deploy/docker/persona-hub.apparmor").read_text())
-            run(["docker", "run", "--rm", "--name", container + "-policy",
-                 "--mount", "type=bind,src=" + str(directory) + ",dst=/probe,readonly", "ubuntu:24.04",
-                 "/bin/sh", "-ec", "apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
-                 "apt-get install -y -qq --no-install-recommends apparmor && "
-                 "apparmor_parser -Q -K /probe/persona-hub.apparmor"], 180)
+            if os.environ.get("PERSONA_CI_HOST_APPARMOR_PARSER") == "1":
+                run(["apparmor_parser", "-Q", "-K", str(policy)], 30)
+            else:
+                run(["docker", "run", "--rm", "--name", container + "-policy",
+                     "--mount", "type=bind,src=" + str(directory) + ",dst=/probe,readonly", "ubuntu:24.04",
+                     "/bin/sh", "-ec", "apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
+                     "apt-get install -y -qq --no-install-recommends apparmor && "
+                     "apparmor_parser -Q -K /probe/persona-hub.apparmor"], 180)
             security = run(["docker", "info", "--format", "{{json .SecurityOptions}}"], 15,
                            capture_output=True, text=True)
             apparmor = ["--security-opt=apparmor=persona-hub"] if "apparmor" in security.stdout.lower() else []
