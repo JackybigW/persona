@@ -40,7 +40,7 @@ def run_probe(image, name, directory, apparmor, profile_check):
     host = details["HostConfig"]
     if apparmor:
         expected_profile = apparmor[0].rsplit("=", 1)[1]
-        actual_profile = host.get("AppArmorProfile")
+        actual_profile = details.get("AppArmorProfile")
         print("AppArmor inspect: expected=%r actual=%r" % (expected_profile, actual_profile), flush=True)
         if actual_profile != expected_profile:
             raise RuntimeError("container did not use the required AppArmor profile")
