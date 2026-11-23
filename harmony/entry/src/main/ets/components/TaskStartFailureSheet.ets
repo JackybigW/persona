@@ -49,7 +49,14 @@ export struct TaskStartFailureSheet {
       Row().width(36).height(5).borderRadius(3).backgroundColor(Colors.tertiary).margin({top:5,bottom:6}).accessibilityLevel('no')
       Row({space:Tokens.gap}) {
         Button({type:ButtonType.Normal}) {
-          Stack() { PhoneOutlineIcon({name:'navigationClose',color:Colors.link,iconScale:ReadinessStyle.metric(12,17)/17}) }
+          Stack() {
+            // The physical-pixel path keeps its original viewport. Scale the finished
+            // mark about its center so its stroke follows the rest of the header.
+            Stack() { PhoneOutlineIcon({name:'navigationClose',color:Colors.link,iconScale:12/17}) }
+              .width(12).height(12)
+              .scale({x:ReadinessStyle.metric(12,17)/12,y:ReadinessStyle.metric(12,17)/12})
+              .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+          }
             .width(ReadinessStyle.metric(46,56)).height(ReadinessStyle.metric(46,56))
             .borderRadius(Tokens.capsule*2).backgroundColor(Colors.readinessControl)
         }.width(ReadinessStyle.metric(56,66)).height(ReadinessStyle.metric(46,56)).padding(0).backgroundColor(Color.Transparent)

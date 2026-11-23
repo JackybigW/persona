@@ -445,6 +445,9 @@ test('failed tasks enter the same native task detail from the board and the ordi
  assert.match(registered('activateTray'),/onOpenTodo\(actual.resource\)/);
  const full=readFileSync(new URL('../entry/src/main/ets/components/TaskStartFailureSheet.ets',import.meta.url),'utf8');
  assert.match(full,/TaskStartupQuestionCard\(/);assert.match(full,/this\.onEdit\(/);
+ const close=full.slice(full.indexOf("PhoneOutlineIcon({name:'navigationClose'"),full.indexOf(".id('task.failure.close')"));
+ assert.match(close,/iconScale:12\/17[\s\S]*\.width\(12\)\.height\(12\)\s*\.scale\(\{x:ReadinessStyle\.metric\(12,17\)\/12,y:ReadinessStyle\.metric\(12,17\)\/12\}\)/);
+ assert.match(close,/width\(ReadinessStyle\.metric\(56,66\)\)\.height\(ReadinessStyle\.metric\(46,56\)\)[\s\S]*this\.onClose\(\)/);
  const form=readFileSync(new URL('../entry/src/main/ets/components/PhoneTodoDetailForm.ets',import.meta.url),'utf8');
  assert.match(form,/PhoneTodoStartSection\(\{workspace:this\.workspace/);
 });
