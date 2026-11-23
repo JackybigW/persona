@@ -1,5 +1,5 @@
 import type { HubAccess } from '../core/HubAccess';
-import { legacyClientHeader, legacyOperationHeader } from '../core/WireCompatibility';
+import { defaultHealthIntakeRoute, legacyClientHeader, legacyOperationHeader } from '../core/WireCompatibility';
 import { clientLocale } from '../core/ClientLocale';
 import { bundleManager } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
@@ -343,11 +343,11 @@ export class HubTransport {
     identity['type'] = 'client_hello'; identity['features'] = features.concat([AGENT_MESSAGE_HOLD]); identity['locale'] = clientLocale(i18n.getSystemLanguage());
     return this.send(JSON.stringify(identity));
   }
-  private authHeaders(): Record<string, string> {
+  private authHeaders(includeManager:boolean = true): Record<string, string> {
     const headers = this.clientHeaders();
     this.access?.apply(this.credentialOrigin, headers);
     if (this.token) headers['Authorization'] = 'Bearer ' + this.token;
-    if (this.managerId) headers['X-Persona-Manager'] = this.managerId;
+    if (includeManager && this.managerId) headers['X-Persona-Manager'] = this.managerId;
     return headers;
   }
 
@@ -392,7 +392,7 @@ export class HubTransport {
     const generation = this.generation; this.assertLive(generation);
     const verb = method.toUpperCase();
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(verb)) throw new Error('invalid_method');
-    const target = this.endpoint.origin + routePath(this.endpoint, path), headers = this.authHeaders();
+    const target = this.endpoint.origin + routePath(this.endpoint, path), headers = this.authHeaders(!defaultHealthIntakeRoute(path,verb));
     const messagePost = isAgentMessagePost(verb, path);
     if (messagePost) headers['X-Persona-Features'] = AGENT_MESSAGE_HOLD;
     if (body !== undefined) headers['Content-Type'] = contentType;

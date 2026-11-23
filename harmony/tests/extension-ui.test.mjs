@@ -646,3 +646,18 @@ test('source relationships preserve manager ordering, overlapping destinations a
   assert.deepEqual(graph.groups().map(g => g.entry.id), ['work']);
   graph.clear(); assert.equal(graph.count('all'), 0); assert.equal(graph.filter, 'all');
 });
+
+test('the Health rings open only their reserved HTTP form, even when the Hub advertises streaming extensions',async()=>{
+  for(const kind of ['water','protein']) {
+    const captured=[], f=fixtureClient({features:['extension_ui_stream_v1'],request:async(path,method,raw)=>{
+      captured.push([path,method,JSON.parse(raw)]);
+      return JSON.stringify({view:{title:kind,sections:[{items:[{type:'text',text:kind}]}]}});
+    }});
+    const pending=()=>new Promise(resolve=>setImmediate(resolve)),model=new ExtensionUIModel();
+    model.bind(f.client,'-health-intake','pages',{locale:'en-US'},undefined,false,()=>{},true,JSON.stringify({kind}),false,true);
+    await pending();assert.deepEqual(captured[0],['/api/v1/assistant/health/intake/ui?space=health','POST',{state:JSON.stringify({kind}),context:{locale:'en-US',ui_version:6}}]);assert.equal(model.phase,'ready');
+    assert.equal(model.isStream(),false);assert.equal(f.state.sent.length,0);model.dispose();
+    const plugin=new ExtensionUIModel();plugin.bind(f.client,'-health-intake','pages',{},undefined,true,()=>{},true,'',false,false);
+    await pending();assert.equal(captured.at(-1)[0],'/api/v1/extensions/-health-intake/-/ui/pages');plugin.dispose();
+  }
+});
