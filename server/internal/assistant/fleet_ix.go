@@ -1085,8 +1085,24 @@ func (s *Service) finished(p *pending) {
 	}
 	s.channelsEnded(p.ix, how)
 	// the app marks a question the assistant answered, and why (docs/assistant/assistant.md)
-	s.hub.Tell(assistantwire.EventFleetResolved, done)
+	s.tellResolved(done)
 	s.publishSessions(p.ix.MachineID)
+}
+
+// The hub treats omissions from a reconnect inventory as resolutions. Order the read and the
+// write together so a delayed snapshot cannot remove a new card or restore a withdrawn one.
+func (s *Service) tellPendingInteractions() {
+	s.fleet.cardTell.Lock()
+	defer s.fleet.cardTell.Unlock()
+	s.fleet.cardEnd.Lock()
+	defer s.fleet.cardEnd.Unlock()
+	s.hub.Tell(assistantwire.EventFleetInteractions, assistantwire.FleetInteractions{Interactions: s.pendingInteractions()})
+}
+
+func (s *Service) tellResolved(done assistantwire.FleetResolved) {
+	s.fleet.cardEnd.Lock()
+	defer s.fleet.cardEnd.Unlock()
+	s.hub.Tell(assistantwire.EventFleetResolved, done)
 }
 
 // pendingInteractions is the authoritative pending inventory for transport and lifecycle operations.
@@ -1529,7 +1545,7 @@ func (s *Service) restoreInteractions(ctx context.Context) {
 		}
 	}
 	for _, id := range cancelled {
-		s.hub.Tell(assistantwire.EventFleetResolved, assistantwire.FleetResolved{ID: id})
+		s.tellResolved(assistantwire.FleetResolved{ID: id})
 	}
 	var back []proto.Interaction
 	s.fleet.mu.Lock()
