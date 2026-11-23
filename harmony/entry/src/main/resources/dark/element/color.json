@@ -105,6 +105,14 @@
       "value": "#ACACB3"
     },
     {
+      "name": "persona_phone_drawer_surface",
+      "value": "#171717"
+    },
+    {
+      "name": "persona_phone_drawer_selection",
+      "value": "#28282A"
+    },
+    {
       "name": "persona_control",
       "value": "#2C2C2E"
     },

@@ -15,7 +15,7 @@ function method(name){
  for(;i<source.length&&depth;i++){const c=source[i];if(quote){if(escape)escape=false;else if(c==='\\')escape=true;else if(c===quote)quote='';}else if(c==='"'||c==="'"||c==='`')quote=c;else if(c==='{')depth++;else if(c==='}')depth--;}
  assert.equal(depth,0,name);return source.slice(start,i);
 }
-const names=['syncPhonePath','consumeNotification','destinationBackHidden','chatSelectionShown','activeModule','readingAgentDetail','routeTarget','openRow','mainDestination','openMain','hideChatTitle','newConversation','resolveMainDestination','ensureMainDestination','pushChat','redeem','childKey','routeRow','openSettings','settingsKind','settingsModel','targetReady','openLinkedResource','openFrom','openComputer','handoffResource','restoreTarget','routeShown','dismissChatActions','markDetailReady'];
+const names=['syncPhonePath','consumeNotification','destinationBackHidden','chatSelectionShown','activeModule','drawerPlaceSelected','readingAgentDetail','routeTarget','openRow','mainDestination','openMain','hideChatTitle','newConversation','resolveMainDestination','ensureMainDestination','pushChat','redeem','childKey','routeRow','openSettings','settingsKind','settingsModel','targetReady','openLinkedResource','openFrom','openComputer','handoffResource','restoreTarget','routeShown','dismissChatActions','markDetailReady'];
 const NativeNavigation=new Function('NavigationContext','ResourceRow','mainConversationData','Wire','Tokens','return '+stripTypeScriptTypes('class NativeNavigation {'+names.map(method).join('\n')+'}'))(NavigationContext,ResourceRow,mainConversationData,Wire,Tokens);
 function row(id='source',manager='owner-b',kind='conversation'){const r=new ResourceRow(id,id,kind);r.manager=manager;r.machine='machine';r.session=id;return r;}
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
@@ -309,4 +309,49 @@ test('a covered destination cannot replace the phone bar or bind the wrong conve
  shell.routeShown('session','stale');
  assert.equal(shell.activeChild,'current');
  assert.deepEqual(shell.phonePath,['resources']);
+});
+
+test('the phone drawer selects only the current owner’s root Persona conversation', () => {
+ const {shell,primary}=fixture(),main=row('main','owner-a');
+ primary.profile.manager='owner-a';primary.mainId=main.id;primary.mainMachineId=main.machine;
+ main.group=primary.profile.id;main.raw=JSON.stringify({navigation_root:true});
+ shell.wide=()=>false;shell.peer=()=>0;shell.phoneTop='conversation';shell.phoneParam=JSON.stringify(main);
+ assert.equal(shell.drawerPlaceSelected('persona'),true);
+ for(const change of [{group:'other-hub'},{manager:'other-owner'},{machine:'other-machine'},{id:'other-chat'},{raw:'{}'}]){
+   shell.phoneParam=JSON.stringify({...main,...change});assert.equal(shell.drawerPlaceSelected('persona'),false);
+ }
+ shell.phoneParam=JSON.stringify(main);
+ for(const page of ['session','tools','settings_root','']){
+   shell.phoneTop=page;assert.equal(shell.drawerPlaceSelected('persona'),false);
+ }
+ shell.phoneTop='conversation';shell.peer=()=>1;assert.equal(shell.drawerPlaceSelected('persona'),false);
+ shell.peer=()=>0;primary.mainId='';assert.equal(shell.drawerPlaceSelected('persona'),false);
+ primary.mainId=main.id;shell.activeModule=()=>'inbox';
+ assert.equal(shell.drawerPlaceSelected('inbox'),true);assert.equal(shell.drawerPlaceSelected('knowledge'),false);
+ shell.wide=()=>true;assert.equal(shell.drawerPlaceSelected('persona'),false);
+});
+
+test('the system phone drawer paints its surface and selection without overriding a custom theme',()=>{
+ const colors=readFileSync(new URL('../entry/src/main/ets/design/Colors.ets',import.meta.url),'utf8');
+ const methodFor=(name)=>{
+  const m=colors.match(new RegExp('@Computed get ('+name+'\\(\\): ResourceColor \\{[^}]+\\})'));
+  assert.ok(m,name);return stripTypeScriptTypes('class Tokens { get '+m[1]+' }');
+ };
+ const surface=new (new Function('$r','return '+methodFor('phoneDrawerSurface'))(x=>x))();
+ const selection=new (new Function('$r','return '+methodFor('phoneDrawerSelection'))(x=>x))();
+ for(const style of ['glass','clay','beautiful']){
+  for(const system of [true,false]){
+   Object.assign(surface,{styleID:style,systemControls:system,surface:'custom surface'});
+   Object.assign(selection,{styleID:style,systemControls:system,control:'custom well'});
+   assert.equal(surface.phoneDrawerSurface,style==='glass'&&system?'app.color.persona_phone_drawer_surface':'custom surface');
+   assert.equal(selection.phoneDrawerSelection,style==='glass'&&system?'app.color.persona_phone_drawer_selection':'custom well');
+  }
+ }
+ for(const [mode,ground,fill] of [['base','#F9F9F9','#EEEEEF'],['dark','#171717','#28282A']]){
+  const palette=JSON.parse(readFileSync(new URL('../entry/src/main/resources/'+mode+'/element/color.json',import.meta.url))).color;
+  assert.equal(palette.find(v=>v.name==='persona_phone_drawer_surface').value,ground);
+  assert.equal(palette.find(v=>v.name==='persona_phone_drawer_selection').value,fill);
+ }
+ assert.match(source,/\.selected\(this\.drawerPlaceSelected\(kind\)\)/);
+ assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });

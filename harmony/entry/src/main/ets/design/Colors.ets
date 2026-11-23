@@ -35,6 +35,12 @@ class NativeColors {
   @Trace iconAccent: ResourceColor = $r('sys.color.icon_emphasize');
   readonly prominentRim: ResourceColor = $r('app.color.phone_prominent_rim');
   @Trace systemControls: boolean = false;
+  @Computed get phoneDrawerSurface(): ResourceColor {
+    return this.systemControls && this.styleID === 'glass' ? $r('app.color.persona_phone_drawer_surface') : this.surface;
+  }
+  @Computed get phoneDrawerSelection(): ResourceColor {
+    return this.systemControls && this.styleID === 'glass' ? $r('app.color.persona_phone_drawer_selection') : this.control;
+  }
   @Trace selectedAccentInk: ResourceColor = $r('sys.color.font_emphasize');
   @Computed get selectedFilterFill(): ResourceColor { return this.systemControls ? $r('app.color.phone_filter_fill') : this.selection; }
   @Computed get selectedFilterInk(): ResourceColor { return this.systemControls ? $r('app.color.phone_filter_ink') : this.selectedAccentInk; }

@@ -1575,6 +1575,12 @@ struct Index {
   private drawerMetric(points: number): number {
     return this.wide() ? points : PhoneStyle.sidebarMetric(points,this.environment.fontScale);
   }
+  private drawerPlaceSelected(kind: string): boolean {
+    if (kind === 'persona' && !this.wide()) {
+      return this.peer() === 0 && !!this.model.mainId && this.mainDestination(this.phoneTop, this.phoneParam);
+    }
+    return this.activeModule() === kind;
+  }
   @Builder drawerDivider() {
     ListItem() {
       Divider().color(Colors.divider).strokeWidth(Tokens.divider)
@@ -1592,8 +1598,8 @@ struct Index {
             .accessibilityText(String(this.placeCount(kind))).id('spaces.count.' + kind)
         }
       }.padding({left:12,right:12,top:4,bottom:4}).constraintSize({minHeight:this.drawerMetric(44)}).width('100%')
-    }.borderRadius(10).backgroundColor(this.activeModule() === kind ? Colors.control : Color.Transparent)
-      .selectable(true).selected(this.activeModule() === kind).onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
+    }.borderRadius(10).backgroundColor(this.drawerPlaceSelected(kind) ? this.wide() ? Colors.control : Colors.phoneDrawerSelection : Color.Transparent)
+      .selectable(true).selected(this.drawerPlaceSelected(kind)).onClick(() => { if (this.drawerAcceptsTap()) this.openSpace(kind); }).id('spaces.' + kind)
   }
   @Builder spacesContent() {
     Column() {
@@ -1688,7 +1694,7 @@ struct Index {
               }})
         }.width('100%').padding({left:24,right:24,top:12,bottom:6})
       }
-    }.width('100%').height('100%').padding({bottom:this.spacesInset + 12}).backgroundColor(Colors.surface)
+    }.width('100%').height('100%').padding({bottom:this.spacesInset + 12}).backgroundColor(this.wide() ? Colors.surface : Colors.phoneDrawerSurface)
       .id('shell.spaces.content').onAreaChange(() => this.measureSpaces())
   }
   private measureSpaces(): void {
