@@ -564,7 +564,13 @@ func TestCardlessClaimMarkerFailureKeepsRecoveryRecord(t *testing.T) {
 	if !restored {
 		t.Fatal("the failed marker write left no durable claim for restart to recover")
 	}
-	flushCardlessClaim(again)
+	// The restored claim has been inspected. Let its real digest timer deliver and acknowledge it.
+	setSuperviseTimings(again, shortSuperviseTimings)
+	releaseDigest(again)
+	waitFor(t, "the recovered cardless hand-back and its durable acknowledgement", func() bool {
+		_, pending := storedSupervisePending(t, again)[todo.ID+"|"+sigCardlessWait]
+		return cardlessNotices(nextHub) > 0 && !pending
+	})
 	flushCardlessClaim(again)
 	if got := cardlessNotices(nextHub); got != 1 || todoNow(again, todo.ID).Supervision.CardlessToldAt == nil {
 		t.Fatalf("restored claim produced %d notices, want one notice with a persisted marker", got)
