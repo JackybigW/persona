@@ -666,6 +666,9 @@ struct Index {
           MenuItem({content:tr('background_activity')}).onClick(() => { if (this.menuCurrent('inbox')) this.openActivity(); })
             .id('inbox-background-activity')
         }
+        if (this.model.features.includes('inbox_sources')) MenuItem({content:tr('phone_inbox_sources')})
+          .onClick(()=>{if(this.menuCurrent('inbox') && this.model.connected && this.model.features.includes('inbox_sources'))this.openSettings('phone_inbox_sources');})
+          .id('inbox.more.sources')
         MenuItem({content:tr('mail_compose')}).enabled(this.canComposeFromMenu())
           .onClick(()=>{if(this.menuCurrent('inbox') && this.canComposeFromMenu())this.inboxComposeRevision++;}).id('inbox.more.compose')
         MenuItem({content:tr('refresh')}).enabled(this.model.connected)
@@ -1069,6 +1072,26 @@ struct Index {
     if (index >= 0) this.stack.popToIndex(index);
     else this.stack.pushPath({ name: 'conversation', param: JSON.stringify(this.routeTarget(row, !this.stack.size())) });
     this.savePath();
+  }
+  private askingInboxSources: string = '';
+  private async askFromInboxSources(text:string):Promise<void> {
+    const owner=this.model,scope=owner.scope(),generation=owner.connectionGeneration();
+    if (!text.trim() || Array.from(text).length>8000 || this.askingInboxSources===scope || !owner.connected || !owner.features.includes('inbox_sources')) return;
+    this.askingInboxSources=scope;
+    const active=():boolean=>this.model===owner && owner.connected && owner.owns(generation,scope) && owner.features.includes('inbox_sources');
+    try {
+      const target=owner.mainActivityRow() || await owner.openMain();
+      if (!active() || !target.machine || !target.id || target.group && target.group!==owner.profile.id || target.manager && target.manager!==owner.profile.manager) return;
+      const path='/api/v1/sessions/'+encodeURIComponent(target.machine)+'/'+encodeURIComponent(target.session || target.id)+'/messages';
+      if (owner.operationBlocked(path)) { owner.error='pending_action'; return; }
+      await owner.repo().send(target,text,util.generateRandomUUID(),'',[],active);
+      if (active()) {
+        this.phoneSettingsShown=false; this.spacesShown=false;
+        if (owner.section!==0) this.changeSection(0);
+        this.stack.clear(); this.defaultMainAttempt=''; await this.openMain();
+      }
+    } catch (failure) { if (active()) owner.reportError(failure as Error); }
+    finally { if (this.askingInboxSources===scope) this.askingInboxSources=''; }
   }
   private async openMain(): Promise<void> {
     this.navigationIntent++; if (this.model.section !== 0) this.changeSection(0);
