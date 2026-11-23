@@ -69,7 +69,8 @@ func TestManagerHelloLogsCutCapabilities(t *testing.T) {
 	for i := range maxManagerCapabilities + 1 {
 		caps = append(caps, fmt.Sprintf("cap.%d", i))
 	}
-	if err := m.call(t, busHello, map[string]any{"id": m.id, "capabilities": caps}, nil); err != nil {
+	features := caps[1:]
+	if err := m.call(t, busHello, map[string]any{"id": m.id, "capabilities": caps, "features": features}, nil); err != nil {
 		t.Fatal(err)
 	}
 	logMu.Lock()
@@ -77,6 +78,12 @@ func TestManagerHelloLogsCutCapabilities(t *testing.T) {
 	logMu.Unlock()
 	want := fmt.Sprintf("bus: [m-cut] hello names %d capabilities and the hub keeps %d: dropped cap.%d, cap.%d",
 		maxManagerCapabilities+2, maxManagerCapabilities, maxManagerCapabilities-1, maxManagerCapabilities)
+	if !strings.Contains(got, want) {
+		t.Fatalf("log %q lacks %q", got, want)
+	}
+	// the hello's module features go through the same bound, and their cut is told the same way
+	want = fmt.Sprintf("bus: [m-cut] hello names %d features and the hub keeps %d: dropped cap.%d",
+		maxManagerCapabilities+1, maxManagerCapabilities, maxManagerCapabilities)
 	if !strings.Contains(got, want) {
 		t.Fatalf("log %q lacks %q", got, want)
 	}

@@ -166,8 +166,10 @@ type busPresence struct {
 	Deploy  string `json:"deploy,omitempty"`
 	Version string `json:"version,omitempty"`
 	// Capabilities are what its manager.hello names (assistantwire.Capability*).
-	Capabilities []string  `json:"capabilities,omitempty"`
-	Since        time.Time `json:"since"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	// Features are the loaded built-in modules' flags to expose through the hub hello.
+	Features []string  `json:"features,omitempty"`
+	Since    time.Time `json:"since"`
 }
 
 // close sends the close frame saying why; the read loop then ends the connection.
@@ -382,6 +384,7 @@ type busManagerHello struct {
 	Deploy       string   `json:"deploy"`
 	Version      string   `json:"version"`
 	Capabilities []string `json:"capabilities"`
+	Features     []string `json:"features"`
 }
 
 // busHelloReply is manager.hello's answer: who the hub knows the service as, the managers, and the assistant's hello
@@ -411,13 +414,19 @@ func (h *Hub) managerHello(ctx context.Context, c *busConn, params json.RawMessa
 		return c.refuse(h, fmt.Errorf("manager.hello says %q but the token is %q's", clip(p.ID, 64), c.ident.ID))
 	}
 	capabilities, cut := capabilityList(p.Capabilities)
+	features, featuresCut := capabilityList(p.Features)
 	if err := h.busAccept(ctx, c, busPresence{Host: clip(p.Host, 200), OS: clip(p.OS, 40), Arch: clip(p.Arch, 40),
-		Deploy: clip(p.Deploy, 40), Version: clip(p.Version, 80), Capabilities: capabilities}); err != nil {
+		Deploy: clip(p.Deploy, 40), Version: clip(p.Version, 80), Capabilities: capabilities, Features: features}); err != nil {
 		return nil, err
 	}
-	if len(cut) > 0 {
-		h.logf("bus: [%s] hello names %d capabilities and the hub keeps %d: dropped %s (raise maxManagerCapabilities)",
-			c.ident.ID, len(capabilities)+len(cut), maxManagerCapabilities, strings.Join(cut[:min(len(cut), 8)], ", "))
+	for _, l := range []struct {
+		what      string
+		kept, cut []string
+	}{{"capabilities", capabilities, cut}, {"features", features, featuresCut}} {
+		if len(l.cut) > 0 {
+			h.logf("bus: [%s] hello names %d %s and the hub keeps %d: dropped %s (raise maxManagerCapabilities)",
+				c.ident.ID, len(l.kept)+len(l.cut), l.what, maxManagerCapabilities, strings.Join(l.cut[:min(len(l.cut), 8)], ", "))
+		}
 	}
 	if c.ident.Role == bus.RoleManager && !slices.Contains(p.Capabilities, assistantwire.CapabilityConfigOwn) {
 		h.bus.mu.Lock()
