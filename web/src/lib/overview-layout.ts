@@ -26,15 +26,7 @@ export function setClassicOverview(on: boolean): void {
   listeners.forEach((l) => l());
 }
 
-function subscribe(l: () => void) {
-  listeners.add(l);
-  window.addEventListener("storage", l);
-  return () => {
-    listeners.delete(l);
-    window.removeEventListener("storage", l);
-  };
-}
+// this tab's changes only (a change in another tab shows at its next load): fewer bytes on the first screen
+const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
 
-export function useClassicOverview(): boolean {
-  return useSyncExternalStore(subscribe, classicOverview, classicOverview);
-}
+export const useClassicOverview = (): boolean => useSyncExternalStore(subscribe, classicOverview, classicOverview);

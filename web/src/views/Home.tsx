@@ -336,7 +336,7 @@ export function Home({ onNewAgent, onToggleSidebar }: { onNewAgent: () => void; 
 
 /** Overview's own sections drawn as none where the cards are (#13019): Needs you and Waiting on your computer are
  *  drawn above the watch cards, the project view takes the activity sections' place. */
-const NO_SECTIONS: OverviewSections = { needs_you: null, waiting_on_computer: null, in_progress: null, working: null, unread: null, computers: null };
+const NO_SECTIONS = {} as OverviewSections;
 
 /** The line under the greeting: how many agents need you, work, only wait in the background (counted apart from the
  *  working ones, #10938) and finished unseen. With none of them, the cards that wait (a Persona conversation's, whose

@@ -558,7 +558,12 @@ export async function brotliCopies(dir: string, files: string[]): Promise<{ file
 // above, so its build fails on its own. The watch cards add nothing to the first screen (Overview's wall is idle-tier,
 // IDLE_TIER_BUDGET below): this tree measures ja 484,585 B (en 481,936 B, zh-Hans 482,577 B), 2 B under main. The
 // budget is this tree's ja 484,585 B with 10 B of room on top.
-export const FIRST_SCREEN_BUDGET = 999_999;
+// #13019 (stacked on #13745, #13796, #13784 and #13882, each refreshed on main ec2563b7d7): main and the four merged
+// measure ja 484,871 B (en 482,222 B, zh-Hans 482,863 B), 284 B over main's own 484,587 B (the four's 216 B measured
+// one by one, the rest how they compress together). Overview by project adds 7 B in ja (the lazy import of
+// views/overview/ProjectOverview.tsx and the Classic layout switch, lib/overview-layout.ts): ja 484,878 B. 10 B of room
+// on top.
+export const FIRST_SCREEN_BUDGET = 484_888;
 // The hash in a built file's name: the 8 characters of Rollup's [hash] (url-safe base64) between "-" and the
 // extension, as vite.config.ts names every chunk and asset ("assets/[name]-[hash].js", "[name]-[hash][extname]").
 const NAME_HASH = /-([A-Za-z0-9_-]{8})\.[^./]+$/;
