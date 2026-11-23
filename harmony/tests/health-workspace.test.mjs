@@ -22,6 +22,21 @@ registerHooks({
 
 const { HealthWorkspace, HealthMemoryFile } = await import('../entry/src/main/ets/models/HealthWorkspace.ets');
 const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
+const { healthGoalWidth } = await import('../entry/src/main/ets/core/HealthGoalLabel.ts');
+
+test('health ring captions fit complete localized words and preserve narrow no-break number grouping', () => {
+  const measure = text => Array.from(text).reduce((w, c) => w + (/\p{Script=Han}/u.test(c) ? 18 : c === ' ' ? 5 : 10), 0);
+  const chinese = '目标：2,000 毫升';
+  assert.equal(healthGoalWidth(chinese, measure(chinese) - 3, measure), measure('目标：2,000'));
+  const english = 'Goal: 2,000 ml';
+  assert.equal(healthGoalWidth(english, 200, measure), measure(english));
+  const japanese = '目標：2,000 ml';
+  assert.equal(healthGoalWidth(japanese, measure(japanese) - 1, measure), measure('目標：2,000'));
+  const grouped = 'Goal: 2\u202f000 ml';
+  assert.equal(healthGoalWidth(grouped, measure('2\u202f000 ml'), measure), measure('2\u202f000 ml'));
+  assert.equal(healthGoalWidth('unbrokenword', 25, measure), 25);
+  assert.equal(healthGoalWidth('unavailable-font', 105, () => 0), 105);
+});
 
 function clone(value) { return structuredClone(value); }
 
