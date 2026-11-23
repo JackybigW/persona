@@ -30,7 +30,10 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 				}
 				var next *TodoSupervisionRow
 				if ledger {
-					current := TodoSupervisionRow{TodoID: before.ID, Supervisor: "main", State: "pending_review", UpdatedAt: at, CardlessToldAt: &at}
+					current := TodoSupervisionRow{
+						TodoID: before.ID, Supervisor: "main", SupervisorSource: "explicit",
+						State: "pending_review", UpdatedAt: at, CardlessToldAt: &at,
+					}
 					if err := d.PutTodoSupervision(ctx, current); err != nil {
 						t.Fatal(err)
 					}
@@ -45,8 +48,8 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if ledger && (len(ledgerBefore) != 1 || ledgerBefore[0].CardlessToldAt == nil || !ledgerBefore[0].CardlessToldAt.Equal(at)) {
-					t.Fatalf("pending review lost its hand-back receipt: %+v", ledgerBefore)
+				if ledger && (len(ledgerBefore) != 1 || ledgerBefore[0].SupervisorSource != "explicit" || ledgerBefore[0].CardlessToldAt == nil || !ledgerBefore[0].CardlessToldAt.Equal(at)) {
+					t.Fatalf("pending review lost its supervisor source or hand-back receipt: %+v", ledgerBefore)
 				}
 				refused := errors.New("owner became active before commit")
 				checked := false
@@ -74,7 +77,8 @@ func TestReviewTodoCommitsLedgerAndClosureTogether(t *testing.T) {
 					t.Fatalf("successful commit = %+v %v %v", row, closed, err)
 				}
 				ledgerAfter, err = d.ListTodoSupervision(ctx)
-				if err != nil || ledger && (len(ledgerAfter) != 1 || ledgerAfter[0].State != next.State || ledgerAfter[0].CardlessToldAt != nil) ||
+				if err != nil || ledger && (len(ledgerAfter) != 1 || ledgerAfter[0].State != next.State ||
+					ledgerAfter[0].SupervisorSource != next.SupervisorSource || ledgerAfter[0].CardlessToldAt != nil) ||
 					!ledger && len(ledgerAfter) != 0 {
 					t.Fatalf("successful commit lost the ledger: %+v %v", ledgerAfter, err)
 				}
@@ -94,6 +98,7 @@ func TestTodoSupervision(t *testing.T) {
 	if err := d.PutTodoSupervision(ctx, r); err != nil {
 		t.Fatal(err)
 	}
+	r.SupervisorSource = "explicit"
 	r.State, r.Round, r.Reviews = "rework", 1, json.RawMessage(`[{"verdict":"rework"}]`)
 	if err := d.PutTodoSupervision(ctx, r); err != nil {
 		t.Fatal(err)
@@ -103,7 +108,7 @@ func TestTodoSupervision(t *testing.T) {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
 	got := list[0]
-	if got.Supervisor != "main" || len(got.DoneWhen) != 2 || got.DoneWhen[1] != "线上验证" || got.ExpectMinutes != 30 ||
+	if got.SupervisorSource != "explicit" || got.Supervisor != "main" || len(got.DoneWhen) != 2 || got.DoneWhen[1] != "线上验证" || got.ExpectMinutes != 30 ||
 		got.State != "rework" || got.Round != 1 || !json.Valid(got.Reviews) || !got.UpdatedAt.Equal(now) {
 		t.Fatalf("row = %+v (%s)", got, got.Reviews)
 	}
