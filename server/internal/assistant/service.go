@@ -73,8 +73,10 @@ type Service struct {
 	// sortMem keeps the to-do sort's batches when the store has no table for them (todo_sort_batches.go).
 	sortMem memSortBatches
 	// modules are the feature modules loaded (modules.go); nil, none.
-	modules          *kernel.Kernel
-	compactRecovery  compactRecoveryCache
+	modules         *kernel.Kernel
+	compactRecovery compactRecoveryCache
+	// sendFanout: whom each conversation woke with conversation_send lately (conversation_fanout.go).
+	sendFanout       sendFanout
 	logical          logicalDeviceState
 	a2aWake          chan struct{}
 	a2aLogicalWrites chan struct{}
