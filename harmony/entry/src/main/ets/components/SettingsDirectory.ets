@@ -402,7 +402,11 @@ export struct PhoneSettingsOptions {
               Text(lang==='default' ? tr('phone_settings_system_language').replace('{language}',languageName(i18n.getSystemLanguage())) : languageName(lang))
                 .fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink).layoutWeight(1)
               if (this.model.language===lang) {
-                PhoneOutlineIcon({name:'inlinePickerCheck',color:Colors.link,iconScale:this.inlinePickerScale})
+                Stack() {
+                  Stack() { PhoneOutlineIcon({name:'inlinePickerCheck',color:Colors.link}) }
+                    .width(15).height(14.67).scale({x:this.inlinePickerScale,y:this.inlinePickerScale})
+                    .hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+                }.width(15*this.inlinePickerScale).height(14.67*this.inlinePickerScale)
                   .margin({right:4.33*this.inlinePickerScale}).flexShrink(0)
               }
             }.width('100%').constraintSize({minHeight:PhoneStyle.groupedRowHeight(this.environment.fontScale)}).padding({left:20,right:20,top:6,bottom:6})

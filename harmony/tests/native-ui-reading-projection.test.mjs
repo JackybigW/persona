@@ -326,3 +326,11 @@ test('the main plan uses the actual footer edge while its approval stays pinned 
   assert.ok(limit.indexOf('this.dragHeight')<limit.indexOf('this.measuredMainPlanRoom()'));
   assert.match(limit,/share<0 \? this\.measuredMainPlanRoom\(\) \|\| fallback : shortest\+share/);
 });
+
+test('the selected language mark scales its painted strokes inside the accessibility-sized row', () => {
+  const settings=readFileSync(new URL('../entry/src/main/ets/components/SettingsDirectory.ets',import.meta.url),'utf8');
+  const row=settings.slice(settings.indexOf("if (this.model.language===lang)"),settings.indexOf(".id('settings.language.'+lang)") + 29);
+  assert.match(row,/PhoneOutlineIcon\(\{name:'inlinePickerCheck',color:Colors\.link\}\)\s*\}\s*\.width\(15\)\.height\(14\.67\)\.scale\(\{x:this\.inlinePickerScale,y:this\.inlinePickerScale\}\)/);
+  assert.match(row,/\.width\(15\*this\.inlinePickerScale\)\.height\(14\.67\*this\.inlinePickerScale\)/);
+  assert.match(row,/accessibilitySelected\(this\.model\.language===lang\)[\s\S]*this\.choose\(lang\)/);
+});
