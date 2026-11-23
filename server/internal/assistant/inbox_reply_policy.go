@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -153,7 +155,13 @@ func replyRoute(category string, cfg *assistantwire.InboxReplyPolicyConfig) stri
 // replyPolicyContextTruncated also recognizes rows clipped before ReplyContextTruncated existed. A still-merged row at
 // the clipping cap cannot prove that its retained prefix was complete; fail closed and persist the boundary on new writes.
 func replyPolicyContextTruncated(it *InboxItem) bool {
-	return it != nil && (it.ReplyContextTruncated || len(it.MergedFrom) > 0 && utf8.RuneCountInString(it.Context) >= mergeCtxMax)
+	if it == nil {
+		return false
+	}
+	// A mail snippet is not its body. Even after BodyOf catches up, readMailBody retains at most 3000 characters; a
+	// prefix at that boundary cannot authorize text that was never presented to the classifier.
+	mailIncomplete := it.Mail != nil && (it.BodyOf != it.Last || utf8.RuneCountInString(it.Context) >= 3000)
+	return it.ReplyContextTruncated || mailIncomplete || len(it.MergedFrom) > 0 && utf8.RuneCountInString(it.Context) >= mergeCtxMax
 }
 
 func replyPolicyContentVersion(it *InboxItem) string {
@@ -274,21 +282,26 @@ func mirroredLegacyReply(it *InboxItem) *InboxSuggestion {
 // replyInstructionForSuggestion returns the latest owner rewrite instruction not consumed by a later owner decision.
 // Reported progress and other unrelated chain entries do not consume it. A published replacement carries the chain ID,
 // but that ID authorizes only the identical generated text; every changed replacement needs its own classification.
+func chainReplyInstruction(chain []InboxChainEntry) *InboxChainEntry {
+	for i := len(chain) - 1; i >= 0; i-- {
+		switch chain[i].Kind {
+		case ChainConfirmed, ChainRejected:
+			return nil
+		case ChainInstructed:
+			instruction := chain[i]
+			return &instruction
+		}
+	}
+	return nil
+}
+
 func replyInstructionForSuggestion(it *InboxItem, proposedText string, cfg *assistantwire.InboxReplyPolicyConfig) (*InboxChainEntry, bool) {
 	if it == nil {
 		return nil, false
 	}
-	var instruction *InboxChainEntry
-	for i := len(it.Chain) - 1; i >= 0; i-- {
-		switch it.Chain[i].Kind {
-		case ChainConfirmed, ChainRejected:
-			return nil, false
-		case ChainInstructed:
-			instruction = &it.Chain[i]
-		}
-		if instruction != nil {
-			break
-		}
+	instruction := it.ReplyInstruction
+	if instruction == nil {
+		instruction = chainReplyInstruction(it.Chain)
 	}
 	if instruction == nil {
 		return nil, false
@@ -307,6 +320,46 @@ func snapshotReplyPolicy(g *InboxSuggestion, it *InboxItem, cfg *assistantwire.I
 	g.ReplyClassifiedOf, g.ReplyPolicyRev, g.ReplyReviewed = it.ReplyClassifiedOf, it.ReplyPolicyRev, it.ReplyReviewed
 }
 
+// strictReplyPolicyCategory accepts exactly one flat JSON object with no duplicate keys. Authorization must never
+// depend on JSON's first-object-wins extraction or last-duplicate-wins unmarshalling.
+func strictReplyPolicyCategory(raw string) (string, error) {
+	dec := json.NewDecoder(strings.NewReader(strings.TrimSpace(raw)))
+	opening, err := dec.Token()
+	if err != nil || opening != json.Delim('{') {
+		return "", errors.New("reply policy response is not one JSON object")
+	}
+	seen := map[string]bool{}
+	category := ""
+	for dec.More() {
+		token, err := dec.Token()
+		if err != nil {
+			return "", err
+		}
+		key, ok := token.(string)
+		if !ok || seen[key] {
+			return "", errors.New("ambiguous duplicate reply policy key")
+		}
+		seen[key] = true
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return "", err
+		}
+		if key == "category" {
+			if err := json.Unmarshal(value, &category); err != nil {
+				return "", errors.New("invalid reply policy category")
+			}
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return "", err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		return "", errors.New("multiple reply policy JSON values")
+	}
+	return strings.TrimSpace(category), nil
+}
+
 // classifyReplyPolicyInput returns only a category. The server, not the model, maps it to a route. Independent review
 // is a second invocation that must reach the same category without seeing the first answer. An owner edit includes the
 // original conversation: words such as "yes, go ahead" derive their authority from that context, not from the edit alone.
@@ -321,13 +374,14 @@ func (s *Service) classifyReplyPolicyInput(ctx context.Context, cfg *assistantwi
 	classify := func(system string) (string, error) {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		var out struct {
-			Category string `json:"category"`
-		}
-		if err := s.inboxModelJSON(cctx, purposeTriage, system, input, 0, &out); err != nil {
+		raw, err := s.inboxModelComplete(cctx, purposeTriage, prompts.RenderJSONOnly(system), input, 1024)
+		if err != nil {
 			return "", err
 		}
-		category := strings.TrimSpace(out.Category)
+		category, err := strictReplyPolicyCategory(raw)
+		if err != nil {
+			return "", err
+		}
 		if !replyPolicyCategories[category] {
 			return "", errors.New("invalid reply policy category")
 		}
@@ -413,6 +467,10 @@ func (s *Service) classifyInboxReplyPolicyItem(ctx context.Context, cfg *assista
 		return nil
 	}
 	version, text, truncated := replyPolicyContentVersion(it), it.Context, replyPolicyContextTruncated(it)
+	// A slower earlier model response must not overwrite a newer classification of the same content. The serial is
+	// process-local concurrency evidence; the durable category/content/revision snapshot remains the restart fence.
+	it.replyClassifySerial++
+	serial := it.replyClassifySerial
 	b.mu.Unlock()
 	category, err := "unknown", errors.New("merged reply context was truncated")
 	if !truncated {
@@ -422,7 +480,7 @@ func (s *Service) classifyInboxReplyPolicyItem(ctx context.Context, cfg *assista
 		category = "unknown"
 	}
 	b.mu.Lock()
-	if !it.open() || replyPolicyContentVersion(it) != version {
+	if !it.open() || replyPolicyContentVersion(it) != version || it.replyClassifySerial != serial {
 		b.mu.Unlock()
 		return nil
 	}
@@ -452,7 +510,7 @@ func (s *Service) vetoEditedReply(ctx context.Context, id string, in suggestionR
 	if it != nil {
 		g = currentSuggestion(it)
 	}
-	if it == nil || g == nil || g.Kind != SuggestReply || g.Version != in.Version || !replyPolicyItemApplies(cfg, it) {
+	if it == nil || g == nil || (g.Kind != SuggestReply && g.Kind != SuggestAgent) || g.Version != in.Version || !replyPolicyItemApplies(cfg, it) {
 		b.mu.Unlock()
 		return nil
 	}

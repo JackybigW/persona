@@ -393,7 +393,12 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	mu := v.(*sync.Mutex)
 	mu.Lock()
 	defer mu.Unlock()
-	enabled := s.inboxConfig(ctx).Agent.Enabled
+	fullCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
+		return
+	}
+	enabled := fullCfg.Agent.Enabled
+	replyPolicy := fullCfg.ReplyPolicy
 	hello := s.hello(ctx)
 	owner, language := inboxPromptOwner(hello), answerLanguage(hello.Locale)
 	b.mu.Lock()
@@ -434,6 +439,18 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	if len(notes) == 0 {
 		b.mu.Unlock()
 		return
+	}
+	if replyPolicyItemApplies(replyPolicy, it) && (replyPolicyQueueBlocked(it, replyPolicy) || replyPolicyQueuePending(it, replyPolicy)) {
+		// Work-bearing turns require the same current owner-draft authorization as a new queue start. A terminal closed
+		// notice performs no work and remains deliverable so the existing processing session can shut down cleanly.
+		terminalOnly := !it.open()
+		for _, note := range notes {
+			terminalOnly = terminalOnly && note.Name == prompts.NoteClosed
+		}
+		if !terminalOnly {
+			b.mu.Unlock()
+			return
+		}
 	}
 	turn := ""
 	if it.open() {

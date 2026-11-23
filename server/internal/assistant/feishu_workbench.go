@@ -659,6 +659,11 @@ func (s *Service) workbenchInboxAction(ctx context.Context, a *feishubot.CardAct
 				}
 			} else if liveOK {
 				cardItem = live
+				if err == nil {
+					// A legacy transient result has no publication version. A mirror installed while the model ran is a
+					// different authorization object and must not lend its version to this older generated text.
+					cardItem.Suggestion = nil
+				}
 			}
 			card := s.draftCard(cctx, cardItem, text, err, list)
 			if op == "redraft" {

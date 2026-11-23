@@ -405,16 +405,22 @@ func (s *Service) actOnHandedSuggestion(ctx context.Context, it *InboxItem, g *I
 	edited := text != g.Text
 	to, title := *g.Conversation, clip(oneLine(it.Title), 80)
 	it.Suggestion = nil
+	if in.Action == suggestConfirm {
+		it.ReplyInstruction = nil
+	}
 	execute := in.Action == suggestConfirm && !g.Handback && g.Kind != SuggestConclusion
 	var note *inboxNote
 	closed := false
 	switch {
 	case in.Action == suggestReject:
+		it.ReplyInstruction = nil
 		b.chainAdd(it, rejectedEntry(l, g.Text, now))
 		note = &inboxNote{Name: prompts.NoteRejected, Text: g.Text}
 	case in.Action == suggestInstruct:
 		words := strings.TrimSpace(*in.Text)
 		b.chainAdd(it, instructedEntry(l, words, now))
+		instruction := it.Chain[len(it.Chain)-1]
+		it.ReplyInstruction = &instruction
 		note = &inboxNote{Name: prompts.NoteInstructed, Text: words}
 	case g.Handback:
 		b.chainAdd(it, confirmedEntry(l, text, edited, now))

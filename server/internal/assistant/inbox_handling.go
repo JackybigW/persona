@@ -71,6 +71,10 @@ type InboxSuggestion struct {
 	// ReplyPublicationFailed keeps a draft whose only publication write failed from becoming an owner-authored direct
 	// reply after the store recovers. It is an internal fail-closed marker, never listed to clients.
 	ReplyPublicationFailed bool `json:"reply_publication_failed,omitempty"`
+	// OnDemand identifies model text returned by /draft. ReplyPublicationPending remains true in the first persisted
+	// row and is cleared only by a separate successful commit, so a restart in the publication gap fails closed.
+	OnDemand                bool `json:"on_demand,omitempty"`
+	ReplyPublicationPending bool `json:"reply_publication_pending,omitempty"`
 }
 
 // InboxHandoff is one hand-off of the event to Persona's main conversation (POST /api/v1/inbox/{id}/handoff): that

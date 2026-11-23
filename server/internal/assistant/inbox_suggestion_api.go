@@ -109,7 +109,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 					b.mu.Unlock()
 					return out, unknownSuggestionReply()
 				}
-				if g.ReplyPublicationFailed {
+				if g.ReplyPublicationFailed || g.ReplyPublicationPending {
 					out := it.listed()
 					b.mu.Unlock()
 					return out, errInboxNotPersisted
@@ -201,12 +201,19 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	edited := g != nil && text != g.Text
 	// The suggestion is taken now, under the lock: a second confirmation of it (another device, a retry) is stale.
 	it.Suggestion = nil
+	if in.Action == suggestConfirm {
+		it.ReplyInstruction = nil
+	}
 	if it.Agent.State == AgentDrafted {
 		it.Agent.State = AgentSkipped
 	}
 	execute := g != nil && in.Action == suggestConfirm && !g.Handback
 	switch {
 	case in.Action == suggestReject:
+		it.ReplyInstruction = nil
+		if g.OnDemand {
+			it.RejectedReplyDraft = g.Text
+		}
 		b.chainAdd(it, rejectedEntry(l, g.Text, now))
 		b.flushInboxWakes(it, now)
 		b.tell(it, inboxNote{Name: prompts.NoteRejected, Text: g.Text}, true, now)
@@ -214,6 +221,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	case in.Action == suggestInstruct:
 		words := strings.TrimSpace(*in.Text)
 		b.chainAdd(it, instructedEntry(l, words, now))
+		instruction := it.Chain[len(it.Chain)-1]
+		it.ReplyInstruction = &instruction
 		b.flushInboxWakes(it, now)
 		b.tell(it, inboxNote{Name: prompts.NoteInstructed, Text: words}, true, now)
 		b.setHandling(it, HandlingLooking, "", now)

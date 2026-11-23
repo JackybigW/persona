@@ -753,9 +753,9 @@ conversation the item was handed to ("Item actions", Hand to AI), rejecting othe
 - **Persona's own sends are not your replies**: after Persona sends a reply, the next Lark-plugin round reports the chat's latest message as yours (`done: replied`). While the item awaits the other person's response and no new messages arrived (`last` unchanged),
   treat it as Persona's send: do not archive or record You replied in Lark. If the other person replies and you later reply in Lark yourself, mark done as usual (`done_by=replied`), record your reply,
   and tell its active handling chat to stop. Phase 1 ambiguity: if you add another Lark message after sending but before the other person replies, it is also treated as Persona's send.
-- **Marked done / dismissed / Send in an old App** (`/reply` still marks done): clear the suggestion and tell an active or suggestion-waiting handling chat the item is done and to stop.
+- **Marked done / dismissed / Send in an old App**: marked done and dismissed clear the suggestion and tell an active or suggestion-waiting handling chat the item is done and to stop. A genuinely legacy old-App card send still uses `/reply` and marks done. A policy-scoped processing or on-demand mirror instead follows suggestion settlement: with an active handling conversation it stays open waiting for the other side rather than being filed by the old-App send.
 
-**Old-App compatibility**: reply suggestions also write `agent.draft` / `agent.note` (`agent.state = drafted`). Old Apps still show an AI twin draft, whose Send uses `/reply` and marks done as before.
+**Old-App compatibility**: reply suggestions also write `agent.draft` / `agent.note` (`agent.state = drafted`). Old Apps still show an AI twin draft, whose Send uses `/reply`; its filing behavior is the legacy-versus-scoped-mirror distinction above, not an unconditional done mark for scoped suggestions.
 Processing uses `agent.state = running`, failure `failed`; other suggestions (Agent, conclusion, handback) show no draft on old Apps (`skipped`). Previously stored AI twin drafts become version-1 reply suggestions (`handling.state = done`),
 confirmable in new Apps. With reply policy absent or disabled, `/reply`, `/done`, `/draft` are unchanged; the policy-scoped `/draft` behavior is described above.
 

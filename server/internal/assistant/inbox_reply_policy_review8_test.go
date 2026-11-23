@@ -12,6 +12,7 @@ import (
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/connector"
 	"github.com/nwverse/persona/server/internal/feishubot"
+	"github.com/nwverse/persona/server/internal/rpc"
 )
 
 func replyPolicyReview8Action(raw, op string) map[string]any {
@@ -55,6 +56,41 @@ func replyPolicyReview8Version(v any) int {
 	default:
 		return 0
 	}
+}
+
+func replyPolicyReview8InputDefault(t *testing.T, raw, name string) string {
+	t.Helper()
+	var decoded any
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("decode rendered Workbench card: %v", err)
+	}
+	var visit func(any) (string, bool)
+	visit = func(v any) (string, bool) {
+		switch x := v.(type) {
+		case map[string]any:
+			if x["tag"] == "input" && x["name"] == name {
+				value, ok := x["default_value"].(string)
+				return value, ok
+			}
+			for _, child := range x {
+				if value, ok := visit(child); ok {
+					return value, true
+				}
+			}
+		case []any:
+			for _, child := range x {
+				if value, ok := visit(child); ok {
+					return value, true
+				}
+			}
+		}
+		return "", false
+	}
+	value, ok := visit(decoded)
+	if !ok {
+		t.Fatalf("rendered Workbench card has no string default_value for input %q: %s", name, raw)
+	}
+	return value
 }
 
 func replyPolicyReview8DraftPosts(h *inboxHub) chan string {
@@ -325,12 +361,50 @@ func TestInboxReplyPolicyOmittedSourcesNonLarkCoverAllStages(t *testing.T) {
 	})
 	t.Run("send", func(t *testing.T) {
 		h, c, it := replyPolicyReview8NonLark(t)
-		g := finalReviewInstallMirror(h, it, "Restricted non-Lark mirror with omitted sources")
-		if _, err := h.replyInboxChecked(t.Context(), it.ID, g.Text, recoveryFreshID, false, nil, nil); !errors.Is(err, errReplyPolicyDenied) {
-			t.Errorf("omitted sources excluded non-Lark final-send authorization: %v", err)
+		authorized := replyPolicyTestConfig()
+		authorized.Sources = []string{"synthetic"}
+		h.setConfig(func(out *assistantwire.InboxConfig) { out.ReplyPolicy = authorized })
+		it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
+		it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+		g := finalReviewInstallMirror(h, it, "Authorized non-Lark mirror before the source list changes")
+		entered := make(chan struct{})
+		once := &inboxReply{beforeLock: func() { close(entered) }}
+		once.mu.Lock()
+		unlocked := false
+		defer func() {
+			if !unlocked {
+				once.mu.Unlock()
+			}
+		}()
+		h.inbox.replies.Store(it.ID, once)
+		result := make(chan error, 1)
+		go func() {
+			_, err := h.replyInboxChecked(t.Context(), it.ID, g.Text, recoveryFreshID, false, nil, nil)
+			result <- err
+		}()
+		select {
+		case <-entered:
+		case <-time.After(3 * time.Second):
+			t.Fatal("authorized non-Lark mirror did not reach the reserved-send wait")
+		}
+		// Omitting sources means every source. Change only that list after the early route admitted the mirror, so this
+		// subtest exercises the final physical authorization fence rather than another pre-reservation rejection.
+		omitted := replyPolicyTestConfig()
+		omitted.Sources = nil
+		h.setConfig(func(out *assistantwire.InboxConfig) { out.ReplyPolicy = omitted })
+		once.mu.Unlock()
+		unlocked = true
+		select {
+		case err := <-result:
+			var rpcErr *rpc.Error
+			if !errors.As(err, &rpcErr) || rpcErr.Code != assistantwire.CodeInboxSendFailed {
+				t.Fatalf("source-list change returned %v, want known non-delivery send failure", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("reserved non-Lark send did not finish after the source-list change")
 		}
 		if len(c.calls()) != 0 {
-			t.Fatalf("omitted sources allowed a restricted non-Lark physical send: %+v", c.calls())
+			t.Fatalf("omitted sources allowed a reserved non-Lark physical send after authorization changed: %+v", c.calls())
 		}
 	})
 }
@@ -357,7 +431,11 @@ func TestInboxReplyPolicyWorkbenchPublishedCardSend(t *testing.T) {
 	if version := replyPolicyReview8Version(value["version"]); version == 0 {
 		t.Fatalf("published Workbench card was born stale: version=0 card=%s", card)
 	}
-	replyPolicyReview8WorkbenchAction(h, value, map[string]any{"text": generated}, "synthetic-published-draft-card")
+	rendered := replyPolicyReview8InputDefault(t, card, "text")
+	if rendered != generated {
+		t.Fatalf("published Workbench editable text = %q, want exact generated draft %q", rendered, generated)
+	}
+	replyPolicyReview8WorkbenchAction(h, value, map[string]any{"text": rendered}, "synthetic-published-draft-card")
 	select {
 	case <-updated:
 	case <-time.After(3 * time.Second):

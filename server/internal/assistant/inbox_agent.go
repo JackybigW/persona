@@ -78,6 +78,7 @@ var inboxAgentStartBackoff = []time.Duration{time.Minute, 5 * time.Minute}
 
 // errNoInboxMachine is the definite "no computer can run the inbox agent" refusal before any node call.
 var errNoInboxMachine = errors.New("no machine for the inbox agent")
+var errInboxStartAuthorization = errors.New("inbox agent start authorization changed")
 
 // InboxAgent is the AI twin's work on one item.
 type InboxAgent struct {
@@ -484,6 +485,11 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		cctx, cancel := context.WithTimeout(ctx, inboxAgentStartWait)
 		machineID, sessionID, err := s.startInboxAgent(cctx, cfg, j.it, j.prompt(kbc))
 		cancel()
+		if errors.Is(err, errInboxStartAuthorization) {
+			// No outward session was created. Return the reservation to queued without consuming its attempt budget.
+			restoreReservation(j)
+			continue
+		}
 		b.mu.Lock()
 		a = j.it.Agent
 		// A note that asks for work while the start was on its way queued the event again (tell, no conversation yet):
@@ -545,6 +551,14 @@ func (b *inboxBook) kbChatOf(it *InboxItem) string {
 // inbox agent's model (model settings > inbox.agent). Untitled skips ordinary auto-naming; the item's subject
 // names it below. Its origin keeps it archived in the session snapshot; the Inbox item opens its transcript.
 func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it *InboxItem, prompt string) (machineID, sessionID string, err error) {
+	b := &s.inbox
+	b.mu.Lock()
+	contentVersion := replyPolicyContentVersion(it)
+	turn := ""
+	if it.Agent != nil {
+		turn = it.Agent.ProcessingTurn
+	}
+	b.mu.Unlock()
 	machine := s.settings(ctx).MachineID
 	if _, ok := s.device(ctx, cfg.Machine); ok && cfg.Machine != "" {
 		machine = cfg.Machine
@@ -554,6 +568,21 @@ func (s *Service) startInboxAgent(ctx context.Context, cfg InboxAgentConfig, it 
 	}
 	if s.isWorkMachine(machine) {
 		return "", "", errWorkAssistant
+	}
+	// Device/KB preparation may block. Reauthorize the live row after it and before Start creates an outward session:
+	// content, processing turn and policy revision must still be exactly those used to build the prompt.
+	freshCfg, configErr := s.inboxConfigFresh(ctx)
+	if configErr != nil {
+		return "", "", errInboxStartAuthorization
+	}
+	b.mu.Lock()
+	a := it.Agent
+	authorized := b.items[it.ID] == it && it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" &&
+		a.ProcessingTurn == turn && replyPolicyContentVersion(it) == contentVersion && b.policyTwin(it) != TwinNever &&
+		!replyPolicyQueueBlocked(it, freshCfg.ReplyPolicy) && !replyPolicyQueuePending(it, freshCfg.ReplyPolicy)
+	b.mu.Unlock()
+	if !authorized {
+		return "", "", errInboxStartAuthorization
 	}
 	sess, err := s.Start(ctx, StartParams{Text: prompt, Purpose: purposeAgent, MachineID: machine, Untitled: true, Origin: OriginInbox,
 		OriginRef: it.ID})

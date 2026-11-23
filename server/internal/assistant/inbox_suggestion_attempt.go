@@ -206,6 +206,8 @@ func sameReplySuggestionMode(a, b *InboxSuggestion, ignoreDraftingProvenance boo
 	x.ReplyReviewed, y.ReplyReviewed = false, false
 	x.ReplyInstruction, y.ReplyInstruction = "", ""
 	x.ReplyPublicationFailed, y.ReplyPublicationFailed = false, false
+	x.OnDemand, y.OnDemand = false, false
+	x.ReplyPublicationPending, y.ReplyPublicationPending = false, false
 	if !slices.Equal(x.Changes, y.Changes) {
 		return false
 	}
@@ -239,7 +241,8 @@ func restoreSuggestionAttempts(previous, current []*InboxSuggestionAttempt) []*I
 func sameReplyAuthorization(a, b *InboxSuggestion) bool {
 	return a != nil && b != nil && a.ReplyCategory == b.ReplyCategory && a.ReplyMode == b.ReplyMode &&
 		a.ReplyClassifiedOf == b.ReplyClassifiedOf && a.ReplyPolicyRev == b.ReplyPolicyRev && a.ReplyReviewed == b.ReplyReviewed &&
-		a.ReplyInstruction == b.ReplyInstruction && a.ReplyPublicationFailed == b.ReplyPublicationFailed
+		a.ReplyInstruction == b.ReplyInstruction && a.ReplyPublicationFailed == b.ReplyPublicationFailed &&
+		a.OnDemand == b.OnDemand && a.ReplyPublicationPending == b.ReplyPublicationPending
 }
 
 func sameReplyCard(a, b *InboxSuggestion) bool {
@@ -333,6 +336,25 @@ func (s *Service) persistReplyReservation(ctx context.Context, it *InboxItem, a 
 // than the direct /reply helper, commits its local effects. This marker is internal, never supplied by a client.
 type suggestionReplyOnly struct{}
 
+// suggestionReplyPolicyBeforeSend carries the exact authorization under which this durable attempt was reserved.
+// It is internal context only: the per-item send mutex may wait while the live manager configuration changes.
+type suggestionReplyPolicyBeforeSend struct{}
+
+func cloneReplyPolicyForSend(cfg *assistantwire.InboxReplyPolicyConfig) *assistantwire.InboxReplyPolicyConfig {
+	if cfg == nil {
+		return nil
+	}
+	out := *cfg
+	out.Sources = slices.Clone(cfg.Sources)
+	if cfg.Routes != nil {
+		out.Routes = make(map[string]string, len(cfg.Routes))
+		for category, route := range cfg.Routes {
+			out.Routes[category] = route
+		}
+	}
+	return &out
+}
+
 func suggestionSendOnly(ctx context.Context) bool {
 	_, only := ctx.Value(suggestionReplyOnly{}).(*InboxSuggestionAttempt)
 	return only
@@ -342,6 +364,11 @@ func suggestionSendOnly(ctx context.Context) bool {
 // retain one current action; uncertain sends remain visible but cannot be reissued with a new caller UUID.
 func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, in suggestionReq, replyPolicy *assistantwire.InboxReplyPolicyConfig) (InboxItem, error) {
 	b := &s.inbox
+	if g.ReplyPublicationFailed || g.ReplyPublicationPending {
+		out := it.listed()
+		b.mu.Unlock()
+		return out, errInboxNotPersisted
+	}
 	if err := replyPolicySendGate(it, g, replyPolicy); err != nil {
 		out := it.listed()
 		b.mu.Unlock()
@@ -409,7 +436,7 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 	if a != nil {
 		text = a.Text
 	}
-	if in.Text != nil && strings.TrimSpace(*in.Text) != "" {
+	if in.Text != nil && (strings.TrimSpace(*in.Text) != "" || in.Changes != nil) {
 		text = strings.TrimSpace(*in.Text)
 		if a != nil && text != a.Text {
 			out := it.listed()
@@ -504,6 +531,7 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		return s.finishSuggestionReply(ctx, it, a, errSuggestionStale)
 	}
 	sendCtx := context.WithValue(ctx, suggestionReplyOnly{}, a)
+	sendCtx = context.WithValue(sendCtx, suggestionReplyPolicyBeforeSend{}, cloneReplyPolicyForSend(replyPolicy))
 	var err error
 	if target := a.Proposal.MailTarget; target != nil {
 		_, err = s.replyInboxCheckedDo(sendCtx, it.ID, a.Text, a.ClientID, false, false, &target.UID, &target.Version, a.Proposal.Changes...)
@@ -581,6 +609,7 @@ func (s *Service) finishSuggestionReply(ctx context.Context, it *InboxItem, a *I
 		} else {
 			resetInboxFollowChecks(it)
 			it.Suggestion = nil
+			it.ReplyInstruction = nil
 			b.chainAdd(it, confirmedEntry(b.userLang(), a.Text, a.Text != a.Proposal.Text, now))
 			b.noteSent(it, now)
 			if a.Conversation == nil {

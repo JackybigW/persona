@@ -63,6 +63,10 @@ func (b *inboxBook) merge(items []*InboxItem, now time.Time) (*InboxItem, []*Inb
 	}
 	var took []*InboxItem
 	var entries []InboxChainEntry
+	if sv.ReplyInstruction == nil {
+		// Upgrade legacy chain-only provenance before resequencing and trimming can discard it.
+		sv.ReplyInstruction = chainReplyInstruction(sv.Chain)
+	}
 	for _, it := range items {
 		if it == sv {
 			continue
@@ -216,7 +220,9 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 			baseline = sv.UpdatedAt
 			roundStart[sv] = baseline
 		}
-		if !it.UpdatedAt.After(baseline) {
+		// applyConnector already admitted every member in changed as a real member update. When the survivor advanced in
+		// the same round, its newer timestamp must not hide an older-but-still-new member update from authorization.
+		if !containsItem(changed, sv) && !it.UpdatedAt.After(baseline) {
 			continue
 		}
 		b.roundWrite(sv)
