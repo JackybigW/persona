@@ -394,6 +394,7 @@ struct Index {
   }
   @Computed get phoneTop():string { return this.phonePath[this.phonePath.length-1] || ''; }
   @Computed get phoneAtRoot():boolean {
+    if (this.phoneTop === 'resources' && this.phoneParam === 'health' && !this.wide()) return false;
     const isRootChat = this.phonePath.length === 1 && (this.phoneTop === 'session' || this.phoneTop === 'conversation') &&
       Wire.bool(this.routeRow(this.phoneParam).data(),'navigation_root');
     if (this.mergedPhone() && this.model.section === 1 && this.phoneTop === 'session' && isRootChat) return true;
@@ -1415,6 +1416,9 @@ struct Index {
       this.browsePeer(1);
     }
     else if (kind === 'persona') { this.selectPeer(0); this.stack.clear(); this.openMain(); }
+    else if (kind === 'health' && !this.wide()) {
+      if (this.phoneTop !== 'resources' || this.phoneParam !== 'health') this.openResources('health');
+    }
     else if (kind === 'hub') this.openSheet('hub');
     else if (kind === 'collapse') this.collapsed = true;
     else {
@@ -2056,7 +2060,7 @@ struct Index {
     if (this.drawerFraction > 0) return Colors.phoneDrawerSurface;
     if (this.chatSearchShown && this.startSearchInAgents) return Colors.grouped;
     const page = this.phoneTop;
-    if (page === 'resources' && (this.phoneParam === 'knowledge' || this.phoneParam === 'todo') ||
+    if (page === 'resources' && (this.phoneParam === 'knowledge' || this.phoneParam === 'todo' || this.phoneParam === 'health') ||
       ['knowledge', 'knowledge_meetings', 'recordings', 'project_tree'].includes(page) ||
       page === 'settings' && this.settingsKind(this.phoneParam) === 'machines') return Colors.grouped;
     if (!page && (this.projectPlace() ? this.projectSearching : this.model.section === 1)) return Colors.grouped;
@@ -2964,6 +2968,7 @@ struct Index {
     return this.wide() && this.stack.size() === 1 && this.stack.getAllPathName()[0] === name && this.stack.getParamByIndex(0) === param;
   }
   private destinationTitleText(name: string, param: Object): string {
+    if (name === 'resources' && param === 'health' && !this.wide()) return tr('phone_drawer_health');
     if (name === 'machine_agents') return this.routeRow(param).title || tr('phone_machines');
     if (name === 'machine_settings') return tr('phone_machine_detail');
     if (name === 'settings' && this.settingsKind(param) === 'machines') return tr('phone_machines');
