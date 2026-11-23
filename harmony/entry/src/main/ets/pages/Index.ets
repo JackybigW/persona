@@ -2049,6 +2049,17 @@ struct Index {
     if (!this.model.profile.id || !this.fullHeightPhone() || this.environment.safeTopPx <= 0) return 0;
     return Math.max(0, Tokens.compactStatusInset - this.getUIContext().px2vp(this.environment.safeTopPx));
   }
+  private knowledgeInsetHeight(): number {
+    if (this.phoneTop !== 'resources' || this.phoneParam !== 'knowledge' || this.drawerFraction > 0 ||
+      this.chatSearchShown || this.phoneSettingsShown || this.showSheet) return 0;
+    return this.compactNavigationInset();
+  }
+  @Builder knowledgeNavigationInset() {
+    if (this.knowledgeInsetHeight() > 0) {
+      Rect().width('100%').height(this.knowledgeInsetHeight()).fill(Colors.grouped)
+        .hitTestBehavior(HitTestMode.None).accessibilityLevel('no').id('knowledge.navigation_inset')
+    }
+  }
   @Builder phoneSettings() {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
@@ -3143,6 +3154,7 @@ struct Index {
           onWillDismiss:(dismiss:DismissSheetAction) => { this.chatSearchShown=false; dismiss.dismiss(); }
         })
     }.width('100%').height('100%').padding({top:this.compactNavigationInset()}).clip(true)
+      .overlay(this.knowledgeNavigationInset, {align:Alignment.Top})
       .blur(this.messageLift.current ? this.getUIContext().vp2px(3) : 0)
       .accessibilityLevel(this.messageLift.current ? 'no-hide-descendants' : 'auto')
       .onAreaChange((_old:Area,now:Area) => { this.phoneWidth = Number(now.width); this.phoneHeight = Number(now.height); })
