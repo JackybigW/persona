@@ -1,0 +1,161 @@
+{
+  "sourceNativeHierarchySHA256": "c0a7c2d656442cf15a59913cbf65adb9b131f2db8b890ac7944a9c7a17127ab5",
+  "controls": [
+    {
+      "role": "Button",
+      "id": "todos.filters",
+      "label": "",
+      "frameVp": [
+        328.3333,
+        120.0,
+        57.6667,
+        57.6667
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "TextInput",
+      "id": "todos.search",
+      "label": "",
+      "frameVp": [
+        77.0,
+        202.0,
+        281.0,
+        28.0
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "Row",
+      "id": "todos.open.todo_blog",
+      "label": "博客迁移到 Astro, 13 分钟前, 完成未看, 已过截止 11月23日 周一 18:00, 迁移完成：32 篇文章都能正常构建，旧链接全部加了 301 跳转，Lighthouse 性能分从 71 提到 98。",
+      "frameVp": [
+        105.6667,
+        250.3333,
+        260.3333,
+        159.6667
+      ],
+      "containingTodo": "todos.open.todo_blog"
+    },
+    {
+      "role": "Text",
+      "id": "todos.status.todo_blog",
+      "label": "完成未看",
+      "frameVp": [
+        118.6667,
+        283.0,
+        72.0,
+        21.6667
+      ],
+      "containingTodo": "todos.open.todo_blog"
+    },
+    {
+      "role": "Row",
+      "id": "todos.related.todo_blog",
+      "label": "相关 1 项",
+      "frameVp": [
+        16.0,
+        425.6667,
+        370.0,
+        42.0
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "Row",
+      "id": "todos.section.other",
+      "label": "其余没完成, 2",
+      "frameVp": [
+        16.0,
+        473.3333,
+        370.0,
+        45.6667
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "Row",
+      "id": "todos.open.todo_review",
+      "label": "检查 PR #42, 20:04, 待跟进, · MacBook · Opus 5.5 · 高, 已过截止 11月23日 周一 10:00, PR #42 看完了：逻辑没问题，留了两条关于命名的小建议。",
+      "frameVp": [
+        105.6667,
+        534.0,
+        260.3333,
+        165.0
+      ],
+      "containingTodo": "todos.open.todo_review"
+    },
+    {
+      "role": "Text",
+      "id": "todos.status.todo_review",
+      "label": "待跟进",
+      "frameVp": [
+        118.6667,
+        571.3333,
+        54.0,
+        21.6667
+      ],
+      "containingTodo": "todos.open.todo_review"
+    },
+    {
+      "role": "Row",
+      "id": "todos.open.todo_nas",
+      "label": "给 NAS 配自动备份, 昨天, 未开始, 截止 11月25日 周三, 配置 NAS 的定期备份任务。",
+      "frameVp": [
+        105.6667,
+        729.6667,
+        260.3333,
+        116.3333
+      ],
+      "containingTodo": "todos.open.todo_nas"
+    },
+    {
+      "role": "Text",
+      "id": "todos.status.todo_nas",
+      "label": "未开始",
+      "frameVp": [
+        118.6667,
+        766.0,
+        54.0,
+        21.6667
+      ],
+      "containingTodo": "todos.open.todo_nas"
+    },
+    {
+      "role": "Row",
+      "id": "todos.seen.notice",
+      "label": "",
+      "frameVp": [
+        12.6667,
+        777.6667,
+        376.6667,
+        56.3333
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "Text",
+      "id": "",
+      "label": "已移到「已完成」",
+      "frameVp": [
+        89.0,
+        793.6667,
+        168.0,
+        24.6667
+      ],
+      "containingTodo": ""
+    },
+    {
+      "role": "Button",
+      "id": "todos.seen.undo",
+      "label": "撤销",
+      "frameVp": [
+        269.0,
+        777.6667,
+        112.3333,
+        56.3333
+      ],
+      "containingTodo": ""
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "sourceNativeHierarchySHA256": "eeec835b120f4046efa9f581a218e171dd7b68645155c9a5bdf4d05647b9c4c6",
+  "controls": [
+    {
+      "role": "Button",
+      "id": "todos.filter",
+      "label": "筛选与排序",
+      "framePt": [
+        342.0,
+        120.0,
+        44.0,
+        44.0
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.row.todo_held_pr",
+      "label": "登录页加验证码、34 分钟前、未知、未开始、登录页加图形验证码，走 PR 合并后部署。",
+      "framePt": [
+        16.0,
+        167.7,
+        370.0,
+        96.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "id": "todos.section.other",
+      "label": "其余没完成、2",
+      "framePt": [
+        16.0,
+        270.0,
+        370.0,
+        38.3
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.row.todo_review",
+      "label": "检查 PR #42、20:04、已看、待跟进、· MacBook · Opus 5.5 · 高、已过截止 11月23日 周一 10:00、PR #42 看完了：逻辑没问题，留了两条关于命名的小建议。",
+      "framePt": [
+        16.0,
+        308.3,
+        370.0,
+        136.3
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.row.todo_nas",
+      "label": "给 NAS 配自动备份、昨天、未知、未开始、高优先级、截止 11月25日 周三、11月24日 周二 15:39 提醒、配置 NAS 的定期备份任务。",
+      "framePt": [
+        16.0,
+        444.7,
+        370.0,
+        117.0
+      ]
+    },
+    {
+      "role": "StaticText",
+      "id": "todos.section.just_done",
+      "label": "已交付·待看、2",
+      "framePt": [
+        16.0,
+        567.7,
+        370.0,
+        38.3
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.row.todo_task_blog",
+      "label": "博客迁移到 Astro、5 分钟前、完成未看、完成未看、· Mac Studio · Opus 5.5 · 高、迁移完成：32 篇文章都能正常构建，旧链接全部加了 301 跳转，Lighthouse 性能分从 71 提到 98。",
+      "framePt": [
+        16.0,
+        606.0,
+        370.0,
+        182.0
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.seen.todo_task_blog",
+      "label": "知道了：把「博客迁移到 Astro」移到已完成",
+      "framePt": [
+        278.0,
+        669.0,
+        66.0,
+        14.3
+      ]
+    },
+    {
+      "role": "StaticText",
+      "id": "",
+      "label": "知道了",
+      "framePt": [
+        302.0,
+        669.0,
+        36.0,
+        14.3
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.related.todo_task_blog",
+      "label": "相关 1 项",
+      "framePt": [
+        92.0,
+        725.0,
+        65.0,
+        44.0
+      ]
+    },
+    {
+      "role": "Button",
+      "id": "todos.section.done",
+      "label": "已完成，已折叠，4 条",
+      "framePt": [
+        16.0,
+        794.0,
+        370.0,
+        64.0
+      ]
+    }
+  ]
+}

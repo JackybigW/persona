@@ -1,0 +1,1398 @@
+{
+  "harmonySource": "4d6f313e50b152c46530b018dc8f7e702016f94e",
+  "visualHapSHA256": "dda48eff05820e231506557bf6868a4fc97eeaeeca8bb1e75c8f35022e4d995e",
+  "iPhoneSource": "c2d44cc1406c9127e585f430ed692261edf24eff",
+  "installedAppleExecutables": {
+    "Persona": "65e36482774bab1500cf2d95399f922c3ec9d657d65801a1b886a366f30aa685",
+    "Persona.debug.dylib": "bfd66cf5ef3f3efeecbf5114aa063d19dbffceb43f7850b78f89683b0c70c00a"
+  },
+  "nativeAppFrames": [
+    {
+      "platform": "iPhone",
+      "appearance": "light",
+      "state": "list",
+      "file": "originals/iphone/light/list.png",
+      "sha256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+      "bytes": 305995,
+      "originalHierarchySHA256": "e0368eaaf5303acdfc9359c5ecc0eb4655395085a97471afb134374c0918e6b6",
+      "accessibility": "accessibility/iphone/light/list.json",
+      "accessibilitySHA256": "6c358d06e5997de25698453bf7654ee3d55d2e994de48c33d9c5a47981565e06",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "light",
+      "state": "list",
+      "file": "originals/harmonyos/light/list.png",
+      "sha256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+      "bytes": 340715,
+      "originalHierarchySHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca",
+      "accessibility": "accessibility/harmonyos/light/list.json",
+      "accessibilitySHA256": "ee290419bb5ccbcf5136a83680d07949e2505f28eee13b0c487791fe92f33637",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "light",
+      "state": "filed",
+      "file": "originals/iphone/light/filed.png",
+      "sha256": "1ec8622419c44877b7063ab098194f82de68cca18da9996e628fb6b75cf94579",
+      "bytes": 345158,
+      "originalHierarchySHA256": "69bac618d2741d2856f660ad6e53f57a26020e2f30b315d6e69c74c03b6c0933",
+      "accessibility": "accessibility/iphone/light/filed.json",
+      "accessibilitySHA256": "2cac5a4400e7bdbf9d2c806d26a609db2a04068af658d09f537f2d58778c8802",
+      "controlCount": 13
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "light",
+      "state": "filed",
+      "file": "originals/harmonyos/light/filed.png",
+      "sha256": "59565f5458fff6198233aae539d18b15727f75f1a3c40885328272a77247fd07",
+      "bytes": 367032,
+      "originalHierarchySHA256": "d5f7cc814dea991189c18d3106041c66cbcb40c3dc4b0d66045320ae5b5a25d5",
+      "accessibility": "accessibility/harmonyos/light/filed.json",
+      "accessibilitySHA256": "3253db4e546d0a75fd15b1813ccb2ca996c8b1ba92a06813747f31baf0c6cd54",
+      "controlCount": 19
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "light",
+      "state": "undo",
+      "file": "originals/iphone/light/undo.png",
+      "sha256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+      "bytes": 305995,
+      "originalHierarchySHA256": "0d1aca9e2aae02dcc9338b24c5c4b8240fe11df177cd9ba38bf90cf7f6075817",
+      "accessibility": "accessibility/iphone/light/undo.json",
+      "accessibilitySHA256": "143218cb54d52f4d178a21212e489f0b65d82dc158406ca298c95b43ad96a169",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "light",
+      "state": "undo",
+      "file": "originals/harmonyos/light/undo.png",
+      "sha256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+      "bytes": 340715,
+      "originalHierarchySHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca",
+      "accessibility": "accessibility/harmonyos/light/undo.json",
+      "accessibilitySHA256": "ee290419bb5ccbcf5136a83680d07949e2505f28eee13b0c487791fe92f33637",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "light",
+      "state": "held",
+      "file": "originals/iphone/light/held.png",
+      "sha256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+      "bytes": 305995,
+      "originalHierarchySHA256": "30c3acd59dfd963305d96ee0e9b512ce04d2fd8ef90f30857dca07189521937a",
+      "accessibility": "accessibility/iphone/light/held.json",
+      "accessibilitySHA256": "381538372edd11bc1fc9a50ca97df420876c9c8db4a0569d374e3dd05559191a",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "light",
+      "state": "held",
+      "file": "originals/harmonyos/light/held.png",
+      "sha256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+      "bytes": 340715,
+      "originalHierarchySHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca",
+      "accessibility": "accessibility/harmonyos/light/held.json",
+      "accessibilitySHA256": "ee290419bb5ccbcf5136a83680d07949e2505f28eee13b0c487791fe92f33637",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "dark",
+      "state": "list",
+      "file": "originals/iphone/dark/list.png",
+      "sha256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+      "bytes": 304067,
+      "originalHierarchySHA256": "eeec835b120f4046efa9f581a218e171dd7b68645155c9a5bdf4d05647b9c4c6",
+      "accessibility": "accessibility/iphone/dark/list.json",
+      "accessibilitySHA256": "fe3dff04b1038d286ef439e67bb825f5dcf1df291d05229ad1631b0049dff08c",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "dark",
+      "state": "list",
+      "file": "originals/harmonyos/dark/list.png",
+      "sha256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+      "bytes": 329203,
+      "originalHierarchySHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4",
+      "accessibility": "accessibility/harmonyos/dark/list.json",
+      "accessibilitySHA256": "4cc8a91e2c3683d9c2ebfe93b4b627ba0b44b6d229b48846cea0b44d442082e8",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "dark",
+      "state": "filed",
+      "file": "originals/iphone/dark/filed.png",
+      "sha256": "1ee47867c5ec01a4a62a1fe34e4d8e309d9596a9212a0c3346498f8e342c5ab5",
+      "bytes": 345341,
+      "originalHierarchySHA256": "09b193494563cffaedc72bcaa48c0bfa907fd925e0a32385d07e8a1b6c7c0356",
+      "accessibility": "accessibility/iphone/dark/filed.json",
+      "accessibilitySHA256": "c70316ce14f61bc1837324a8b6474e4ca591cf9a1ce1f73bf46870d5a39388b5",
+      "controlCount": 13
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "dark",
+      "state": "filed",
+      "file": "originals/harmonyos/dark/filed.png",
+      "sha256": "527be75f567afa46fa9128662a1e72c99e918c46b617ea7f697517f992188171",
+      "bytes": 356896,
+      "originalHierarchySHA256": "6eb2a3e505994da35e70168b6015e438c90ff91b29a74fd77d1a23e8f8edcf38",
+      "accessibility": "accessibility/harmonyos/dark/filed.json",
+      "accessibilitySHA256": "08a25fc4f4fb2b472155082eaa932884f983e31f1a7814bdf19cce5aa7c5b07e",
+      "controlCount": 19
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "dark",
+      "state": "undo",
+      "file": "originals/iphone/dark/undo.png",
+      "sha256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+      "bytes": 304067,
+      "originalHierarchySHA256": "8e9828573d92a245dda4d3c4238655041ebdd7a1d3e4d0aecf1b1680c320eaca",
+      "accessibility": "accessibility/iphone/dark/undo.json",
+      "accessibilitySHA256": "4ea187b5af11d51074e3b3570790fb2d56c5e3721681e61df307b5ee26bce18b",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "dark",
+      "state": "undo",
+      "file": "originals/harmonyos/dark/undo.png",
+      "sha256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+      "bytes": 329203,
+      "originalHierarchySHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4",
+      "accessibility": "accessibility/harmonyos/dark/undo.json",
+      "accessibilitySHA256": "4cc8a91e2c3683d9c2ebfe93b4b627ba0b44b6d229b48846cea0b44d442082e8",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "dark",
+      "state": "held",
+      "file": "originals/iphone/dark/held.png",
+      "sha256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+      "bytes": 304067,
+      "originalHierarchySHA256": "b39d34a161d0cdfbbd0648ede0a07af4fc3aee37e9ea8b0e448bc5256f960c3c",
+      "accessibility": "accessibility/iphone/dark/held.json",
+      "accessibilitySHA256": "25e83b7669f84a8ab66fefd41f06d589f9d5f8bf4daa98797d1a92ac205ea958",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "dark",
+      "state": "held",
+      "file": "originals/harmonyos/dark/held.png",
+      "sha256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+      "bytes": 329203,
+      "originalHierarchySHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4",
+      "accessibility": "accessibility/harmonyos/dark/held.json",
+      "accessibilitySHA256": "4cc8a91e2c3683d9c2ebfe93b4b627ba0b44b6d229b48846cea0b44d442082e8",
+      "controlCount": 16
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "large",
+      "state": "list",
+      "file": "originals/iphone/large/list.png",
+      "sha256": "6865e59663a6ed6908305ef31baf95f3d623bae6bebb852a0ab3fd3368d49ea8",
+      "bytes": 303669,
+      "originalHierarchySHA256": "29c332a81b328abc29bf9ca4def4dc2141350f6833cd48cd1b780cf25a7e8913",
+      "accessibility": "accessibility/iphone/large/list.json",
+      "accessibilitySHA256": "15a5a34c547020d16c595ffa325a0393cf0f5a4d53155f9e7b66b9a4d3ad4484",
+      "controlCount": 10
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "list",
+      "file": "originals/harmonyos/large/list.png",
+      "sha256": "e86c6875b0edea481ed226a545d1ce324f73f0bab425d11e02d8c680adb33ac5",
+      "bytes": 334754,
+      "originalHierarchySHA256": "e476ce9569cfa61f596f9c793f6b0bce1b01819b71143b4b3f75038686bf8c1f",
+      "accessibility": "accessibility/harmonyos/large/list.json",
+      "accessibilitySHA256": "10e248ef26a0c4b1ee896a58a8fce69df33c3fffe6c2f4d86607969908cd9507",
+      "controlCount": 12
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "large",
+      "state": "filed",
+      "file": "originals/iphone/large/filed.png",
+      "sha256": "80892f51c1fe98867fc0c8643ae2c9844e4ddd98f88667e92e1faf2a0751793b",
+      "bytes": 355513,
+      "originalHierarchySHA256": "e7b2ce822341a3822cf39469cea55cba1d5d4b71fd0aaf0e8772a9bb2ea2f2e4",
+      "accessibility": "accessibility/iphone/large/filed.json",
+      "accessibilitySHA256": "e778271b1cdabfb67cb3b16dd14d21a6500f305b194b61876069360ad0eb6586",
+      "controlCount": 11
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "filed",
+      "file": "originals/harmonyos/large/filed.png",
+      "sha256": "ac755ea9fa88ad9a3eb920048380de59e8eeb1de3f362c253248d01706a88091",
+      "bytes": 343909,
+      "originalHierarchySHA256": "37f5f6a644f0bd8a387946735c6bf40b3c33fa90eca79593df56f37a178d785f",
+      "accessibility": "accessibility/harmonyos/large/filed.json",
+      "accessibilitySHA256": "681fe84e5f3bf7134761bd567a2fffcdc0fed43eeb04a43b389e503efb064947",
+      "controlCount": 15
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "large",
+      "state": "undo",
+      "file": "originals/iphone/large/undo.png",
+      "sha256": "6865e59663a6ed6908305ef31baf95f3d623bae6bebb852a0ab3fd3368d49ea8",
+      "bytes": 303669,
+      "originalHierarchySHA256": "aa16ee6bf5f72a99a2d636e260ff140dfd68d92f8af4a990eefe3816f50d4236",
+      "accessibility": "accessibility/iphone/large/undo.json",
+      "accessibilitySHA256": "dd4e8cb9bb0ffd2a67766026fb440b846ef13ed09e9dba5766ec0af7ce1c4f73",
+      "controlCount": 10
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "undo",
+      "file": "originals/harmonyos/large/undo.png",
+      "sha256": "83e1fa25b3d77a59d829e4f0c19f17a2d94aea5c05a60d3df63e3fa5e6f3a984",
+      "bytes": 334355,
+      "originalHierarchySHA256": "e476ce9569cfa61f596f9c793f6b0bce1b01819b71143b4b3f75038686bf8c1f",
+      "accessibility": "accessibility/harmonyos/large/undo.json",
+      "accessibilitySHA256": "10e248ef26a0c4b1ee896a58a8fce69df33c3fffe6c2f4d86607969908cd9507",
+      "controlCount": 12
+    },
+    {
+      "platform": "iPhone",
+      "appearance": "large",
+      "state": "held",
+      "file": "originals/iphone/large/held.png",
+      "sha256": "62ea4c22aaa9e22e08e060c3f87dadbd6fb88992e22bc30b570fe2234927abf2",
+      "bytes": 292791,
+      "originalHierarchySHA256": "0af136b3a9a55bf28b29aab8916f3b080392cc334783e18607bf4435fcb0e0fb",
+      "accessibility": "accessibility/iphone/large/held.json",
+      "accessibilitySHA256": "ecf05d67443ab1a76461df280e84899b16d968cc4fae962977da18bc24d05815",
+      "controlCount": 7
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "held",
+      "file": "originals/harmonyos/large/held.png",
+      "sha256": "6a98fc3be5769a263eb6dfc126b54a1b0ee8b50ca3ddb305e11c5e7ef73c9d95",
+      "bytes": 314163,
+      "originalHierarchySHA256": "d17bc1bbf0d90a6a3d4287e49bfe48c27ccd04b174275026028df6baab085bad",
+      "accessibility": "accessibility/harmonyos/large/held.json",
+      "accessibilitySHA256": "c9616235a1b0ae4661b50aab74700953537040ee5b93f381139befa0fc964325",
+      "controlCount": 10
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "rebind-first",
+      "file": "originals/harmonyos/large/rebind-first.png",
+      "sha256": "613e280c53446170b4ef1533d0da913253b4e3221868d1990e297d9c2b4097fb",
+      "bytes": 346393,
+      "originalHierarchySHA256": "3e049323bdae0df96799c36e4d45edf9002486ff7986efc49c9fe981137629d2",
+      "accessibility": "accessibility/harmonyos/large/rebind-first.json",
+      "accessibilitySHA256": "f57c2737ace6a5f529011da60230a7eb787dddca3c83cc287a6180ddfdb7a3cb",
+      "controlCount": 14
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "rebind-second",
+      "file": "originals/harmonyos/large/rebind-second.png",
+      "sha256": "72b6f0c9054785ab3c723d0ea564ad352013afa95d80179e8094126df92bb727",
+      "bytes": 338678,
+      "originalHierarchySHA256": "c0a7c2d656442cf15a59913cbf65adb9b131f2db8b890ac7944a9c7a17127ab5",
+      "accessibility": "accessibility/harmonyos/large/rebind-second.json",
+      "accessibilitySHA256": "a96db1403dd8cade56d13cb4880b160254569eba521d62dd21d970b487ccdd55",
+      "controlCount": 13
+    },
+    {
+      "platform": "HarmonyOS",
+      "appearance": "large",
+      "state": "rebind-undo",
+      "file": "originals/harmonyos/large/rebind-undo.png",
+      "sha256": "213b141d34f9060c2617ad5de68a8c9cf9334a87e30e46b0fde516e27711b0a0",
+      "bytes": 338075,
+      "originalHierarchySHA256": "35df64ac09a9941829b8a1110c7053d0922aab8c700a1d2872df6499dbacd8d3",
+      "accessibility": "accessibility/harmonyos/large/rebind-undo.json",
+      "accessibilitySHA256": "714b2242ce3a925a9818903ab31c3d6ad6020291411552325fc38a86b061b104",
+      "controlCount": 11
+    }
+  ],
+  "captureResolution": [
+    1206,
+    2622
+  ],
+  "logicalWidth": 402,
+  "nativeMode": "Sequential clients on one controlled stock service",
+  "releaseFlags": {
+    "MOCK_MANAGERS": "1",
+    "MOCK_FILES": "1",
+    "MOCK_GIT_WRITE": "1",
+    "MOCK_RECORDING_MINUTES": "ready",
+    "MOCK_RECORDING_TITLES": "1",
+    "MOCK_TASKS": "1",
+    "MOCK_TASKS_DOCK": "many",
+    "MOCK_ORCA_CHILDREN": "1",
+    "MOCK_WORKTREES": "1",
+    "MOCK_SESSIONS_LIST": "1",
+    "MOCK_SESSIONS_CATALOG": "1",
+    "MOCK_NEW_AGENT_PANEL": "1",
+    "MOCK_MODEL_DEFAULTS": "1",
+    "MOCK_MODEL_PROFILES": "1",
+    "MOCK_ASSISTANT_SEARCH": "1",
+    "MOCK_RECAP_LONG": "1",
+    "MOCK_RECENT_FILES": "1"
+  },
+  "nativeButtonObservations": {
+    "light": {
+      "iPhone": {
+        "nativeAXFrame": [
+          278.0,
+          669.0,
+          66.0,
+          14.3
+        ],
+        "background": {
+          "RGB": [
+            224,
+            239,
+            255
+          ],
+          "boundsPx": [
+            835,
+            2004,
+            1031,
+            2053
+          ],
+          "sizeLogical": [
+            65.33333333333333,
+            16.333333333333332
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            0,
+            122,
+            255
+          ],
+          "boundsPx": [
+            856,
+            2011,
+            1007,
+            2045
+          ],
+          "sizeLogical": [
+            50.333333333333336,
+            11.333333333333334
+          ]
+        },
+        "imageSHA256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12"
+      },
+      "HarmonyOS": {
+        "nativeAXFrame": [
+          277.6667,
+          693.3333,
+          66.3333,
+          14.3333
+        ],
+        "background": {
+          "RGB": [
+            224,
+            239,
+            255
+          ],
+          "boundsPx": [
+            833,
+            2077,
+            1032,
+            2126
+          ],
+          "sizeLogical": [
+            66.33333333333333,
+            16.333333333333332
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            0,
+            122,
+            255
+          ],
+          "boundsPx": [
+            853,
+            2084,
+            1009,
+            2118
+          ],
+          "sizeLogical": [
+            52.0,
+            11.333333333333334
+          ]
+        },
+        "imageSHA256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e"
+      }
+    },
+    "dark": {
+      "iPhone": {
+        "nativeAXFrame": [
+          278.0,
+          669.0,
+          66.0,
+          14.3
+        ],
+        "background": {
+          "RGB": [
+            26,
+            40,
+            57
+          ],
+          "boundsPx": [
+            834,
+            2004,
+            1032,
+            2053
+          ],
+          "sizeLogical": [
+            66.0,
+            16.333333333333332
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            10,
+            132,
+            255
+          ],
+          "boundsPx": [
+            856,
+            2011,
+            1007,
+            2045
+          ],
+          "sizeLogical": [
+            50.333333333333336,
+            11.333333333333334
+          ]
+        },
+        "imageSHA256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875"
+      },
+      "HarmonyOS": {
+        "nativeAXFrame": [
+          277.6667,
+          678.6667,
+          66.3333,
+          14.3333
+        ],
+        "background": {
+          "RGB": [
+            26,
+            41,
+            57
+          ],
+          "boundsPx": [
+            833,
+            2033,
+            1032,
+            2082
+          ],
+          "sizeLogical": [
+            66.33333333333333,
+            16.333333333333332
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            10,
+            132,
+            255
+          ],
+          "boundsPx": [
+            853,
+            2040,
+            1009,
+            2074
+          ],
+          "sizeLogical": [
+            52.0,
+            11.333333333333334
+          ]
+        },
+        "imageSHA256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36"
+      }
+    },
+    "large": {
+      "iPhone": {
+        "nativeAXFrame": [
+          247.3,
+          705.0,
+          91.0,
+          21.7
+        ],
+        "background": {
+          "RGB": [
+            224,
+            239,
+            255
+          ],
+          "boundsPx": [
+            742,
+            2112,
+            1015,
+            2183
+          ],
+          "sizeLogical": [
+            91.0,
+            23.666666666666668
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            0,
+            122,
+            255
+          ],
+          "boundsPx": [
+            766,
+            2122,
+            988,
+            2174
+          ],
+          "sizeLogical": [
+            74.0,
+            17.333333333333332
+          ]
+        },
+        "imageSHA256": "6865e59663a6ed6908305ef31baf95f3d623bae6bebb852a0ab3fd3368d49ea8"
+      },
+      "HarmonyOS": {
+        "nativeAXFrame": [
+          246.6667,
+          786.6667,
+          91.3333,
+          21.6667
+        ],
+        "background": {
+          "RGB": [
+            224,
+            239,
+            255
+          ],
+          "boundsPx": [
+            740,
+            2357,
+            1014,
+            2428
+          ],
+          "sizeLogical": [
+            91.33333333333333,
+            23.666666666666668
+          ]
+        },
+        "solidInk": {
+          "RGB": [
+            0,
+            122,
+            255
+          ],
+          "boundsPx": [
+            761,
+            2366,
+            990,
+            2419
+          ],
+          "sizeLogical": [
+            76.33333333333333,
+            17.666666666666668
+          ]
+        },
+        "imageSHA256": "e86c6875b0edea481ed226a545d1ce324f73f0bab425d11e02d8c680adb33ac5"
+      }
+    }
+  },
+  "visibleTouchChecks": {
+    "light": {
+      "harmonyTapPx": [
+        932,
+        2135
+      ],
+      "iphoneTapPt": {
+        "visibleY": 669,
+        "visibleHeight": 14.333333333333371,
+        "x": 311,
+        "y": 687.3333333333334
+      }
+    },
+    "dark": {
+      "harmonyTapPx": [
+        932,
+        2024
+      ],
+      "iphoneTapPt": {
+        "visibleY": 669,
+        "x": 311,
+        "y": 665,
+        "visibleHeight": 14.333333333333371
+      }
+    },
+    "large": {
+      "harmonyTapPx": [
+        877,
+        2392
+      ],
+      "iphoneTapPt": {
+        "y": 715.8333333333333,
+        "visibleHeight": 21.66666666666663,
+        "x": 292.8333333333333,
+        "visibleY": 704.9999999999999
+      }
+    }
+  },
+  "writes": {
+    "primary": [
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_task_blog/seen"
+      ]
+    ],
+    "relatedLeadNative": [
+      [
+        "PUT",
+        "/api/v1/todos/todo_task_blog/seen"
+      ],
+      [
+        "PUT",
+        "/api/v1/todos/todo_blog/seen"
+      ],
+      [
+        "DELETE",
+        "/api/v1/todos/todo_blog/seen"
+      ]
+    ],
+    "singleLevelUndoFixtureRestore": [
+      "DELETE",
+      "/api/v1/todos/todo_task_blog/seen"
+    ]
+  },
+  "sameInputOfflineReplay": {
+    "count": 21,
+    "sessionCount": 30,
+    "arkAndSwiftResults": [
+      {
+        "id": "todo_task_pay",
+        "shownState": "not_started",
+        "status": "未开始",
+        "taskState": "not_started"
+      },
+      {
+        "id": "todo_task_skeleton",
+        "shownState": "not_started",
+        "status": "未开始",
+        "taskState": "not_started"
+      },
+      {
+        "id": "todo_task_align",
+        "shownState": "failed",
+        "status": "没开起来",
+        "taskState": "failed"
+      },
+      {
+        "id": "todo_task_photos",
+        "shownState": "needs_you",
+        "status": "需要你",
+        "taskState": "needs_you"
+      },
+      {
+        "id": "todo_task_orders",
+        "shownState": "working",
+        "status": "工作中",
+        "taskState": "working"
+      },
+      {
+        "id": "todo_task_release",
+        "shownState": "unread",
+        "status": "完成未看",
+        "taskState": "unread"
+      },
+      {
+        "id": "todo_task_widget",
+        "shownState": "working",
+        "status": "工作中",
+        "taskState": "working"
+      },
+      {
+        "id": "todo_task_tests",
+        "shownState": "needs_you",
+        "status": "需要你",
+        "taskState": "needs_you"
+      },
+      {
+        "id": "todo_weather",
+        "shownState": "needs_you",
+        "status": "需要你",
+        "taskState": "needs_you"
+      },
+      {
+        "id": "todo_task_cache",
+        "shownState": "needs_you",
+        "status": "需要你",
+        "taskState": "needs_you"
+      },
+      {
+        "id": "todo_photos",
+        "shownState": "needs_you",
+        "status": "需要你",
+        "taskState": "needs_you"
+      },
+      {
+        "id": "todo_blog",
+        "shownState": "unread",
+        "status": "完成未看",
+        "taskState": "unread"
+      },
+      {
+        "id": "todo_done_auto",
+        "shownState": "done",
+        "status": "自动完成",
+        "taskState": "done"
+      },
+      {
+        "id": "todo_orders",
+        "shownState": "working",
+        "status": "工作中",
+        "taskState": "working"
+      },
+      {
+        "id": "todo_held_pr",
+        "shownState": "not_started",
+        "status": "未开始",
+        "taskState": "not_started"
+      },
+      {
+        "id": "todo_review",
+        "shownState": "followup",
+        "status": "待跟进",
+        "taskState": "followup"
+      },
+      {
+        "id": "todo_nas",
+        "shownState": "not_started",
+        "status": "未开始",
+        "taskState": "not_started"
+      },
+      {
+        "id": "todo_task_blog",
+        "shownState": "unread",
+        "status": "完成未看",
+        "taskState": "unread"
+      },
+      {
+        "id": "todo_done_1",
+        "shownState": "done",
+        "status": "已完成",
+        "taskState": "done"
+      },
+      {
+        "id": "todo_done_2",
+        "shownState": "done",
+        "status": "已完成",
+        "taskState": "done"
+      },
+      {
+        "id": "todo_done_3",
+        "shownState": "done",
+        "status": "已完成",
+        "taskState": "done"
+      }
+    ],
+    "swiftSource": "c2d44cc1406c9127e585f430ed692261edf24eff",
+    "inputHashes": {
+      "todos": "71da8fb9b37bcb5f948b1d17d38b409de5ce3de976d77a9d6205abb7eea1eaa3",
+      "sessions": "2527fc672015aaf94289a3925000977a3f539212ef766c2a77282ed1dc55bfcc"
+    },
+    "arkProjectionSHA256": "51dadaca04814ac70d97d221b29ec1c28cf897026c99a12cb7708d8e792130d4",
+    "swiftProjectionSHA256": "7b5bb96f0aab9d94b126d05098b99e55959bd93562cdd308e7e50e292cf80d8a"
+  },
+  "preview": {
+    "file": "native-task-status.png",
+    "sha256": "7d414ce247bdbd18f4f4206d84012ab8a81e94aef76a01636ae5e3842e8da461",
+    "bytes": 85406,
+    "sources": [
+      {
+        "platform": "iPhone",
+        "mode": "light",
+        "state": "list",
+        "file": "originals/iphone/light/list.png",
+        "sourceSHA256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+        "sourceAXSHA256": "e0368eaaf5303acdfc9359c5ecc0eb4655395085a97471afb134374c0918e6b6",
+        "boundsPx": [
+          246,
+          1852,
+          1132,
+          2080
+        ]
+      },
+      {
+        "platform": "iPhone",
+        "mode": "light",
+        "state": "held",
+        "file": "originals/iphone/light/held.png",
+        "sourceSHA256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+        "sourceAXSHA256": "30c3acd59dfd963305d96ee0e9b512ce04d2fd8ef90f30857dca07189521937a",
+        "boundsPx": [
+          246,
+          629,
+          1132,
+          687
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "light",
+        "state": "list",
+        "file": "originals/harmonyos/light/list.png",
+        "sourceSHA256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+        "sourceAXSHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca",
+        "boundsPx": [
+          246,
+          1925,
+          1132,
+          2153
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "light",
+        "state": "held",
+        "file": "originals/harmonyos/light/held.png",
+        "sourceSHA256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+        "sourceAXSHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca",
+        "boundsPx": [
+          246,
+          713,
+          1132,
+          771
+        ]
+      },
+      {
+        "platform": "iPhone",
+        "mode": "dark",
+        "state": "list",
+        "file": "originals/iphone/dark/list.png",
+        "sourceSHA256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+        "sourceAXSHA256": "eeec835b120f4046efa9f581a218e171dd7b68645155c9a5bdf4d05647b9c4c6",
+        "boundsPx": [
+          246,
+          1852,
+          1132,
+          2080
+        ]
+      },
+      {
+        "platform": "iPhone",
+        "mode": "dark",
+        "state": "held",
+        "file": "originals/iphone/dark/held.png",
+        "sourceSHA256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+        "sourceAXSHA256": "b39d34a161d0cdfbbd0648ede0a07af4fc3aee37e9ea8b0e448bc5256f960c3c",
+        "boundsPx": [
+          246,
+          629,
+          1132,
+          687
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "dark",
+        "state": "list",
+        "file": "originals/harmonyos/dark/list.png",
+        "sourceSHA256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+        "sourceAXSHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4",
+        "boundsPx": [
+          246,
+          1881,
+          1132,
+          2109
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "dark",
+        "state": "held",
+        "file": "originals/harmonyos/dark/held.png",
+        "sourceSHA256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+        "sourceAXSHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4",
+        "boundsPx": [
+          246,
+          680,
+          1132,
+          728
+        ]
+      },
+      {
+        "platform": "iPhone",
+        "mode": "large",
+        "state": "list",
+        "file": "originals/iphone/large/list.png",
+        "sourceSHA256": "6865e59663a6ed6908305ef31baf95f3d623bae6bebb852a0ab3fd3368d49ea8",
+        "sourceAXSHA256": "29c332a81b328abc29bf9ca4def4dc2141350f6833cd48cd1b780cf25a7e8913",
+        "boundsPx": [
+          246,
+          1791,
+          1132,
+          2210
+        ]
+      },
+      {
+        "platform": "iPhone",
+        "mode": "large",
+        "state": "held",
+        "file": "originals/iphone/large/held.png",
+        "sourceSHA256": "62ea4c22aaa9e22e08e060c3f87dadbd6fb88992e22bc30b570fe2234927abf2",
+        "sourceAXSHA256": "0af136b3a9a55bf28b29aab8916f3b080392cc334783e18607bf4435fcb0e0fb",
+        "boundsPx": [
+          246,
+          2265,
+          1132,
+          2345
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "large",
+        "state": "list",
+        "file": "originals/harmonyos/large/list.png",
+        "sourceSHA256": "e86c6875b0edea481ed226a545d1ce324f73f0bab425d11e02d8c680adb33ac5",
+        "sourceAXSHA256": "e476ce9569cfa61f596f9c793f6b0bce1b01819b71143b4b3f75038686bf8c1f",
+        "boundsPx": [
+          246,
+          2036,
+          1132,
+          2455
+        ]
+      },
+      {
+        "platform": "HarmonyOS",
+        "mode": "large",
+        "state": "held",
+        "file": "originals/harmonyos/large/held.png",
+        "sourceSHA256": "6a98fc3be5769a263eb6dfc126b54a1b0ee8b50ca3ddb305e11c5e7ef73c9d95",
+        "sourceAXSHA256": "d17bc1bbf0d90a6a3d4287e49bfe48c27ccd04b174275026028df6baab085bad",
+        "boundsPx": [
+          246,
+          1134,
+          1132,
+          1214
+        ]
+      }
+    ]
+  },
+  "historicalSorting": {
+    "productSource": "55847be4cddc1ea69f534970a23b3d7fba5d4264",
+    "releaseRecordSHA256": "668536e02b5549db2bd68d4c3e0f845b05c84f874e61edb9b19a8b25d1de2f7c"
+  },
+  "publicChecks": {
+    "unmodifiedPNGs": 27,
+    "sanitizedControlExcerpts": 27,
+    "nativeOCRLinesChecked": 845
+  },
+  "rowStatusInk": {
+    "light": {
+      "todo_task_blog": {
+        "iPhone": {
+          "label": "完成未看",
+          "boundsPx": [
+            315,
+            1950,
+            459,
+            1993
+          ],
+          "solidInkRGB": [
+            29,
+            122,
+            76
+          ],
+          "solidInkPixels": 1299,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+          "sourceNativeHierarchySHA256": "e0368eaaf5303acdfc9359c5ecc0eb4655395085a97471afb134374c0918e6b6"
+        },
+        "HarmonyOS": {
+          "label": "完成未看",
+          "boundsPx": [
+            315,
+            2023,
+            460,
+            2066
+          ],
+          "solidInkRGB": [
+            29,
+            122,
+            76
+          ],
+          "solidInkPixels": 1437,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+          "sourceNativeHierarchySHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca"
+        }
+      },
+      "todo_held_pr": {
+        "iPhone": {
+          "label": "未开始",
+          "boundsPx": [
+            315,
+            633,
+            423,
+            676
+          ],
+          "solidInkRGB": [
+            138,
+            138,
+            142
+          ],
+          "solidInkPixels": 853,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "95cf06b4cb5f0503ee95465ec0bd6f1bff2906f5b44431903ec5a07de59a5e12",
+          "sourceNativeHierarchySHA256": "30c3acd59dfd963305d96ee0e9b512ce04d2fd8ef90f30857dca07189521937a"
+        },
+        "HarmonyOS": {
+          "label": "未开始",
+          "boundsPx": [
+            315,
+            717,
+            424,
+            760
+          ],
+          "solidInkRGB": [
+            138,
+            138,
+            142
+          ],
+          "solidInkPixels": 1003,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "4ea9fbca7ab23bf9eb282916d96683a2bbb7145143ea6e5ce89d68560776738e",
+          "sourceNativeHierarchySHA256": "f701e62c13450dcb79c7be44bea6e9db9858b8268901396c7090e237d39185ca"
+        }
+      }
+    },
+    "dark": {
+      "todo_task_blog": {
+        "iPhone": {
+          "label": "完成未看",
+          "boundsPx": [
+            315,
+            1950,
+            459,
+            1993
+          ],
+          "solidInkRGB": [
+            76,
+            195,
+            138
+          ],
+          "solidInkPixels": 1299,
+          "backgroundRGB": [
+            28,
+            28,
+            30
+          ],
+          "sourceImageSHA256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+          "sourceNativeHierarchySHA256": "eeec835b120f4046efa9f581a218e171dd7b68645155c9a5bdf4d05647b9c4c6"
+        },
+        "HarmonyOS": {
+          "label": "完成未看",
+          "boundsPx": [
+            315,
+            1979,
+            460,
+            2022
+          ],
+          "solidInkRGB": [
+            76,
+            195,
+            138
+          ],
+          "solidInkPixels": 1437,
+          "backgroundRGB": [
+            28,
+            28,
+            30
+          ],
+          "sourceImageSHA256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+          "sourceNativeHierarchySHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4"
+        }
+      },
+      "todo_held_pr": {
+        "iPhone": {
+          "label": "未开始",
+          "boundsPx": [
+            315,
+            633,
+            423,
+            676
+          ],
+          "solidInkRGB": [
+            152,
+            152,
+            159
+          ],
+          "solidInkPixels": 853,
+          "backgroundRGB": [
+            28,
+            28,
+            30
+          ],
+          "sourceImageSHA256": "0a1db8dd03ba071e321d3c5c880fd47b1696f0c4668fde66f961e40ac5e60875",
+          "sourceNativeHierarchySHA256": "b39d34a161d0cdfbbd0648ede0a07af4fc3aee37e9ea8b0e448bc5256f960c3c"
+        },
+        "HarmonyOS": {
+          "label": "未开始",
+          "boundsPx": [
+            315,
+            684,
+            424,
+            717
+          ],
+          "solidInkRGB": [
+            152,
+            152,
+            159
+          ],
+          "solidInkPixels": 835,
+          "backgroundRGB": [
+            28,
+            28,
+            30
+          ],
+          "sourceImageSHA256": "44ff9d8a98a561f06266fb19d067ef93e1515cf31e7fe7b732ad135ca3329c36",
+          "sourceNativeHierarchySHA256": "ed17d70d6d582c3f6d27921b9b5577c96dfc460f93901faea2f5bbe2ba9341c4"
+        }
+      }
+    },
+    "large": {
+      "todo_task_blog": {
+        "iPhone": {
+          "label": "完成未看",
+          "boundsPx": [
+            356,
+            2036,
+            572,
+            2102
+          ],
+          "solidInkRGB": [
+            29,
+            122,
+            76
+          ],
+          "solidInkPixels": 3240,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "6865e59663a6ed6908305ef31baf95f3d623bae6bebb852a0ab3fd3368d49ea8",
+          "sourceNativeHierarchySHA256": "29c332a81b328abc29bf9ca4def4dc2141350f6833cd48cd1b780cf25a7e8913"
+        },
+        "HarmonyOS": {
+          "label": "完成未看",
+          "boundsPx": [
+            356,
+            2281,
+            572,
+            2346
+          ],
+          "solidInkRGB": [
+            29,
+            122,
+            76
+          ],
+          "solidInkPixels": 3778,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "e86c6875b0edea481ed226a545d1ce324f73f0bab425d11e02d8c680adb33ac5",
+          "sourceNativeHierarchySHA256": "e476ce9569cfa61f596f9c793f6b0bce1b01819b71143b4b3f75038686bf8c1f"
+        }
+      },
+      "todo_held_pr": {
+        "iPhone": {
+          "label": "未开始",
+          "boundsPx": [
+            356,
+            2269,
+            518,
+            2334
+          ],
+          "solidInkRGB": [
+            138,
+            138,
+            142
+          ],
+          "solidInkPixels": 2154,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "62ea4c22aaa9e22e08e060c3f87dadbd6fb88992e22bc30b570fe2234927abf2",
+          "sourceNativeHierarchySHA256": "0af136b3a9a55bf28b29aab8916f3b080392cc334783e18607bf4435fcb0e0fb"
+        },
+        "HarmonyOS": {
+          "label": "未开始",
+          "boundsPx": [
+            356,
+            1138,
+            518,
+            1203
+          ],
+          "solidInkRGB": [
+            138,
+            138,
+            142
+          ],
+          "solidInkPixels": 2593,
+          "backgroundRGB": [
+            255,
+            255,
+            255
+          ],
+          "sourceImageSHA256": "6a98fc3be5769a263eb6dfc126b54a1b0ee8b50ca3ddb305e11c5e7ef73c9d95",
+          "sourceNativeHierarchySHA256": "d17bc1bbf0d90a6a3d4287e49bfe48c27ccd04b174275026028df6baab085bad"
+        }
+      }
+    }
+  },
+  "iPhoneTree": "8c901a437c26520cf2cc3bac1f4c2258ac0ca7e5",
+  "nativeRuns": {
+    "light": {
+      "iPhoneConfiguration": {
+        "appearance": "light",
+        "content_size": "large"
+      },
+      "XCTest": "testOfficialTodoSeen",
+      "XCTestLogSHA256": "6545795cf090262b3c68d94f4dfac7cb782bd3e0ae543895091eb070c9f0892f",
+      "iPhoneRunReceiptSHA256": "10dfdf03a4be061d3bafc3527173284aae3820968d08678783937e87e2510c1b",
+      "harmonyConfiguration": {
+        "color": 1,
+        "scale": 1.0
+      }
+    },
+    "dark": {
+      "iPhoneConfiguration": {
+        "appearance": "dark",
+        "content_size": "large"
+      },
+      "XCTest": "testOfficialTodoSeen",
+      "XCTestLogSHA256": "c3ff4c2c39399b23d32ed0bea0956fbdb6661ef33ff5cc67a4ca291c1075269b",
+      "iPhoneRunReceiptSHA256": "347fb7187c7bf109b19dfd918d0703c7951e5765e345cb105cd5cbf46d7d42f5",
+      "harmonyConfiguration": {
+        "color": 0,
+        "scale": 1.0
+      }
+    },
+    "large": {
+      "iPhoneConfiguration": {
+        "appearance": "light",
+        "content_size": "accessibility-extra-extra-extra-large"
+      },
+      "XCTest": "testOfficialTodoSeen",
+      "XCTestLogSHA256": "483cef4b73a928799f923ec34340e9a050e92fe1c14fb7cf1d8e4d17f710808a",
+      "iPhoneRunReceiptSHA256": "74f82bccf55682e8a792906b3046fb09f77f531ead2dd8a286daf9aac2474100",
+      "harmonyConfiguration": {
+        "color": 1,
+        "scale": 3.2
+      }
+    }
+  },
+  "productChecks": {
+    "installedHarmonyHapSHA256": "dda48eff05820e231506557bf6868a4fc97eeaeeca8bb1e75c8f35022e4d995e",
+    "hostChecks": {
+      "tests": 1486,
+      "pass": 1486,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "isolatedServiceRestored": true,
+    "nativeAppsAndForwardingRestored": true,
+    "guestAndSimulatorShutDown": true,
+    "sameServiceNativeReceiptSHA256": "bbe0979444d996942144b76fa938837c37cc0f5c70fb2534cde46cc8becf7cdf",
+    "harmonyRunReceiptSHA256": "9a986c572a3141823c8639ac6dc39acc633fb77cc2165ca42d62c7a5b0e9a634"
+  }
+}
