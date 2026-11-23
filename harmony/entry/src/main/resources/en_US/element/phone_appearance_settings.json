@@ -239,6 +239,22 @@
     {
       "name": "phone_look_navigation_footer",
       "value": "This choice applies immediately on this device."
+    },
+    {
+      "name": "phone_look_glow",
+      "value": "Glow While Replying"
+    },
+    {
+      "name": "phone_look_glow_note",
+      "value": "Light up the input box while Persona writes a reply"
+    },
+    {
+      "name": "phone_look_return",
+      "value": "Return Key Sends"
+    },
+    {
+      "name": "phone_look_return_note",
+      "value": "Send with Return; Shift-Return starts a new line"
     }
   ]
 }

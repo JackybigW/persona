@@ -117,12 +117,32 @@ export struct PhoneAppearanceSettings {
   }
   @Builder overview() {
     Column() {
-      ForEach(phoneAppearancePages, (page: string, index: number) => {
+      ForEach(phoneAppearancePages, (page: string) => {
         PhoneSettingsRow({label:tr(page),detail:this.label(page,this.selected(page)),elevated:true,symbol:this.icon(page),
-          artwork:this.artwork(page),tint:Colors.iconAccent,last:index===phoneAppearancePages.length-1,identity:'settings.appearance.'+page.slice('phone_look_'.length),
+          artwork:this.artwork(page),tint:Colors.iconAccent,last:false,identity:'settings.appearance.'+page.slice('phone_look_'.length),
           action:() => { if (this.active && this.route === 'appearance') this.onOpen(page); }}).accessibilityRole(AccessibilityRoleType.BUTTON)
       }, (page: string) => page)
-    }.width('100%').borderRadius(PhoneStyle.cardRadius).clip(true)
+      this.chatSwitch(true)
+      this.chatSwitch(false)
+    }.width('100%').backgroundColor(Colors.card(true)).borderRadius(PhoneStyle.cardRadius).clip(true)
+  }
+  @Builder chatSwitch(glow: boolean) {
+    Column() {
+      Row({space:12}) {
+        SymbolGlyph(glow ? $r('sys.symbol.wand_and_stars') : $r('sys.symbol.keyboard'))
+          .fontSize('22vp').fontColor([glow ? Colors.ai : Colors.iconAccent]).width(32).accessibilityLevel('no')
+        Column({space:3}) {
+          Text(tr(glow ? 'phone_look_glow' : 'phone_look_return')).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink)
+          Text(tr(glow ? 'phone_look_glow_note' : 'phone_look_return_note')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        Toggle({type:ToggleType.Switch,isOn:glow ? this.look.composerGlow : this.look.returnSends})
+          .selectedColor(Colors.positive).enabled(this.active && this.look.ready)
+          .accessibilityText(tr(glow ? 'phone_look_glow' : 'phone_look_return')).accessibilityDescription(tr(glow ? 'phone_look_glow_note':'phone_look_return_note'))
+          .id(glow ? 'settings.appearance.glow' : 'settings.appearance.return')
+          .onChange((on:boolean) => { if (this.active && this.route==='appearance') this.look.setChatInteraction(glow ? 'ui.composerGlow' : 'ui.returnSends',on); })
+      }.padding({left:14,right:16,top:12,bottom:12}).width('100%').constraintSize({minHeight:PhoneStyle.formSize(glow ? 85.7 : 68,glow ? 132.7 : 106.7,this.environment.fontScale)})
+      if (glow) Divider().color(Colors.divider).strokeWidth(0.5).margin({left:60})
+    }.width('100%')
   }
   @Builder caption(value: string) {
     Text(tr(value)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)

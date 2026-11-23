@@ -239,6 +239,22 @@
     {
       "name": "phone_look_navigation_footer",
       "value": "只影响这台设备，选择后立即生效。"
+    },
+    {
+      "name": "phone_look_glow",
+      "value": "回复时发光"
+    },
+    {
+      "name": "phone_look_glow_note",
+      "value": "Persona 写回复时，输入框外圈亮起流动光效"
+    },
+    {
+      "name": "phone_look_return",
+      "value": "按回车发送"
+    },
+    {
+      "name": "phone_look_return_note",
+      "value": "回车直接发送，Shift + 回车换行"
     }
   ]
 }

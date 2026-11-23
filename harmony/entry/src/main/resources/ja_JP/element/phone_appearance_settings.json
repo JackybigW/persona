@@ -239,6 +239,22 @@
     {
       "name": "phone_look_navigation_footer",
       "value": "このデバイスにのみ適用され、選択するとすぐに切り替わります。"
+    },
+    {
+      "name": "phone_look_glow",
+      "value": "返信中に光らせる"
+    },
+    {
+      "name": "phone_look_glow_note",
+      "value": "Persona が返信を書いている間、入力欄を光らせます"
+    },
+    {
+      "name": "phone_look_return",
+      "value": "Returnキーで送信"
+    },
+    {
+      "name": "phone_look_return_note",
+      "value": "Returnで送信、Shift + Returnで改行"
     }
   ]
 }

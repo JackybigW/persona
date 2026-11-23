@@ -356,3 +356,23 @@ test('concurrent Agents layout and other device settings commit without overwrit
   assert.equal(record['agents.rowStyle'],'cards');assert.equal(record['dev.compact'],true);
   assert.equal(record.density,'compact');assert.equal(record.phoneNavigation,'merged');
 });
+
+test('chat appearance options default off, persist apart from the Hub, and restore the visible choice if storage rejects a change', async () => {
+  deviceLookBoundary.reset();
+  const first = await openModel();
+  assert.equal(first.composerGlow, false);
+  assert.equal(first.returnSends, false);
+  const writes = await Promise.all([first.setChatInteraction('ui.composerGlow', true), first.setChatInteraction('ui.returnSends', true)]);
+  assert.deepEqual(writes, [true, true]);
+  const next = await openModel();
+  assert.equal(next.composerGlow, true);
+  assert.equal(next.returnSends, true);
+  deviceLookBoundary.putError = true;
+  assert.equal(await next.setChatInteraction('ui.composerGlow', false), false);
+  assert.equal(next.composerGlow, true);
+  assert.equal(await next.setChatInteraction('unsupported', false), false);
+  deviceLookBoundary.putError = false;
+  assert.equal(await next.setChatInteraction('ui.returnSends', false), true);
+  assert.equal((await openModel()).returnSends, false);
+  assert.deepEqual(deviceLookBoundary.calls, []);
+});

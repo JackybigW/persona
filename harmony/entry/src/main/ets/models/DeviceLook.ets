@@ -55,6 +55,8 @@ export class DeviceLook {
   @Trace private agentRowStyle:string='avatar';
   @Trace private agentCompactList:boolean=false;
   @Trace phoneNavigation: string = 'separate';
+  @Trace composerGlow: boolean = false;
+  @Trace returnSends: boolean = false;
   @Trace avatars: DeviceLookAvatar[] = [new DeviceLookAvatar(BUILTIN_ID, 'Mochi')];
   @Trace busy: boolean = false;
   @Trace error: string = '';
@@ -96,6 +98,8 @@ export class DeviceLook {
     this.storage = store;
     try { fileIo.statSync(this.cacheRoot); } catch (_) { fileIo.mkdirSync(this.cacheRoot, true); }
     await this.restore();
+    this.composerGlow = await store.get('ui.composerGlow').catch(() => '') === 'true';
+    this.returnSends = await store.get('ui.returnSends').catch(() => '') === 'true';
   }
 
   /** Binds to the current Hub. An older Hub uses its documented `/personas` list after `/looks` returns 404. */
@@ -249,6 +253,29 @@ export class DeviceLook {
   async setAgentDisplay(display:string):Promise<boolean> {
     if(!this.ready || !['avatar','compact','cards','list'].includes(display))return false;
     return this.commitSelection(undefined,undefined,undefined,undefined,display);
+  }
+
+  async setChatInteraction(key: string, value: boolean): Promise<boolean> {
+    if (!this.ready || (key!=='ui.composerGlow' && key!=='ui.returnSends')) return false;
+    const task = this.commitTail.then(async (): Promise<boolean> => {
+      const store=this.storage;
+      if (!store) return false;
+      const glow=key==='ui.composerGlow';
+      const prior=glow ? this.composerGlow : this.returnSends;
+      if (prior===value) return true;
+      if (glow) this.composerGlow=value; else this.returnSends=value;
+      try {
+        await store.put(key,String(value));
+        this.error='';
+        return true;
+      } catch (_) {
+        if (glow) this.composerGlow=prior; else this.returnSends=prior;
+        this.error='device_look_storage_failed';
+        return false;
+      }
+    });
+    this.commitTail=task.then(() => {}).catch(() => {});
+    return task;
   }
 
   async setPhoneNavigation(value:string):Promise<boolean> {

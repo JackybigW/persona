@@ -1441,6 +1441,7 @@ export class ClientModel {
     return row.state === 'working' || status === 'working' || Wire.bool(data, 'working') ||
       this.selected.kind === 'session' && status === 'blocked';
   }
+  assistantReplyWorking(): boolean { return this.selected.kind === 'conversation' && this.turnWorking(); }
   agentQueuesMessages(): boolean { return this.selected.kind === 'session' && this.turnWorking(); }
   stopPending(): boolean { return this.interruptPendingKey === this.interruptIdentity(); }
   canStop(): boolean {

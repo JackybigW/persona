@@ -1,3 +1,6 @@
+import { inputMethod } from '@kit.IMEKit';
+import { KeyCode } from '@kit.InputKit';
+import { PhoneComposerGlow } from './PhoneComposerGlow';
 import { PhoneChatForward } from '../models/PhoneChatForward';
 import { PhoneChatPickBar, PhoneChatForwardTray, PhoneForwardSentCard } from './PhoneChatForward';
 import { SessionComposerModeChip } from './SessionComposerModeChip';
@@ -732,6 +735,12 @@ export struct Conversation {
   @Local modeMenuOpen:boolean=false;
   @Local draftEditorFocused: boolean = false;
   private inlineField: TextAreaController = new TextAreaController();
+  private composingReturn: boolean = false;
+  private allowLineBreak: boolean = false;
+  private returnKeyMode: string = '';
+  private modifierRevision: number = 0;
+  private returnDispatching: boolean = false;
+  private inputRevision: number = 0;
   private pageField: TextAreaController = new TextAreaController();
   private draftEditorOwner: string = '';
   private selectionStart: number = 0;
@@ -740,6 +749,8 @@ export struct Conversation {
   private parkedEnd: number = 0;
   private refocusInline: boolean = false;
   @Local composerWidth: number = 360;
+  @Local composerFrameWidth: number = 0;
+  @Local composerFrameHeight: number = 0;
   @Local decisionPager: DecisionPager = new DecisionPager();
   @Local questions: QuestionWorkspace = new QuestionWorkspace();
   @Local questionInset: number = 0;
@@ -1822,6 +1833,77 @@ export struct Conversation {
         else this.inlineField.stopEditing();
       })
   }
+  private returnActive():boolean {
+    return this.look.returnSends && this.fieldFocused && this.sendCurrent() && !this.draftEditorOpen &&
+      !this.modeMenuOpen && !this.actionsVisible && !this.chooser.session && !this.attachmentSheet && this.composerAvailable();
+  }
+  private allowNextLineBreak():void {
+    const revision=++this.inputRevision;
+    this.allowLineBreak=true;
+    setTimeout(() => { if (this.inputRevision===revision) this.allowLineBreak=false; },0);
+  }
+  private observeComposition(preview?: PreviewText): void {
+    const composing = !!preview?.value;
+    if (this.composingReturn && !composing) this.allowNextLineBreak();
+    this.composingReturn = composing;
+  }
+  private inputChanged(value: string, preview?: PreviewText): void {
+    this.observeComposition(preview);
+    if (!this.draftEditorOpen) this.model.updateDraft(value);
+  }
+  private returnSend():void {
+    if (!this.returnActive() || this.allowLineBreak || this.composingReturn || this.returnDispatching ||
+      this.primaryStop() || !this.primaryEnabled()) return;
+    this.returnDispatching=true;
+    this.sendDraft().finally(() => { this.returnDispatching=false; });
+  }
+  private softwareImeMayOwnReturn(): boolean {
+    if (this.environment.keyboardHeightPx <= 0) return false;
+    // The built-in English direct-entry subtype commits each letter to the field. The Chinese subtype holds
+    // Pinyin privately and still delivers a hardware Return as submit. Unknown subtypes keep the safer IME path.
+    try {
+      const subtype = inputMethod.getCurrentInputMethodSubtype();
+      return !(subtype.id === 'InputEnLowerService' && subtype.language === 'english' && subtype.mode === 'lower');
+    } catch (_) { return true; }
+  }
+  private observeReturnModifiers(event:KeyEvent):boolean {
+    // Leave the actual key event to the editor and its IME.
+    if (event.type===KeyType.Down) {
+      this.modifierRevision++;
+      this.returnKeyMode='';
+    }
+    if (event.keyCode!==KeyCode.KEYCODE_ENTER && event.keyCode!==KeyCode.KEYCODE_NUMPAD_ENTER) return false;
+    if (event.type===KeyType.Down && this.returnActive()) {
+      const modified=(key:string):boolean => event.getModifierKeyState?.([key]) ?? false;
+      // A visible software keyboard can keep a private candidate strip without publishing marked text.
+      // ArkUI still submits an external Return in that state. Keep Return with an IME that may own such a candidate strip.
+      if (event.metaKey || modified('Ctrl')) this.returnKeyMode = 'shortcut';
+      else if (modified('Shift') || modified('Alt')) {
+        this.returnKeyMode = 'line';
+        if (this.composingReturn || this.softwareImeMayOwnReturn()) return false;
+        this.allowNextLineBreak();
+        this.inlineField.addText('\n');
+        return true;
+      }
+      else if (this.softwareImeMayOwnReturn()) this.returnKeyMode = 'ime';
+    } else if (event.type===KeyType.Up && this.returnKeyMode) {
+      const revision=this.modifierRevision;
+      setTimeout(() => { if (revision===this.modifierRevision) this.returnKeyMode=''; },0);
+    }
+    return false;
+  }
+  private submittedInline(key:EnterKeyType,event?:SubmitEvent):void {
+    if (key!==EnterKeyType.Send || !this.returnActive()) return;
+    event?.keepEditableState();
+    if (this.composingReturn || this.allowLineBreak || this.returnKeyMode) return;
+    this.returnSend();
+  }
+  @Builder replyGlow() {
+    if (this.active && this.look.composerGlow && this.model.assistantReplyWorking() && !this.draftEditorOpen &&
+        this.composerFrameWidth > 0 && this.composerFrameHeight > 0) {
+      PhoneComposerGlow({barWidth:this.composerFrameWidth,barHeight:this.composerFrameHeight})
+    }
+  }
   private composerPlaceholder():string {
     if (this.model.agentInputNotice()==='agent_computer_holds') return this.agentNotice();
     if (this.model.selected.kind==='conversation') return tr('chat_ask_persona');
@@ -1882,6 +1964,15 @@ export struct Conversation {
   }
   @Computed get quoteRemoveSize(): number { return Math.min(68,44*this.environment.fontScale); }
   @Builder composer() {
+    // The shell measures the decorated editor. Its extra paint area never changes editing layout or hit targets.
+    Stack() { this.composerContent() }.width('100%')
+      .onAreaChange((_: Area, area: Area) => {
+        this.composerFrameWidth = Number(area.width);
+        this.composerFrameHeight = Number(area.height);
+      })
+      .overlay(this.replyGlow(), {align:Alignment.TopStart,offset:{x:-20,y:-20}})
+  }
+  @Builder composerContent() {
     Column({ space: Tokens.gap }) {
       if (this.model.hasForwardContext()) PhoneChatForwardTray({model:this.model})
       AttachmentStrip({ attachments: this.attachments.attachments, errorKey: this.attachments.errorKey, actionsEnabled: !this.sending && !this.attachments.busy,
@@ -1923,9 +2014,15 @@ export struct Conversation {
                 .letterSpacing(this.expandedComposer() ? String(this.draftTracking) + 'vp' : 0).wordBreak(WordBreak.BREAK_WORD)
                 .padding(this.expandedComposer() ? 0 : { left: Tokens.gap, right: Tokens.gap, top: Tokens.inset, bottom: Tokens.inset })
                 .height(this.expandedComposer() ? this.expandedFieldHeight() : this.composerActionSize())
-                .enabled(!this.sending && !this.model.draftLoading).onFocus(() => this.fieldFocused = true).onBlur(() => this.fieldFocused = false)
+                .enabled(!this.sending && !this.model.draftLoading).onFocus(() => this.fieldFocused = true)
+                .onBlur(() => { this.fieldFocused=false;this.composingReturn=false;this.returnKeyMode='';this.modifierRevision++;this.allowLineBreak=false;this.inputRevision++; })
+                .enterKeyType(this.look.returnSends ? EnterKeyType.Send : EnterKeyType.NEW_LINE).enablePreviewText(true)
+                .onKeyPreIme((event:KeyEvent) => this.observeReturnModifiers(event))
+                .onWillChange((change:EditableTextChangeValue) => { this.observeComposition(change.previewText); return true; })
+                .onPaste(() => this.allowNextLineBreak())
+                .onSubmit((key:EnterKeyType,event?:SubmitEvent) => this.submittedInline(key,event))
                 .onTextSelectionChange((start:number,end:number) => { if (!this.draftEditorOpen) this.rememberSelection(start,end); })
-                .onChange((value: string) => { if (!this.draftEditorOpen) this.model.updateDraft(value); }).id('chat.input')
+                .onChange((value:string,preview?:PreviewText) => this.inputChanged(value,preview)).id('chat.input')
               // The native editor keeps its accessible hint and reading size. Its visible prompt uses the shell's single line.
               if (!this.model.draft) {
                 Text(this.composerPlaceholder()).width('100%').maxLines(1)
