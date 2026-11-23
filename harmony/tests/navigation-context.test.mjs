@@ -356,3 +356,18 @@ test('the system phone drawer paints its surface and selection without overridin
  assert.match(source,/\.accessibilitySelected\(this\.drawerPlaceSelected\(kind\)\)/);
  assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });
+
+test('Knowledge fills its compact app inset only while that library is foremost', () => {
+  const Shell = new Function('return '+stripTypeScriptTypes('class Shell {'+method('knowledgeInsetHeight')+'}'))();
+  const shell = Object.assign(new Shell(), {phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,
+    chatSearchShown:false,phoneSettingsShown:false,showSheet:false,compactNavigationInset:()=>23});
+  assert.equal(shell.knowledgeInsetHeight(),23);
+  for (const [key, value] of [['phoneTop','knowledge'],['phoneParam','inbox'],['drawerFraction',0.5],
+    ['chatSearchShown',true],['phoneSettingsShown',true],['showSheet',true]]) {
+    const prior=shell[key];
+    shell[key]=value; assert.equal(shell.knowledgeInsetHeight(),0); shell[key]=prior;
+  }
+  shell.compactNavigationInset=()=>0;
+  assert.equal(shell.knowledgeInsetHeight(),0);
+  assert.match(source,/height\(this\.knowledgeInsetHeight\(\)\)\.fill\(Colors\.grouped\)[\s\S]{0,100}hitTestBehavior\(HitTestMode\.None\)/);
+});
