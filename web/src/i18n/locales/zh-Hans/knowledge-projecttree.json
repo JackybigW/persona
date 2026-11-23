@@ -24,7 +24,7 @@
   "deep_hint": "已有 {levels} 层。可以这样放，不过 {suggested} 层以内更容易看清。",
   "children": "子项目",
   "move_out": "移出",
-  "no_children": "下面还没有项目。在导图里把项目拖到它上面，或者用「移到…」。",
+  "no_children": "下面还没有项目。在导图里把项目拖到它上面，或者在项目菜单里选「移到…」。",
   "milestones": "里程碑",
   "add": "添加",
   "milestone_saved": "里程碑已保存",

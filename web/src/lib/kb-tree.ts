@@ -218,12 +218,10 @@ export function buildTreeMap(list: TreeEntry[], parents: Map<string, string>, mo
     return n;
   };
   const tops = order.filter((id) => !parents.has(id));
-  const size = (id: string): number => 1 + (kids.get(id) ?? []).reduce((s, k) => s + size(k), 0);
-  const weight = { R: 0, L: 0 };
-  const branches = tops.map((id) => {
+  // Sides alternate in name order, so a move inside the tree never flips a branch to the other side.
+  const branches = tops.map((id, i) => {
     const n = make(id, 1, TONE[treeStatus(by.get(id)!)] ?? "accent", new Set());
-    n.side = weight.R <= weight.L ? "R" : "L";
-    weight[n.side] += size(id);
+    n.side = i % 2 ? "L" : "R";
     return n;
   });
   return { id: "p:root", title: t("lib-kb-tree.root"), kind: "root", tone: "accent", kids: branches, view: "tree", meta: t("lib-kb-tree.root_count", { count: live.length }) };

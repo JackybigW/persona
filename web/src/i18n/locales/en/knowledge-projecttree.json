@@ -24,7 +24,7 @@
   "deep_hint": "{levels} levels deep. That works, but {suggested} levels or fewer are easier to read.",
   "children": "Sub-projects",
   "move_out": "Move out",
-  "no_children": "Nothing under it yet. Drag a project onto it on the map, or use Move to….",
+  "no_children": "Nothing under it yet. Drag a project onto it on the map, or choose Move to… in a project’s menu.",
   "milestones": "Milestones",
   "add": "Add",
   "milestone_saved": "Milestone saved",

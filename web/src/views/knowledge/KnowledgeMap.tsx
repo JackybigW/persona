@@ -305,6 +305,17 @@ export function KnowledgeMap({ onToggleSidebar }: { onToggleSidebar: () => void 
       : <TreeRootPanel data={tree} />
     : <Panel node={n} root={load && "root" in load ? load.root : n} parents={parents} failed={load && "root" in load ? load.failed : 0} onOpen={reveal} />;
 
+  // By hierarchy | By tag: in the header, and on a narrow screen over the map's corner, where the header has no room.
+  const arrange = (className: string) => (
+    <div role="tablist" aria-label={t("knowledge-knowledgemap.arrange")} className={cx("shrink-0 rounded-control bg-inset p-0.5 shadow-[inset_0_0_0_1px_var(--line)]", className)}>
+      {(["tree", "tag"] as const).map((m) => (
+        <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setSel(""); }}
+          className={cx("h-7 whitespace-nowrap rounded-[7px] px-2.5 text-[12.5px]", mode === m ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
+          {t(m === "tree" ? "knowledge-knowledgemap.by_hierarchy" : "knowledge-knowledgemap.by_tag")}
+        </button>
+      ))}
+    </div>
+  );
   return (
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 sm:px-4">
@@ -313,16 +324,7 @@ export function KnowledgeMap({ onToggleSidebar }: { onToggleSidebar: () => void 
         <h1 className="truncate text-[14px] font-semibold text-ink">{t("knowledge-knowledgemap.title")}</h1>
         <span className="hidden min-w-0 truncate text-[12px] text-ink-3 md:inline">{t(SUBTITLE[view])}</span>
         <div className="flex-1" />
-        {view === "tree" && (
-          <div role="tablist" aria-label={t("knowledge-knowledgemap.arrange")} className="inline-flex shrink-0 rounded-control bg-inset p-0.5 shadow-[inset_0_0_0_1px_var(--line)]">
-            {(["tree", "tag"] as const).map((m) => (
-              <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setSel(""); }}
-                className={cx("h-7 whitespace-nowrap rounded-[7px] px-2.5 text-[12.5px]", mode === m ? "bg-surface font-semibold text-ink shadow-btn" : "text-ink-2 hover:text-ink")}>
-                {t(m === "tree" ? "knowledge-knowledgemap.by_hierarchy" : "knowledge-knowledgemap.by_tag")}
-              </button>
-            ))}
-          </div>
-        )}
+        {view === "tree" && arrange("hidden md:inline-flex")}
         <div role="tablist" aria-label={t("knowledge-knowledgemap.views")} className="inline-flex shrink-0 rounded-control bg-inset p-0.5 shadow-[inset_0_0_0_1px_var(--line)]">
           {VIEWS.map((v) => (
             <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => pick(v)}
@@ -345,6 +347,7 @@ export function KnowledgeMap({ onToggleSidebar }: { onToggleSidebar: () => void 
               style={{ backgroundImage: "radial-gradient(var(--line-strong) 1px, transparent 1px)", backgroundSize: "22px 22px", touchAction: "pan-x pan-y", overflowAnchor: "none" }}>
               <MapCanvas key={view === "tree" ? `tree:${mode}` : view} root={load.root} sel={selected?.id ?? ""} zoom={zoom} onFit={setZoom} onSelect={choose} onToggle={toggle} drag={drag} onMenu={onMenu} />
             </div>
+            {view === "tree" && arrange("absolute top-3 left-3 z-10 inline-flex bg-surface md:hidden")}
             <div className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-0.5 rounded-control bg-surface p-1 text-[12px] shadow-overlay">
               <IconButton icon="minus" label={t("knowledge-knowledgemap.zoom_out")} size={26} iconSize={12} onClick={() => zoomAt(zoom - 0.1)} />
               <span className="min-w-10 text-center tabular-nums text-ink-3" aria-live="polite" aria-label={t("knowledge-knowledgemap.zoom_level", { percent: Math.round(zoom * 100) })}>{Math.round(zoom * 100)}%</span>
@@ -421,6 +424,8 @@ function MapCanvas({ root, sel, zoom, onFit, onSelect, onToggle, drag, onMenu }:
   const [dragging, setDragging] = useState<{ src: MapNode; x: number; y: number; over: MapNode | null } | null>(null);
   const press = useRef<{ n: MapNode; x: number; y: number; id: number; timer?: number; moved: boolean } | null>(null);
   const suppress = useRef(false);
+  const live = useRef(dragging);
+  live.current = dragging;
   const toMap = (e: { clientX: number; clientY: number }) => {
     const r = box.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
@@ -438,6 +443,7 @@ function MapCanvas({ root, sel, zoom, onFit, onSelect, onToggle, drag, onMenu }:
   }, [dragging?.src, root]);
   const down = (n: MapNode) => (e: React.PointerEvent) => {
     if (!n.project || e.button !== 0 || (!drag && !onMenu)) return;
+    if (e.pointerType !== "touch" && drag) e.preventDefault(); // no text selection (and no scroll with it) while dragging
     const st = { n, x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, timer: undefined as number | undefined };
     if (e.pointerType === "touch" && onMenu) {
       const point = { x: e.clientX, y: e.clientY };
@@ -463,10 +469,9 @@ function MapCanvas({ root, sel, zoom, onFit, onSelect, onToggle, drag, onMenu }:
       if (st.timer) clearTimeout(st.timer);
       if (!st.moved || e.type === "pointercancel") { setDragging(null); return; }
       suppress.current = true;
-      setDragging((d) => {
-        if (d?.over && drag?.canDrop(d.src, d.over).ok) { const { src, over } = d; setTimeout(() => drag.onDrop(src, over), 0); }
-        return null;
-      });
+      const d = live.current;
+      setDragging(null);
+      if (d?.over && drag?.canDrop(d.src, d.over).ok) drag.onDrop(d.src, d.over);
     };
     const esc = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape" && press.current) { press.current = null; setDragging(null); } };
     window.addEventListener("pointermove", move);
