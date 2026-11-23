@@ -1,12 +1,12 @@
 #!/bin/bash
-# Generate the changed permission screens on the pinned Xcode 26.0 runner for #13286.
+# Generate the changed permission screens on Xcode 26.3's iOS 18.6 simulator for #13286.
 # The artifact contains direct PNG writes from the existing UI tests, their logs and xcresult bundles.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 [ "$(uname -s)" = Darwin ] || { printf 'permission-shots: FAIL requires macOS with Xcode\n' >&2; exit 1; }
-export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode_26.0.1.app/Contents/Developer}"
-case "$(xcodebuild -version)" in 'Xcode 26.0'*$'\n'*) ;; *) printf 'permission-shots: FAIL select Xcode 26.0.x\n' >&2; exit 1 ;; esac
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode_26.3.app/Contents/Developer}"
+case "$(xcodebuild -version)" in 'Xcode 26.3'*$'\n'*) ;; *) printf 'permission-shots: FAIL select Xcode 26.3\n' >&2; exit 1 ;; esac
 OUTPUT="${CI_APPLE_DIAGNOSTICS:?CI_APPLE_DIAGNOSTICS is required}"
 [ ! -e "$OUTPUT" ] || { printf 'permission-shots: FAIL output already exists: %s\n' "$OUTPUT" >&2; exit 2; }
 mkdir -p "$OUTPUT"/{logs,png,results}
@@ -47,24 +47,29 @@ with open(sys.argv[1], "w") as output:
 PY
 export PERSONA_META_WEARABLES=NO
 export PERSONA_LEAN_DEV_BUILD=YES
+# The Meta-disabled project must not retain the thirteenth Meta package pin (#11063).
+ci_run 'Stage resolved packages for Meta configuration' 60 python3 "$CI_ROOT/scripts/ci/apple_resolved.py" \
+  --tracked "$CI_ROOT/apple/Packages/PersonaSSH/Package.resolved" \
+  --staged "$SOURCE/apple/Packages/PersonaSSH/Package.resolved" \
+  --meta "$PERSONA_META_WEARABLES" --evidence "$OUTPUT/resolved-variant.txt"
 ci_run 'Build PersonaCore simulator slice' 1800 "$SOURCE/native/app-core/scripts/build-apple.sh" --simulator
 ci_run 'Generate synthetic Apple config' 60 python3 "$SOURCE/scripts/persona_config.py" xcconfig
 ci_run 'Generate iPhone UI-test project' 120 xcodegen generate --spec "$SOURCE/apple/project.yml" --project "$SOURCE/apple"
 
-# Use only the stable iOS 26.0.x runtime paired with the pinned minimum compiler.
+# Use the existing compatibility lane's iOS 18.6 runtime with Xcode 26.3.
 RUNTIMES="$WORK/runtimes-before.json"
 xcrun simctl list runtimes -j > "$RUNTIMES"
-if ! RUNTIME=$(python3 "$CI_ROOT/scripts/ci/apple_runtime.py" "$RUNTIMES" --platform iOS); then
-  ci_run 'Download matching iOS 26.0 simulator runtime' 1800 xcodebuild -downloadPlatform iOS -architectureVariant universal
+if ! RUNTIME=$(python3 "$CI_ROOT/scripts/ci/apple_runtime.py" "$RUNTIMES" --platform iOS --version 18.6); then
+  ci_run 'Download iOS 18.6 simulator runtime' 1800 xcodebuild -downloadPlatform iOS -buildVersion 18.6
   RUNTIMES="$WORK/runtimes-after.json"
   xcrun simctl list runtimes -j > "$RUNTIMES"
-  RUNTIME=$(python3 "$CI_ROOT/scripts/ci/apple_runtime.py" "$RUNTIMES" --platform iOS)
+  RUNTIME=$(python3 "$CI_ROOT/scripts/ci/apple_runtime.py" "$RUNTIMES" --platform iOS --version 18.6)
 fi
 printf 'permission-shots: runtime %s\n' "$RUNTIME"
 # On a hosted runner, xcodebuild owns the first boot. Directly waiting in sim-boot
 # hit its 15-minute bootstatus deadline in run 45123938855 (docs/lessons/testing.md).
 ci_run 'Create stock permission screenshot simulator' 100 bash -c \
-  '"$1" --create-only --profile stock --runtime "$3" --device-type "iPhone 17 Pro" "$2" > "$4"' \
+  '"$1" --create-only --profile stock --runtime "$3" --device-type "iPhone 16 Pro" "$2" > "$4"' \
   -- "$SOURCE/scripts/app/sim-boot.sh" "Persona Permission Shots ${GITHUB_RUN_ID:-local}" "$RUNTIME" "$OUTPUT/simulator.log"
 SIM=$(python3 -I -c 'import re,sys; value=open(sys.argv[1]).read().strip(); assert re.fullmatch(r"[0-9A-Fa-f-]{36}", value), value; print(value)' "$OUTPUT/simulator.log")
 
@@ -73,8 +78,7 @@ XCODE=(xcodebuild -project "$PROJECT" -scheme Persona -configuration Debug
   -destination "platform=iOS Simulator,id=$SIM" -destination-timeout 120 -derivedDataPath "$DERIVED" -parallel-testing-enabled NO
   -clonedSourcePackagesDirPath "$SPM/SourcePackages"
   CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
-# Match apple.sh's minimal resolve invocation. Run 45128510285 crashed inside
-# IDESwiftPackageCore with the extra destination/signing arguments, before any test executed.
+# Match apple.sh's minimal resolve invocation after staging the Meta-disabled variant above.
 ci_run 'Resolve permission UI-test packages' 900 xcodebuild -project "$PROJECT" -configuration Debug \
   -clonedSourcePackagesDirPath "$SPM/SourcePackages" -scheme Persona -resolvePackageDependencies
 ci_run 'Build permission UI tests' 2400 "${XCODE[@]}" -disableAutomaticPackageResolution build-for-testing
@@ -123,7 +127,7 @@ run_case() {
   printf 'source_sha=%s\n' "$(git rev-parse HEAD)"
   printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n' ' ')"
   printf 'macos=%s\n' "$(sw_vers -productVersion)"
-  printf 'simulator=%s\nruntime=%s\n' "$SIM" "$RUNTIME"
+  printf 'simulator=%s\nruntime=%s\nsimulator_os=iOS 18.6\n' "$SIM" "$RUNTIME"
 } > "$OUTPUT/environment.txt"
 
 for LOOK in light dark; do
