@@ -343,7 +343,7 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 	}
 	res := ""
 	if err == nil {
-		res, err = s.runTool(ctx, s.settings(ctx).MachineID, self, "agent_start", args)
+		res, err = s.runTool(ownerConfirmed(ctx), s.settings(ctx).MachineID, self, "agent_start", args)
 	}
 	// Preserve the legacy sampling point: a disable that lands while startup is pending is observed after it returns.
 	enabled := s.inboxConfig(ctx).Agent.Enabled

@@ -506,7 +506,7 @@ func (s *Service) confirmHandedAgent(ctx context.Context, it *InboxItem, g *Inbo
 		b.mu.Unlock()
 	}
 	if err == nil {
-		_, err = s.runTool(context.WithValue(ctx, handoffStartKey{}, hs), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
+		_, err = s.runTool(ownerConfirmed(context.WithValue(ctx, handoffStartKey{}, hs)), s.settings(ctx).MachineID, to.SessionID, "agent_start", args)
 	}
 	b.mu.Lock()
 	l, now := b.userLang(), time.Now().UTC()
