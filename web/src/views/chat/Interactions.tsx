@@ -7,7 +7,6 @@ import { mergeRefs } from "../../lib/tap-guard";
 import { delegateLines, isDelegating, recommendedLabels, type DelegatedAnswer } from "../../lib/delegate";
 import { supervisorHeld } from "../../lib/supervisor-held";
 import { Choice, DigitHint } from "./Choice";
-import { DelegatedCard } from "./Delegated";
 import { BUSY_MOTION, spinStyle } from "../../lib/busy-motion";
 import { appArchiveDeps, archiveAgent, archiveSession } from "../../lib/agent-archives";
 import { isSessionReview } from "../../lib/types";
@@ -559,6 +558,9 @@ function PlanCard({ ix }: { ix: Interaction }) {
 // The complete tool-approval card loads with the first permission interaction, keeping its optional clarification UI
 // and permission editor out of the first screen. Its slot stays identifiable while the chunk loads or cannot load.
 const PermissionCard = lazyPage(() => import("./PermissionCard").then((m) => m.PermissionCard));
+// A card the assistant answered for the user (its "Change answer"): drawn only after such an answer, so its chunk is off
+// the first screen and loads with the first one (the idle tier has no room for it).
+const DelegatedCard = lazyPage(() => import("./Delegated").then((m) => m.DelegatedCard));
 
 export function PermissionCardLoading({ ix }: { ix: Interaction }) {
   return (
@@ -1513,7 +1515,7 @@ export function PendingCards({ interactions, answered, delegated = [], offerNext
   if (!count && !answered.length && !delegated.length) return null;
   const shown = showsAnswered({ narrow, keyboard, open, short });
   const done = shown
-    ? [...delegated.map((d) => <DelegatedCard key={d.ix.id} d={d} />), ...(answered.length ? [<AnsweredSummary key="answered" answered={answered} />] : [])]
+    ? [...delegated.map((d) => <Suspense key={d.ix.id} fallback={null}><DelegatedCard d={d} /></Suspense>), ...(answered.length ? [<AnsweredSummary key="answered" answered={answered} />] : [])]
     : [];
   // the cut-off count only while all the cards are opened: a stack folded to its first says where it stands instead (the
   // position chip). Each card has its own keyed provider, so a card moving up to first as the one above it goes keeps
