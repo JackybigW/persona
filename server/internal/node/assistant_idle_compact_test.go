@@ -196,12 +196,20 @@ func TestIdleCompactionLatchSurvivesRestartAndRearmsAfterDrop(t *testing.T) {
 	defer cancel()
 	source := &proto.MessageSource{Kind: proto.SourceSupervision}
 	done := make(chan error, 1)
-	go func() { done <- idleCompactCall(ctx, n, p, idleCompactPolicy, source) }()
-	select {
-	case <-sink.compact:
-	case <-time.After(3 * time.Second):
-		t.Fatal("first unattended message did not compact")
+	sendAndAwaitCompact := func(phase string) {
+		t.Helper()
+		var trace syncBuffer
+		n.logger.SetOutput(&trace)
+		go func() { done <- idleCompactCall(ctx, n, p, idleCompactPolicy, source) }()
+		select {
+		case <-sink.compact:
+		case err := <-done:
+			t.Fatalf("%s: assistant.send returned before the /compact response (err=%v, original sent=%t)\n%s", phase, err, strings.Contains(sink.String(), "background wake"), trace.String())
+		case <-time.After(3 * time.Second):
+			t.Fatalf("%s: no /compact within 3s\n%s", phase, trace.String())
+		}
 	}
+	sendAndAwaitCompact("first unattended delivery")
 	// A failed attempt must not spin, even if context is still large and a new
 	// node has to recover the session's state from the hub.
 	idleCompactStream(n, p, `{"type":"result","subtype":"success","result":"Not enough messages to compact."}`)
@@ -249,12 +257,7 @@ func TestIdleCompactionLatchSurvivesRestartAndRearmsAfterDrop(t *testing.T) {
 		st.IdleCompaction = &a
 		return true
 	})
-	go func() { done <- idleCompactCall(ctx, n, p, idleCompactPolicy, source) }()
-	select {
-	case <-sink.compact:
-	case <-time.After(3 * time.Second):
-		t.Fatal("threshold recrossing and another idle gap did not compact")
-	}
+	sendAndAwaitCompact("threshold recrossed after another idle interval")
 	idleCompactStream(n, p,
 		`{"type":"system","subtype":"compact_boundary","compact_metadata":{"post_tokens":90000}}`,
 		`{"type":"result","subtype":"success"}`)
