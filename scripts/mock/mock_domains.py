@@ -78,6 +78,7 @@ DOMAINS = [
     "todo_sort_mock",  # sorting to-dos into projects (/api/v1/todo-sort/…), MOCK_TODO_SORT
     "overview_projects_mock",  # Overview by project (#13019): MOCK_KB_TREE with MOCK_TODO_SORT, no switch of its own
     "question_rail_mock",  # the main chat's question rail states and read marks (#13021), MOCK_QUESTION_RAIL
+    "hub_modules_mock",  # a hub that publishes module flags: `modules` and `module.<id>` (#13849), MOCK_HUB_MODULES
 ]
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
