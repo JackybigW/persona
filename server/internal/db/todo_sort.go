@@ -13,8 +13,8 @@ import (
 // sheet's, or a move from the chat. Each keeps every to-do's place before and after, so an undo can put back the ones
 // still as the batch left them (assistant/todo_sort_batches.go).
 
-// TodoPlace is where a to-do is filed: its knowledge-base project's slug ("" none), or marked temporary (a one-off).
-type TodoPlace struct {
+// TodoSortPlace is where a to-do is filed: its knowledge-base project's slug ("" none), or marked temporary (a one-off).
+type TodoSortPlace struct {
 	Project   string `json:"project"`
 	Temporary bool   `json:"temporary,omitempty"`
 }
@@ -22,8 +22,8 @@ type TodoPlace struct {
 // TodoSortItem is one to-do a batch moved.
 type TodoSortItem struct {
 	Todo   string    `json:"todo"`
-	Before TodoPlace `json:"before"`
-	After  TodoPlace `json:"after"`
+	Before TodoSortPlace `json:"before"`
+	After  TodoSortPlace `json:"after"`
 }
 
 // TodoSortBatch is one batch of moves. UndoneAt is set by the undo that claimed it, Outcomes what that undo did with each

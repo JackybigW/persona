@@ -161,7 +161,7 @@ type sortApplied struct {
 }
 
 // placeOf is where t is filed.
-func placeOf(t Todo) db.TodoPlace { return db.TodoPlace{Project: t.Project, Temporary: t.Temporary} }
+func placeOf(t Todo) db.TodoSortPlace { return db.TodoSortPlace{Project: t.Project, Temporary: t.Temporary} }
 
 // applySort files the moves as one batch. Every item is checked before anything is written: one refused item (a
 // *sortItemError) writes nothing.
@@ -171,7 +171,7 @@ func (s *Service) applySort(ctx context.Context, moves []sortMove, by, kind stri
 	}
 	type move struct {
 		id            string
-		before, after db.TodoPlace
+		before, after db.TodoSortPlace
 	}
 	var plan []move
 	res := sortApplied{}
@@ -187,7 +187,7 @@ func (s *Service) applySort(ctx context.Context, moves []sortMove, by, kind stri
 		if !ok {
 			return res, fail(fmt.Errorf("no to-do %q", m.ID))
 		}
-		after := db.TodoPlace{Temporary: m.Temporary}
+		after := db.TodoSortPlace{Temporary: m.Temporary}
 		if !m.Temporary {
 			slug, err := s.todoProject(ctx, m.Project)
 			if err != nil {
