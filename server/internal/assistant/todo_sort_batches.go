@@ -161,7 +161,9 @@ type sortApplied struct {
 }
 
 // placeOf is where t is filed.
-func placeOf(t Todo) db.TodoSortPlace { return db.TodoSortPlace{Project: t.Project, Temporary: t.Temporary} }
+func placeOf(t Todo) db.TodoSortPlace {
+	return db.TodoSortPlace{Project: t.Project, Temporary: t.Temporary}
+}
 
 // applySort files the moves as one batch. Every item is checked before anything is written: one refused item (a
 // *sortItemError) writes nothing.

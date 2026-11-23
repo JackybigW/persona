@@ -21,7 +21,7 @@ type TodoSortPlace struct {
 
 // TodoSortItem is one to-do a batch moved.
 type TodoSortItem struct {
-	Todo   string    `json:"todo"`
+	Todo   string        `json:"todo"`
 	Before TodoSortPlace `json:"before"`
 	After  TodoSortPlace `json:"after"`
 }

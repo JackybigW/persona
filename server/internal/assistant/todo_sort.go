@@ -100,7 +100,9 @@ func sortCandidates(e *kb.Engine) []*kb.Project {
 			out = append(out, p)
 		}
 	}
-	slices.SortStableFunc(out, func(a, b *kb.Project) int { return cmp.Or(b.Updated.Compare(a.Updated), strings.Compare(a.Slug, b.Slug)) })
+	slices.SortStableFunc(out, func(a, b *kb.Project) int {
+		return cmp.Or(b.Updated.Compare(a.Updated), strings.Compare(a.Slug, b.Slug))
+	})
 	return out
 }
 
