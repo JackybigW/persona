@@ -554,13 +554,13 @@ func TestTranscriptionFastReplies(t *testing.T) {
 }
 
 // The instructions are in the recording's language when it is Chinese, English or Japanese (the language the model
-// hears), else in the hub's (the caller's).
-// 每个用例使用独立上游；TFReady 不等待第三个会话，延迟到下一用例的启动不得混入其断言。
+// hears), else in the hub's (the caller's). A start delayed into the next case
+// stays with the upstream that received it.
 func TestTranscriptionInstructionsLanguage(t *testing.T) {
 	trFast(t)
+	const startWait = 30 * time.Second
 	opening := map[string]string{"zh-Hans": "你是", "en": "You are", "ja": "あなたは"}
-	var previous *voicetest.Live
-	var releasePrevious func()
+	var checkDelayedStart func()
 	for _, tt := range []struct{ tag, hub, want string }{
 		{"ja-JP", "en", "ja"},
 		{"zh-TW", "en", "zh-Hans"},
@@ -570,27 +570,25 @@ func TestTranscriptionInstructionsLanguage(t *testing.T) {
 		{"", "en", "en"},
 	} {
 		script := voicetest.Script{Sentences: trScript}
-		var waitForSecond chan struct{}
+		var atGate chan struct{}
 		var release func()
 		if tt.tag == "ja-JP" {
-			waitForSecond = make(chan struct{})
+			atGate = make(chan struct{})
 			gate := make(chan struct{})
-			arrived := sync.OnceFunc(func() { close(waitForSecond) })
+			reached := sync.OnceFunc(func() { close(atGate) })
+			release = sync.OnceFunc(func() { close(gate) })
 			script.BeforeSecondVerbatimStart = func() {
-				arrived()
+				reached()
 				<-gate
 			}
-			release = sync.OnceFunc(func() { close(gate) })
 		}
 		_, srv, _, live := trLive(t, script)
 		if release != nil {
 			t.Cleanup(release)
 		}
-		asked := len(live.Starts())
-		if releasePrevious != nil {
-			releasePrevious()
-			waitFor(t, "the delayed start was not recorded", func() bool { return len(previous.Starts()) >= 3 })
-			previous, releasePrevious = nil, nil
+		if checkDelayedStart != nil {
+			checkDelayedStart()
+			checkDelayedStart = nil
 		}
 		tc, _, err := dialTr(t, srv, TranscriptionContribution, http.Header{extwire.HeaderRole: {roleFull}, extwire.HeaderLang: {tt.hub}})
 		if err != nil {
@@ -598,28 +596,38 @@ func TestTranscriptionInstructionsLanguage(t *testing.T) {
 		}
 		tc.send(extwire.TranscriptionFrame{Type: extwire.TFStart, Mode: extwire.TranscriptionLive, Language: tt.tag, At: extwire.F(0.0)})
 		tc.next(extwire.TFReady)
-		if waitForSecond != nil {
-			// Ready only promises the caption stream and one verbatim stream. An empty recording can otherwise
-			// end before the second verbatim start reaches the provider, leaving nothing for the next case to release.
+		if atGate != nil {
+			// Ready only requires two sessions. Ending before the third
+			// request reaches the upstream can cancel it before it exists.
 			select {
-			case <-waitForSecond:
-			case <-time.After(5 * time.Second):
-				t.Fatal("the second verbatim start did not reach the provider")
+			case <-atGate:
+			case <-time.After(startWait):
+				t.Fatal("second verbatim start did not reach the upstream")
 			}
 		}
 		tc.send(extwire.TranscriptionFrame{Type: extwire.TFEnd})
 		tc.done()
-		starts := live.Starts()[asked:]
-		if len(starts) == 0 {
-			t.Fatalf("%q: no session", tt.tag)
-		}
-		for _, s := range starts {
-			if ins, _ := s["instructions"].(string); !strings.HasPrefix(ins, opening[tt.want]) {
-				t.Errorf("%q (hub %s): instructions not in %s:\n%s", tt.tag, tt.hub, tt.want, ins)
+		checkLanguage := func(starts []map[string]any) {
+			for _, s := range starts {
+				if ins, _ := s["instructions"].(string); !strings.HasPrefix(ins, opening[tt.want]) {
+					t.Errorf("%q (hub %s): instructions are in the wrong language, want %s:\n%s", tt.tag, tt.hub, tt.want, ins)
+				}
 			}
 		}
-		if release != nil {
-			previous, releasePrevious = live, release
+		starts := live.Starts()
+		if len(starts) < 2 {
+			t.Fatalf("%q: got %d starts, want caption and verbatim sessions", tt.tag, len(starts))
+		}
+		checkLanguage(starts)
+		if atGate != nil {
+			if len(starts) != 2 {
+				t.Fatalf("%q: got %d starts while the third was held", tt.tag, len(starts))
+			}
+			checkDelayedStart = func() {
+				release()
+				waitForWithin(t, startWait, "the delayed start to be recorded", func() bool { return len(live.Starts()) >= 3 })
+				checkLanguage(live.Starts()[2:])
+			}
 		}
 	}
 }

@@ -1,11 +1,10 @@
 package node
 
 import (
-	"io"
+	"bufio"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,40 +15,43 @@ import (
 
 const taskTerminalTestToken = "838e2748-4eee-46e2-9bcb-69bc5f760512"
 
-func TestTaskTerminalFixtureProcess(t *testing.T) {
-	if os.Getenv("PERSONA_TEST_IDLE_TASK_TERMINAL") == "1" {
-		if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// idleTerminalTestProcess gives the fake terminal its own OS process. Reaping
-// it leaves the fixture's sessions/<pid>.json in place, just as an exited
-// agent can. An unrelated process on the test runner cannot stand in for it.
-func idleTerminalTestProcess(t *testing.T) (int, func()) {
+// Use an idle process with no controlling terminal or children. The test
+// runner's own process can have subprocesses or share the runner's terminal,
+// either of which the close guard treats as live work in the task pane.
+func idleTaskTerminalPID(t *testing.T) int {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestTaskTerminalFixtureProcess$")
-	cmd.Env = append(os.Environ(), "PERSONA_TEST_IDLE_TASK_TERMINAL=1")
-	cmd.SysProcAttr = osproc.DetachedAttr()
-	input, err := cmd.StdinPipe()
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.CommandContext(t.Context(), bin)
+	cmd.Env = append(os.Environ(), "NODE_TEST_TASK_TERMINAL_IDLE=1")
+	cmd.SysProcAttr = osproc.SessionGroupAttr()
+	if _, err := cmd.StdinPipe(); err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := cmd.Start(); err != nil {
-		input.Close()
 		t.Fatal(err)
 	}
-	stop := sync.OnceFunc(func() {
-		if err := input.Close(); err != nil {
-			t.Error(err)
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	started := make(chan error, 1)
+	go func() {
+		_, err := bufio.NewReader(stdout).ReadString('\n')
+		started <- err
+	}()
+	select {
+	case err := <-started:
+		if err != nil {
+			t.Fatalf("idle task process did not start: %v", err)
 		}
-		if err := cmd.Wait(); err != nil {
-			t.Error(err)
-		}
-	})
-	t.Cleanup(stop)
-	return cmd.Process.Pid, stop
+	case <-time.After(30 * time.Second):
+		t.Fatal("idle task process did not start")
+	}
+	return cmd.Process.Pid
 }
 
 func taskTerminalFixture(t *testing.T) (*Node, *fakeHerdr, devicewire.TaskTerminal, string, string) {
@@ -60,7 +62,7 @@ func taskTerminalFixture(t *testing.T) (*Node, *fakeHerdr, devicewire.TaskTermin
 		`{"type":"user","message":{"role":"user","content":"Finish fixture"},"uuid":"u1"}`,
 		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Fixture finished."}]},"uuid":"a1"}`,
 		`{"type":"system","subtype":"turn_duration","durationMs":1000}`)
-	pid, _ := idleTerminalTestProcess(t)
+	pid := idleTaskTerminalPID(t)
 	target := devicewire.TaskTerminal{SessionID: sidA, PaneID: "w1:p1", TabID: "w1:t1", WorkspaceID: "w1",
 		Token: taskTerminalTestToken, PID: pid, Process: procStartMark(pid)}
 	if target.Process == "" {

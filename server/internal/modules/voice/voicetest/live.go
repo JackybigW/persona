@@ -107,7 +107,8 @@ type Script struct {
 	// Level scales the audio's levels (0: 1): below about 0.15 a sentence is quieter than the adapter's speech
 	// detection hears, while the service still does (a phone on the table in a quiet room).
 	Level float64
-	// BeforeSecondVerbatimStart runs after the second verbatim start arrives and before Starts records it.
+	// BeforeSecondVerbatimStart can hold the second verbatim start before
+	// recording it, while the caption and first verbatim sessions start.
 	BeforeSecondVerbatimStart func()
 }
 
