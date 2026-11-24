@@ -32,6 +32,7 @@ import (
 	"github.com/nwverse/persona/server/internal/connector"
 	"github.com/nwverse/persona/server/internal/extwire"
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/moduleswitch"
 	"github.com/nwverse/persona/server/internal/prompts"
 	"github.com/nwverse/persona/server/internal/proto"
 	"github.com/nwverse/persona/server/internal/remoteimage"
@@ -54,6 +55,10 @@ type Devices interface {
 
 // Options are how the manager reaches what it needs.
 type Options struct {
+	// Modules is the run-time module switch the manager started with (the `modules` settings row, read before New,
+	// assistant.ReadModuleSwitch): a module it switches off gets nothing from its provider port, exactly as in a build
+	// without it (moduleswitch). The zero value has every module on.
+	Modules moduleswitch.Set
 	// Dir is the data directory (~/.persona): hub.json, extensions/ in it, and secret.key unless SecretKey says.
 	Dir string
 	// SecretKey is the manager's own key file (the built-in manager's in its directory, managerconf.OwnFile); "":

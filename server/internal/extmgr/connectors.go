@@ -686,7 +686,7 @@ func (h *Manager) registerConnectors() {
 	}
 	// GitHub on every hub that has its module (githubport): hub.json's github.auth.from_machine reads that computer's
 	// gh login; without it (or before it) the user signs in from the app with the device flow.
-	if newGitHub := githubport.Factory(); newGitHub != nil {
+	if newGitHub := githubport.Factory(h.opts.Modules); newGitHub != nil {
 		gh := githubwire.Config{}
 		if h.cfg.GitHub != nil {
 			gh = *h.cfg.GitHub

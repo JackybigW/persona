@@ -153,8 +153,27 @@ Because a missing flag means off, every flag a client gates on has to be announc
   or duplicate ids (compiled-in modules and the client-only ones of `modapi.ClientModules`) before showing the existing owner approval card; `null` or an empty disabled list
   restores the default. The manager reads the row once where it starts (`server/internal/assistant/main.go`,
   `ReadModuleSwitch`) and hands it to `assistant.New` as `Options.ModulesOff`, so the saved change takes effect at the
-  next manager start, never as a hot switch in the running process. A built-in module switched off is absent exactly as one left
-  out of the build; a client-only one loses its hub flag, so the clients hide it. There is no settings screen yet; the settings registry of #13395 remains its intended UI home.
+  next manager start, never as a hot switch in the running process. The manager reads it before it makes the extension
+  manager, and the kernel and every provider seam get the same list (below). A built-in module switched off is absent
+  exactly as one left out of the build; a client-only one loses its hub flag, so the clients hide it. There is no settings screen yet; the settings registry of #13395 remains its intended UI home.
+- **One predicate for the seams** (#14405): `server/internal/moduleswitch`. A module that reaches the core through a
+  provider seam (a port its file in a composition root fills in `init`, "Provider seams" below) is switched off by that
+  port: the port is a `moduleswitch.Port`, which keeps the provider under the module's id and hands it out (`Get`)
+  only to a caller whose `moduleswitch.Set` has the module on (`Set.On`). The `Set` is a value each manager carries
+  (`extmgr.Options.Modules`), never process state: one process can run several managers (`internal/manager`). A node
+  has no settings row; it reads the switch from the hub's features it gets in `node.configure` (`hub_features`), by
+  the clients' rule (`moduleswitch.FromFeatures`: with the `modules` marker, a module whose `module.<id>` flag is
+  missing is off), and keeps it for the process (a node serves one hub). Before its first `node.configure`, or from a
+  hub without the marker, every module is on.
+- **Tested for every module**: `TestEverySeamFollowsTheSwitch` in `server/internal/modules/all` and in
+  `server/internal/modules/all/node` runs `server/internal/moduleswitch/switchtest` over the root: every seam each
+  module of the build recorded must hand out its provider with the module on and nothing with it switched off, and every
+  call the root's `init` makes must be such a seam. Seams that do not follow the switch yet are listed there
+  (`switchPending`), and the list only shrinks.
+- **Checked on a running hub**: `python3 scripts/ci/core-only-smoke.py --switched-off <ids>` builds by default, starts
+  a hub on a disposable Postgres, writes the row, restarts and checks the ids are gone (the manager's loaded modules,
+  their flags, programs' extensions, connectors, routes) while every other module stays, then clears the row,
+  restarts and checks they return.
 
 ### How to build and run the core alone
 
@@ -244,9 +263,9 @@ an extension's GitHub connector can still take the id (`TestManagerWithoutGitHub
 (`server/internal/prompts/mcp/github`, `prompts/inbox/kinds/github.md`) stay in the core's trees as mail's do.
 `scripts/ci/server.sh build` runs "Builds without the connector modules" with both tags, and
 `scripts/ci/core-only-smoke.py` checks that a core-only hub lists no GitHub connector.
-Its `module.json` declares `feature` = `module.github`, so a hub whose manager loaded the module announces it. The
-run-time `modules` switch drops the flag, but the extension manager still registers the connector until it reads the
-switch too (only a build without the module leaves the connector out today).
+Its `module.json` declares `feature` = `module.github`, so a hub whose manager loaded the module announces it.
+Switched off in the `modules` row, `githubport` hands the manager no factory, so the connector is absent as in a build
+without it (`TestManagerWithoutGitHub` runs both ways).
 
 The iMessage connector (`server/internal/modules/imessage`, #13936) is the same kind of connector, with a second side:
 the reader of a Mac's Messages runs in that Mac's node. The manager reaches the connector through the contract
@@ -259,7 +278,9 @@ list), so `personad node`, persona-node and the manager's local node all have it
 of the manager. With the module left out (`persona_without_imessage`, `persona_core_only`) the manager has no Messages
 connector or built-in Messages extension, `/api/v1/imessage` answers that it is not configured
 (`TestManagerWithoutIMessage`), and the node answers as a computer without Messages does. Its `module.json` declares
-`feature` = `module.imessage`, with the same caveat on the run-time switch as GitHub's. "Builds without the connector
+`feature` = `module.imessage`. Switched off in the `modules` row, both ports hand out nothing: the manager registers no
+Messages connector or extension (`TestManagerWithoutIMessage` runs both ways), so it sends the node no `connector.*`
+call, and a node whose hub announces no `module.imessage` answers as a computer without Messages. "Builds without the connector
 modules" in `scripts/ci/server.sh` runs with `persona_without_imessage` too, and `scripts/ci/core-only-smoke.py`
 checks that a core-only hub has no `imessage` extension.
 
