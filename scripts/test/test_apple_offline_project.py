@@ -25,6 +25,9 @@ class AppleOfflineProjectTests(unittest.TestCase):
         self.base = yaml.safe_load((ROOT / 'apple/project.yml').read_text())
         self.project = deepcopy(self.base)
         self.project.pop('include')
+        # Generic filtering cases use the reviewed resolved source list. The
+        # feature-module regression below checks that list against the real include.
+        self.project['targets']['Persona']['sources'] = deepcopy(apple_offline_project.SOURCES['Persona'])
         self.project['schemes'] = {name: self.base['schemes'][name] for name in (
             'Persona', 'PersonaOfflineUnitTests', 'AboutVersionVisualTests',
             'AboutVersionAccessibilityHost', 'PersonaWatch', 'PersonaVision')}
@@ -58,6 +61,24 @@ class AppleOfflineProjectTests(unittest.TestCase):
         self.assertEqual(tests['settings']['base']['TEST_HOST'], '$(BUILT_PRODUCTS_DIR)/Persona.app/Persona')
         self.assertEqual(tests['settings']['base']['BUNDLE_LOADER'], '$(TEST_HOST)')
         self.assertEqual(self.result['packages'], self.project['packages'])
+
+    def test_feature_module_sources_match_and_survive_offline_filtering(self):
+        modules = yaml.safe_load((ROOT / 'apple/modules.yml').read_text())
+        module_sources = modules['targets']['Persona']['sources']
+        project = deepcopy(self.project)
+        project['targets']['Persona']['sources'] = [
+            *module_sources,
+            *self.base['targets']['Persona']['sources'],
+        ]
+        self.assertEqual(apple_offline_project.SOURCES['Persona'],
+                         project['targets']['Persona']['sources'])
+        result = apple_offline_project.filtered(project)
+        self.assertEqual(result['targets']['Persona']['sources'],
+                         project['targets']['Persona']['sources'])
+        for source in module_sources:
+            self.assertIn(source, result['targets']['Persona']['sources'])
+        for name in ('PersonaTests', 'PersonaWidgets', 'PersonaNotify'):
+            self.assertEqual(result['targets'][name]['sources'], self.base['targets'][name]['sources'])
 
     def test_host_or_selection_changes_fail_closed(self):
         changed = deepcopy(self.project)

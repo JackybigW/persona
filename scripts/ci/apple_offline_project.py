@@ -35,6 +35,8 @@ PACKAGES = {
 }
 SOURCES = {
     "Persona": [
+        {"path": "Modules/ScreenShare", "excludes": ["**/*.md"]},
+        {"path": "Modules/Health", "excludes": ["**/*.md"]},
         {"path": "Persona", "excludes": ["**/*.md"]},
         {"path": "Shared"},
         {"path": "LiveActivity"},
