@@ -384,10 +384,12 @@ test('the system phone drawer paints its surface and selection without overridin
  assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });
 
-test('the compact status-area background follows the visible page and drawer', () => {
-  const Shell = new Function('Colors','Color','return '+stripTypeScriptTypes('class Shell {'+method('compactInsetSurface')+'}'))(
-    {grouped:'grouped',phoneDrawerSurface:'drawer'},{Transparent:'clear'});
+test('the compact system-area backgrounds follow the visible page and drawer', () => {
+  const Shell = new Function('Colors','Color','LayoutSafeAreaEdge','return '+stripTypeScriptTypes(
+    'class Shell {'+method('knowledgeSurface')+method('compactInsetEdges')+method('compactInsetSurface')+'}'))(
+    {grouped:'grouped',phoneDrawerSurface:'drawer'},{Transparent:'clear'},{TOP:'top',BOTTOM:'bottom'});
   const shell = Object.assign(new Shell(), {model:{profile:{id:'phone'},section:1},fullHeightPhone:()=>true,
+    environment:{keyboardHeightPx:0},
     phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,chatSearchShown:false,startSearchInAgents:false,
     projectPlace:()=>false,projectSearching:false,settingsKind:value=>value});
   for (const [page,param,expected] of [
@@ -397,7 +399,12 @@ test('the compact status-area background follows the visible page and drawer', (
     ['session','conversation','clear'],['','','grouped']]) {
     shell.phoneTop=page; shell.phoneParam=param;
     assert.equal(shell.compactInsetSurface(),expected);
+    const groupedToBottom = ['recordings','knowledge_meetings','knowledge'].includes(page) || page==='resources' && param==='knowledge';
+    assert.deepEqual(shell.compactInsetEdges(),groupedToBottom ? ['top','bottom'] : ['top']);
   }
+  shell.phoneTop='knowledge';shell.environment.keyboardHeightPx=810;
+  assert.deepEqual(shell.compactInsetEdges(),['top']);
+  shell.environment.keyboardHeightPx=0;shell.phoneTop='';
   shell.projectPlace=()=>true;
   assert.equal(shell.compactInsetSurface(),'clear');
   shell.projectSearching=true;
@@ -411,6 +418,6 @@ test('the compact status-area background follows the visible page and drawer', (
   shell.model.profile.id='phone';shell.fullHeightPhone=()=>false;
   assert.equal(shell.compactInsetSurface(),'clear');
   assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.compactInsetSurface\(\)\)/);
-  assert.match(source,/\.background\(this\.compactInsetSurface\(\),\s*\{ ignoresLayoutSafeAreaEdges: \[LayoutSafeAreaEdge\.TOP\] \}\)/);
+  assert.match(source,/\.background\(this\.compactInsetSurface\(\),\s*\{ ignoresLayoutSafeAreaEdges: this\.compactInsetEdges\(\) \}\)/);
   assert.doesNotMatch(source,/\.overlay\(this\.knowledge|@Builder knowledgeNavigationInset/);
 });
