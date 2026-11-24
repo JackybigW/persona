@@ -127,6 +127,7 @@ func TestUserCheckCancellationClosesTask(t *testing.T) {
 }
 
 func TestUserCheckFeedbackReturnsToTheSameAgent(t *testing.T) {
+	needsLarkLayer(t)
 	s, f, todo := acceptedForUserCheck(t)
 	a := askOf(s, todo.ID)
 	before := len(sentToAgent(f))
