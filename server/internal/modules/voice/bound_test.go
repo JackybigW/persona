@@ -1,6 +1,7 @@
 package voice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1137,60 +1138,38 @@ func tone(n int, amp int16) []byte {
 
 // What the extension says by itself waits while the user talks (the app's audio has their voice in it) and goes
 // userQuiet after they stop.
+//
+// The turn ends only once the call has heard the user: a turn already over when the call begins is read on the
+// hub link's first event, which can come before the first frame of the user's voice is heard, and then the answer is
+// rightly said at once (nobody is talking yet). That race failed this test under load (#14007).
 func TestSayWaitsForTheUserToStop(t *testing.T) {
 	setVar(t, &userQuiet, 400*time.Millisecond)
 	hub := agentHub(t)
 	id := voiceMessageID()
-	hub.add("a1", proto.Item{Role: "user", Kind: proto.KindText, Text: "跑一下全部测试", ClientMsgID: id},
-		proto.Item{Role: "assistant", Kind: proto.KindText, Text: "全部测试都过了。"})
-	hub.end("a1")
-	// A resumed answer may go before the microphone has sent anything. Let this transcript read finish during speech.
-	firstVoice := make(chan struct{})
-	var reading atomic.Bool
-	hub.onRead = func() {
-		reading.Store(true)
-		select {
-		case <-firstVoice:
-		case <-t.Context().Done():
-		}
-	}
+	hub.add("a1", proto.Item{Role: "user", Kind: proto.KindText, Text: "跑一下全部测试", ClientMsgID: id})
 	up := boundUpstream(t, false)
 	pl := testPlugin(t, liveProvider(up), hub.server(t))
 	a := dialApp(t, pl, boundStart("a1", map[string]any{"resume": map[string]any{"runs": []map[string]any{
 		{"id": id, "msg_ids": []string{id}, "task": "跑一下全部测试", "base_seq": 0, "started_at": stamp(time.Now().Add(-time.Minute)), "state": runSent},
 	}}}))
 	a.until(ofType("ready"))
-	waitFor(t, "the pending resumed transcript read", reading.Load)
-	pcm := tone(1600, 3000)
-	encoded := b64(pcm)
-	voiceFrame := func(f map[string]any) bool { return f["type"] == "session.input_audio.append" && f["audio"] == encoded }
-	var lastFrame time.Time
-	frames := time.NewTicker(100 * time.Millisecond)
-	defer frames.Stop()
-	for i := range 25 { // 2.5 seconds of PCM16 at 16 kHz
-		if i != 0 {
-			<-frames.C
-		}
-		lastFrame = time.Now()
-		if err := a.c.Write(t.Context(), websocket.MessageBinary, pcm); err != nil {
-			t.Fatal(err)
-		}
+	for i := range 25 { // 2.5 s of talking: the turn ends and its answer is read meanwhile
+		_ = a.c.Write(context.Background(), websocket.MessageBinary, tone(1600, 3000))
 		if i == 0 {
-			waitFor(t, "the first voiced frame at the upstream", func() bool { return up.count(voiceFrame) == 1 })
-			close(firstVoice)
+			// The service got the frame, so the call heard it first (readApp weighs a frame before it sends it on).
+			waitFor(t, "the user's voice reaching the service", func() bool { return framesOf(up, 3000) > 0 })
+			hub.add("a1", proto.Item{Role: "assistant", Kind: proto.KindText, Text: "全部测试都过了。"})
+			hub.end("a1")
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	if n := up.count(said); n != 0 {
 		t.Fatal("said while the user talked")
 	}
-	if got := content(up.nextMatch("the answer, said", said)); !strings.Contains(got, "全部测试都过了") {
-		t.Fatalf("wrong resumed answer: %s", got)
-	}
-	if took := time.Since(lastFrame); took < userQuiet {
+	stopped := time.Now()
+	received := requireSpokenAfterVoiceFrames(t, up, "全部测试都过了", tone(1600, 3000), 25)
+	if took := received.Sub(stopped); took < 250*time.Millisecond {
 		t.Fatalf("said %v after the user stopped", took)
-	}
-	if n := up.count(voiceFrame); n != 25 {
-		t.Fatalf("the upstream received %d voiced frames, want 25", n)
 	}
 }
 
