@@ -582,3 +582,55 @@ test('Health upload and suggestion controls subscribe to machine readiness on th
   assert.equal(workspace.canUploadReports(),false);assert.deepEqual(observed,['reportUploadAllowed']);
   observed.length=0;assert.equal(workspace.canStartConversation(),false);assert.deepEqual(observed,['reportUploadAllowed']);
 });
+
+test('retained Health gauge callbacks follow both metrics, authoritative goals, undo and disconnect', async () => {
+  const source = readFileSync(new URL('../entry/src/main/ets/components/HealthToday.ets', import.meta.url), 'utf8');
+  const methods = ['portion', 'amountLabel', 'progressRatio', 'goal', 'ratioLabel'].map(name => {
+    const start = source.indexOf('  private ' + name + '(');
+    const end = source.indexOf('\n  }', start);
+    assert.notEqual(start, -1);
+    assert.ok(end > start);
+    return source.slice(start, end + 4).replace('private ', '');
+  });
+  const leaves = source.slice(source.indexOf('@Builder ring('), source.indexOf('@Builder action('));
+  assert.match(leaves, /@Builder ring\(kind:string\)/);
+  for (const binding of ['Text(this.amountLabel(kind))', 'Progress({value:this.progressRatio(kind)', 'Text(this.goal(kind))', '.accessibilityDescription(this.ratioLabel(kind))']) {
+    assert.ok(leaves.includes(binding), binding);
+  }
+  const js = stripTypeScriptTypes('class View {\n' + methods.join('\n') + '\n}');
+  const labels = {intake_goal: '{goal} {unit}', intake_ratio: '{today}/{goal} {unit}'};
+  const View = Function('tr', js + '\nreturn View;')(key => labels[key]);
+  const env = intakeFixture();
+  const intake = env.workspace.intake;
+  await env.workspace.open(env.root);
+  const view = new View();
+  view.intake = intake;
+  view.words = new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format;
+  view.unit = kind => kind === 'water' ? 'ml' : 'g';
+  const retained = kind => () => [view.amountLabel(kind), view.progressRatio(kind), view.goal(kind), view.ratioLabel(kind)];
+  const water = retained('water');
+  const protein = retained('protein');
+  function expectAmounts(waterAmount, proteinAmount, waterGoal = 1650, proteinGoal = 42) {
+    assert.deepEqual(water(), [view.words(waterAmount), Math.min(1, waterAmount / waterGoal),
+      view.words(waterGoal) + ' ml', view.words(waterAmount) + '/' + view.words(waterGoal) + ' ml']);
+    assert.deepEqual(protein(), [view.words(proteinAmount), Math.min(1, proteinAmount / proteinGoal),
+      view.words(proteinGoal) + ' g', view.words(proteinAmount) + '/' + view.words(proteinGoal) + ' g']);
+  }
+  expectAmounts(100, 7.5);
+  for (const [kind, amount, waterTotal, proteinTotal] of [
+    ['water', undefined, 281.5, 7.5], ['water', 125.5, 225.5, 7.5], ['protein', 42.2, 100, 49.7]
+  ]) {
+    await intake.record(kind, amount);
+    expectAmounts(waterTotal, proteinTotal);
+    await intake.act(intake.actionId);
+    expectAmounts(100, 7.5);
+  }
+  // An external read may replace both goals as well as the two totals.
+  env.current.readOverride = () => ({...env.value(), water: {today: 1500, goal: 2400}, protein: {today: 28.1, goal: 75}});
+  await intake.refresh();
+  expectAmounts(1500, 28.1, 2400, 75);
+  assert.equal(env.writes.length, 6);
+  env.workspace.hide();
+  assert.deepEqual(water(), ['', 0, '', '']);
+  assert.deepEqual(protein(), ['', 0, '', '']);
+});
