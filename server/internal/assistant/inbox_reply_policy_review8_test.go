@@ -11,7 +11,7 @@ import (
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/connector"
-	"github.com/nwverse/persona/server/internal/feishubot"
+	"github.com/nwverse/persona/server/internal/modules/lark/feishubot"
 	"github.com/nwverse/persona/server/internal/rpc"
 )
 

@@ -244,7 +244,8 @@ func (b *inboxBook) followMerged(changed []*InboxItem, now time.Time) []*InboxIt
 		}
 		// noteReceived proves that this member advanced in this collection. The timestamp fallback preserves the direct
 		// followMerged callers' behavior for older/manual updates, but must not suppress a genuinely new, older member event.
-		if !advanced && !containsItem(changed, sv) && !it.UpdatedAt.After(baseline) {
+		// A survivor changing in the same round is not member advancement: migrated account adoption also changes both rows.
+		if !advanced && !it.UpdatedAt.After(baseline) {
 			continue
 		}
 		b.roundWrite(sv)

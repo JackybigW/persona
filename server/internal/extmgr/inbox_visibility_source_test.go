@@ -9,7 +9,7 @@ import (
 	"github.com/nwverse/persona/sdk/go/wire"
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/connector"
-	"github.com/nwverse/persona/server/internal/connector/imessage"
+	"github.com/nwverse/persona/server/internal/imessagewire"
 	"github.com/nwverse/persona/server/internal/subscriptions"
 )
 
@@ -149,7 +149,7 @@ func TestInboxVisibilitySelectedIMessageCannotEnableAI(t *testing.T) {
 	imessageNode(t, h, func(method string, _ json.RawMessage) (any, error) {
 		return json.RawMessage(`{"connectors":[{"id":"imessage","status":"ok"}]}`), nil
 	})
-	if err := h.addIMessage(imessage.Config{Machine: "mac"}); err != nil {
+	if err := h.addIMessage(imessagewire.Config{Machine: "mac"}); err != nil {
 		t.Fatal(err)
 	}
 	h.imessage().SetAI(false)
