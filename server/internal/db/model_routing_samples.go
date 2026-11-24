@@ -2,7 +2,10 @@ package db
 
 import (
 	"context"
+	"errors"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ModelRoutingSample is one accepted task round with the candidate it ran on (docs/assistant/model-profiles.md
@@ -52,4 +55,23 @@ func (d *DB) ModelRoutingSamples(ctx context.Context, tier string, since, now ti
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// LatestModelRouting is todoID's latest dispatch decision of the profile in use (an active row); nil when there is
+// none. A continuation or retry keeps the candidate it names (docs/assistant/model-profiles.md "Continuations keep the
+// candidate").
+func (d *DB) LatestModelRouting(ctx context.Context, todoID string) (*ModelRoutingRow, error) {
+	var r ModelRoutingRow
+	err := d.pool.QueryRow(ctx, `SELECT id, at, todo_id, plan_id, task_index, session_id, profile_id, active, tier,
+		candidate, of, launcher, model, effort, reason, detail FROM model_routing
+		WHERE todo_id = $1 AND active ORDER BY at DESC, id DESC LIMIT 1`, todoID).Scan(&r.ID, &r.At, &r.TodoID, &r.PlanID,
+		&r.TaskIndex, &r.SessionID, &r.ProfileID, &r.Active, &r.Tier, &r.Candidate, &r.Of, &r.Launcher, &r.Model, &r.Effort,
+		&r.Reason, &r.Detail)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }

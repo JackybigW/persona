@@ -246,3 +246,19 @@ func (s *Service) candidateTierStats(ctx context.Context, tier string, now time.
 	}
 	return tierStatsOf(samples)
 }
+
+// scoreTier scores a tier's candidates as pickTierCandidate judged them (in.Checks: Available is usable here), with
+// the headroom read once from the merged usage accounts and the tier's 14-day efficiency.
+func (s *Service) scoreTier(ctx context.Context, in tierRankInput) candidateChoice {
+	now := time.Now()
+	accounts := s.usageAccounts(ctx)
+	stats := s.candidateTierStats(ctx, in.Tier, now)
+	inputs := make([]scoreInput, len(in.List))
+	for i, c := range in.List {
+		usable := i < len(in.Checks) && in.Checks[i].Available
+		inputs[i] = scoreInput{Index: i, Launcher: c.Launcher, Model: c.Model, Usable: usable,
+			Headroom: s.candidateHeadroomAt(ctx, accounts, in.Machine, c.Launcher, c.Model, now),
+			Stats:    stats.By[candidateStatsKey{c.Launcher, c.Model}]}
+	}
+	return scoreCandidates(inputs, stats.Prior)
+}

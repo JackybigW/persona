@@ -262,5 +262,8 @@ func (s *Service) usageAccounts(ctx context.Context) []proto.UsageAccount {
 
 // candidateHeadroomAt is the headroom of launcher + model on machine, given the accounts read once for a dispatch.
 func (s *Service) candidateHeadroomAt(ctx context.Context, accounts []proto.UsageAccount, machine, launcher, model string, now time.Time) candidateHeadroom {
+	if len(accounts) == 0 {
+		return candidateHeadroom{} // nothing read: unknown, without looking up the provider
+	}
 	return headroomOf(accounts, s.headroomProvider(ctx, machine, launcher), model, now)
 }
