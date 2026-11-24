@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { t } from "../i18n";
 import { resolveTab } from "../lib/herdr-tree";
 import { useInboxBadge } from "../lib/inbox";
-import { useLarkHome } from "../lib/lark-chats";
+import { useLarkHome } from "../lib/lark-home";
 import { agentKey } from "../lib/pins";
 import { enabledNavItems, useModuleStates } from "../core/module-host";
 import { NAV_PAGES, extensionNavKey, sidebarActiveKey, sidebarRoute } from "../lib/persona-nav";

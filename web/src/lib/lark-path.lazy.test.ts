@@ -1,6 +1,6 @@
 /// <reference types="node" />
-// The Lark chat list (lark-chats.ts) is on the first screen and names an account in its requests. It needs only
-// larkPath: importing it from lark-accounts.ts put the accounts store and its words on every first screen.
+// The Lark chat list (lark-chats.ts) names an account in its requests. It needs only larkPath: importing it from
+// lark-accounts.ts put the accounts store and its words on every first screen while the list was there (lark-home.ts).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import startup from "../i18n/startup-namespaces.json";

@@ -11,42 +11,8 @@ import { larkPath } from "./lark-path";
 import { itemHeaders } from "./manager-choice";
 import { sameValue } from "./stable-lines";
 
-// ── Show messages on home ──────────────────────────────────────
-
-const HOME_KEY = "lark.homeMessages";
-const homeListeners = new Set<() => void>();
-
-export function getLarkHome(): boolean {
-  try {
-    return localStorage.getItem(HOME_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function setLarkHome(on: boolean) {
-  if (on) localStorage.setItem(HOME_KEY, "1");
-  else localStorage.removeItem(HOME_KEY);
-  homeListeners.forEach((l) => l());
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (e) => {
-    if (e.key === HOME_KEY || e.key === null) homeListeners.forEach((l) => l());
-  });
-}
-
-const subscribeHome = (l: () => void) => {
-  homeListeners.add(l);
-  return () => {
-    homeListeners.delete(l);
-  };
-};
-
-/** Whether this browser shows the "Messages" page (off unless turned on). */
-export function useLarkHome(): boolean {
-  return useSyncExternalStore(subscribeHome, getLarkHome, () => false);
-}
+// The "Show messages on home" switch is lark-home.ts, so the sidebar can read it without this list on the first screen.
+export { getLarkHome, setLarkHome, useLarkHome } from "./lark-home";
 
 // ── the conversations ────────────────────────────────────
 
