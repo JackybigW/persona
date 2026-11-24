@@ -23,11 +23,12 @@ import (
 // The dedicated-Assistant environment handoff (#14068) adds 114 B (254,206 B).
 // Claude Code plugin 0.3.0 permission / question / plan approval bridging (#14214) adds 6,363 B (260,569 B).
 // Antigravity multi-instance companion flags and --agy-dir env propagation (#14483) add 373 B (260,942 B).
+// An Antigravity CLI without session/set_mode: checks skip the switch and starts say to update agy (#14533), 149 B (261,091 B).
 // Following an Antigravity conversation past a rewind's abandoned export tail (#14297) adds 320 B; minifying the
-// code #12706 and #14014 left unminified in its runtime saves 512 B (260,942 B → 260,750 B).
+// code #12706 and #14014 left unminified in its runtime saves 511 B (261,091 B → 260,900 B).
 // Raise the budget only for code a runtime needs, never to embed the packages raw again.
 func TestDistBudget(t *testing.T) {
-	const budget = 260_942
+	const budget = 261_091
 	_, out := generateIntegrations(t)
 	entries, err := os.ReadDir(out)
 	if err != nil {
