@@ -1096,6 +1096,30 @@ client_named() {
 # Repository inputs that server tests read (the extra paths in server-test.yml's filter): a change to one also runs go
 # test on the packages that read it. Each regex matches the input as a path string or as filepath.Join elements.
 if [ "$ALL" -eq 0 ]; then
+  if [ "$EACH" -eq 1 ] && [ -f "$WORK/reader-plans.bin" ]; then
+    # The --each reader index was built from this frozen path list before any
+    # plan was made. Each record still belongs to exactly one path.
+    IFS= read -r -d '' _reader_path <&9 &&
+      IFS= read -r -d '' _server_named <&9 &&
+      IFS= read -r -d '' _runtime_named <&9 || {
+      echo "check-fast: the per-path reader index ended before $_each; no plan made" >&2
+      exit 2
+    }
+    if [ "$_reader_path" != "$CHANGED" ]; then
+      echo "check-fast: the per-path reader index names $_reader_path instead of $CHANGED; no plan made" >&2
+      exit 2
+    fi
+    while IFS= read -r _g; do
+      [ -n "$_g" ] && { arr_has "$_g" "${GO_GROUPS[@]:-}" || GO_GROUPS+=("$_g"); }
+    done <<< "$_server_named"
+    while IFS= read -r _pkg; do
+      [ -n "$_pkg" ] || continue
+      case "$_pkg" in
+        sdk/ts) SDKTS=1 ;;
+        *) _pkg=${_pkg#integrations/}; arr_has "$_pkg" "${INTEG[@]:-}" || INTEG+=("$_pkg") ;;
+      esac
+    done <<< "$_runtime_named"
+  else
   READER_RES=(); _client=0
   while IFS= read -r f; do
     _re=""
@@ -1127,6 +1151,7 @@ if [ "$ALL" -eq 0 ]; then
     done < <(LC_ALL=C awk -F '\t' 'NR == FNR { changed[$0] = 1; next } $1 in changed { print $2 }' \
                "$WORK/client-changed.txt" "$CLIENT_NAMED" | LC_ALL=C sort -u)
   fi
+  fi
 fi
 
 # runtime_named prints "<package> <path>" for each shared fixture or schema path (spec/..., schema/...) a file of an
@@ -1148,7 +1173,7 @@ runtime_named() {
 }
 
 # A changed spec/ or schema/ path also runs the runtime packages that read it: the path itself, or a directory it is in.
-if [ "$ALL" -eq 0 ] && printf '%s\n' "$CHANGED" | grep -qE '^(spec|schema)/'; then
+if [ "$ALL" -eq 0 ] && [ "$EACH" -eq 0 ] && printf '%s\n' "$CHANGED" | grep -qE '^(spec|schema)/'; then
   # Not in $( ): a failed search must stop this shell, not a subshell.
   if [ "$RUNTIME_NAMED_READ" -eq 0 ]; then
     runtime_named > "$WORK/runtime-named.txt"
@@ -1453,16 +1478,24 @@ if [ "$ALL" -eq 0 ]; then
   exec 8< "$WORK/table.txt"
 fi
 
-# --each: plan every listed path on its own. paths.py plans the web check of all of them in one scan (web_plan) and
-# lists the CI lanes of each in one run (plan_changes).
+# --each: plan every listed path on its own. paths.py plans the web check of all of them in one scan (web_plan),
+# lists the CI lanes of each in one run (plan_changes), and affected_drift.py's --reader-plan-each indexes the
+# tracked Go/runtime reader matches once. The per-path records below still feed the original plan_changes for each
+# path separately; ordinary diff execution retains the dynamic git-grep searches above.
 if [ "$EACH" -eq 1 ]; then
   printf '%s\n' "$CHANGED" > "$WORK/each.txt"
   if [ "$HAVE_PY" -eq 1 ] && [ -f scripts/ci/paths.py ]; then
+    if [ ! -f scripts/ci/affected_drift.py ]; then
+      echo "check-fast: --each needs scripts/ci/affected_drift.py for its indexed readers" >&2
+      exit 2
+    fi
     "$TIMEOUT_BIN" -k 5s 900 python3 scripts/ci/paths.py --web-plan-each < "$WORK/each.txt" > "$WORK/web-plans.txt" \
       || { echo "check-fast: python3 scripts/ci/paths.py --web-plan-each failed" >&2; exit 2; }
     "$TIMEOUT_BIN" -k 5s 900 python3 scripts/ci/paths.py --lanes-for-each < "$WORK/each.txt" > "$WORK/lanes-each.txt" \
       || { echo "check-fast: python3 scripts/ci/paths.py --lanes-for-each failed" >&2; exit 2; }
-    exec 6< "$WORK/web-plans.txt" 7< "$WORK/lanes-each.txt"
+    "$TIMEOUT_BIN" -k 5s 900 python3 scripts/ci/affected_drift.py --reader-plan-each < "$WORK/each.txt" \
+      > "$WORK/reader-plans.bin" || { echo "check-fast: the per-path reader index failed" >&2; exit 2; }
+    exec 6< "$WORK/web-plans.txt" 7< "$WORK/lanes-each.txt" 9< "$WORK/reader-plans.bin"
   fi
   while IFS= read -r _each <&5; do
     plan_reset

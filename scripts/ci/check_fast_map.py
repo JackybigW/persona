@@ -238,7 +238,8 @@ TABLE = (
         (("scripts/ci/web_module_boundary_ratchet.py",), ("scripts/ci/test_web_module_boundary_ratchet.py",)),
         (("scripts/test/go_trimpath.sh",), ("scripts/ci/test_ci.py", "scripts/test/test_check_fast_inputs.py")),
         (("scripts/heavy_slot.py",), ("scripts/test/test_check_fast_inputs.py", "scripts/test/test_android_sh.py")),
-        (("scripts/check-fast.sh", "scripts/test/check-fast.sh", "scripts/test/test_check_fast.py"),
+        (("scripts/check-fast.sh", "scripts/test/check-fast.sh", "scripts/test/test_check_fast.py",
+          "scripts/ci/affected_drift.py"),
          ("scripts/test/test_check_fast_guards.py", "scripts/test/test_check_fast_inputs.py",
           "scripts/test/test_check_fast_base.py", "scripts/test/test_check_fast_reports.py",
           "scripts/test/test_check_fast_callers.py")),
@@ -264,7 +265,7 @@ TABLE = (
     (
         (("scripts/ci/paths.py",), ("scripts/ci/test_ci.py", "scripts/test/test_check_fast_inputs.py",
                                     "scripts/ci/test_affected_drift.py")),
-        (("scripts/test/check-fast.sh",), ("scripts/ci/test_affected_drift.py",)),
+        (("scripts/test/check-fast.sh", "scripts/ci/affected_drift.py"), ("scripts/ci/test_affected_drift.py",)),
         (("scripts/ci/check_fast_map.py",),
          ("scripts/test/test_check_fast.py", "scripts/test/test_check_fast_guards.py",
           "scripts/test/test_check_fast_inputs.py", "scripts/test/test_check_fast_base.py",

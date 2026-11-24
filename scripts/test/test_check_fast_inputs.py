@@ -1061,6 +1061,8 @@ class CheckFastPlanTests(unittest.TestCase):
             with self.subTest(args=args):
                 self.check_fast(*args, stdin="server/go.mod\n", code=2)
         self.check_fast("--dry-run", "--changed-from", "missing.txt", code=2)
+        (self.repo / "scripts/ci/affected_drift.py").unlink()
+        self.check_fast("--dry-run", "--changed-from", "-", "--each", stdin="server/go.mod\n", code=2)
 
     def test_the_ci_lanes_it_runs_no_part_of_are_named(self):
         out = self.check_fast("--dry-run", "--changed-from", "-", stdin="android/app/build.gradle.kts\n")

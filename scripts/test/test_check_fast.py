@@ -33,7 +33,8 @@ FAKE_PYTHON = '#!/bin/sh\nprintf "%s|%s\\n" "$PWD" "$*" >> "$FAKE_PYTHON_LOG"\n'
 # compares it with the merge base (#12733), the partitioned Go runner (#12765) and the gofmt script its gofmt job runs
 # (#12894): what a throwaway repository needs to plan and report.
 CHECK_FAST_FILES = ("scripts/test/check-fast.sh", "scripts/ci/check_fast_map.py", "scripts/ci/check_fast_compare.py",
-                    "scripts/test/go_test_partitioned.py", "scripts/test/go_partitions.py", "scripts/ci/gofmt.py")
+                    "scripts/ci/affected_drift.py", "scripts/test/go_test_partitioned.py", "scripts/test/go_partitions.py",
+                    "scripts/ci/gofmt.py")
 # A go for the --compare-main tests: TestRed fails everywhere, TestMine only outside the merge base's checkout, where
 # go also hangs when FAKE_GO_HANG names a pid file; the repo-wide guards and go vet pass. Each call is logged with its
 # directory.
