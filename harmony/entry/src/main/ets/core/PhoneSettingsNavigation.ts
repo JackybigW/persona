@@ -38,7 +38,7 @@ export function phoneAppearancePage(page: string): boolean {
 export function phoneSettingsLink(page: string): string {
   if (page === 'phone_agent_layout') return 'phone_look_layout';
   if (phoneAppearancePage(page) || ['phone_agent_options','phone_language_options','phone_meeting_options','phone_knowledge_selection',
-    'phone_settings_advanced','phone_inbox_sources','phone_default_permissions','phone_hubs','about','storage','phone_pairing','phone_live_screen','phone_native_alarms','phone_health_reports'].includes(page)) return page;
+    'machines','phone_settings_advanced','phone_inbox_sources','phone_default_permissions','phone_hubs','about','storage','phone_pairing','phone_live_screen','phone_native_alarms','phone_health_reports'].includes(page)) return page;
   return '';
 }
 

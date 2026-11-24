@@ -142,6 +142,7 @@ export struct MachineDirectory {
   @Require @Param model: ClientModel;
   @Param active: boolean = true;
   @Param settingsScope: boolean = false;
+  @Param settingsHeading: boolean = false;
   @Param selected: ResourceRow | undefined = undefined;
   @Event onManage: () => void = () => {};
   @Event onMachine: (row: ResourceRow) => void = () => {};
@@ -800,6 +801,10 @@ export struct MachineDirectory {
           } else if (this.loading) ListItem() { LoadingProgress().width(28).height(28) }
           else ListItem() { Text(tr('machine_time_unavailable')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(Colors.secondary).padding(14) }
         } else {
+          if (this.settingsHeading) ListItem() {
+            Text(tr('phone_machines')).fontSize(34).maxFontScale(Tokens.interfaceScaleFor(34)).fontWeight(FontWeight.Bold)
+              .fontColor(Colors.ink).width('100%').accessibilityRole(AccessibilityRoleType.TITLE_BAR).id('machines.settings.title')
+          }
           if (this.cards.length) ListItem() { this.homeStatus() }
           if (this.shares.length) ListItem() { this.tokensCard() }
           if (!this.settingsScope && this.model.profiles.length > 1 && this.groupIDs.length) {
