@@ -82,7 +82,7 @@ import { formatDate, t } from "../i18n";
 import { groupTodosByProject, treeStateLabel, type TodoProjectGroup, type TreeState } from "../lib/todo-tree";
 import { cancellationReason, formatAgentSource, formatTodoContext } from "../lib/todo-details";
 import { useCachedDirectionNames } from "../lib/direction-names";
-import { directionTitle, groupsByDirection, useDirectionTree, type Direction } from "../lib/direction-tree";
+import { directionTitle, groupsByDirection, refreshDirectionTree, useDirectionTree, type Direction } from "../lib/direction-tree";
 import { DirectionCountsText } from "./DirectionMarks";
 import { FOLDED_SECTIONS, TRIAGE_SECTIONS, checksAsOpen, countsAsOpen, lastActivity, openMergePRs, sectionStartsFolded, supersededFailedStarts, triage, triageTodos, type OwnerNeed, type TriageGroup, type TriageResult, type TriageRule, type TriageSection } from "../lib/todo-triage";
 import { orderWaitGroups } from "../lib/task-wait";
@@ -104,6 +104,10 @@ import {
 } from "../lib/todo-list-filter";
 import type { MenuItem } from "../ui/menu-model";
 import { foldGoalTasks, type GoalFoldResult, type GoalSummary } from "../lib/todo-goal-fold";
+import { findSelectedBlocker, matchesSharedBlocker, parseSharedBlockers } from "../lib/todo-shared-blockers";
+import { SharedBlockersStrip } from "../components/SharedBlockersStrip";
+import { reorganizeDirectionOptions, reorganizeTodos, type TodoReorganizeRequest } from "../lib/todo-reorganize";
+import { BatchReorganizeBar } from "../components/BatchReorganizeBar";
 import { useRestoredTodos } from "../lib/todo-restore";
 import { stepsWords } from "../lib/todo-steps";
 import { useOwnerNeeds, useTodoLookup, useTodoMinute } from "../lib/todo-owner-needs";
@@ -313,6 +317,103 @@ export function TodosView({
   // Lightweight All / To-dos / Tasks filter gated behind todos_v2 (#14642); turning todos_v2 off reverts immediately.
   const [kindFilter, setKindFilter] = useState<TodoKindFilter>("all");
   const effectiveKindFilter: TodoKindFilter = todosV2 ? kindFilter : "all";
+  // Shared external blockers summary strip gated behind todos_v2 (#14728).
+  const rawSharedBlockers = useStore((s) => s.sharedBlockers);
+  const visibleTodoIds = useMemo(() => new Set(todos.map((td) => td.id)), [todos]);
+  const sharedBlockers = useMemo(
+    () => (todosV2 ? parseSharedBlockers(rawSharedBlockers, visibleTodoIds) : []),
+    [todosV2, rawSharedBlockers, visibleTodoIds],
+  );
+  const [selectedBlockerKey, setSelectedBlockerKey] = useState<string | null>(null);
+  const activeBlocker = useMemo(
+    () => (todosV2 ? findSelectedBlocker(selectedBlockerKey, sharedBlockers) : undefined),
+    [todosV2, selectedBlockerKey, sharedBlockers],
+  );
+  useEffect(() => {
+    if (selectedBlockerKey !== null && !activeBlocker) setSelectedBlockerKey(null);
+  }, [selectedBlockerKey, activeBlocker]);
+  // Batch reorganize mode strictly gated behind todos_v2 (#14758); turning todos_v2 off or leaving list mode resets immediately.
+  const [reorganizeMode, setReorganizeMode] = useState(false);
+  const [reorganizeSelected, setReorganizeSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [reorganizeSubmitting, setReorganizeSubmitting] = useState(false);
+  const [reorganizeError, setReorganizeError] = useState<string | null>(null);
+  const [reorganizeFeedback, setReorganizeFeedback] = useState<string | null>(null);
+
+  const exitReorganizeMode = useCallback(() => {
+    setReorganizeMode(false);
+    setReorganizeSelected(new Set());
+    setReorganizeError(null);
+    setReorganizeFeedback(null);
+  }, []);
+
+  const toggleReorganizeMode = useCallback(() => {
+    setReorganizeMode((on) => {
+      if (on) {
+        setReorganizeSelected(new Set());
+        setReorganizeError(null);
+        setReorganizeFeedback(null);
+        return false;
+      }
+      setReorganizeError(null);
+      setReorganizeFeedback(null);
+      return true;
+    });
+  }, []);
+
+  const toggleReorganizeSelect = useCallback((id: string) => {
+    setReorganizeSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setReorganizeError(null);
+  }, []);
+
+  const clearReorganizeSelection = useCallback(() => {
+    setReorganizeSelected(new Set());
+    setReorganizeError(null);
+  }, []);
+
+  // Prune deleted to-dos from selection.
+  useEffect(() => {
+    if (reorganizeSelected.size === 0) return;
+    let changed = false;
+    const next = new Set<string>();
+    for (const id of reorganizeSelected) {
+      if (visibleTodoIds.has(id)) next.add(id);
+      else changed = true;
+    }
+    if (changed) setReorganizeSelected(next);
+  }, [reorganizeSelected, visibleTodoIds]);
+
+  const applyReorganize = useCallback(async (req: TodoReorganizeRequest): Promise<boolean> => {
+    setReorganizeSubmitting(true);
+    setReorganizeError(null);
+    setReorganizeFeedback(null);
+    try {
+      const res = await reorganizeTodos(req);
+      await refreshTodos();
+      if (req.direction_id !== undefined) {
+        void refreshDirectionTree().catch(() => {});
+      }
+      setReorganizeSelected(new Set());
+      const updatedCount = res.updated?.length ?? req.ids.length;
+      const transferredCount = res.transferred_ids?.length ?? 0;
+      setReorganizeFeedback(
+        transferredCount > 0
+          ? t("todos.reorganize_success_transferred", { count: updatedCount, transferred: transferredCount })
+          : t("todos.reorganize_success", { count: updatedCount }),
+      );
+      return true;
+    } catch (e) {
+      setReorganizeError(errorText(e));
+      return false;
+    } finally {
+      setReorganizeSubmitting(false);
+    }
+  }, []);
+
   const chooseFilter = (f: TodoListFilter) => {
     setPref(FILTER_KEY, f);
     setListFilter(f);
@@ -321,7 +422,10 @@ export function TodosView({
     setPref(SORT_KEY, s);
     setListSort(s);
   };
-  const inFilter = (td: Todo) => matchesListFilter(td, listFilter, tick) && matchesKindFilter(td, effectiveKindFilter);
+  const inFilter = (td: Todo) =>
+    matchesListFilter(td, listFilter, tick) &&
+    matchesKindFilter(td, effectiveKindFilter) &&
+    matchesSharedBlocker(td, activeBlocker);
   // Filter by search query
   const matchesSearch = (t: Todo) => {
     const q = search.trim().toLowerCase();
@@ -344,7 +448,7 @@ export function TodosView({
       const r = orderWaitGroups(triageTodos(todos.filter(filterTodo), lookup, Date.now(), restored, { superseded }), Date.now());
       return fromView ? drawnFromView(r, Date.now(), restored) : r;
     },
-    [todos, lookup, restored, search, listFilter, effectiveKindFilter, superseded, tick, fromView],
+    [todos, lookup, restored, search, listFilter, effectiveKindFilter, activeBlocker, superseded, tick, fromView],
   );
   // Under todos_v2 (#14661), fold non-urgent `part_of` child tasks under their top-level parent goal while surfacing
   // `needs_you` / active-ask child blockers in `waiting`; when todos_v2 is off, keep `triaged` untouched.
@@ -357,7 +461,7 @@ export function TodosView({
       const r = orderWaitGroups(triageTodos(todos.filter(inFilter), lookup, Date.now(), restored, { superseded }), Date.now());
       return fromView ? drawnFromView(r, Date.now(), restored) : r;
     },
-    [todos, lookup, restored, search, listFilter, effectiveKindFilter, superseded, triaged, tick, fromView],
+    [todos, lookup, restored, search, listFilter, effectiveKindFilter, activeBlocker, superseded, triaged, tick, fromView],
   );
   // Where the status sections place each to-do the search and the filter leave: its row's section (a merged row takes
   // its most urgent member's), and whether it counts as open (countsAsOpen, the header's Not done, its own reading).
@@ -416,6 +520,30 @@ export function TodosView({
   // "By request": the requests graph takes the page's width, and the detail opens beside it only once a piece is picked
   const requestMode = grouping === "request";
   const leaderTitles = useStore((s) => s.assistant?.conversations);
+  const reorganizeDirections = useMemo(
+    () => (todosV2 ? reorganizeDirectionOptions(directionTree, leaderTitles, assistant?.leaders) : []),
+    [todosV2, directionTree, leaderTitles, assistant?.leaders],
+  );
+  const visibleReorganizeIds = useMemo(() => [...placed.row.keys()], [placed]);
+  const selectAllReorganize = useCallback(() => {
+    setReorganizeSelected(new Set(visibleReorganizeIds));
+    setReorganizeError(null);
+  }, [visibleReorganizeIds]);
+
+  // Immediately exit organize mode and clear selection if todos_v2 turns off or user leaves list view.
+  useEffect(() => {
+    if (reorganizeMode && (!todosV2 || calendarOn || requestMode)) {
+      exitReorganizeMode();
+    }
+  }, [reorganizeMode, todosV2, calendarOn, requestMode, exitReorganizeMode]);
+
+  const reorganizeProps = useMemo(
+    () =>
+      todosV2 && !calendarOn && !requestMode && reorganizeMode
+        ? { selectedIds: reorganizeSelected, onToggle: toggleReorganizeSelect }
+        : undefined,
+    [todosV2, calendarOn, requestMode, reorganizeMode, reorganizeSelected, toggleReorganizeSelect],
+  );
   // The tree lists only open to-dos (server/internal/assistant/direction_tree.go, the same countsAsOpen rule), so a
   // direction holds the open ones it lists: one ticked here leaves at once, not when the tree's push comes.
   const directionSections = useMemo(() => {
@@ -719,8 +847,8 @@ export function TodosView({
               <span className="text-[12px] whitespace-nowrap text-ink-3 max-sm:hidden" data-testid="todos-summary">
                 {/* one count in every grouping (audit item 12): open as countsAsOpen counts it, section counts as their
                     titles do, with Cancelled always separate from Done (#11085, #5732) */}
-                {t(listFilter === "all" && effectiveKindFilter === "all" ? "todos.summary_triage" : "todos.summary_filtered", {
-                  filter: [effectiveKindFilter !== "all" ? kindFilterLabel(effectiveKindFilter) : "", listFilter !== "all" ? filterLabel(listFilter) : ""].filter(Boolean).join(" · "),
+                {t(listFilter === "all" && effectiveKindFilter === "all" && !activeBlocker ? "todos.summary_triage" : "todos.summary_filtered", {
+                  filter: [effectiveKindFilter !== "all" ? kindFilterLabel(effectiveKindFilter) : "", listFilter !== "all" ? filterLabel(listFilter) : "", activeBlocker?.label ?? ""].filter(Boolean).join(" · "),
                   open: triageAll.open,
                   parked: sectionSize(triageAll, "parked"),
                   shelved: sectionSize(triageAll, "shelved"),
@@ -732,6 +860,23 @@ export function TodosView({
           </div>
         </div>
         <div className="flex items-center gap-2.5">
+          {todosV2 && !calendarOn && !requestMode && (
+            <button
+              type="button"
+              aria-pressed={reorganizeMode}
+              data-testid="todos-reorganize-toggle"
+              onClick={toggleReorganizeMode}
+              className={cx(
+                "touch-hit inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+                reorganizeMode
+                  ? "bg-accent-ink text-surface hover:brightness-105"
+                  : "bg-surface text-ink shadow-btn hover:bg-hover",
+              )}
+            >
+              <Icon name="layers" size={14} />
+              <span>{reorganizeMode ? t("todos.reorganize_done") : t("todos.reorganize_toggle")}</span>
+            </button>
+          )}
           <Segmented
             label={t("todos.view_label")}
             value={calendarOn ? "calendar" : "list"}
@@ -864,6 +1009,28 @@ export function TodosView({
               />
             </div>
           )}
+          {todosV2 && !requestMode && sharedBlockers.length > 0 && (
+            <SharedBlockersStrip
+              blockers={sharedBlockers}
+              selectedKey={activeBlocker?.key ?? null}
+              onSelect={setSelectedBlockerKey}
+            />
+          )}
+          {todosV2 && !requestMode && reorganizeMode && (
+            <BatchReorganizeBar
+              todos={todos}
+              visibleIds={visibleReorganizeIds}
+              selectedIds={reorganizeSelected}
+              directions={reorganizeDirections}
+              submitting={reorganizeSubmitting}
+              error={reorganizeError}
+              feedback={reorganizeFeedback}
+              onSelectAll={selectAllReorganize}
+              onClearSelection={clearReorganizeSelection}
+              onApply={applyReorganize}
+              onExit={exitReorganizeMode}
+            />
+          )}
 
           {/* List Content */}
           {requestMode ? (
@@ -911,6 +1078,18 @@ export function TodosView({
                     {t("todos.filter_empty_body")}
                   </Empty>
                 </>
+              ) : activeBlocker ? (
+                <Empty
+                  icon="alertCircle"
+                  title={t("todos.shared_blockers_empty")}
+                  action={
+                    <Button tone="secondary" onClick={() => setSelectedBlockerKey(null)}>
+                      {t("todos.shared_blockers_clear")}
+                    </Button>
+                  }
+                >
+                  {t("todos.filter_empty_body")}
+                </Empty>
               ) : effectiveKindFilter !== "all" ? (
                 <Empty
                   icon="todo"
@@ -951,6 +1130,7 @@ export function TodosView({
                       count={sectionSize(displayTriaged, sec)}
                       views={views}
                       goalFold={goalFold}
+                      reorganize={reorganizeProps}
                       selectedId={activeTodo?.id}
                       onSelect={openFromList}
                       onToggleDone={toggleDone}
@@ -972,6 +1152,7 @@ export function TodosView({
                         title={g.title}
                         todos={g.todos}
                         views={views}
+                        reorganize={reorganizeProps}
                         selectedId={activeTodo?.id}
                         onSelect={openFromList}
                         onToggleDone={toggleDone}
@@ -991,6 +1172,7 @@ export function TodosView({
                         groups={groups}
                         count={groups.reduce((n, g) => n + g.members.length, 0)}
                         views={views}
+                        reorganize={reorganizeProps}
                         selectedId={activeTodo?.id}
                         onSelect={openFromList}
                         onToggleDone={toggleDone}
@@ -1005,6 +1187,7 @@ export function TodosView({
                     key={g.key}
                     group={g}
                     views={sectionViews.get(g.key)!}
+                    reorganize={reorganizeProps}
                     selectedId={activeTodo?.id}
                     hideUnsortedHeader={todosV2}
                     onSelect={openFromList}
@@ -1037,6 +1220,8 @@ export function TodosView({
                             todo={todo}
                             view={views.get(todo.id)!}
                             selected={activeTodo?.id === todo.id}
+                            reorganizeSelected={reorganizeProps?.selectedIds.has(todo.id)}
+                            onToggleReorganize={reorganizeProps?.onToggle}
                             onSelect={openFromList}
                             onToggleDone={toggleDone}
                             onMenu={openRowMenu}
@@ -1060,7 +1245,17 @@ export function TodosView({
                     {showCancelled && (
                       <div className="flex flex-col gap-1 pt-1">
                         {filteredCancelled.map((todo) => (
-                          <TodoListItem key={todo.id} todo={todo} view={views.get(todo.id)!} selected={activeTodo?.id === todo.id} onSelect={openFromList} onToggleDone={toggleDone} onMenu={openRowMenu} />
+                          <TodoListItem
+                            key={todo.id}
+                            todo={todo}
+                            view={views.get(todo.id)!}
+                            selected={activeTodo?.id === todo.id}
+                            reorganizeSelected={reorganizeProps?.selectedIds.has(todo.id)}
+                            onToggleReorganize={reorganizeProps?.onToggle}
+                            onSelect={openFromList}
+                            onToggleDone={toggleDone}
+                            onMenu={openRowMenu}
+                          />
                         ))}
                       </div>
                     )}
@@ -1259,10 +1454,16 @@ function steadyViews(prev: ReadonlyMap<string, TodoRowView>, next: ReadonlyMap<s
 
 const TREE_TONE: Record<TreeState, string> = { needs_you: "text-attention", working: "text-orange", bg_waiting: "text-status-waiting", waiting: "text-ink-2", done: "text-ink-3" };
 
+interface TodoReorganizeSelection {
+  selectedIds: ReadonlySet<string>;
+  onToggle: (id: string) => void;
+}
+
 /** One project's open todos under a folding title with its Needs you / Working / Done (#2526). */
 const TodoProjectSection = memo(function TodoProjectSection({
   group,
   views,
+  reorganize,
   selectedId,
   hideUnsortedHeader,
   onSelect,
@@ -1273,6 +1474,7 @@ const TodoProjectSection = memo(function TodoProjectSection({
   group: TodoProjectGroup;
   /** Its todos' row views, in the same order as group.todos. */
   views: readonly TodoRowView[];
+  reorganize?: TodoReorganizeSelection;
   selectedId: string | undefined;
   /** Under todos_v2 (#14642), omit the noisy "Unsorted / 未归类" placeholder header for uncategorized rows. */
   hideUnsortedHeader?: boolean;
@@ -1293,6 +1495,8 @@ const TodoProjectSection = memo(function TodoProjectSection({
             todo={todo}
             view={views[i]}
             selected={selectedId === todo.id}
+            reorganizeSelected={reorganize?.selectedIds.has(todo.id)}
+            onToggleReorganize={reorganize?.onToggle}
             onSelect={onSelect}
             onToggleDone={onToggleDone}
             onSeen={onSeen}
@@ -1322,6 +1526,8 @@ const TodoProjectSection = memo(function TodoProjectSection({
               todo={todo}
               view={views[i]}
               selected={selectedId === todo.id}
+              reorganizeSelected={reorganize?.selectedIds.has(todo.id)}
+              onToggleReorganize={reorganize?.onToggle}
               onSelect={onSelect}
               onToggleDone={onToggleDone}
               onSeen={onSeen}
@@ -1404,6 +1610,7 @@ const TodoDirectionSection = memo(function TodoDirectionSection({
   title,
   todos,
   views,
+  reorganize,
   selectedId,
   onSelect,
   onToggleDone,
@@ -1413,6 +1620,7 @@ const TodoDirectionSection = memo(function TodoDirectionSection({
   title: string;
   todos: readonly Todo[];
   views: ReadonlyMap<string, TodoRowView>;
+  reorganize?: TodoReorganizeSelection;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   onToggleDone: (todo: Todo, open?: boolean) => void;
@@ -1432,7 +1640,17 @@ const TodoDirectionSection = memo(function TodoDirectionSection({
       {!folded && (
         <div className="flex flex-col gap-1 pl-2 pt-0.5">
           {todos.map((todo) => (
-            <TodoListItem key={todo.id} todo={todo} view={views.get(todo.id)!} selected={selectedId === todo.id} onSelect={onSelect} onToggleDone={onToggleDone} onMenu={onMenu} />
+            <TodoListItem
+              key={todo.id}
+              todo={todo}
+              view={views.get(todo.id)!}
+              selected={selectedId === todo.id}
+              reorganizeSelected={reorganize?.selectedIds.has(todo.id)}
+              onToggleReorganize={reorganize?.onToggle}
+              onSelect={onSelect}
+              onToggleDone={onToggleDone}
+              onMenu={onMenu}
+            />
           ))}
         </div>
       )}
@@ -1474,6 +1692,7 @@ const TodoTriageSection = memo(function TodoTriageSection({
   count,
   views,
   goalFold,
+  reorganize,
   selectedId,
   onSelect,
   onToggleDone,
@@ -1490,6 +1709,7 @@ const TodoTriageSection = memo(function TodoTriageSection({
   views: ReadonlyMap<string, TodoRowView>;
   /** Goal folding summary when todos_v2 is active (#14661); undefined otherwise. */
   goalFold?: GoalFoldResult;
+  reorganize?: TodoReorganizeSelection;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   onToggleDone: (todo: Todo, open?: boolean) => void;
@@ -1523,6 +1743,7 @@ const TodoTriageSection = memo(function TodoTriageSection({
               views={views}
               goalInfo={goalFold?.goals.get(g.lead.id)}
               surfacedParent={goalFold?.surfacedParent}
+              reorganize={reorganize}
               selectedId={selectedId}
               onSelect={onSelect}
               onToggleDone={onToggleDone}
@@ -1552,6 +1773,7 @@ function TodoTriageRow({
   views,
   goalInfo,
   surfacedParent,
+  reorganize,
   selectedId,
   onSelect,
   onToggleDone,
@@ -1563,6 +1785,7 @@ function TodoTriageRow({
   views: ReadonlyMap<string, TodoRowView>;
   goalInfo?: GoalSummary;
   surfacedParent?: ReadonlyMap<string, Todo>;
+  reorganize?: TodoReorganizeSelection;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   onToggleDone: (todo: Todo, open?: boolean) => void;
@@ -1635,6 +1858,8 @@ function TodoTriageRow({
       todo={td}
       view={views.get(td.id)!}
       selected={selectedId === td.id}
+      reorganizeSelected={reorganize?.selectedIds.has(td.id)}
+      onToggleReorganize={reorganize?.onToggle}
       onSelect={onSelect}
       onToggleDone={onToggleDone}
       section={group.triage.get(td.id)?.section}
@@ -1670,6 +1895,8 @@ function TodoTriageRow({
               todo={child.todo}
               view={views.get(child.todo.id)!}
               selected={selectedId === child.todo.id}
+              reorganizeSelected={reorganize?.selectedIds.has(child.todo.id)}
+              onToggleReorganize={reorganize?.onToggle}
               onSelect={onSelect}
               onToggleDone={onToggleDone}
               section={child.section}
@@ -1867,6 +2094,8 @@ const TodoListItem = memo(function TodoListItem({
   todo,
   view,
   selected,
+  reorganizeSelected,
+  onToggleReorganize,
   onSelect,
   onToggleDone,
   section,
@@ -1879,6 +2108,9 @@ const TodoListItem = memo(function TodoListItem({
   todo: Todo;
   view: TodoRowView;
   selected: boolean;
+  /** Under todos_v2 (#14758), whether this row is selected in batch reorganize mode. */
+  reorganizeSelected?: boolean;
+  onToggleReorganize?: (id: string) => void;
   onSelect: (id: string) => void;
   onToggleDone: (todo: Todo, open?: boolean) => void;
   /** Its status section (#3156): a PR to merge shows its link, a shelved one its Restore, a Just finished one Got it. */
@@ -1933,6 +2165,20 @@ const TodoListItem = memo(function TodoListItem({
         selected ? "bg-accent-tint/70" : "hover:bg-hover",
       )}
     >
+      {/* Batch reorganize selection checkbox under todos_v2 (#14758) */}
+      {onToggleReorganize && (
+        <input
+          type="checkbox"
+          data-testid="todo-reorganize-checkbox"
+          data-todo-id={todo.id}
+          aria-label={t("todos.reorganize_select_item", { title: todo.title })}
+          checked={Boolean(reorganizeSelected)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onChange={() => onToggleReorganize(todo.id)}
+          className="mt-0.5 size-4 shrink-0 cursor-pointer accent-accent"
+        />
+      )}
       {/* Checkbox button: touch-hit makes the 16px circle a 44px target on touch, its own (no row underneath) */}
       <button
         type="button"
