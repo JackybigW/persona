@@ -162,7 +162,7 @@ func (s *Service) modelProfilesView(ctx context.Context) (ModelProfilesView, err
 		at, by := state.At, state.By
 		v.At, v.By = &at, &by
 	}
-	trials := s.modelProfileTrialSummaries(ctx, time.Now().UTC())
+	trials, trialsKnown := s.modelProfileTrialSummaries(ctx, time.Now().UTC())
 	for _, p := range ps.Profiles {
 		p.Purposes, err = s.normalizeProfilePurposes(ctx, p.Purposes, records, stored)
 		if err != nil {
@@ -170,7 +170,7 @@ func (s *Service) modelProfilesView(ctx context.Context) (ModelProfilesView, err
 		}
 		active := p.ID == state.Active
 		pv := ModelProfileView{ModelProfile: p, Active: active, Changes: modelProfileChanges(p, normalizedRecords, stored)}
-		if !active {
+		if !active && trialsKnown {
 			t := trials[p.ID]
 			pv.Trial = &ModelProfileTrial{Days: modelProfileTrialDays, Dispatches: t.Dispatches, WouldSwitch: t.WouldSwitch}
 		}

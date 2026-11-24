@@ -60,11 +60,23 @@ func (m *memStore) ModelRoutingTrialSummaries(_ context.Context, since time.Time
 	return out, nil
 }
 
-// trialTestStore wraps memStore with programmable failure on trial writes and optional 14-day efficiency samples.
+// Trials run on their own goroutine in production; the package's tests run them in place so rows are there to read.
+func init() { startTrial = func(f func()) { f() } }
+
+// trialTestStore wraps memStore with programmable failure on trial writes and summaries, and optional 14-day
+// efficiency samples.
 type trialTestStore struct {
 	*memStore
 	failTrialWrite error
+	failSummaries  error
 	samples        map[string][]db.ModelRoutingSample
+}
+
+func (ts *trialTestStore) ModelRoutingTrialSummaries(ctx context.Context, since time.Time) ([]db.ModelRoutingTrialSummary, error) {
+	if ts.failSummaries != nil {
+		return nil, ts.failSummaries
+	}
+	return ts.memStore.ModelRoutingTrialSummaries(ctx, since)
 }
 
 func (ts *trialTestStore) PutModelRouting(ctx context.Context, r db.ModelRoutingRow) error {
@@ -376,11 +388,13 @@ func TestModelProfileCandidatesEndpoint(t *testing.T) {
 	// Candidate 0: fresh claude -> known=true, ~17%, stale=false, 3 samples (p50=20, first_pass=2/3).
 	if dev[0].Index != 0 || dev[0].Launcher != "gw-claude" || dev[0].Model != "m-a" ||
 		!dev[0].Headroom.Known || dev[0].Headroom.Stale || math.Abs(dev[0].Headroom.Percent-17.0) > 0.2 ||
-		dev[0].Stats.N != 3 || dev[0].Stats.MinutesP50 != 20 || math.Abs(dev[0].Stats.FirstPass-2.0/3.0) > 1e-6 {
+		dev[0].Stats.N != 3 || dev[0].Stats.MinutesP50 == nil || *dev[0].Stats.MinutesP50 != 20 ||
+		dev[0].Stats.FirstPass == nil || math.Abs(*dev[0].Stats.FirstPass-2.0/3.0) > 1e-6 {
 		t.Fatalf("candidate 0 = %+v", dev[0])
 	}
 	// Candidate 1: stale codex -> known=false, percent=0, stale=true (never shown as full).
-	if dev[1].Index != 1 || dev[1].Launcher != "gw-codex" || dev[1].Headroom.Known || !dev[1].Headroom.Stale || dev[1].Headroom.Percent != 0 || dev[1].Stats.N != 0 {
+	if dev[1].Index != 1 || dev[1].Launcher != "gw-codex" || dev[1].Headroom.Known || !dev[1].Headroom.Stale || dev[1].Headroom.Percent != 0 || dev[1].Stats.N != 0 ||
+		dev[1].Stats.MinutesP50 != nil || dev[1].Stats.FirstPass != nil {
 		t.Fatalf("candidate 1 = %+v", dev[1])
 	}
 	// Candidate 2: unreadable provider -> known=false, percent=0, stale=false (never shown as full).
@@ -397,5 +411,85 @@ func TestModelProfileCandidatesRouteRegistered(t *testing.T) {
 	s, _, _ := modelService(t)
 	if !slices.Contains(s.Routes(), route) {
 		t.Fatalf("Service.Routes missing %q", route)
+	}
+}
+
+// A dispatch does not wait for its trial: the active row is written, and the trial runs on its own (#14702).
+func TestDispatchDoesNotWaitForTheTrial(t *testing.T) {
+	var pending []func()
+	startTrial = func(f func()) { pending = append(pending, f) }
+	t.Cleanup(func() { startTrial = func(f func()) { f() } })
+	f := newFakeHub().withMachine()
+	f.launcherList = []proto.Launcher{{Name: "claude"}, {Name: "fast"}}
+	st := &memStore{}
+	s := newServiceOn(t, f, st)
+	ctx := context.Background()
+	ps := modelProfiles{Revision: 1, Profiles: []ModelProfile{
+		{ID: "perf", Name: "Perf", Tiers: map[string]ModelTier{"dev": {Launcher: "claude", Model: "m-perf"}}},
+		{ID: "econ", Name: "Econ", Tiers: map[string]ModelTier{"dev": {Launcher: "fast", Model: "m-econ"}}},
+	}}
+	if err := st.PutSetting(ctx, modelProfilesKey, ps); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.PutSetting(ctx, modelProfileStateKey, modelProfileState{Active: "perf"}); err != nil {
+		t.Fatal(err)
+	}
+	pick, err := s.pickTierCandidate(ctx, "dev", tierFacts{Machine: "server"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := modelRoutingOf(pick, "server")
+	row.SessionID = "sess-async"
+	s.recordModelRouting(ctx, row)
+	if rows := st.modelRoutings(); len(rows) != 1 || !rows[0].Active || len(pending) != 1 {
+		t.Fatalf("before the trial runs: rows %+v, pending trials %d; want the active row only and one trial queued", rows, len(pending))
+	}
+	pending[0]()
+	if rows := st.modelRoutings(); len(rows) != 2 || rows[1].Active || rows[1].ProfileID != "econ" || rows[1].SessionID != "sess-async" {
+		t.Fatalf("after the trial: %+v", rows)
+	}
+}
+
+// A trial also finds another profile's tier by the active tier's aliases, not only by its own name (#14702).
+func TestTrialMatchesTheActiveTiersAliases(t *testing.T) {
+	f := newFakeHub().withMachine()
+	f.launcherList = []proto.Launcher{{Name: "claude"}, {Name: "fast"}}
+	st := &memStore{}
+	s := newServiceOn(t, f, st)
+	ctx := context.Background()
+	ps := modelProfiles{Revision: 1, Profiles: []ModelProfile{
+		{ID: "perf", Name: "Perf", Tiers: map[string]ModelTier{"review": {Launcher: "claude", Model: "m-perf", Aliases: []string{"check"}}}},
+		{ID: "old", Name: "Old", Tiers: map[string]ModelTier{"check": {Launcher: "fast", Model: "m-old"}}},
+	}}
+	if err := st.PutSetting(ctx, modelProfilesKey, ps); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.PutSetting(ctx, modelProfileStateKey, modelProfileState{Active: "perf"}); err != nil {
+		t.Fatal(err)
+	}
+	pick, err := s.pickTierCandidate(ctx, "check", tierFacts{Machine: "server"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := modelRoutingOf(pick, "server")
+	row.SessionID = "sess-alias"
+	s.recordModelRouting(ctx, row)
+	rows := st.modelRoutings()
+	if len(rows) != 2 || rows[0].Tier != "review" || rows[1].ProfileID != "old" || rows[1].Tier != "check" || rows[1].Model != "m-old" {
+		t.Fatalf("rows = %+v, want the active review row and a trial on old's check tier", rows)
+	}
+}
+
+// When the trial counts cannot be read, no profile shows a trial rather than a wrong 0 (#14702).
+func TestTrialSummariesUnknownWhenTheStoreFails(t *testing.T) {
+	ts := &trialTestStore{memStore: &memStore{}, failSummaries: errors.New("db down")}
+	s := newServiceOn(t, newFakeHub(), ts)
+	if got, ok := s.modelProfileTrialSummaries(context.Background(), time.Now().UTC()); ok || got != nil {
+		t.Fatalf("summaries = %v, %v; want nil, false", got, ok)
+	}
+	ok := &trialTestStore{memStore: &memStore{}}
+	s = newServiceOn(t, newFakeHub(), ok)
+	if got, known := s.modelProfileTrialSummaries(context.Background(), time.Now().UTC()); !known || len(got) != 0 {
+		t.Fatalf("summaries on an empty store = %v, %v; want empty, true", got, known)
 	}
 }

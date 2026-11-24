@@ -86,12 +86,12 @@ A tier with one candidate keeps it whatever the rule says: there is nothing else
 
 ### Trial of inactive profiles (#14702)
 
-To try a profile before switching to it, copy the active profile, add ordered candidates to its tiers, and leave it inactive. On every dispatch that records an active `model_routing` row, the manager also evaluates each inactive profile (up to 20, in stable ID order) within the same 5-second recording budget: it looks up the same tier by name or alias (`lookupTier`), runs the same candidate pick against that profile without starting anything, and writes a `model_routing` row with `active = false` carrying the same to-do, plan task, session, tier, chosen candidate, reason, and per-candidate scores/headroom detail. A profile without that tier writes nothing. Trial errors are logged only and never fail, delay beyond the recording budget, or alter the real start.
+To try a profile before switching to it, copy the active profile, add ordered candidates to its tiers, and leave it inactive. On every dispatch that records an active `model_routing` row, the manager also evaluates each inactive profile (up to 20, in stable ID order) after the active row is written, on its own goroutine and its own 5-second budget, so the dispatch never waits for it: it looks up the same tier by the active tier's name or one of its aliases, matched against each profile's tier names and aliases (`lookupTier`), runs the same candidate pick against that profile without starting anything, and writes a `model_routing` row with `active = false` carrying the same to-do, plan task, session, tier, chosen candidate, reason, and per-candidate scores/headroom detail. A profile without that tier writes nothing. Trial errors are logged only and never fail, delay or alter the real start. The trial picks as for a first start: it does not apply the continuation rule that keeps the previous Agent's candidate.
 
-`GET /api/v1/model-profiles` adds `trial: {days: 7, dispatches, would_switch}` to every profile not in use and omits `trial` on the active profile:
+`GET /api/v1/model-profiles` adds `trial: {days: 7, dispatches, would_switch}` to every profile not in use and omits `trial` on the active profile (and on every profile when the counts cannot be read, rather than showing 0):
 
 - **`dispatches`**: distinct dispatch decisions in the last 7 days that have a trial (`active = false`) row for that profile.
-- **`would_switch`**: the subset of those dispatch decisions where the trial row's `launcher` and `model` differ from the active (`active = true`) row recorded for the same dispatch decision.
+- **`would_switch`**: the subset of those dispatch decisions where the trial row's `launcher` or `model` (either one) differs from the active (`active = true`) row of the same dispatch decision. A decision is matched by its session when it has one, otherwise by the same to-do, plan task and recording time.
 
 ### Candidate status (#14702)
 
@@ -114,7 +114,7 @@ To try a profile before switching to it, copy the active profile, add ordered ca
 }
 ```
 
-When a candidate's quota cannot be read or all matching accounts are stale, `headroom.known` is `false` (and `headroom.stale` is `true` when accounts were present but out of date); unknown headroom is never reported as full. `recovers_at` is included only when `known` is `true` and headroom is at or below zero. An unknown profile ID returns 404.
+When a candidate's quota cannot be read or all matching accounts are stale, `headroom.known` is `false` (and `headroom.stale` is `true` when accounts were present but out of date); unknown headroom is never reported as full. `recovers_at` is included only when `known` is `true` and headroom is at or below zero. `stats.minutes_p50` and `stats.first_pass` are present exactly when `stats.n > 0`, so a measured 0 is still sent. Headroom is read for the hub's own machine. An unknown profile ID returns 404.
 
 **Aliases** are older names a tier still answers to. When a profile is read, the two tiers Persona seeded under strength names are renamed by the kind of work: `strong` becomes `core` and `standard` becomes `dev`, with the old name kept as an alias and nothing else changed; the next save stores it. A tier you made yourself keeps its name, as does a seeded one whose new name is already taken. So a stored plan task, a start-defaults preset or an older client naming `strong` or `standard` resolves to the same launcher and model as before. Within a profile an alias is a valid tier name that is neither another tier's name nor another tier's alias. Renaming a tier yourself does not add an alias; list the old name in `aliases` if anything still names it. History entries keep the names they were written with.
 
