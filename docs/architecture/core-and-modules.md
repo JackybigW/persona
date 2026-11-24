@@ -164,6 +164,17 @@ Persona Core is a product on its own: a hub built without any module starts, ser
 
 `persona-hub` has no module in it, so both of its builds are the same size.
 
+#### CI coverage across source checkouts
+
+The normal `node` job selects the following checks from the module directories in the checkout.
+
+| Module group | Checks |
+| --- | --- |
+| **The node's modules** | When any of `office`, `screen-share` or `phone-extra` is present, build the node for Windows as well as the host, and test the device commands and ports with the modules excluded. |
+| **Recording** | When `recording` is present, build the server and test the recording host and the assistant's meeting and transcription paths in core-only and recording-excluded builds. |
+
+Every registered module also gets an individual build from its manifest in the `build` job.
+
 ### Provider seams
 
 Some modules are not code the manager runs but a built-in extension's program: `volc` is `personad volc` and `voice`
