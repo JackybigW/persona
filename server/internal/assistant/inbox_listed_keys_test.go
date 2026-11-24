@@ -155,6 +155,18 @@ func TestListedKeys(t *testing.T) {
 	}
 }
 
+func TestInboxVisibilityReview12ListedRedactsVisibilityContentRefs(t *testing.T) {
+	refs := []InboxMergeRef{{ID: "synthetic-private-member", Source: "synthetic-private", Title: "SYNTHETIC-PRIVATE-TITLE"}}
+	it := &InboxItem{ID: "synthetic-survivor", VisibilityContentRefs: refs}
+	listed := it.listed()
+	if listed.VisibilityContentRefs != nil {
+		t.Errorf("listed() exposed visibility content refs: %+v", listed.VisibilityContentRefs)
+	}
+	if len(it.VisibilityContentRefs) != 1 || it.VisibilityContentRefs[0] != refs[0] {
+		t.Errorf("listed() changed the stored item's visibility content refs: %+v", it.VisibilityContentRefs)
+	}
+}
+
 // filledInboxItem is an item with every exported field set, at every depth (TestListedKeys), plus the few values
 // listed() reads to decide what it writes.
 func filledInboxItem(t *testing.T) *InboxItem {

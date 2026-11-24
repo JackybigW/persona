@@ -269,6 +269,8 @@ func TestInboxVisibilityReview12AmbiguousChatIdentifiersFailClosed(t *testing.T)
 		want bool
 	}{
 		{name: "allowed then excluded", item: newItem(chat("synthetic-allowed"), chat("synthetic-private")), cfg: cfg, want: true},
+		{name: "allowed then empty", item: newItem(chat("synthetic-allowed"), chat(" \t ")), cfg: cfg, want: true},
+		{name: "empty then allowed", item: newItem(chat(" \t "), chat("synthetic-allowed")), cfg: cfg, want: true},
 		{name: "excluded then allowed", item: newItem(chat("synthetic-private"), chat("synthetic-allowed")), cfg: cfg, want: true},
 		{name: "conflicting unlisted ids", item: newItem(chat("synthetic-one"), chat("synthetic-two")), cfg: cfg, want: true},
 		{name: "whitespace only id", item: newItem(chat(" \t ")), cfg: cfg, want: true},
