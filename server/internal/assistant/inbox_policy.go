@@ -90,16 +90,12 @@ func (s *Service) managerOriginDecision(ctx context.Context, machine, session, s
 // inboxModelRefusal applies only to model/node tool entry points, never runTool. Owner-confirmed reply, Agent and to-do
 // execution deliberately takes the latter path as the owner's action.
 func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, originHint, name string) (proto.ToolResult, bool) {
+	originUnknown := false
 	if originHint != OriginInbox {
 		b := &s.origins
 		b.mu.Lock()
-		known := s.originsLocked(ctx)
+		originUnknown = !s.originsLocked(ctx)
 		b.mu.Unlock()
-		if !known {
-			// A potentially Inbox-originated session cannot use a source_only allowlist while its origin is unknown. The
-			// profile restricts an established Inbox conversation; it is not positive evidence that this is one.
-			return proto.TextResult("The conversation origin is temporarily unavailable; no source or other tool read was performed.", true), true
-		}
 	}
 	if !s.isInboxModelCall(ctx, machine, session, originHint) {
 		return proto.ToolResult{}, false
@@ -109,6 +105,11 @@ func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, origi
 		return proto.TextResult("Inbox read policy is temporarily unavailable; no source or other tool read was performed.", true), true
 	}
 	agentCfg := fullCfg.Agent
+	if originUnknown && agentCfg.ReadProfile != "" {
+		// A potentially Inbox-originated session cannot use a configured read-profile allowlist while its origin is
+		// unknown. The default profile still admits only the ordinary Inbox read-only tools below, with outward filtering.
+		return proto.TextResult("The conversation origin is temporarily unavailable; no source or other tool read was performed.", true), true
+	}
 	if agentCfg.ReadProfile != "" {
 		// Suggestions never read another source. Every other tool is denied for an unknown profile; source_only admits
 		// only an explicitly named connector tool whose registered interface is read-only.

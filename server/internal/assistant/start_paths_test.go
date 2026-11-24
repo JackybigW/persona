@@ -58,7 +58,7 @@ var startOptOuts = map[string]string{
 	"justMeSend":                 "a meeting's Just me turn in the main conversation: the main conversation is the supervisor",
 	"sendHandoff":                "the inbox's hand-off into the main conversation: the main conversation is the supervisor",
 	"followupSend":               "a meeting follow-up conversation: the meeting page owns it and the user reads it there",
-	"startInboxAgent":            "an inbox event's agent: its result is the draft in the inbox, which the user reviews",
+	"startInboxAgentAuthorized":  "an inbox event's agent: its result is the draft in the inbox, which the user reviews",
 	"runTask":                    "a scheduled task's own conversation: its runs report through notify_user, and the schedule follows them",
 	"runAutoReview":              "an independent reviewer of a supervised task: the review is part of that task's supervision",
 	"startSessionReview":         "an explicit independent reviewer: its source session's owner asked for it and answers its result card",

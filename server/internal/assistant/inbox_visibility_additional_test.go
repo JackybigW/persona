@@ -145,10 +145,10 @@ func TestInboxVisibilityLegacyMirroredFinalSend(t *testing.T) {
 	if g == nil {
 		t.Fatal("test setup did not expose an old-client mirrored draft")
 	}
-	// The first fresh read authorizes the edit-veto preflight. Exclusion arrives only at the final fresh read, so the
-	// earlier visibility gate cannot mask the legacy mirror's own final-send authorization in this test.
+	// The route, pre-send policy snapshot and edit veto each take a fresh read first. Exclusion arrives only at the
+	// final fresh read, so none of those earlier gates can mask the legacy mirror's own final-send authorization.
 	h.in.mu.Lock()
-	h.in.configQueue = []assistantwire.InboxConfig{{}, {Visibility: visibilityTestConfig()}}
+	h.in.configQueue = []assistantwire.InboxConfig{{}, {}, {}, {Visibility: visibilityTestConfig()}}
 	h.in.mu.Unlock()
 	if _, err := h.replyInboxChecked(t.Context(), it.ID, g.Text, "", false, nil, nil); err == nil {
 		t.Fatal("an old-client mirrored reply bypassed the final fresh visibility gate")
@@ -214,6 +214,11 @@ func TestInboxVisibilityTaskNotificationsFailClosed(t *testing.T) {
 }
 
 func TestInboxVisibilityPendingDeliveryAfterQuarantineRollback(t *testing.T) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("quarantine rollback/pending-delivery authorization panicked: %v", recovered)
+		}
+	}()
 	h, _, it := handledHub(t)
 	it.Source = "lark"
 	it.Lark.FeedID = "synthetic-private"

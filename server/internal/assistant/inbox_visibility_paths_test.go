@@ -47,6 +47,10 @@ func TestInboxVisibilityOriginStoreFailureFailsClosed(t *testing.T) {
 	if !res.IsError || len(ext.calls) != 0 {
 		t.Fatalf("origin-store failure bypassed Inbox policy: %+v, connector calls=%v", res, ext.calls)
 	}
+	res = h.mcpCallWithOrigin(t.Context(), "server", "s1", "kb_search", json.RawMessage(`{"query":"ordinary"}`), true, "")
+	if !res.IsError {
+		t.Fatalf("origin-store failure allowed a KB read under source_only: %+v", res)
+	}
 }
 
 func TestSourceOnlyConfigFailureFailsClosed(t *testing.T) {
