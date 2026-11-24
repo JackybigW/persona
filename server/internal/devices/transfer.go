@@ -167,8 +167,10 @@ func (d *Devices) startTransfer(ctx context.Context, from, to *Machine, src prot
 	d.logf("transfer %s: %s → %s, %d bytes", t.st.ID, from.cfg.ID, to.cfg.ID, info.Size)
 	d.pushTransfer(t, true)
 	reserved = false // runTransfer releases it when the transfer ends
+	// Return the state accepted by this POST; a short transfer may finish as soon as its goroutine starts.
+	accepted := t.snapshot()
 	go d.runTransfer(run, t, from, to, proto.FileChunkRequest{Path: info.Path, Cwd: src.Cwd, Revision: info.Revision}, begin.UploadID)
-	return t.snapshot(), nil
+	return accepted, nil
 }
 
 // transferParent is what every transfer is a child of: the manager's own context, cancelled when it stops.
