@@ -287,6 +287,13 @@ func (s *Service) startTaskAgent(ctx context.Context, t *PlanTask, retry bool) (
 	// model_routing row once the Agent started.
 	t.Dispatch, t.tierChoice = nil, tierSlot.pick
 	if tierSlot.pick != nil {
+		if t.startFilled.preset {
+			// A start-defaults policy chose this tier for this start only: the next Agent rolls again, it keeps nothing.
+			if tierSlot.pick.Args == nil {
+				tierSlot.pick.Args = map[string]any{}
+			}
+			tierSlot.pick.Args[dispatchPresetArg] = true
+		}
 		t.Dispatch = tierSlot.pick.dispatch()
 		if k := tierSlot.keep; k != nil && k.Prev.Launcher == t.Dispatch.Launcher && k.Prev.Model == t.Dispatch.Model {
 			t.Dispatch.Failed = k.Prev.Failed // the same candidate again: its failed starts in a row go on counting
