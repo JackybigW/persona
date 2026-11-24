@@ -341,6 +341,104 @@ test('archive accepts only a listed Health conversation owned by the roster defa
   assert.equal(workspace.canArchiveConversation(healthRow), false);
 });
 
+test('Health archive dispatches once and reconciles the same owner’s three remaining conversations', async () => {
+  const original = ['one', 'two', 'three', 'four'].map(id => chat(id));
+  const { workspace, child } = await opened({ conversations: original });
+  const state = child().state;
+  const target = workspace.conversations.find(row => row.id === 'two');
+  const arrived = deferred(), answer = deferred();
+  state.onCall = async call => {
+    if (call.method === 'POST') {
+      arrived.resolve();
+      await answer.promise;
+      state.conversations = original.map(row => row.id === 'two' ? {...row, archived: true} : row);
+      return {ok: true, archived: true};
+    }
+  };
+  const from = state.calls.length;
+  const request = workspace.archive(target);
+  await arrived.promise;
+  assert.equal(await workspace.archive(target), false);
+  answer.resolve();
+  assert.equal(await request, true);
+  assert.equal(await workspace.archive(target), false);
+  assert.deepEqual(state.calls.slice(from).filter(call => call.method === 'POST').map(call => [call.path, call.body]),
+    [['/api/v1/assistant/conversations/two/archive', {}]]);
+  assert.ok(state.calls.slice(from).some(call => call.path === '/api/v1/assistant?space=health' && call.method === 'GET'));
+  assert.deepEqual(workspace.conversations.map(row => row.id).sort(), ['four', 'one', 'three']);
+  await workspace.refresh();
+  assert.deepEqual(workspace.conversations.map(row => row.id).sort(), ['four', 'one', 'three']);
+});
+
+test('a refused or unsettled Health archive keeps the original row and never resends the pending write', async () => {
+  const { workspace, child } = await opened();
+  const state = child().state;
+  const target = workspace.conversations[0];
+  state.onCall = async call => { if (call.method === 'POST') throw failure(403,'forbidden'); };
+  assert.equal(await workspace.archive(target), false);
+  assert.equal(workspace.error, 'permission_denied');
+  assert.ok(workspace.listedConversation(target));
+  state.onCall = async call => { if (call.method === 'POST') throw failure(0,'lost',true); };
+  assert.equal(await workspace.archive(target), false);
+  assert.ok(workspace.listedConversation(target));
+  assert.equal(await workspace.archive(target), false);
+  assert.equal(workspace.writeState, 'pending');
+  assert.equal(state.calls.filter(call => call.method === 'POST').length, 2);
+});
+
+test('an earlier Health list read cannot bring back a successfully archived session', async () => {
+  const { workspace, child } = await opened({conversations: [chat('one'), chat('two')]});
+  const state = child().state, entered = deferred(), pending = deferred();
+  let intercept = true;
+  state.onCall = async call => {
+    if (intercept && call.path === '/api/v1/assistant?space=health') {
+      intercept = false;
+      entered.resolve();
+      return pending.promise;
+    }
+  };
+  const refresh = workspace.refresh();
+  await entered.promise;
+  assert.ok(await workspace.archive(workspace.conversations.find(row => row.id === 'two')));
+  pending.resolve({machine_id: state.machine, conversations: [chat('one'), chat('two')]});
+  await refresh;
+  assert.deepEqual(workspace.conversations.map(row => row.id), ['one']);
+});
+
+test('native Health archive callbacks share one pending row and restore the button after a refusal', async () => {
+  const dir = new URL('../entry/src/main/ets/components/', import.meta.url);
+  const source = readFileSync(new URL('HealthConversationHistory.ets',dir),'utf8');
+  const page = readFileSync(new URL('HealthWorkspacePage.ets',dir),'utf8');
+  assert.doesNotMatch(page, /confirmArchive\s*\(/);
+  function method(start) {
+    const at = source.indexOf(start);
+    const end = source.indexOf('\n  }',at);
+    assert.ok(at >= 0 && end > at);
+    return source.slice(at,end+4).replace('@Computed ', '').replace('private ', '');
+  }
+  const impl = [method('@Computed get visibleRows('),method('private archiveAllowed('),method('private async archive(')].join('\n');
+  const View = Function('tr', stripTypeScriptTypes('class View {\n'+impl+'\n}')+'\nreturn View;')(key=>key);
+  const actions = source.slice(source.indexOf('@Builder rowButton('),source.indexOf('  build()'));
+  assert.equal((actions.match(/this\.archive\(binding\)/g) || []).length,4,'swipe action, full-swipe release, context menu and screen reader');
+  assert.doesNotMatch(actions,/onEnterActionArea|onOffsetChange/);
+  const view = new View(), gate = deferred(), notices = [], invoked = [];
+  const first = {key:'first',value:{id:'one'}}, another = {key:'second',value:{id:'two'}};
+  view.mounted = true; view.rows = [first,another]; view.archivingBinding = '';
+  view.getUIContext = () => ({getPromptAction:()=>({showToast:({message})=>notices.push(message)})});
+  view.model = {connected:true,demo:false,scope:()=> 'test-scope',connectionGeneration:()=>1,owns:(g,s)=>g===1 && s==='test-scope'};
+  view.workspace = {busy:false,canArchiveConversation:()=>true,error:'permission_denied',
+    archive:row=>{invoked.push(row);return gate.promise;}};
+  const entry = view.archive(first);
+  assert.deepEqual(view.visibleRows,[another]);
+  await view.archive(first);
+  assert.deepEqual(invoked,[first.value]);
+  gate.resolve(false); await entry;
+  assert.deepEqual(view.visibleRows,[first,another]);
+  assert.deepEqual(notices,['permission_denied']);
+  await view.archive({key:'from-old-owner',value:first.value});
+  assert.deepEqual(invoked,[first.value]);
+});
+
 test('opening and deleting a report preserve its manager, machine, record and exact delete target', async () => {
   const { workspace, child } = await opened();
   const report = workspace.reports[0];

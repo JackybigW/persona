@@ -84,6 +84,7 @@ export class HealthWorkspace {
 
   private client: ClientModel | undefined;
   private healthClient: ClientModel | undefined;
+  private historyReadGeneration: number = 0;
   private owner: string = '';
   private viewScope: string = '';
   private rootGeneration: number = 0;
@@ -265,14 +266,40 @@ export class HealthWorkspace {
       if (!this.current(owner, revision, target) || !this.canArchiveConversation(row)) return false;
       if (owner.client.operationBlocked(path)) { this.writeState = 'pending'; this.error = 'pending_action'; return false; }
       const captured = owner;
-      await captured.repository.call(path, 'POST', {}, operationId(),
+      const response = await captured.repository.call(path, 'POST', {}, operationId(),
         (): boolean => this.current(captured, revision, target) && this.canArchiveConversation(row), true);
-      if (!this.current(owner, revision, target) || !this.canArchiveConversation(row)) return false;
-      this.writeState = 'done'; this.conversations = this.conversations.filter((item: ResourceRow) => item.key() !== target); return true;
+      if (!this.current(owner, revision, target)) return false;
+      if ((Wire.has(response, 'ok') && !Wire.bool(response, 'ok')) ||
+        (Wire.has(response, 'archived') && !Wire.bool(response, 'archived'))) throw new Error('health_request_failed');
+      this.conversations = this.conversations.filter((item: ResourceRow) => item.key() !== target);
+      this.writeState = 'done';
+      try { await this.readArchivedHistory(owner, revision); }
+      catch (failure) { if (this.current(owner, revision, target)) this.error = this.errorCode(failure as Error); }
+      return true;
     } catch (failure) {
-      if (!owner || !this.current(owner, revision, target)) return false;
-      this.writeState = this.unknownWrite(failure as Error); this.error = this.errorCode(failure as Error); return false;
+      if (!owner) {
+        if (this.revision === revision && this.healthClient === client && this.client === root) {
+          this.writeState = 'failed'; this.error = this.errorCode(failure as Error);
+        }
+        return false;
+      }
+      if (!this.current(owner, revision, target)) return false;
+      this.writeState = this.unknownWrite(failure as Error); this.error = this.errorCode(failure as Error);
+      if (this.writeState === 'unknown' || this.writeState === 'pending') {
+        try { await this.readArchivedHistory(owner, revision); } catch (_) { /* Keep the unresolved write visible. */ }
+      }
+      return false;
     } finally { if (this.revision === revision && this.healthClient === client && this.client === root) this.busy = false; }
+  }
+
+  private async readArchivedHistory(owner: HealthOwner, revision: number): Promise<void> {
+    const read = ++this.historyReadGeneration;
+    const snapshot = await owner.repository.call('/api/v1/assistant?space=' + HEALTH_SPACE);
+    if (read !== this.historyReadGeneration || !this.current(owner, revision, owner.target)) return;
+    if (Wire.text(snapshot, 'machine_id') !== owner.machine || !Array.isArray(snapshot['conversations'])) {
+      throw new Error('request_updated');
+    }
+    this.conversations = this.historyRows(snapshot, owner);
   }
 
   openMemory(file: HealthMemoryFile): void {
@@ -564,6 +591,7 @@ export class HealthWorkspace {
   }
   private async loadResources(owner: HealthOwner, revision: number): Promise<void> {
     // The health list itself supplies the manager's configured assistant machine and health cwd.
+    const read = ++this.historyReadGeneration;
     const assistant = await owner.repository.call('/api/v1/assistant?space=' + HEALTH_SPACE);
     if (!this.current(owner, revision, owner.target)) return;
     owner.machine = Wire.text(assistant, 'machine_id'); this.machine = owner.machine;
@@ -575,17 +603,7 @@ export class HealthWorkspace {
       const machine = Wire.rows(machineList, 'machines').find((item: Record<string, Object>) => Wire.text(item, 'id') === expectedMachine);
       this.reportUploadAllowed = !!machine && this.machineUsable(machine, owner.manager);
     } catch (_) { this.reportUploadAllowed = false; }
-    const inSpace = Wire.rows(assistant, 'conversations').filter((data: Record<string, Object>) =>
-      !Wire.text(data, 'space') || Wire.text(data, 'space') === HEALTH_SPACE);
-    inSpace.sort((a: Record<string, Object>, b: Record<string, Object>): number => conversationUpdatedAt(b) - conversationUpdatedAt(a));
-    const chats = inSpace.map((data: Record<string, Object>) => {
-      const row = ResourceRow.from(data, 'conversation'); row.manager = owner.manager;
-      row.machine = Wire.text(data, 'machine_id', owner.machine); row.session = Wire.text(data, 'session_id', row.id);
-      row.path = Wire.text(data, 'cwd');
-      const stamp = row.data(); stamp['space'] = HEALTH_SPACE; row.raw = JSON.stringify(stamp);
-      return row;
-    }).filter((row: ResourceRow) => !row.isDone());
-    this.conversations = chats;
+    if (read === this.historyReadGeneration) this.conversations = this.historyRows(assistant, owner);
     this.error = this.reportUploadAllowed ? '' : 'health_default_manager_unavailable';
 
     let memoryFailure: Error | undefined;
@@ -644,6 +662,19 @@ export class HealthWorkspace {
       if (this.revision === revision && this.healthClient === client) this.error = this.errorCode(failure as Error);
       return false;
     }
+  }
+
+  private historyRows(assistant: Record<string, Object>, owner: HealthOwner): ResourceRow[] {
+    const inSpace = Wire.rows(assistant, 'conversations').filter((data: Record<string, Object>) =>
+      !Wire.bool(data, 'archived') && (!Wire.text(data, 'space') || Wire.text(data, 'space') === HEALTH_SPACE));
+    inSpace.sort((a: Record<string, Object>, b: Record<string, Object>): number => conversationUpdatedAt(b) - conversationUpdatedAt(a));
+    return inSpace.map((data: Record<string, Object>) => {
+      const row = ResourceRow.from(data, 'conversation'); row.manager = owner.manager;
+      row.machine = Wire.text(data, 'machine_id', owner.machine); row.session = Wire.text(data, 'session_id', row.id);
+      row.path = Wire.text(data, 'cwd');
+      const stamp = row.data(); stamp['space'] = HEALTH_SPACE; row.raw = JSON.stringify(stamp);
+      return row;
+    }).filter((row: ResourceRow) => !row.isDone());
   }
 
   private unknownWrite(error: Error): string {

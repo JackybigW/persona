@@ -17,7 +17,7 @@ export struct HealthConversationHistory {
   @Require @Param workspace: HealthWorkspace;
   @Require @Param rows: BoundRow<ResourceRow>[];
   @Event onOpen: (row: ResourceRow) => void = (_row: ResourceRow) => {};
-  @Event onArchive: (row: ResourceRow) => void = (_row: ResourceRow) => {};
+  @Local private archivingBinding: string = '';
   @Local private env: NativeEnvironment = nativeEnvironment;
   @Local private now: number = Date.now();
   private mounted: boolean = false;
@@ -53,9 +53,12 @@ export struct HealthConversationHistory {
     const content = this.preview(row) ? this.scaledLength(20.3,27.7)+2+this.scaledLength(18,25.3) : this.scaledLength(32,42);
     return 30 + content;
   }
+  @Computed get visibleRows(): BoundRow<ResourceRow>[] {
+    return this.archivingBinding ? this.rows.filter((binding: BoundRow<ResourceRow>) => binding.key !== this.archivingBinding) : this.rows;
+  }
   @Computed get listHeight(): number {
-    return this.rows.reduce((sum: number, binding: BoundRow<ResourceRow>) => sum+this.rowHeight(binding.value), 0)
-      + Math.max(0,this.rows.length-1)*this.getUIContext().px2vp(1);
+    return this.visibleRows.reduce((sum: number, binding: BoundRow<ResourceRow>) => sum+this.rowHeight(binding.value), 0)
+      + Math.max(0,this.visibleRows.length-1)*this.getUIContext().px2vp(1);
   }
   private get titleInk(): ResourceColor {
     return Colors.systemControls && Colors.styleID === 'glass' ? (this.env.dark ? Color.White : Color.Black) : Colors.ink;
@@ -64,11 +67,22 @@ export struct HealthConversationHistory {
     return Colors.systemControls && Colors.styleID === 'glass' ? (this.env.dark ? '#80FFFFFF' : '#80000000') : Colors.secondary;
   }
   private get tint(): string { return this.env.dark ? '#FF6B8B' : '#D62E5C'; }
-  private archiveAllowed(row: ResourceRow): boolean {
-    return this.model.connected && !this.model.demo && !this.workspace.busy && this.workspace.canArchiveConversation(row);
+  private archiveAllowed(binding: BoundRow<ResourceRow>): boolean {
+    return this.model.connected && !this.model.demo && !this.archivingBinding && !this.workspace.busy &&
+      this.rows.includes(binding) && this.workspace.canArchiveConversation(binding.value);
   }
-  private askArchive(row: ResourceRow): void {
-    if (this.archiveAllowed(row)) this.onArchive(row);
+  private async archive(binding: BoundRow<ResourceRow>): Promise<void> {
+    if (!this.mounted || !this.archiveAllowed(binding)) return;
+    const client = this.model, owner = client.scope(), generation = client.connectionGeneration();
+    this.archivingBinding = binding.key;
+    try {
+      const archived = await this.workspace.archive(binding.value);
+      if (!this.mounted || this.model !== client || !client.owns(generation, owner)) return;
+      const notice = archived ? 'phone_chat_archived' : this.workspace.error;
+      if (notice) this.getUIContext().getPromptAction().showToast({message:tr(notice)});
+    } finally {
+      if (this.archivingBinding === binding.key) this.archivingBinding = '';
+    }
   }
   private open(row: ResourceRow): void {
     const current = this.workspace.listedConversation(row);
@@ -98,29 +112,29 @@ export struct HealthConversationHistory {
       .backgroundColor(Color.Transparent).onClick(() => this.open(binding.value)).id('health.chat.'+binding.value.id)
       .accessibilityText(this.title(binding.value))
       .accessibilityDescription([this.preview(binding.value),this.activity(binding.value)].filter((part: string) => part.length > 0).join(' · '))
-      .accessibilityCustomActions(this.archiveAllowed(binding.value) ?
-        [{name:tr('health_archive'),onAction:(): void => this.askArchive(binding.value)}] : undefined)
+      .accessibilityCustomActions(this.archiveAllowed(binding) ?
+        [{name:tr('health_archive'),onAction:(): void => { this.archive(binding); }}] : undefined)
   }
-  @Builder archiveMenu(row: ResourceRow) {
+  @Builder archiveMenu(binding: BoundRow<ResourceRow>) {
     Menu() {
       MenuItem({content:tr('health_archive'),symbolStartIcon:new SymbolGlyphModifier($r('sys.symbol.archivebox'))})
-        .enabled(this.archiveAllowed(row)).onClick(() => this.askArchive(row)).id('health.history.menu.archive')
+        .enabled(this.archiveAllowed(binding)).onClick(() => { this.archive(binding); }).id('health.history.menu.archive')
     }
   }
-  @Builder archiveAction(row: ResourceRow) {
+  @Builder archiveAction(binding: BoundRow<ResourceRow>) {
     Button({type:ButtonType.Normal}) {
       Column({space:2}) {
         SymbolGlyph($r('sys.symbol.archivebox')).fontSize('19vp').fontColor([Colors.onAction])
         Text(tr('health_archive')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.onAction).maxLines(1)
       }
-    }.width(80).height(this.rowHeight(row)).padding(0).backgroundColor(Colors.action).accessibilityText(tr('health_archive'))
-      .enabled(this.archiveAllowed(row)).onClick(() => this.askArchive(row)).id('health.chat.archive.'+row.id)
+    }.width(80).height(this.rowHeight(binding.value)).padding(0).backgroundColor(Colors.action).accessibilityText(tr('health_archive'))
+      .enabled(this.archiveAllowed(binding)).onClick(() => { this.archive(binding); }).id('health.chat.archive.'+binding.value.id)
   }
-  @Builder entry(binding: BoundRow<ResourceRow>, target: ResourceRow) {
-    if (this.archiveAllowed(target)) {
+  @Builder entry(binding: BoundRow<ResourceRow>) {
+    if (this.archiveAllowed(binding)) {
       ListItem() { this.rowButton(binding) }
-        .swipeAction({end:{builder:() => { this.archiveAction(target); },actionAreaDistance:80,onAction:() => this.askArchive(target)}})
-        .bindContextMenu(this.archiveMenu(target),ResponseType.LongPress)
+        .swipeAction({end:{builder:() => { this.archiveAction(binding); },actionAreaDistance:80,onAction:() => { this.archive(binding); }}})
+        .bindContextMenu(this.archiveMenu(binding),ResponseType.LongPress)
     } else {
       ListItem() { this.rowButton(binding) }
     }
@@ -129,9 +143,9 @@ export struct HealthConversationHistory {
     Column() {
       Text(tr('health_chats')).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontColor(this.secondaryInk)
         .height(this.scaledLength(40.3,47.7)).width('100%').padding({left:20,right:20})
-      if (this.rows.length) {
+      if (this.visibleRows.length) {
         List() {
-          ForEach(this.rows, (binding: BoundRow<ResourceRow>) => { this.entry(binding,binding.value); },
+          ForEach(this.visibleRows, (binding: BoundRow<ResourceRow>) => { this.entry(binding); },
             (binding: BoundRow<ResourceRow>) => binding.key)
         }.width('100%').height(this.listHeight).scrollBar(BarState.Off).edgeEffect(EdgeEffect.None)
           .nestedScroll({scrollForward:NestedScrollMode.PARENT_FIRST,scrollBackward:NestedScrollMode.PARENT_FIRST})

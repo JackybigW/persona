@@ -219,17 +219,6 @@ export struct HealthWorkspacePage {
     }
   }
 
-  private confirmArchive(row: ResourceRow): void {
-    if (!this.workspace.canArchiveConversation(row)) return;
-    const generation = this.model.connectionGeneration(), scope = this.model.scope(), target = row.key();
-    this.getUIContext().showAlertDialog({ title: tr('health_archive_title'), message: row.title || row.id,
-      primaryButton: { value: tr('cancel'), action: () => {} },
-      secondaryButton: { value: tr('health_archive'), action: () => {
-        if (!this.active || !this.model.owns(generation, scope) || target !== row.key()) return;
-        this.workspace.archive(row).catch(() => false);
-      } } });
-  }
-
   private confirmDeleteMemory(file: HealthMemoryFile): void {
     if (!this.workspace.canEditMemory() || this.workspace.selectedMemory?.name !== file.name) return;
     const generation = this.model.connectionGeneration(), scope = this.model.scope(), target = file.name;
@@ -291,8 +280,7 @@ export struct HealthWorkspacePage {
 
   @Builder conversationSection() {
     HealthConversationHistory({model:this.model,workspace:this.workspace,rows:this.conversationRowBindings,
-      onOpen:(row: ResourceRow) => { if (this.active) this.onChat(row); },
-      onArchive:(row: ResourceRow) => this.confirmArchive(row)})
+      onOpen:(row: ResourceRow) => { if (this.active) this.onChat(row); }})
   }
 
   @Builder memorySection() {
