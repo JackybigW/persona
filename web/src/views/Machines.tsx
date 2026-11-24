@@ -1,6 +1,6 @@
 // Machines: every computer's CPU / memory / network now and over the last hour (docs/server/machines.md), as Insight Cards. "Add computer"
 // (feature machines_add) adds one from here, and a computer waiting to be confirmed (trust pending) says so on its card.
-import { memo, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { storedValue, storeValue } from "../lib/compatibility";
 import { lazyPage } from "../lib/lazy-page";
 import { concernOf, launcherFailing, machineAlerts, orderMachines, type AlertKind, type LauncherHealthRecord } from "../lib/machine-alerts";
@@ -47,6 +47,8 @@ const FileBrowserPanel = lazyPage(() => import("./machines/FileBrowserPanel").th
 const NetworkPanel = lazyPage(() => import("./machines/NetworkPanel").then((m) => m.NetworkPanel));
 // Lazy-loaded on demand when the user switches to the Storage view (#12349).
 const StoragePanel = lazyPage(() => import("./machines/StoragePanel").then((m) => m.StoragePanel));
+
+const ResourcesPanel = lazyPage(() => import("./machines/ResourcesPanel").then((m) => m.ResourcesPanel));
 
 export function Machines({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   // with several assistants, the current one's computers (docs/assistant/managers.md "Clients"); one: as before
@@ -158,14 +160,15 @@ export function Machines({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         <IconButton icon="sidebar" label={t("machines.sidebar")} onClick={onToggleSidebar} className="lg:hidden" />
         <h1 className="text-[14px] font-semibold text-ink">{t("machines.title")}</h1>
         <div className="flex-1" />
-        {machines.length > 0 && <Segmented compact value={view} onChange={chooseView} label={t("machines.view_label")} options={[{ v: "cards", label: t("machines.view_cards") }, { v: "capabilities", label: t("machines.view_capabilities") }, { v: "procs", label: t("machines.view_procs") }, { v: "services", label: t("machines.view_services") }, { v: "files", label: t("machines.view_files") }, { v: "toolchain", label: t("machines.view_toolchain") }, { v: "network", label: t("machines-network.tab_label") }, { v: "storage", label: t("machines.view_storage") }]} />}
+        {<Segmented compact value={view} onChange={chooseView} label={t("machines.view_label")} options={[{ v: "resources", label: t("resources.title") }, { v: "cards", label: t("machines.view_cards") }, { v: "capabilities", label: t("machines.view_capabilities") }, { v: "procs", label: t("machines.view_procs") }, { v: "services", label: t("machines.view_services") }, { v: "files", label: t("machines.view_files") }, { v: "toolchain", label: t("machines.view_toolchain") }, { v: "network", label: t("machines-network.tab_label") }, { v: "storage", label: t("machines.view_storage") }]} />}
         <span className="text-[11.5px] text-ink-3 max-sm:hidden">{t("machines.refresh_interval", { seconds: 10 })}</span>
         {machines.length > 0 && canAdd && add}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* two columns, three on a wide screen: the cards used to stop at 1000px and leave half a wide window empty; a full-row item takes col-span-full, since md:col-span-2 alone leaves a third of the row to the next card */}
         <div className="mx-auto grid max-w-[1560px] grid-cols-1 gap-3 px-5 py-6 sm:px-8 md:grid-cols-2 2xl:grid-cols-3">
-          <TodayTokens machines={machines} metrics={metrics} />
+          {view !== "resources" && <TodayTokens machines={machines} metrics={metrics} />}
+          {view === "resources" && <div className="col-span-full"><Suspense fallback={<Loading />}><ResourcesPanel /></Suspense></div>}
           {!metrics && !error && <Loading />}
           {/* a failed refresh says so even with the last numbers on screen (iOS / Android keep their notice up) */}
           {error && (
@@ -413,13 +416,16 @@ function agentCounts(list: readonly Session[]): Map<string, readonly [number, nu
   return by;
 }
 
-type MachinesView = "cards" | "capabilities" | "procs" | "services" | "files" | "toolchain" | "network" | "storage";
+type MachinesView = "resources" | "cards" | "capabilities" | "procs" | "services" | "files" | "toolchain" | "network" | "storage";
 const VIEW_KEY = "persona.machines.view";
 
 /** The launcher health records (GET /api/v1/launchers/health), kept current by the hub's `launcher_health` events and
- *  read again every minute while the page is shown; none from a hub without them. `merge` takes records a check returned. */
-function useLauncherHealth(): { list: LauncherHealthRecord[]; merge: (records: LauncherHealthRecord[]) => void } {
+ *  read again every minute while the page is shown; none from a hub without them. `merge` takes records a check returned,
+ *  `reload` reads them all again now. */
+function useLauncherHealth(): { list: LauncherHealthRecord[]; merge: (records: LauncherHealthRecord[]) => void; reload: () => void } {
   const [list, setList] = useState<LauncherHealthRecord[]>([]);
+  const loadRef = useRef<() => void>(() => {});
+  const reload = useCallback(() => loadRef.current(), []);
   const merge = useCallback((records: LauncherHealthRecord[]) => {
     if (!records.length) return;
     setList((now) => {
@@ -437,6 +443,7 @@ function useLauncherHealth(): { list: LauncherHealthRecord[]; merge: (records: L
         () => {}, // an older hub has none: no launcher alerts
       );
     };
+    loadRef.current = load;
     const stop = visiblePoll(load, 60_000, documentPage);
     const off = onHubEvent("launcher_health", (msg) => {
       const record = (msg as { record?: LauncherHealthRecord }).record;
@@ -444,11 +451,12 @@ function useLauncherHealth(): { list: LauncherHealthRecord[]; merge: (records: L
     });
     return () => {
       dead = true;
+      loadRef.current = () => {};
       stop();
       off();
     };
   }, [merge]);
-  return { list, merge };
+  return { list, merge, reload };
 }
 
 /** The alert sheet for the computer and alert asked for; closed (with its exit) when none is. */
@@ -458,7 +466,7 @@ function AlertSheetHost({ sheet, machines, metrics, sessions, known, records, la
   metrics: MachineMetrics[] | null;
   sessions: readonly Session[];
   known: AgentsKnown;
-  records: { list: LauncherHealthRecord[]; merge: (records: LauncherHealthRecord[]) => void };
+  records: { list: LauncherHealthRecord[]; merge: (records: LauncherHealthRecord[]) => void; reload: () => void };
   launcherIssues: (mid: string) => number;
   roster: ReturnType<typeof useRoster>;
   onKind: (mid: string, kind: AlertKind) => void;
@@ -485,6 +493,7 @@ function AlertSheetHost({ sheet, machines, metrics, sessions, known, records, la
       onClose={onClose}
       onReconnect={onReconnect}
       onRecords={records.merge}
+      onReloadRecords={records.reload}
     />
   );
 }

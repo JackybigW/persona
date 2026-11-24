@@ -83,7 +83,7 @@ export interface TodoCreateOptions {
 }
 
 /** What the hub last read of a PR on GitHub (pr_status.go). */
-export interface PRFacts { url: string; state: "open" | "merged" | "closed"; draft: boolean; review: "required" | "approved" | "changes_requested" | "pending"; checks: "failure" | "pending" | "success" | "none"; conflicts: boolean; checked_at: string }
+export interface PRFacts { url: string; title?: string; state: "open" | "merged" | "closed"; draft: boolean; review: "required" | "approved" | "changes_requested" | "pending"; checks: "failure" | "pending" | "success" | "none"; conflicts: boolean; checked_at: string }
 
 export interface Todo {
   id: string;
@@ -105,6 +105,8 @@ export interface Todo {
   /** The to-do whose request this one is a piece of, and the pieces it waits for (docs/assistant/todos.md "Requests in
    *  pieces"); unset for a to-do that is no piece and from hubs without them. */
   part_of?: string;
+  /** The direction (leader conversation) this to-do is grouped under (#14704); unset for none. */
+  direction_id?: string;
   after?: string[];
   /** Unmet prerequisite to-do IDs for a strict piece; an empty list means none, omission keeps legacy behavior. */
   prerequisite_blockers?: string[];
@@ -122,6 +124,8 @@ export interface Todo {
   inbox_item?: string;
   /** "concern" records a question the owner wants answered (docs/assistant/todos.md "Concerns"); unset for other to-dos and older hubs. */
   kind?: string;
+  /** Additive audience metadata (#14619): "human" (personal to-do), "autonomous" (agent task), or unset for legacy rows. */
+  audience?: string;
   /** "auto" when the hub marked the task done because its work was judged finished, with why (docs/assistant/todos.md "Automatic completion"). */
   done_by?: string;
   done_reason?: string;
@@ -209,7 +213,12 @@ export interface TodoAsk {
   outcome?: "done" | "cannot" | "decide" | string;
   verdict: string;
   recommend?: string;
+  /** Direct evidence/PR/MR URL when present and not merely the to-do's own page (#14659). */
+  link?: string;
   asked_at: string;
+  /** An owner-only terminal action on this task. Older decision cards can still name it as an option. */
+  resume_terminal?: { machine_id: string; session_id: string };
+  terminal_option?: string;
   /** A decision's own fields (#3804), absent from an older hub and from an ask that is no decision: what is to be
    *  decided in one sentence, why only the owner can, the options (2 to 4, the recommended one first) with what each
    *  leads to, and what waiting costs. */
@@ -288,7 +297,9 @@ export interface TodoThread {
 export interface TodoDelivery {
   state: "live" | "pr" | "merged" | "off" | "none" | string;
   gate?: string;
-  unblock?: "user" | "agent" | "other" | string;
+  /** Who can unhold it. `supervisor` (#13191): an owner hold an Agent reported on a supervised task that its supervisor
+   *  has not reviewed yet; it is not the owner's until the supervisor opens a decision. Only `user` is the owner's. */
+  unblock?: "user" | "agent" | "other" | "supervisor" | string;
   at?: string;
 }
 
@@ -318,6 +329,12 @@ export function heldDelivery(todo: Todo): TodoDelivery | null {
   const d = todo.delivery;
   if (todo.done_at || !d) return null;
   return d.state === "pr" || d.state === "merged" || d.state === "off" ? d : null;
+}
+
+/** Its finished work waits for its supervisor to read an owner hold its Agent reported (`unblock` supervisor, #13191):
+ *  the supervisor's to turn into a decision, park or send on, never the owner's Needs you. */
+export function heldForSupervisor(todo: Todo): boolean {
+  return heldDelivery(todo)?.unblock === "supervisor";
 }
 
 export type TodoStatus = "done" | "needs_you" | "interrupted" | "usage_limit" | "unread" | "working" | "waiting" | "follow_up" | "not_started" | "failed";

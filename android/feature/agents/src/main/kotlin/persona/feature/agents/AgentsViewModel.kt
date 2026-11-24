@@ -6,6 +6,7 @@ import persona.core.contracts.*
 import persona.core.contracts.api.*
 import persona.core.contracts.api.ResolveOutcome
 import persona.core.domain.answer.*
+import persona.core.domain.sort.canAnswerInteraction
 import persona.core.domain.sort.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -82,7 +83,7 @@ internal class AgentsViewModel(
     val appBuild: Long = 1L,
     machineManagement: MachineManagement? = null,
     /** The phone's hub groups: a request is answered through its own group's connection (AgentGroups.kt stateFor). */
-    private val hubGroups: persona.core.contracts.api.HubGroups = persona.core.contracts.api.HubGroups.None,
+    internal val hubGroups: persona.core.contracts.api.HubGroups = persona.core.contracts.api.HubGroups.None,
     /**
      * Where [page] is built: the app passes [kotlinx.coroutines.Dispatchers.Default], so sorting, filtering and counting
      * every session on each push stays off the main thread. Empty (the caller's thread) keeps tests synchronous.
@@ -112,6 +113,9 @@ internal class AgentsViewModel(
         repository.refresh()
     } }
     private val operations = bindings?.operations?.let { AgentOperationsState(it, preferences.hubCache) }
+    internal val sessions: SessionsRepository get() = repository
+    internal val operationsApi: AgentOperations? get() = bindings?.operations
+    val hasOperations: Boolean get() = operations != null
     val operationState = operations?.state ?: MutableStateFlow(AgentOperationsSnapshot())
     /**
      * Every Agents list on screen (#9600). A foldable's overlay and the page underneath can both be composed
@@ -681,6 +685,29 @@ internal class AgentsViewModel(
     /** Still running and closable from here, in a terminal pane or a runtime's (not closed elsewhere since a confirmation opened). */
     fun closable(session: Session): Boolean = page.value.sessions.firstOrNull { it.key == session.key }
         ?.let { it.isLive && it.canClose } ?: page.value.sessions.isEmpty()
+    /** "Branch to new chat": copies the session into a new one, refreshes the list and opens the branched session (#12996). */
+    fun fork(session: Session, onOpened: (SessionKey) -> Unit) = sendOperation("fork:${session.key.path}") {
+        val ops = operations ?: return@sendOperation
+        if (hubGroups.groups.value.stateFor(session.machineId, connection.state.value) != ConnectionState.Online) {
+            _notice.value = AgentText(persona.feature.chat.R.string.chat_menu_fork_failed,
+                persona.core.designsystem.UiText.of(persona.core.designsystem.R.string.designsystem_reason_unreachable))
+            _haptics.tryEmit(Haptic.Attention)
+            return@sendOperation
+        }
+        try {
+            val newId = ops.fork(session)
+            try { repository.refresh() } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) {}
+            _notice.value = AgentText(persona.feature.chat.R.string.chat_menu_forked)
+            _haptics.tryEmit(Haptic.Success)
+            onOpened(SessionKey(session.machineId, newId))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            val cause = (e as? AgentOperationFailure)?.cause ?: e
+            _notice.value = AgentText(persona.feature.chat.R.string.chat_menu_fork_failed,
+                persona.core.designsystem.operationFeedback(cause).text)
+        }
+    }
     /** "Join live": join a Codex app-server thread live; the list refreshes after it. */
     fun attach(session: Session) = change(session.machineId, R.string.agents_notice_attached) { it.attach(session) }
     /** Stop its turn from the list (iOS's row menu Interrupt): felt once it went through. */
@@ -977,8 +1004,7 @@ internal class AgentsViewModel(
     fun answer(interaction: Interaction, action: AnswerAction, draft: AnswerDraft = AnswerDraft(), fullPlanRead: Boolean = false) {
         val latest = interactions.pending.value.firstOrNull { it.id == interaction.id } ?: return
         if (latest != interaction || latest.expired(Instant.now()) || RequestDeliveries.locks(_delivery.value[interaction.id])) return
-        // A session whose source does not approve (a Codex thread not joined live) is answered on the computer.
-        if (page.value.sessions.firstOrNull { it.key == latest.sessionKey }?.canApprove == false) {
+        if (page.value.sessions.firstOrNull { it.key == latest.sessionKey }?.canAnswerInteraction(latest) == false) {
             _notice.value = AgentText(R.string.agents_notice_approve_blocked); return
         }
         if (hubGroups.groups.value.stateFor(latest.machineId, connection.state.value) != ConnectionState.Online) {
