@@ -1,0 +1,325 @@
+{
+  "schema": "native-apple-compact-worktree-1",
+  "sourceCommit": "698a1f789dff5e22a7930169483b3716fbfada21",
+  "iPhoneSourceCommit": "698a1f789dff5e22a7930169483b3716fbfada21",
+  "appleSourceTree": "1327ecfc86631ce1af0bed470a4d2df5d2f0247a",
+  "installedAppleExecutablesSHA256": {
+    "Persona": "b3546cf5188d958f11daea19695b4c3f921b103ef0a8f1e2848519acad43ad54",
+    "Persona.debug.dylib": "950d523f3c9f1981bb47979c691c70a4291f7234f27fa184576b1876b4f25d69"
+  },
+  "hardwareModels": {
+    "compact": "iPhone 13 mini",
+    "reference": "iPhone 18 Pro"
+  },
+  "syntheticData": true,
+  "recordings": {
+    "repositoryWorktree": {
+      "registered-repository-row": {
+        "originalPNG_SHA256": "7bfdb5e544c65d6ec9f9243d61ab088467b69d7df0a31783f4f0e6cb2f400b87",
+        "nativeAX_SHA256": "d0cf9430992bcfa361b8483e306df672cb1684cf05ef42577ede4dd8fa2f0caa",
+        "originalPixels": [
+          1124,
+          2436
+        ],
+        "file": "originals/repository-row.png"
+      },
+      "worktree-menu": {
+        "originalPNG_SHA256": "e515554f126a8a91b0881326ab340f4ed662d8edb8aedf1927bc603e1d68f4b2",
+        "nativeAX_SHA256": "c43c316cf50c4cb63a392cc560087ee993920ee9b7f1f0092da7894aeaa2a408",
+        "originalPixels": [
+          1124,
+          2436
+        ],
+        "file": "originals/repository-context-menu.png"
+      },
+      "worktree-form": {
+        "originalPNG_SHA256": "f9fe4b54baad2e448011e4f52832986337c23b10f73ac32a14bf03b5df604118",
+        "nativeAX_SHA256": "f5c0ea839437c4aeb38536bd00db8ca41cbf74c89da4874f916f398c66d8143c",
+        "originalPixels": [
+          1124,
+          2436
+        ]
+      },
+      "confirmed-branch-and-path": {
+        "originalPNG_SHA256": "2d828e37e142885a7b0e8b119d8870fa6c2ea6c2d9e1fe86aba8e2d372a9a3e0",
+        "nativeAX_SHA256": "09564f2d45b9bbdb203883fc555d3d50d34f3b0a215c82f056fc066925ddf332",
+        "originalPixels": [
+          1124,
+          2436
+        ]
+      },
+      "prefilled-new-agent": {
+        "originalPNG_SHA256": "cbd70c988e2f34e64fe6dd845828da4bdfd8dbfea58c9d989521c77e9dc96a6d",
+        "nativeAX_SHA256": "502edd76e8ad8ead71565c8549921a776b87299959637bc87204bba7203c2e3a",
+        "originalPixels": [
+          1124,
+          2436
+        ]
+      },
+      "cancel-returned-child": {
+        "originalPNG_SHA256": "c0aac48d666859d24ad1c9a4474466d6371cfc78300d44bbfa853e9e015ef656",
+        "nativeAX_SHA256": "77f09c46060d8bf1b9bca0f3a6d14bec6b79789b025fe385630a5e93ffd8c928",
+        "originalPixels": [
+          1124,
+          2436
+        ],
+        "file": "originals/repository-after-cancel.png"
+      }
+    },
+    "mainConversation": {
+      "compact-375": {
+        "light": {
+          "originalPNG_SHA256": "68b922250d6a46c9ab241a609d0bc8ec58a54e813c4d1d938849cf144736ce73",
+          "nativeAX_SHA256": "e90982f15830f026e8c486b211d193ef6144e331ab5f1cc9893fbcd9793c36cb",
+          "originalPixels": [
+            1124,
+            2436
+          ],
+          "file": "originals/main-compact-375-light.png",
+          "appearance": "light",
+          "nativeContentSize": "large",
+          "logicalWindowPt": [
+            0.0,
+            0.0,
+            375.0,
+            812.0
+          ],
+          "visibleReadingAreaPt": [
+            0.0,
+            100.3,
+            375.0,
+            236.7
+          ],
+          "safeReadingHeightPt": 136.4,
+          "lastTask": "补齐网络层的单元测试",
+          "lastTaskBoundsPt": [
+            32.0,
+            152.8,
+            181.0,
+            170.8
+          ],
+          "lastTaskTopOffsetPt": 52.5,
+          "lastTaskFullyVisible": true,
+          "cardToDockGapPt": 39.8,
+          "decisionPage": "1 / 5",
+          "nativeXCTestLogSHA256": "74d226204c2484d4d416fe19d1db5d2b8eeca1fc96f2f7b54128be1a663a6479",
+          "nativeTestPlanSHA256": "b7ded1a45baf6071d7675b380cfef3c905353993d0bd54f5914a6b0aee82f148",
+          "testStartedStudioLocal": "2026-11-24 09:14:51.817",
+          "testFinishedStudioLocal": "2026-11-24 09:15:05.916"
+        },
+        "large": {
+          "originalPNG_SHA256": "b698bad2c7fa95c3c673233338783e3c255f66eb08f3a7845575fe2931fb85ce",
+          "nativeAX_SHA256": "fd962f224cc26a4aeb60ec9b7887c81007c009e52bbadf4e84fd458c8eba2c67",
+          "originalPixels": [
+            1124,
+            2436
+          ],
+          "file": "originals/main-compact-375-large.png",
+          "appearance": "light",
+          "nativeContentSize": "accessibility-extra-extra-extra-large",
+          "logicalWindowPt": [
+            0.0,
+            0.0,
+            375.0,
+            812.0
+          ],
+          "visibleReadingAreaPt": [
+            0.0,
+            109.7,
+            375.0,
+            193.0
+          ],
+          "safeReadingHeightPt": 83.3,
+          "lastTask": "补齐网络层的单元测试",
+          "lastTaskBoundsPt": [
+            32.0,
+            101.8,
+            232.7,
+            127.1
+          ],
+          "lastTaskTopOffsetPt": -7.9,
+          "lastTaskFullyVisible": false,
+          "cardToDockGapPt": 39.7,
+          "decisionPage": "1 / 5",
+          "nativeXCTestLogSHA256": "7b6acd116450b21800b699de82a57493392467af49ae366316948cb607e6d2b4",
+          "nativeTestPlanSHA256": "b7ded1a45baf6071d7675b380cfef3c905353993d0bd54f5914a6b0aee82f148",
+          "testStartedStudioLocal": "2026-11-24 09:14:29.710",
+          "testFinishedStudioLocal": "2026-11-24 09:14:45.472"
+        }
+      },
+      "reference-402": {
+        "light": {
+          "originalPNG_SHA256": "78781d6cf54271ccdb74add503b3c2ef0487ef9721ed81f1c25a037f87388578",
+          "nativeAX_SHA256": "ba3b1d4e4684eb39a03826b5385d9443c64ce0b2048db621446b185f6482134e",
+          "originalPixels": [
+            1206,
+            2622
+          ],
+          "file": "originals/main-reference-402-light.png",
+          "appearance": "light",
+          "nativeContentSize": "large",
+          "logicalWindowPt": [
+            0.0,
+            0.0,
+            402.0,
+            874.0
+          ],
+          "visibleReadingAreaPt": [
+            0.0,
+            112.3,
+            402.0,
+            298.7
+          ],
+          "safeReadingHeightPt": 186.4,
+          "lastTask": "补齐网络层的单元测试",
+          "lastTaskBoundsPt": [
+            32.0,
+            214.8,
+            181.0,
+            232.8
+          ],
+          "lastTaskTopOffsetPt": 102.5,
+          "lastTaskFullyVisible": true,
+          "cardToDockGapPt": 39.8,
+          "decisionPage": "1 / 5",
+          "referenceCapturedAt": "2026-11-23T21:47:14.363+00:00"
+        },
+        "large": {
+          "originalPNG_SHA256": "e2cae2b36195237519dd181500205a2db38ce59f9ba6a704a31a25466f73962e",
+          "nativeAX_SHA256": "1505fbf2aad13335d369085a7e46a7b8e3014f8d97cc56fc7ad9aecb4aacb29b",
+          "originalPixels": [
+            1206,
+            2622
+          ],
+          "file": "originals/main-reference-402-large.png",
+          "appearance": "light",
+          "nativeContentSize": "accessibility-extra-extra-extra-large",
+          "logicalWindowPt": [
+            0.0,
+            0.0,
+            402.0,
+            874.0
+          ],
+          "visibleReadingAreaPt": [
+            0.0,
+            121.7,
+            402.0,
+            213.7
+          ],
+          "safeReadingHeightPt": 92.0,
+          "lastTask": "补齐网络层的单元测试",
+          "lastTaskBoundsPt": [
+            32.0,
+            122.7,
+            232.7,
+            148.0
+          ],
+          "lastTaskTopOffsetPt": 1.0,
+          "lastTaskFullyVisible": true,
+          "cardToDockGapPt": 39.8,
+          "decisionPage": "1 / 5",
+          "referenceCapturedAt": "2026-11-23T21:51:38.552+00:00"
+        }
+      }
+    }
+  },
+  "registeredRepositoryAction": {
+    "nativeGroup": "macbook",
+    "host": "orca",
+    "branch": "qa/mini-login-form",
+    "createdSourceID": "w3",
+    "sourceIDEncoding": "SHA-256 of the original UTF-8 input",
+    "parentSourceIDSHA256": "4e14d6f175b881f2160ca3ae7ebd559ef377a0c1b1d8a294f9e2fde368ee0011",
+    "childParentSourceIDSHA256": "4e14d6f175b881f2160ca3ae7ebd559ef377a0c1b1d8a294f9e2fde368ee0011",
+    "childCheckoutPathSHA256": "3639c4638d296a6c55694a0d12addde0a1ac1d56c8eecfd4967e9e7daed14d26",
+    "parentIdentitySameOnPrepareCreateAndChildInventory": true,
+    "prepareRequests": 1,
+    "worktreeCreateRequests": 1,
+    "agentSessionCreateRequests": 0,
+    "nativeCreateTaps": 1,
+    "nativeCancelTaps": 1,
+    "returnSurface": "original repository list",
+    "restoredSearch": "login-form",
+    "newEmptyWorktreeRowVisible": true,
+    "parentRowBoundsXYWH_Pt": [
+      36.0,
+      396.0,
+      255.0,
+      44.0
+    ],
+    "childRowBoundsXYWH_Pt": [
+      16.0,
+      602.7,
+      343.0,
+      44.0
+    ],
+    "newAgentPresetObserved": {
+      "presented": true,
+      "branchMatched": true,
+      "completePathMatched": true,
+      "rawPathIncluded": false
+    }
+  },
+  "nativeTest": {
+    "ordinaryWorkspaceTest": "EvidenceTests/ParityCaptureTests/testProjectEvidenceLoop",
+    "testSucceeded": true,
+    "projectTestLogSHA256": "16dad23df6d40f8b28dda14eebff695746be8ba815605ae0929a4548c6ac1f16",
+    "isolatedHubSourceSHA256": "03b9bb26432dfcbd75395770e4616fe1983f0b72052e7881a8aa4f3e19ce69ee",
+    "originalAppearanceRestored": "light",
+    "originalTypeSizeRestored": "large",
+    "guestShutdownObserved": true,
+    "requestedBusinessPosts": 1,
+    "newAgentSessions": 0
+  },
+  "separateComparison": {
+    "harmonySourceCommit": "b850faa917c125d3466b5c29c0be55d0a072eb10",
+    "logicalWidthVp": 365.71,
+    "visualHapSHA256": "1bcde0e4ab10b3a804ae432ddfb79c1c5faa27d7b2aa4bfe96eb770b66106fa5",
+    "sourceEvidenceSHA256": "e097d7583ee768b81361bb4503d5c4d43f2739da2bf2f06a12aa7dd5e96f99da",
+    "cases": {
+      "light": {
+        "entry": {
+          "visibleHeightVp": 100.0,
+          "lastTaskTopOffsetVp": 55.714,
+          "cardToDockGapVp": 0.0,
+          "fullyVisible": true,
+          "originalPNG_SHA256": "3c81624c5490adb0465ee0e39f49598f8ca8e6eb0c8c15ba07bcb74beef15f00",
+          "nativeAX_SHA256": "4ae57bfe35a219ad4b5ac47b6a247df9a4acbe50bfb8439710743c1bdc283c37"
+        },
+        "afterNativeLatest": {
+          "visibleHeightVp": 100.0,
+          "lastTaskTopOffsetVp": 15.714,
+          "cardToDockGapVp": 40.0,
+          "fullyVisible": true,
+          "originalPNG_SHA256": "62e3f55c2991e620a6f985647fd1524dbb6b571c74c128b447c8d3600e15b45c",
+          "nativeAX_SHA256": "6b905b103d80af87a36b8e3eec589df64c0d0a9fd890f42b6e47da36614c6c91"
+        }
+      },
+      "large": {
+        "entry": {
+          "visibleHeightVp": 85.714,
+          "lastTaskTopOffsetVp": -6.0,
+          "cardToDockGapVp": 40.286,
+          "fullyVisible": false,
+          "originalPNG_SHA256": "180511feb1ff172cc232858eca68674c9fdc06a79bf9f092550310c38ceb44fc",
+          "nativeAX_SHA256": "8799052f838581d530895761d9efa87203ed25f1ac1f32149efd8c612d244a92"
+        },
+        "afterNativeLatest": {
+          "visibleHeightVp": 85.714,
+          "lastTaskTopOffsetVp": -6.0,
+          "cardToDockGapVp": 40.286,
+          "fullyVisible": false,
+          "originalPNG_SHA256": "660c7f67d40ec4b98ff62d8d2c7945df0194b498a2bfc3303c1616849c57a345",
+          "nativeAX_SHA256": "8799052f838581d530895761d9efa87203ed25f1ac1f32149efd8c612d244a92"
+        }
+      }
+    }
+  },
+  "nativeEvidenceSHA256": {
+    "registeredRowJourney": "236a187aee557c92a10a1aa1107f619a5261485815d3dd5e853bae7c5423dd2f",
+    "compactMainIndependent": "931bc1bb1b7b71cf6226226d2c85ecdf7de4e46c2b9e06f8378e23ace8024fa3",
+    "deviceHandoff": "e061a301860ef7cd11d7c3600e1ab8e34b48e7bb3f9a702716af10f6c5254bb9",
+    "originalFull402AppleReference": "58a5dd6248e703b2637ec3a3e3869e72b5d167bb8a88a1d6c2517aa4fd0dfda7",
+    "compact375AppleBaseline": "1eb084ed876abcb4b22b8f7287e8a29aa669d0e9aa461bdc7961c087de3560df"
+  }
+}

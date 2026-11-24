@@ -1,0 +1,865 @@
+{
+  "schema": "persona-health-native-interaction-1",
+  "sourceCommit": "bab2252424aa14492257aa259ecf3917e1a16d5b",
+  "iPhoneSourceCommit": "698a1f789dff5e22a7930169483b3716fbfada21",
+  "harmonyVisualHAPSHA256": "7a7a2e8d21720e6c83ece7034c067190b675afd8c058dadd3b1be99c990e8407",
+  "nativeAppleGallerySHA256": "bacadf1d4bce845cd719b8a0ec0c0d79640d170023c2de719f54e9c16cf7eeb6",
+  "appleHealthProductSHA256": "0c41cbc369cd6571c9b915b6ce3ca08479518c5333181f52c1fe4e26b26c3f6d",
+  "actualOrdinaryReceiptSHA256": "2d574fbb729cc2871c7e5c17d22bd737fc06cefe78c9244a5010833a28189e37",
+  "actualHistoryActionReceiptSHA256": "c99b16d6cd91d96b962a67dfcfe735106a431e237c8a4ad3e35c4546ebe487e1",
+  "actualIntakeReceiptSHA256": "f62e369e2ff1bdd59cf77c20ed203075b447ff52c8c1177d2b0f1ddb64258733",
+  "cleanDedicatedGestureRun": true,
+  "ordinaryHealthHubWrites": 0,
+  "originalFourHistoryRecordsRetained": true,
+  "iPhoneNewMessagesSessionsDecisionsOrUploads": 0,
+  "healthListOrder": {
+    "suggestions": [
+      "这周我睡得怎么样？",
+      "最近 7 天步数和上周比怎么样",
+      "我的静息心率最近有变化吗",
+      "帮我记一下今天体重 62.5 kg"
+    ],
+    "history": [
+      "今天吃了什么",
+      "这周的睡眠",
+      "体检报告：血脂",
+      "步数目标"
+    ]
+  },
+  "ordinaryPairedFrames": {
+    "light": {
+      "home": {
+        "file": "home-light.png",
+        "sha256": "2371722237b7a80216a6dfe29006d2e9fff77850c4009735472cc2c691b80247",
+        "width": 822,
+        "height": 918,
+        "sources": [
+          "4a5b0ff63b46f055abd4958d0f1fa9f5e4fe97f15a30428998073a761b64770b",
+          "dfd3de05802e2a161573f93981cde6095b76c36f2f91e670cbc0e2048abf2321"
+        ]
+      },
+      "lists": {
+        "file": "rows-light.png",
+        "sha256": "15c69b6811d87c91f4d703ac58738ddf0117e6c6acf39c6d754a9109fc49098d",
+        "sourceCrops": {
+          "这周我睡得怎么样？": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  255.3,
+                  386.0,
+                  307.6
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "7b20551e797dde5f4713070b6bc8d4bf864e71db1cdf7461a11f988588e8c80f",
+              "visibleLTRBpx": [
+                48,
+                1698,
+                1158,
+                1855
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "最近 7 天步数和上周比怎么样": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  307.7,
+                  386.0,
+                  360.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "7b20551e797dde5f4713070b6bc8d4bf864e71db1cdf7461a11f988588e8c80f",
+              "visibleLTRBpx": [
+                48,
+                1856,
+                1158,
+                2013
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "我的静息心率最近有变化吗": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  360.0,
+                  386.0,
+                  412.3
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "7b20551e797dde5f4713070b6bc8d4bf864e71db1cdf7461a11f988588e8c80f",
+              "visibleLTRBpx": [
+                48,
+                2014,
+                1158,
+                2171
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "帮我记一下今天体重 62.5 kg": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  412.3,
+                  386.0,
+                  464.6
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "bf359c07c7fd04d3dd59467b96ea5e987eae65303e5e608abb05a7a91c3df5f4",
+              "visibleLTRBpx": [
+                48,
+                1637,
+                1158,
+                1794
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "今天吃了什么": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  609.7,
+                  386.0,
+                  680.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "42bf6dac6661ba1a5bf0396c63ecec8f07b0fb3470cb31056aed4be136d37d3e",
+              "visibleLTRBpx": [
+                48,
+                2085,
+                1158,
+                2296
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "这周的睡眠": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  680.0,
+                  386.0,
+                  750.3
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "f459b93a67b076b2a0bac36d1d0fe8bf471a242fbfed4ffe6483d890c91243ed",
+              "visibleLTRBpx": [
+                48,
+                1740,
+                1158,
+                1951
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "体检报告：血脂": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  116.0,
+                  386.0,
+                  139.6
+                ]
+              },
+              {
+                "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+                "frame": "health-history-0",
+                "visibleLTRBpt": [
+                  16.0,
+                  750.3,
+                  386.0,
+                  771.7
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "f459b93a67b076b2a0bac36d1d0fe8bf471a242fbfed4ffe6483d890c91243ed",
+              "visibleLTRBpx": [
+                48,
+                1952,
+                1158,
+                2163
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": true
+          },
+          "步数目标": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  139.7,
+                  386.0,
+                  210.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "034571ba6dfeb734b17415cf596348711b51638580b8fa5e6982e3a78ef8ea6e",
+              "visibleLTRBpx": [
+                48,
+                1618,
+                1158,
+                1829
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          }
+        }
+      }
+    },
+    "dark": {
+      "home": {
+        "file": "home-dark.png",
+        "sha256": "94992dab0867fbaaa54f1832e75c7b147af43769703250e0d5db5d9ea743bd47",
+        "width": 822,
+        "height": 918,
+        "sources": [
+          "d03b2d948136004e13cfd8b8bbc8d8ffcee5e42108efcb0f32a978aeb16ee2bc",
+          "b4481adf8663d86e19c7c7e5d543e004817e7348ac15576fb88e781d624e58e2"
+        ]
+      },
+      "lists": {
+        "file": "rows-dark.png",
+        "sha256": "c8b03da7ed00c13288f59a7ce5f3ae5b86d9c85eba4d8bb592f7281cf2faf189",
+        "sourceCrops": {
+          "这周我睡得怎么样？": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  273.7,
+                  386.0,
+                  326.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "c72525a62f5bf0eeaeb21312b93595aebb3871859368275baad39417aecd97fa",
+              "visibleLTRBpx": [
+                48,
+                1698,
+                1158,
+                1855
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "最近 7 天步数和上周比怎么样": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  326.0,
+                  386.0,
+                  378.3
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "c72525a62f5bf0eeaeb21312b93595aebb3871859368275baad39417aecd97fa",
+              "visibleLTRBpx": [
+                48,
+                1856,
+                1158,
+                2013
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "我的静息心率最近有变化吗": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  378.3,
+                  386.0,
+                  430.6
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "c72525a62f5bf0eeaeb21312b93595aebb3871859368275baad39417aecd97fa",
+              "visibleLTRBpx": [
+                48,
+                2014,
+                1158,
+                2171
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "帮我记一下今天体重 62.5 kg": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  430.7,
+                  386.0,
+                  483.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "c795c3bb049d9c89c113232a4c725f71a8fabf7babf7651d2e32dd998978ba48",
+              "visibleLTRBpx": [
+                48,
+                1636,
+                1158,
+                1793
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "今天吃了什么": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  628.0,
+                  386.0,
+                  698.3
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "6277a1aa17286b72ed52ccf69e22d4a87f5bbeddf87805f1c7947d70ca70aadc",
+              "visibleLTRBpx": [
+                48,
+                1620,
+                1158,
+                1831
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "这周的睡眠": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  698.3,
+                  386.0,
+                  768.5999999999999
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "6277a1aa17286b72ed52ccf69e22d4a87f5bbeddf87805f1c7947d70ca70aadc",
+              "visibleLTRBpx": [
+                48,
+                1832,
+                1158,
+                2043
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "体检报告：血脂": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  116.0,
+                  386.0,
+                  157.3
+                ]
+              },
+              {
+                "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+                "frame": "health-history-0",
+                "visibleLTRBpt": [
+                  16.0,
+                  768.7,
+                  386.0,
+                  771.7
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "6277a1aa17286b72ed52ccf69e22d4a87f5bbeddf87805f1c7947d70ca70aadc",
+              "visibleLTRBpx": [
+                48,
+                2044,
+                1158,
+                2255
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": true
+          },
+          "步数目标": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  157.3,
+                  386.0,
+                  227.60000000000002
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "b14054d7e5e5ad9dfeb6c166544169296c7ade9acc70624e7064b942fbd90101",
+              "visibleLTRBpx": [
+                48,
+                1713,
+                1158,
+                1924
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          }
+        }
+      }
+    },
+    "large": {
+      "home": {
+        "file": "home-large.png",
+        "sha256": "b9e78c9e1276e73d467b52781e67d0251479f3e8a5ac146a41eec1b0c9ec9967",
+        "width": 822,
+        "height": 918,
+        "sources": [
+          "2cf94d94ad25851b07888f73021680f58c52eb7f71cda7668a56978944747f71",
+          "095276fbe1fbaf125d89a533847537afa41a862b269e88ecf1bae566256a167b"
+        ]
+      },
+      "lists": {
+        "file": "rows-large.png",
+        "sha256": "efac73a5d449a375c4cafc290f5ff345d3365710efb3979bf2e2d7ecb74c82d5",
+        "sourceCrops": {
+          "这周我睡得怎么样？": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  570.7,
+                  386.0,
+                  630.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "f1fc60351ee669edd0c24957d31b187afc652143e0053883f80f26774740e890",
+              "visibleLTRBpx": [
+                48,
+                1758,
+                1158,
+                1936
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "最近 7 天步数和上周比怎么样": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  630.0,
+                  386.0,
+                  689.3
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "f1fc60351ee669edd0c24957d31b187afc652143e0053883f80f26774740e890",
+              "visibleLTRBpx": [
+                48,
+                1937,
+                1158,
+                2115
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "我的静息心率最近有变化吗": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  689.3,
+                  386.0,
+                  748.5999999999999
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "1d4e25cc8d2dc96fea73b53a95e9b9f4cad4c284d0c014bfa841d561f757e39d",
+              "visibleLTRBpx": [
+                48,
+                1638,
+                1158,
+                1816
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "帮我记一下今天体重 62.5 kg": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  116.0,
+                  386.0,
+                  132.6
+                ]
+              },
+              {
+                "originalPNG_SHA256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+                "frame": "health-report-action",
+                "visibleLTRBpt": [
+                  16.0,
+                  748.7,
+                  386.0,
+                  752.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "1d4e25cc8d2dc96fea73b53a95e9b9f4cad4c284d0c014bfa841d561f757e39d",
+              "visibleLTRBpx": [
+                48,
+                1817,
+                1158,
+                1995
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": true
+          },
+          "今天吃了什么": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  292.0,
+                  386.0,
+                  377.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "1e3b1a34c725d9f95827057412cac898faf39e552a9fc84deb92e737db62775f",
+              "visibleLTRBpx": [
+                48,
+                1992,
+                1158,
+                2247
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "这周的睡眠": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  377.0,
+                  386.0,
+                  462.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "88c864c8422674323e91a0ac8f2abcfb5e1b9ec842316e7547a537e051ee6160",
+              "visibleLTRBpx": [
+                48,
+                1725,
+                1158,
+                1980
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "体检报告：血脂": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  462.0,
+                  386.0,
+                  547.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "88c864c8422674323e91a0ac8f2abcfb5e1b9ec842316e7547a537e051ee6160",
+              "visibleLTRBpx": [
+                48,
+                1981,
+                1158,
+                2236
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          },
+          "步数目标": {
+            "iPhone": [
+              {
+                "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+                "frame": "health-history-1",
+                "visibleLTRBpt": [
+                  16.0,
+                  547.0,
+                  386.0,
+                  632.0
+                ]
+              }
+            ],
+            "harmony": {
+              "originalPNG_SHA256": "1a97633ab6f13ff85f3e142cb4908c818f11ee7b2180176cec12d4d95e4f1789",
+              "visibleLTRBpx": [
+                48,
+                1703,
+                1158,
+                1958
+              ]
+            },
+            "iPhoneOnlyVisibleStrips": false
+          }
+        }
+      }
+    }
+  },
+  "sourceImageFiles": [
+    {
+      "sha256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+      "file": "originals/iphone-dark-health-report-action.png"
+    },
+    {
+      "sha256": "034571ba6dfeb734b17415cf596348711b51638580b8fa5e6982e3a78ef8ea6e",
+      "file": "originals/harmony-light-scroll-4.png"
+    },
+    {
+      "sha256": "095276fbe1fbaf125d89a533847537afa41a862b269e88ecf1bae566256a167b",
+      "file": "originals/harmony-large-home.png"
+    },
+    {
+      "sha256": "1a97633ab6f13ff85f3e142cb4908c818f11ee7b2180176cec12d4d95e4f1789",
+      "file": "originals/harmony-large-scroll-4.png"
+    },
+    {
+      "sha256": "1d4e25cc8d2dc96fea73b53a95e9b9f4cad4c284d0c014bfa841d561f757e39d",
+      "file": "originals/harmony-large-scroll-1.png"
+    },
+    {
+      "sha256": "1e3b1a34c725d9f95827057412cac898faf39e552a9fc84deb92e737db62775f",
+      "file": "originals/harmony-large-scroll-2.png"
+    },
+    {
+      "sha256": "272e0b20b415c83d3bd91e81b1127fe795300b6a010b8d45b35d4a1fb4b3c708",
+      "file": "originals/intake-cup-undone.png"
+    },
+    {
+      "sha256": "2cf94d94ad25851b07888f73021680f58c52eb7f71cda7668a56978944747f71",
+      "file": "originals/iphone-large-home.png"
+    },
+    {
+      "sha256": "3e868faf26883605450fa25f28f2928c22a05f0af64511f580df3d27fd3a37d9",
+      "file": "originals/intake-cup-recorded.png"
+    },
+    {
+      "sha256": "42bf6dac6661ba1a5bf0396c63ecec8f07b0fb3470cb31056aed4be136d37d3e",
+      "file": "originals/harmony-light-scroll-2.png"
+    },
+    {
+      "sha256": "4a5b0ff63b46f055abd4958d0f1fa9f5e4fe97f15a30428998073a761b64770b",
+      "file": "originals/iphone-light-home.png"
+    },
+    {
+      "sha256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+      "file": "originals/iphone-light-health-report-action.png"
+    },
+    {
+      "sha256": "5f57632e61170947e65765e916986bf60d8ab3f72f538f72e47e245c57edabeb",
+      "file": "originals/direct-menu-5.png"
+    },
+    {
+      "sha256": "6105a9bc1f74b9cc808647cd4c2497090dae02be17ae46b995ee9edccd6f5686",
+      "file": "originals/02-opened-transcript.png"
+    },
+    {
+      "sha256": "6277a1aa17286b72ed52ccf69e22d4a87f5bbeddf87805f1c7947d70ca70aadc",
+      "file": "originals/harmony-dark-scroll-2.png"
+    },
+    {
+      "sha256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+      "file": "originals/iphone-light-health-history-1.png"
+    },
+    {
+      "sha256": "6ec1ff3db5f2e096142990217aaf7177fb011799e5001df9627dd72e61bb657a",
+      "file": "originals/direct-01-short-swipe.png"
+    },
+    {
+      "sha256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+      "file": "originals/iphone-dark-health-history-1.png"
+    },
+    {
+      "sha256": "7b20551e797dde5f4713070b6bc8d4bf864e71db1cdf7461a11f988588e8c80f",
+      "file": "originals/harmony-light-scroll-0.png"
+    },
+    {
+      "sha256": "83965acf577a099244df49101eb78138685fbbfa1d6b0cc4c32e6846fdcf6291",
+      "file": "originals/direct-06-remaining-0.png"
+    },
+    {
+      "sha256": "88c864c8422674323e91a0ac8f2abcfb5e1b9ec842316e7547a537e051ee6160",
+      "file": "originals/harmony-large-scroll-3.png"
+    },
+    {
+      "sha256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+      "file": "originals/iphone-large-health-history-1.png"
+    },
+    {
+      "sha256": "a1ec28b313f90e48fb3f7da44ca901d27501e1112f59c1bb621af6d011cc8493",
+      "file": "originals/intake-permission-reloaded.png"
+    },
+    {
+      "sha256": "ab3d61d2362dcbeee43d55970e2ac60c67e26dc63a164615704719de14828c14",
+      "file": "originals/intake-initial.png"
+    },
+    {
+      "sha256": "b14054d7e5e5ad9dfeb6c166544169296c7ade9acc70624e7064b942fbd90101",
+      "file": "originals/harmony-dark-scroll-3.png"
+    },
+    {
+      "sha256": "b4481adf8663d86e19c7c7e5d543e004817e7348ac15576fb88e781d624e58e2",
+      "file": "originals/harmony-dark-home.png"
+    },
+    {
+      "sha256": "ba8557b7a12c1f533b513ecda8e2056b0774fef420780db6d3071bfecd28ca49",
+      "file": "originals/intake-protein-recorded.png"
+    },
+    {
+      "sha256": "bea2e77090940435996f68813727c2219dfa49840683a375d7ad4fb59da7027b",
+      "file": "originals/direct-05-selected-row-removed.png"
+    },
+    {
+      "sha256": "bf359c07c7fd04d3dd59467b96ea5e987eae65303e5e608abb05a7a91c3df5f4",
+      "file": "originals/harmony-light-scroll-1.png"
+    },
+    {
+      "sha256": "c0d5520bc07b2f10eb7a09a1320e11e17a1d63e74d48d86eb41087e4f4334823",
+      "file": "originals/01-selected-history-row.png"
+    },
+    {
+      "sha256": "c0e75aa7ed3b9f78a586449472d68ed28ce141472b0c635037d80c4b53ecee72",
+      "file": "originals/intake-recovered-water-undone.png"
+    },
+    {
+      "sha256": "c72525a62f5bf0eeaeb21312b93595aebb3871859368275baad39417aecd97fa",
+      "file": "originals/harmony-dark-scroll-0.png"
+    },
+    {
+      "sha256": "c795c3bb049d9c89c113232a4c725f71a8fabf7babf7651d2e32dd998978ba48",
+      "file": "originals/harmony-dark-scroll-1.png"
+    },
+    {
+      "sha256": "d03b2d948136004e13cfd8b8bbc8d8ffcee5e42108efcb0f32a978aeb16ee2bc",
+      "file": "originals/iphone-dark-home.png"
+    },
+    {
+      "sha256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+      "file": "originals/iphone-large-health-report-action.png"
+    },
+    {
+      "sha256": "d96c3ec3a53c039c0bcfd6e4c3b5da029c37a37d8d8f57d8f119f620e9e6c63f",
+      "file": "originals/direct-02-short-swipe-closed.png"
+    },
+    {
+      "sha256": "dcfab271702c0b88f49e4b2462c5a8cbd79b21e01fd52318d9158b5004431fb2",
+      "file": "originals/intake-retry-single-record.png"
+    },
+    {
+      "sha256": "dfd3de05802e2a161573f93981cde6095b76c36f2f91e670cbc0e2048abf2321",
+      "file": "originals/harmony-light-home.png"
+    },
+    {
+      "sha256": "ec3268fc63818b37ff2bfa9cc7178a57e50f54025b91bd8f4b31ae3355b7619a",
+      "file": "originals/03-back-to-health.png"
+    },
+    {
+      "sha256": "f1fc60351ee669edd0c24957d31b187afc652143e0053883f80f26774740e890",
+      "file": "originals/harmony-large-scroll-0.png"
+    },
+    {
+      "sha256": "f459b93a67b076b2a0bac36d1d0fe8bf471a242fbfed4ffe6483d890c91243ed",
+      "file": "originals/harmony-light-scroll-3.png"
+    }
+  ],
+  "measurements": {
+    "file": "measurements.json",
+    "sha256": "34da2c53b83e945d82566571b18994792833d5e1bac7a3e6660f9a0e9ab675f7"
+  },
+  "earlierSourceReference": {
+    "harmony": "239cae2b36f0b990a18b14a0194eca539d49e416",
+    "manifestSHA256": "c9f9b4fde3e393dbb2e94e5bdbb5827e38168ccd7ee418700c6b402d196605cf"
+  }
+}
