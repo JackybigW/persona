@@ -22,6 +22,7 @@ larkTop
 loadAll
 newAssistant
 openAbout
+openAdvancedSettings
 openAgent
 openAgentsFresh
 openAlarms
@@ -191,6 +192,7 @@ openTerminalTips
 openTerminalsPage
 openThreadAt
 openTodoDetail
+openTodoPlace
 openTodoTitled
 openTodosChoice
 openTokenUsage
@@ -198,6 +200,7 @@ openTranslationSettings
 openTriageSettings
 openUploadDemo
 openUrgentCallSettings
+openUsageMap
 openViewedImage
 openVoice
 openWelcome
@@ -290,6 +293,8 @@ showFromSeq
 showFullOutput
 showGitReload
 showHandOffNewAgent
+showHealthActivityExample
+showHealthHomeTrendsExample
 showHealthTrends
 showHerdrStart
 showHomeState
@@ -312,6 +317,7 @@ showInboxSuggestionEdit
 showInboxSuggestionStale
 showInboxTodo
 showInfo
+showIntakeSyncStatus
 showJumpPerf
 showKeyMods
 showKnowledgeDay
@@ -356,6 +362,7 @@ showMinutesSearch
 showMinutesTab
 showModelConfigSheet
 showModelSearch
+showModules
 showNewAgentPrompt
 showNewChat
 showNewMain

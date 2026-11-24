@@ -8,6 +8,7 @@ import { lazy, memo, Suspense, useEffect, useId, useMemo, useRef, useState } fro
 import { taskMeter, type TaskCardMetadata } from "../../lib/task-cards";
 import { agentRowKey, agentRowLabel, agentRowMark, agentRowTone, todoChipLabel, todoChipState } from "../../lib/task-row-status";
 import { assistantEntries, needsYouBySupervisor, type NeedsYouItem } from "../../lib/assistant-entries";
+import { directUserInteraction, directUserWaiting, directWaitingCount, takeDirectWaitingRequest } from "../../lib/direct-waiting";
 import { useRestoredTodos } from "../../lib/todo-restore";
 import {
   answeredItems,
@@ -92,7 +93,7 @@ import type { TaskWorkspace } from "../../lib/feed";
 import { machineStartBlocked, ULTRACODE_FEATURE } from "../../lib/ultracode";
 import { UltracodeChip } from "../chat/Ultracode";
 import { byTime } from "../../lib/times";
-import { requestHome } from "../../lib/child-sessions";
+import { requestHome, requestHomeMachine } from "../../lib/child-sessions";
 import { stateName, type WaitReason } from "../../lib/state-labels";
 import { statusWord, waitOf } from "../../lib/todo-wait-reason";
 import { EDITABLE } from "../../lib/shortcuts";
@@ -220,9 +221,9 @@ export function progressOf(lead: Session | undefined) {
 /** The card a task's agents wait on: its lead agent's first, else any of its other active agents'. */
 export function taskInteraction(todo: Todo, interactions: Interaction[], lead?: Session): Interaction | undefined {
   // a card of a child session one of its agents started is that agent's (#5120)
-  const mine = (ix: Interaction) => (todo.agents ?? []).some((a) => !a.released_at && a.machine_id === ix.machine_id && a.session_id === requestHome(ix));
+  const mine = (ix: Interaction) => (todo.agents ?? []).some((a) => !a.released_at && a.machine_id === requestHomeMachine(ix) && a.session_id === requestHome(ix));
   return (lead && (interactions.find((ix) => ix.machine_id === lead.machine_id && ix.session_id === lead.session_id)
-    ?? interactions.find((ix) => ix.machine_id === lead.machine_id && requestHome(ix) === lead.session_id))) ?? interactions.find(mine);
+    ?? interactions.find((ix) => requestHomeMachine(ix) === lead.machine_id && requestHome(ix) === lead.session_id))) ?? interactions.find(mine);
 }
 
 /** What a waiting task needs, in a line (#3301): "Has a question: which framework?", "Waiting for your approval: swift test", "Plan awaiting approval", the words
@@ -381,6 +382,46 @@ export function PlanCard({ plan }: { plan: TaskPlan }) {
   );
 }
 
+function planDispatchReason(dispatch: PlanTask["dispatch"]): string {
+  if (!dispatch || !dispatch.reason || dispatch.reason === "only") return "";
+  const rawArgs = dispatch.args ?? {};
+  const args: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(rawArgs)) {
+    if (typeof v === "string" || typeof v === "number") args[k] = v;
+  }
+  // dispatch.candidate is the 0-based index into the tier's candidates (the same index as /candidates); people count from 1
+  const candidate = typeof dispatch.candidate === "number" && dispatch.candidate >= 0 ? dispatch.candidate + 1 : 1;
+  const tier = args.tier ?? dispatch.tier ?? "";
+  const base: Record<string, string | number> = { ...args, tier, candidate };
+  const detail = args.detail ?? args.cause ?? args.provider ?? "";
+
+  switch (dispatch.reason) {
+    case "first":
+      return t("assistant-tasks.dispatch_reason_first", base);
+    case "score":
+      if (args.minutes !== undefined && args.first_pass !== undefined && args.headroom !== undefined) {
+        return t("assistant-tasks.dispatch_reason_score", base);
+      }
+      return t("assistant-tasks.dispatch_reason_score_short", base);
+    case "quota":
+      return detail
+        ? t("assistant-tasks.dispatch_reason_quota_detail", { ...base, detail })
+        : t("assistant-tasks.dispatch_reason_quota", base);
+    case "unavailable":
+      return t("assistant-tasks.dispatch_reason_unavailable", base);
+    case "kept":
+      return t("assistant-tasks.dispatch_reason_kept", base);
+    case "switched":
+      return detail
+        ? t("assistant-tasks.dispatch_reason_switched_detail", { ...base, detail })
+        : t("assistant-tasks.dispatch_reason_switched", base);
+    case "over_pace":
+      return t("assistant-tasks.dispatch_reason_over_pace", base);
+    default:
+      return t("assistant-tasks.dispatch_reason_fallback", { ...base, reason: dispatch.reason });
+  }
+}
+
 function PlanTaskRow({ n, task, numbered, ultra, busy, onUltra }: { n: number; task: PlanTask; numbered: boolean; ultra?: { on: boolean; blocked: string }; busy?: boolean; onUltra: (on: boolean) => void }) {
   const machines = useStore((s) => s.machines);
   const machine = machines.find((m) => m.id === task.machine)?.name ?? task.machine;
@@ -418,6 +459,10 @@ function PlanTaskRow({ n, task, numbered, ultra, busy, onUltra }: { n: number; t
       {/* it is asked for where it can't run: say it starts without */}
       {ultra?.blocked && ultra.on && <div className="text-label text-orange">{t("ultracode.plan_blocked", { reason: ultra.blocked })}</div>}
       {task.why && <div className="text-label text-ink-2">{task.why}</div>}
+      {(() => {
+        const dispatchLine = planDispatchReason(task.dispatch);
+        return dispatchLine ? <div data-testid="plan-task-dispatch" className="text-label text-ink-3">{dispatchLine}</div> : null;
+      })()}
       {/* what the task will be held to, shown before "Start" confirms it (#3822) */}
       {task.brief && (
         <Suspense fallback={null}>
@@ -1153,12 +1198,15 @@ export const AssistantActionBar = memo(function AssistantActionBar({ conversatio
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tick: re-read the clock once a minute
     [conversation, main, manager, todos, sessionRows, interactions, answered, plans, feed, metadata, deferred, lookup, restored, tick],
   );
+  const directWaiting = main === conversation;
+  const waiting = useMemo(() => directWaiting ? directUserWaiting(entries.needsYou, deferred) : entries.needsYou, [directWaiting, entries.needsYou, deferred]);
+  const countedOwnAsks = useMemo(() => directWaiting ? ownAsks.filter(directUserInteraction) : ownAsks, [directWaiting, ownAsks]);
   const isAsking = (item: NeedsYouItem) => (item.kind === "task" || item.kind === "agent") && item.asks.length > 0;
   // While background rounds fold, rows other conversations supervise are grouped under them (#4314); with the
   // switch off, or every row this conversation's, the tray is as it was.
   const foldBackground = useStore((s) => s.assistant?.main_background_folded) !== false;
   const conversations = useStore((s) => s.assistant?.conversations);
-  const groups = foldBackground ? needsYouBySupervisor(entries.needsYou, conversation) : [{ supervisor: conversation, items: entries.needsYou }];
+  const groups = foldBackground ? needsYouBySupervisor(waiting, conversation) : [{ supervisor: conversation, items: waiting }];
   const own = groups[0].items;
   const asking = own.filter(isAsking);
   const rest = own.filter((item) => !asking.includes(item));
@@ -1166,13 +1214,14 @@ export const AssistantActionBar = memo(function AssistantActionBar({ conversatio
     const row = conversations?.find((c) => c.session_id === id);
     return row ? conversationTitle(row) : t("assistant-tasks.needs_group_another");
   };
-  // The badges count by the To-dos page's one rule (#3331): a to-do row adds one only while the page counts it open
-  // (lib/todo-triage countsAsOpen via each task row's countsOpen); rows stay visible whatever it says. Things that are
-  // no to-do — hand-opened Agents, plans waiting for Start, draft cards, the chat's own ask cards — still add one.
+  // The badge and the rows it opens share directUserWaiting: current direct questions, owner-only decisions,
+  // explicit acceptance, and escalated or hub-projected task cards. Unstarted/failed work, unescalated Agent
+  // permissions/terminal dialogs, delegating cards and generic retries stay out.
+  // Other trays keep the existing To-dos open-work rule (#3331).
   const badgeOf = (items: { kind: string; countsOpen?: boolean }[]) =>
     items.reduce((n, item) => n + (item.kind === "task" ? (item.countsOpen ? 1 : 0) : 1), 0);
   // Finished counts its rows (#10922): finished work, never open work, so no To-dos count to agree with
-  const counts: Record<AssistantTray, number> = { needs: ownAsks.length + badgeOf(entries.needsYou), running: badgeOf(entries.running), parked: badgeOf(entries.parked), review: badgeOf(entries.review), finished: entries.finished.length };
+  const counts: Record<AssistantTray, number> = { needs: directWaiting ? directWaitingCount(waiting, ownAsks) : countedOwnAsks.length + badgeOf(waiting), running: badgeOf(entries.running), parked: badgeOf(entries.parked), review: badgeOf(entries.review), finished: entries.finished.length };
   // the card is in the chat already: close the tray onto it and bring it into view. A folded stack shows only its first
   // card, so use its existing expander before looking for another one (#10347).
   const scrollOwn = (id: string, keepBar = false) => {
@@ -1203,14 +1252,20 @@ export const AssistantActionBar = memo(function AssistantActionBar({ conversatio
     });
   };
   const openNextOwn = () => {
-    if (!ownAsks.length) return;
-    const previous = ownAsks.findIndex((ix) => ix.id === lastOwn.current);
-    const next = ownAsks[(previous + 1) % ownAsks.length];
+    if (!countedOwnAsks.length) return;
+    const previous = countedOwnAsks.findIndex((ix) => ix.id === lastOwn.current);
+    const next = countedOwnAsks[(previous + 1) % countedOwnAsks.length];
     lastOwn.current = next.id;
     openOwn(next.id, true);
   };
   useEffect(() => {
-    const needs = (event: Event) => { if ((event as CustomEvent).detail === conversation) setTray("needs"); };
+    const openRequested = () => { if (takeDirectWaitingRequest(conversation)) setTray("needs"); };
+    openRequested();
+    const needs = (event: Event) => {
+      if ((event as CustomEvent).detail !== conversation) return;
+      takeDirectWaitingRequest(conversation);
+      setTray("needs");
+    };
     window.addEventListener("persona:task-pending", needs);
     window.addEventListener("persona:task-start", needs);
     return () => {
@@ -1275,7 +1330,7 @@ export const AssistantActionBar = memo(function AssistantActionBar({ conversatio
           </div>}
           {tray === "needs" && <div className="flex flex-col gap-2 p-2">
             {asking.map((item) => <NeedsYouRow key={item.key} item={item} open={openRows.has(openKey(item))} onToggle={() => toggleRow(openKey(item))} />)}
-            {ownAsks.map((ix) => <OwnAskRow key={ix.id} ix={ix} onOpen={() => openOwn(ix.id)} />)}
+            {countedOwnAsks.map((ix) => <OwnAskRow key={ix.id} ix={ix} onOpen={() => openOwn(ix.id)} />)}
             {rest.map((item) => <NeedsYouRow key={item.key} item={item} open={openRows.has(openKey(item))} onToggle={() => toggleRow(openKey(item))} />)}
             {groups.slice(1).map((group) => (
               <section key={group.supervisor} data-needs-supervisor={group.supervisor} aria-label={supervisorTitle(group.supervisor)} className="flex flex-col gap-2">
@@ -1292,10 +1347,10 @@ export const AssistantActionBar = memo(function AssistantActionBar({ conversatio
           open tray is the selected capsule. The scroller pads by the focus ring's width and takes it back, as the
           dock's did, so a large font scrolls sideways instead of clipping the ring. */}
       <div className="scrollbar-none -my-1 flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto py-1">
-        {ownAsks.length > 0 && (
+        {countedOwnAsks.length > 0 && (
           <button type="button" data-next-own-ask onClick={openNextOwn} className={cx(DOCK_CAPSULE, "gap-2 bg-field font-medium text-ink hover:bg-hover")}>
             <span className="whitespace-nowrap">{t("assistant-tasks.next_unanswered")}</span>
-            <span className="tabular-nums text-ink-2">{ownAsks.length}</span>
+            <span className="tabular-nums text-ink-2">{countedOwnAsks.length}</span>
           </button>
         )}
         {entryKeys.map((key) => {
