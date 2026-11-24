@@ -210,19 +210,8 @@ type Service struct {
 	lists   map[string][]time.Duration
 	ctx     context.Context
 	logs    []string
-	wbd     *wbData // the workbench's data (wb)
-	// held are the /read answers the turn handed over to hold for the owner (HoldRead), and heldErr what it answers.
-	held    []heldRead
-	heldErr error
-}
-
-// heldRead is one HoldRead call: the cards as JSON, their fallbacks and keys.
-type heldRead struct {
-	run       string
-	cards     []string
-	fallbacks []string
-	keys      []string
-	quiet     bool
+	wbd     *wbData     // the workbench's data (wb)
+	thd     *threadData // the to-do threads (th)
 }
 
 func newTestService(t testing.TB, f Hub) *Service {
@@ -462,19 +451,6 @@ func (s *Service) call(ctx context.Context, method string, params, out any) erro
 	return nil
 }
 
-func targetParams(t assistantwire.ChannelTarget, p map[string]any) map[string]any {
-	if t.ChatID != "" {
-		p["chat_id"] = t.ChatID
-	}
-	if t.InThread {
-		p["in_thread"] = true
-	}
-	if t.NoDetour {
-		p["no_detour"] = true
-	}
-	return p
-}
-
 func (s *Service) Status(ctx context.Context) (FeishuStatus, error) {
 	var st FeishuStatus
 	err := s.call(ctx, FeishuStatusGet, map[string]any{}, &st)
@@ -653,18 +629,6 @@ func (s *Service) AnswerCards(l i18n.Lang, _ func(*url.URL) string, answer strin
 	}
 	s.ProcessPanel(l, c, steps)
 	return []*botcard.Card{c.Note(foot)}, []string{answer}
-}
-
-// HoldRead keeps what the turn handed over, as the core would before posting it to the owner's private chat.
-func (s *Service) HoldRead(_ context.Context, r *channel.Run, cards []*botcard.Card, fallbacks, keys []string, quiet bool) error {
-	h := heldRead{run: r.ID, fallbacks: slices.Clone(fallbacks), keys: slices.Clone(keys), quiet: quiet}
-	for _, c := range cards {
-		h.cards = append(h.cards, c.JSON())
-	}
-	s.chans.mu.Lock()
-	defer s.chans.mu.Unlock()
-	s.held = append(s.held, h)
-	return s.heldErr
 }
 
 func (s *Service) Now() time.Time {
@@ -927,4 +891,71 @@ func (s *Service) ReplyInbox(_ context.Context, id, text, clientID string) (bool
 	defer s.tmu.Unlock()
 	d.replies = append(d.replies, id+" "+clientID+": "+text)
 	return false, nil
+}
+
+// ---- a to-do's topic lines' part of the host ----
+
+// threadData is the fake core's to-do threads and topic anchors, and the timers the lines asked for (tests set them).
+type threadData struct {
+	bound   map[string][2]string // to-do → chat, thread
+	anchors map[string]string    // chat/thread → message
+	later   []func()
+	forgot  []string
+}
+
+func (s *Service) th() *threadData {
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	if s.thd == nil {
+		s.thd = &threadData{bound: map[string][2]string{}, anchors: map[string]string{}}
+	}
+	return s.thd
+}
+
+func (s *Service) ThreadOf(id string) (string, string, bool) {
+	d := s.th()
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	b, ok := d.bound[id]
+	return b[0], b[1], ok
+}
+
+func (s *Service) StatusKept(ctx context.Context) (FeishuStatus, error) { return s.Status(ctx) }
+
+func (s *Service) TopicMessage(_ context.Context, chat, thread string) string {
+	d := s.th()
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	return d.anchors[chat+"/"+thread]
+}
+
+func (s *Service) ForgetTopicMessage(_ context.Context, chat, thread, id string) {
+	d := s.th()
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	d.forgot = append(d.forgot, chat+"/"+thread+" "+id)
+	delete(d.anchors, chat+"/"+thread)
+}
+
+func (s *Service) TodoLink(web, id string) string { return web + "/todos/" + id }
+func (s *Service) PostNow() time.Time             { return s.clock() }
+
+// PostLater keeps the line's timer for the test to fire (fireLater).
+func (s *Service) PostLater(_ time.Duration, f func()) {
+	d := s.th()
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	d.later = append(d.later, f)
+}
+
+// fireLater runs the timers asked for so far.
+func (s *Service) fireLater() {
+	d := s.th()
+	s.tmu.Lock()
+	fs := d.later
+	d.later = nil
+	s.tmu.Unlock()
+	for _, f := range fs {
+		f()
+	}
 }
