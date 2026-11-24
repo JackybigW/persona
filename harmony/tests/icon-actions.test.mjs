@@ -114,9 +114,11 @@ test('compact navigation keeps the back and close marks legible independently of
   ]);
   assert.match(design, /iconScale:PhoneStyle\.formSize\(1,1\.25,this\.environment\.fontScale\)/);
   assert.match(design, /\.width\(this\.controlDiameter\)\.height\(this\.controlDiameter\)/);
+  const phoneButtons = [...shell.matchAll(/PhoneIconButton\(\{([\s\S]*?)\}\)/g)].map(match => match[1]);
   for (const [identity, mark] of [['shell.back', 'navigationBack'], ['settings.back', 'navigationBack'], ['settings.close', 'navigationClose']]) {
-    const caller = shell.split('\n').find(line => line.includes("identity:'" + identity + "'"));
-    assert.ok(caller?.includes("symbol:'" + mark + "'"), identity);
+    const callers = phoneButtons.filter(button => button.includes("identity:'" + identity + "'"));
+    assert.equal(callers.length, 1, identity);
+    assert.ok(callers[0].includes("symbol:'" + mark + "'"), identity);
   }
   for (const [source, mark, identity] of [[shell, 'navigationClose', 'agent.cancel'], [pickers, 'navigationBack', 'agent.picker.back'], [projects, 'navigationBack', 'shell.back']]) {
     const control = source.slice(source.lastIndexOf('Button({', source.indexOf(".id('" + identity + "')")), source.indexOf(".id('" + identity + "')"));
