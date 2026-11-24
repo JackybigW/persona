@@ -326,7 +326,7 @@ func TestModelProfileCandidatesEndpoint(t *testing.T) {
 	setSettings(t, s, func(v *Settings) { v.MachineID = "server" })
 
 	// Managed launchers map launcher names to their upstream providers (claude, codex, unknown-api).
-	if err := ts.PutSetting(ctx, launchersKey, []storedLauncher{
+	if err := ts.PutSetting(ctx, launchersManagedKey, []storedLauncher{
 		{ManagedLauncher: proto.ManagedLauncher{Name: "gw-claude", Agent: "claude"}},
 		{ManagedLauncher: proto.ManagedLauncher{Name: "gw-codex", Agent: "codex"}},
 		{ManagedLauncher: proto.ManagedLauncher{Name: "third-party", Agent: ""}},
