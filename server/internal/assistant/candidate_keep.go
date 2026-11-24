@@ -3,6 +3,7 @@ package assistant
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -58,6 +59,16 @@ func keepSwitch(f keepFacts, now time.Time) (string, map[string]any) {
 		return switchQuota, args
 	}
 	return "", nil
+}
+
+// dispatchPresetArg marks a dispatch whose tier a start-defaults preset chose (dispatch args, model_routing detail):
+// the policy decides that tier again on every start, so it is never kept.
+const dispatchPresetArg = "preset"
+
+// presetDispatch is whether args mark a preset's dispatch.
+func presetDispatch(args map[string]any) bool {
+	v, _ := args[dispatchPresetArg].(bool)
+	return v
 }
 
 // tierKeep is the previous Agent's dispatch of the same task, with what the re-pick rule reads of the to-do.
@@ -144,10 +155,12 @@ func (s *Service) taskKeep(ctx context.Context, t *PlanTask) *tierKeep {
 			s.logf("task %s: previous dispatch: %v", todo, err)
 		}
 		if row != nil {
-			prev = &TaskDispatch{Tier: row.Tier, Candidate: row.Candidate, Of: row.Of, Launcher: row.Launcher, Model: row.Model, Reason: row.Reason}
+			var detail modelRoutingDetail
+			_ = json.Unmarshal(row.Detail, &detail)
+			prev = &TaskDispatch{Tier: row.Tier, Candidate: row.Candidate, Of: row.Of, Launcher: row.Launcher, Model: row.Model, Reason: row.Reason, Args: detail.Args}
 		}
 	}
-	if prev == nil || strings.TrimSpace(prev.Tier) == "" {
+	if prev == nil || strings.TrimSpace(prev.Tier) == "" || presetDispatch(prev.Args) {
 		return nil
 	}
 	keep := &tierKeep{Prev: *prev}
