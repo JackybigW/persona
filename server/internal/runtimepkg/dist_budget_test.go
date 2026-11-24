@@ -25,9 +25,11 @@ import (
 // Antigravity multi-instance companion flags and --agy-dir env propagation (#14483) add 373 B (260,942 B).
 // An Antigravity CLI without session/set_mode: checks skip the switch and starts say to update agy (#14533), 149 B (261,091 B).
 // Antigravity Gemini API-key gateway model discovery routes through HTTP(S)_PROXY and honors NO_PROXY (#14552), 1,497 B (262,588 B).
+// Keeping agy's live text ahead of later thoughts (#14745) measured 262,673 B on main, 85 B over the ceiling.
+// An agy main chat on Windows finding personad.exe and a cmd.exe media-guard hook that also checks Node.js (#14511) add 182 B (262,855 B).
 // Raise the budget only for code a runtime needs, never to embed the packages raw again.
 func TestDistBudget(t *testing.T) {
-	const budget = 262_588
+	const budget = 262_855
 	_, out := generateIntegrations(t)
 	entries, err := os.ReadDir(out)
 	if err != nil {

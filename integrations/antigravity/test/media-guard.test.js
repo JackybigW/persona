@@ -94,18 +94,20 @@ test('on Windows the hook is a cmd.exe command', (t) => {
   t.after(() => rmSync(home, { recursive: true, force: true }))
   const agyDir = join(home, 'antigravity-cli')
   mkdirSync(agyDir)
-  const node = 'C:\Program Files (x86)\nodejs\node.exe'
-  const dir = installMediaGuard({ agyDir, script: 'C:\pkg\media-guard.mjs', node, platform: 'win32' })
+  const node = String.raw`C:\Program Files (x86)\nodejs\node.exe`
+  const script = String.raw`C:\pkg\media-guard.mjs`
+  const dir = installMediaGuard({ agyDir, script, node, platform: 'win32' })
   const command = JSON.parse(readFileSync(join(dir, 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
-  assert.equal(command, `if exist "C:\pkg\media-guard.mjs" ("${node}" "C:\pkg\media-guard.mjs" --state "${join(agyDir, 'persona-media-guard')}") else (echo {"decision":"ask"})`)
+  const ask = 'echo {"decision":"ask"}'
+  assert.equal(command, `if exist "${node}" (if exist "${script}" ("${node}" "${script}" --state "${join(agyDir, 'persona-media-guard')}") else (${ask})) else (${ask})`)
 })
 
-test('cmd.exe runs the Windows hook and answers "ask" once its script is gone', { skip: process.platform !== 'win32' && 'needs cmd.exe' }, (t) => {
+test('cmd.exe runs the Windows hook and answers "ask" once its script or Node.js is gone', { skip: process.platform !== 'win32' && 'needs cmd.exe' }, (t) => {
   const home = mkdtempSync(join(tmpdir(), 'agy media guard ('))
   t.after(() => rmSync(home, { recursive: true, force: true }))
   const agyDir = join(home, 'antigravity-cli')
   mkdirSync(agyDir)
-  const hook = (script) => JSON.parse(readFileSync(join(installMediaGuard({ agyDir, script }), 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
+  const hook = (script, node) => JSON.parse(readFileSync(join(installMediaGuard({ agyDir, script, node }), 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
   // As written, and wrapped in the quotes cmd /c strips: both are how a caller may pass it.
   const cmd = (command, input) => [command, `"${command}"`].map((line) =>
     JSON.parse(execFileSync('cmd.exe', ['/d', '/c', line], { input, windowsVerbatimArguments: true }).toString()))
@@ -113,4 +115,6 @@ test('cmd.exe runs the Windows hook and answers "ask" once its script is gone', 
   const payload = JSON.stringify({ toolCall: { name: 'read_file', args: { Path: join(home, 'cut.png') } } })
   for (const answer of cmd(hook(SCRIPT), payload)) assert.equal(answer.decision, 'deny')
   for (const answer of cmd(hook(join(home, 'moved', 'media-guard.mjs')), payload)) assert.deepEqual(answer, { decision: 'ask' })
+  // Node.js moved (an upgrade, a reinstall): cmd would say "is not recognized" and print no JSON.
+  for (const answer of cmd(hook(SCRIPT, join(home, 'old node (x86)', 'node.exe')), payload)) assert.deepEqual(answer, { decision: 'ask' })
 })

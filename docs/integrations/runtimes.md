@@ -585,8 +585,9 @@ which wins over another hook's `allow`) with a reason the model passes on, and t
 JPEG whose image data began also gets a terminated copy under `<agy config>/persona-media-guard/`, named in the reason,
 so the model can still look at the part that arrived. The hook answers `ask` when its script is gone (the package moved
 on), so a stale plugin never blocks agy; `--no-media-guard` keeps the companion from writing it. agy runs a hook through
-`/bin/sh` on macOS and Linux and through `cmd.exe` on Windows, so the Windows hook is a `cmd` command (`if exist … else
-echo`) with every path quoted. Pictures attached to a
+`/bin/sh` on macOS and Linux and through `cmd.exe` on Windows, so the Windows hook is a `cmd` command with every path
+quoted that checks Node.js and the script with `if exist` and answers `ask` when either is gone (a cmd that cannot find
+the program prints no JSON at all). Pictures attached to a
 message from Persona get the same check: a broken one is left out of the prompt with a line saying so.
 
 Native model errors can be omitted from the JSONL export even when ACP reports a completed prompt. When an idle
