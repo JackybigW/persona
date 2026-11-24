@@ -1698,7 +1698,8 @@ func (f *fakeHub) fakeModel(t testing.TB) {
 	}))
 	t.Cleanup(srv.Close)
 	key := filepath.Join(t.TempDir(), "key")
-	if err := os.WriteFile(key, []byte("k"), 0o600); err != nil {
+	// ai shares a quota hold by address and credential. A recycled test port belongs to a new fixture.
+	if err := os.WriteFile(key, []byte(randomHex(16)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	f.hello.Models.AI = ai.Config{BaseURL: srv.URL, APIKeyFile: key, Model: "fake"}
