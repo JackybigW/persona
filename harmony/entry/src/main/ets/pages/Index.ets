@@ -2059,13 +2059,21 @@ struct Index {
     if (!this.model.profile.id || !this.fullHeightPhone() || this.environment.safeTopPx <= 0) return 0;
     return Math.max(0, Tokens.compactStatusInset - this.getUIContext().px2vp(this.environment.safeTopPx));
   }
+  private knowledgeSurface(): boolean {
+    return this.phoneTop === 'resources' && this.phoneParam === 'knowledge' ||
+      ['knowledge', 'knowledge_meetings', 'recordings'].includes(this.phoneTop);
+  }
+  private compactInsetEdges(): LayoutSafeAreaEdge[] {
+    const bottom = this.model.profile.id && this.fullHeightPhone() && !this.environment.keyboardHeightPx &&
+      !this.drawerFraction && !this.chatSearchShown && this.knowledgeSurface();
+    return bottom ? [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM] : [LayoutSafeAreaEdge.TOP];
+  }
   private compactInsetSurface(): ResourceColor {
     if (!this.model.profile.id || !this.fullHeightPhone()) return Color.Transparent;
     if (this.drawerFraction > 0) return Colors.phoneDrawerSurface;
     if (this.chatSearchShown && this.startSearchInAgents) return Colors.grouped;
     const page = this.phoneTop;
-    if (page === 'resources' && (this.phoneParam === 'knowledge' || this.phoneParam === 'todo' || this.phoneParam === 'health') ||
-      ['knowledge', 'knowledge_meetings', 'recordings', 'project_tree'].includes(page) ||
+    if (this.knowledgeSurface() || page === 'resources' && (this.phoneParam === 'todo' || this.phoneParam === 'health') || page === 'project_tree' ||
       page === 'settings' && this.settingsKind(this.phoneParam) === 'machines') return Colors.grouped;
     if (!page && (this.projectPlace() ? this.projectSearching : this.model.section === 1)) return Colors.grouped;
     return Color.Transparent;
@@ -3176,6 +3184,17 @@ struct Index {
   }
   build() {
     Stack() {
+    if (this.drawerFraction > 0 && this.fullHeightPhone() && !this.environment.keyboardHeightPx) {
+      Row() {
+        Row().width(this.drawerFraction * this.drawerWidth()).height('100%')
+          .background(Colors.phoneDrawerSurface, { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+        Stack() {
+          Row().width('100%').height('100%').background(Colors.canvas, { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+          Row().width('100%').height('100%').opacity(this.drawerFraction)
+            .background(this.environment.dark ? '#73000000' : '#33000000', { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+        }.layoutWeight(1).height('100%')
+      }.width('100%').height('100%').hitTestBehavior(HitTestMode.None).accessibilityLevel('no-hide-descendants')
+    }
     WithTheme({ theme: nativeLookTheme(this.look, this.model.style, this.environment.dark), colorMode: this.environment.dark ? ThemeColorMode.DARK : ThemeColorMode.LIGHT }) {
     ThemeScope({ systemControls: this.look.accentId === 'style' && usesSystemStyleColors(this.model.style),
       styleID: phoneInterfaceStyleID(this.model.style),
@@ -3275,7 +3294,7 @@ struct Index {
       }
     }
     }.width('100%').height('100%').backgroundColor(Colors.canvas)
-      .background(this.compactInsetSurface(), { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.TOP] })
+      .background(this.compactInsetSurface(), { ignoresLayoutSafeAreaEdges: this.compactInsetEdges() })
       .bindSheet($$this.readerShown, this.readerContent(), { title: { title: this.readerTitle }, height: Tokens.readerFull, width: Tokens.readerFull, preferType: SheetType.BOTTOM,
         detents: [Tokens.readerFull, Tokens.readerPartial], enableOutsideInteractive: true, showClose: true })
   }
