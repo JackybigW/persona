@@ -211,6 +211,8 @@ class SyncCaseMockTests(unittest.TestCase):
         except HTTPError as e:
             with e:
                 return e.code, json.loads(e.read() or b"null")
+        except (URLError, ConnectionError, OSError) as error:
+            raise AssertionError(f"mock hub POST {path} failed: {error}\n{self.hub.output()}") from error
 
     def test_every_case(self):
         only = os.environ.get("SYNC_CASE_ONLY")  # one case by name, when looking into it
