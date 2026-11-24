@@ -3,7 +3,7 @@ import PersonaWire
 
 /// Selection, editing and the one-time question share one authoritative revision, scoped to the paired hub.
 @Observable final class HealthItemsModel {
-    enum SectionID: String, Identifiable { case today, activity, trends; var id: String { rawValue } }
+    enum SectionID: String, Identifiable { case today, activity, trends, strength; var id: String { rawValue } }
     typealias Deps = AssistantDeps
     private(set) var supported = false
     private(set) var state: HealthItems?
@@ -17,6 +17,8 @@ import PersonaWire
     private(set) var question = false
     var wantsWater = false
     var wantsProtein = false
+    var wantsStrength = false
+    private(set) var canShowStrength = false
     private(set) var refresh = 0
     @ObservationIgnored private let deps: Deps
     @ObservationIgnored private var scope: APIClient?
@@ -42,8 +44,15 @@ import PersonaWire
             error = nil
             wantsWater = false
             wantsProtein = false
+            wantsStrength = false
         }
-        self.available = available
+        self.available = available.filter { $0 != "strength" || features.contains(HealthStrengthUI.feature) }
+        canShowStrength = self.available.contains("strength")
+        if editing {
+            // A module turned off while the editor was open: its slots become hidden and must be retained on save.
+            editOrder.removeAll { !self.available.contains($0) }
+            selected.formIntersection(editOrder)
+        }
         if let intakeItems { self.intakeItems = intakeItems }
         supported = features.contains(HealthItems.feature)
         project()
@@ -97,7 +106,7 @@ import PersonaWire
             if let section, !result.contains(section) { result.append(section) }
         }
         sections = result
-        question = supported && state?.saved == false && !ids.contains("water") && !ids.contains("protein")
+        question = supported && state?.saved == false && !ids.contains("water") && !ids.contains("protein") && !(canShowStrength && ids.contains("strength"))
     }
 
     func beginEditing() {
@@ -139,6 +148,7 @@ import PersonaWire
         if add {
             if wantsWater { ids.append("water") }
             if wantsProtein { ids.append("protein") }
+            if canShowStrength && wantsStrength { ids.append("strength") }
         }
         await save(ids, baseline: state, closesEditor: false)
     }

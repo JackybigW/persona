@@ -272,8 +272,10 @@ struct HealthView: View {
     @State private var items = HealthItemsModel()
     #if DEBUG
     @State private var openedItemsExample = false
+    @State private var tellPreview = false
     #endif
     @State private var intakeDetail: HealthIntakeSheet.Route?
+    @State private var strengthDetail: HealthStrengthSheet.Route?
     #if os(iOS)
     #if DEBUG
     @State private var trends = HealthHomeSamples.trendsModel()
@@ -343,7 +345,15 @@ struct HealthView: View {
             HealthItemsEditor(page: items)
         }
         .sheet(item: $intakeDetail) { HealthIntakeSheet(kind: $0.kind) }
+        .sheet(item: $strengthDetail) { HealthStrengthSheet(push: $0.push, group: $0.group) }
         #if DEBUG
+        .sheet(isPresented: $tellPreview) {
+            NavigationStack {
+                TellHealthPreview(api: model.api?.manager(nil))
+                    .toolbar { SheetClose { tellPreview = false } }
+            }
+        }
+        .task { tellPreview = UserDefaults.standard.bool(forKey: "showTellHealthResult") }
         // `-showReportUpload <name>[,<name>…]`: made-up reports uploaded as if picked, to check the whole way without the
         // picker; `-showReportUploadMB <n>`: each that big, on its way a while (the mock hub reads it slowly). Once a launch:
         // the page built again (a fold, #2836) does not upload them twice.
@@ -389,7 +399,7 @@ struct HealthView: View {
 
     private static var availableItems: [String] {
         #if os(iOS)
-        UIDevice.current.userInterfaceIdiom == .phone ? ["water", "protein", "activity", "trends"] : ["water", "protein", "trends"]
+        UIDevice.current.userInterfaceIdiom == .phone ? ["water", "protein", "activity", "trends", "strength"] : ["water", "protein", "trends", "strength"]
         #else
         ["water", "protein"]
         #endif
@@ -427,6 +437,12 @@ struct HealthView: View {
                                 HealthIntakeSyncLink()
                                 #endif
                             } header: { Text("Today") }
+                        case .strength:
+                            #if os(iOS)
+                            HealthStrengthSection(hellos: model.hubHellos, group: model.hubGroup) { push, group in
+                                strengthDetail = .init(push: push, group: group)
+                            }.id(model.hubGroup)
+                            #endif
                         case .activity:
                             #if os(iOS)
                             activitySection
@@ -537,6 +553,7 @@ struct HealthView: View {
                 Section {
                     source(Theme.Brand.iosHealth, String(localized: "Apple Health"), String(localized: "Reads summaries of steps, sleep, heart rate, weight and more through your iPhone. Persona needs to be open on the phone with access granted."))
                     source(Theme.Icon.edit, String(localized: "Log Data"), String(localized: "Say “I drank 300 ml of water”, or take a photo of a meal in the field below, to log it in Health. When sync is on, it is also written to Apple Health."))
+                    source(Theme.Icon.edit, String(localized: "Strength Training"), String(localized: "In Shortcuts, create an automation for Apple Watch Workout · Strength Training Starts, then add Tell Health with “Strength training has started”. Health plans today from your last workout. You can also say it in a Health chat. The system decides whether confirmation is needed."))
                     source(Theme.Icon.document, String(localized: "Checkup Reports and Lab Results"), String(localized: "Choose Upload a checkup report and pick a PDF or a photo: each item is read out and the ones outside the reference range are marked. The original and its record stay in Health, so years can be compared."))
                 } header: {
                     Text("Data Sources")

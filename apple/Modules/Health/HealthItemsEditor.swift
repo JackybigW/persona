@@ -45,6 +45,7 @@ enum HealthItemTitle {
         case "water": "Water"
         case "protein": "Protein"
         case "activity": "Activity"
+        case "strength": "Strength Training"
         default: "Health Trends"
         }
     }
@@ -57,12 +58,15 @@ struct HealthItemsQuestion: View {
             Text("What would you like to track?").font(Theme.Font.bodyStrong)
             Toggle("Water", isOn: $page.wantsWater).tapTargetHeight().accessibilityIdentifier("health-question-water")
             Toggle("Protein", isOn: $page.wantsProtein).tapTargetHeight().accessibilityIdentifier("health-question-protein")
+            if page.canShowStrength {
+                Toggle("Strength Training", isOn: $page.wantsStrength).tapTargetHeight().accessibilityIdentifier("health-question-strength")
+            }
             StackingButtonRow {
                 Button { Task { await page.answerQuestion(add: true) } } label: {
                     Text("Add").buttonLabelLine().frame(maxWidth: .infinity).scaledFrame(minHeight: Theme.Size.tapTarget)
                 }
                 .themedButton(prominent: true)
-                .disabled(!page.wantsWater && !page.wantsProtein)
+                .disabled(!page.wantsWater && !page.wantsProtein && !(page.canShowStrength && page.wantsStrength))
                 .accessibilityIdentifier("health-question-add")
                 Button { Task { await page.answerQuestion(add: false) } } label: {
                     Text("Not Now [Health Items]").buttonLabelLine().frame(maxWidth: .infinity).scaledFrame(minHeight: Theme.Size.tapTarget)

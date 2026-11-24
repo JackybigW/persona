@@ -47,11 +47,31 @@ while retaining hidden and unrecognized IDs in their relative order. A 409 adopt
 state and explains that another device changed it; other failures keep the draft. Removing an
 item keeps records, and adding it back restores their display.
 
-Before the first save, an owner with neither intake item sees one question for Water and Protein.
+Before the first save, an owner with no added intake item sees one question for Water and Protein.
+On supported iPhone and iPad hubs, the question also offers strength; an added, visible strength item suppresses it.
+Hidden strength keeps the device's existing question and stays preserved when saving.
 **Add** saves the selected items; **Not Now** saves the current list. Either accepted save stops
 asking, including after relaunch. Complications, intake widgets and Log Water read `items` from
 intake: absent water/protein asks to add it in Health, and Log Water refuses before writing.
 A missing field from an older hub keeps both items available.
+
+## Strength pages on Apple clients
+
+With `health_strength` and an added `strength` item, iPhone and iPad show the server's `strength.home` card at its
+stored position. The existing reserved `-health-intake` renderer opens the overview, exercise and draft editor pages;
+the server supplies their titles and opaque state. Managed `health-strength-` cards use the ordinary in-app hub link
+for Adjust. Save, Cancel and Close return to the conversation. Content-free `health_strength` events and authenticated
+hello/reconnect reload the home card and open pages. Without the capability, the item is hidden and retained during
+edits; Vision Pro continues to show only Today. Removing strength keeps its data and existing card actions.
+
+## Tell Health on Apple clients
+
+Tell Health is a background Shortcuts action with one text input on iPhone and Apple Watch. It uses the selected hub
+and the watch's existing credential, requires `health_tell`, and posts only to the dedicated Health endpoint. A receipt
+says **Sent to Health**, without claiming delivery or execution. Bounded retries reuse one invocation ID so a lost
+receipt does not create another sentence; refusals and uncertain delivery remain visible. Health's help explains a
+Strength Training Starts automation, the option to say it in Health instead, and system-controlled confirmation.
+See [App Intents](../apple/intents.md) for the action and receipt behavior.
 
 ## Why split it out
 
