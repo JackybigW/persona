@@ -64,7 +64,8 @@ func TestRestartHubAsPersonaHub(t *testing.T) {
 	dir := t.TempDir()
 	started := filepath.Join(dir, "started")
 	run := filepath.Join(dir, "persona-hub")
-	if err := os.WriteFile(run, []byte("#!/bin/sh\necho \"$0 $@\" > "+started+"\n"), 0o755); err != nil {
+	// Publish the recording atomically: the poll must never mistake a created-but-unwritten file for the command.
+	if err := os.WriteFile(run, []byte("#!/bin/sh\necho \"$0 $@\" > "+started+".pending\nmv "+started+".pending "+started+"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	target := filepath.Join(dir, "personad")
