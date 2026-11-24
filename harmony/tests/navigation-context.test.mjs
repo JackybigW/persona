@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mainConversationData} from '../entry/src/main/ets/core/DefaultConversation.ts';
+import {phoneSettingsLink,pushPhoneSetting} from '../entry/src/main/ets/core/PhoneSettingsNavigation.ts';
 import {readFileSync} from 'node:fs';
 import {registerHooks,stripTypeScriptTypes} from 'node:module';
 registerHooks({resolve(s,c,n){if(c.parentURL?.endsWith('NavigationContext.ets')&&s==='./Wire')return {url:new URL('./Wire.ets',c.parentURL).href,shortCircuit:true};return n(s,c);},load(u,c,n){if(u.endsWith('.ets'))return{format:'module',shortCircuit:true,source:stripTypeScriptTypes(readFileSync(new URL(u),'utf8').replace(/@ObservedV2\s*/g,'').replace(/@Trace\s+/g,''))};return n(u,c);}});
@@ -50,6 +51,53 @@ function fixture(){const shell=new NativeNavigation(),pushed=[];let gen=1;
  primary.viewFor=async()=>detail;shell.mainReadWaiters=[];shell.model=primary;shell.detailModel=primary;shell.activeChild='';shell.routeRevision=0;shell.creatingConversations=new Map();shell.chatReady=false;shell.detailRoute='';shell.stack={size:()=>pushed.length,clear:()=>pushed.splice(0),pushPath:r=>pushed.push(r),getAllPathName:()=>pushed.map(r=>r.name),getParamByIndex:i=>pushed[i]?.param};shell.savePath=()=>{};
  return {shell,primary,detail,pushed,bump:()=>gen++};
 }
+function machineSettingsFixture() {
+  const methods=['openFromPhoneSettings','suspendPhoneSettings','enterPhoneSettingsMachine','leavePhoneSettingsMachine',
+    'backPhoneSetting','returnToPhoneSettings','openLinkedResource','routeTarget','openSpace'];
+  const Shell=new Function('phoneSettingsLink','pushPhoneSetting','NavigationContext','Wire',
+    'return '+stripTypeScriptTypes('class Shell {'+methods.map(method).join('\n')+'}'))(phoneSettingsLink,pushPhoneSetting,NavigationContext,Wire);
+  const {primary,pushed}=fixture();
+  primary.profile={id:'hub',manager:'owner-a'};
+  const shell=Object.assign(new Shell(),{model:primary,phoneSettingsShown:true,spacesShown:true,phoneSettingsTrail:[],
+    phoneSettingsQuery:'机器',phoneSettingsDepth:-1,wide:()=>false,savePath(){},activeChild:'main',
+    stack:{size:()=>pushed.length,getAllPathName:()=>pushed.map(r=>r.name),pop:()=>pushed.pop(),pushPath:r=>pushed.push(r)}});
+  Object.defineProperty(shell,'phoneSettingsPage',{get:()=>shell.phoneSettingsTrail.at(-1)||''});
+  const machine=new ResourceRow('macbook','MacBook','machine');machine.group='hub';machine.manager='owner-a';machine.machine='macbook';
+  return {shell,primary,pushed,machine};
+}
+
+test('the Settings Machines directory, machine and two Back steps stay in the same sheet and restore a search',()=>{
+  const {shell,pushed,machine}=machineSettingsFixture();
+  shell.openFromPhoneSettings('machines');
+  assert.equal(shell.phoneSettingsShown,true);assert.deepEqual(shell.phoneSettingsTrail,['machines']);
+  for (const [group,manager] of [['other','owner-a'],['hub','other']]) {
+    const foreign=Object.assign(new ResourceRow('macbook','MacBook','machine'),{group,manager});
+    shell.enterPhoneSettingsMachine(foreign);assert.equal(shell.phoneSettingsMachine,undefined);
+  }
+  shell.enterPhoneSettingsMachine(machine);assert.equal(shell.phoneSettingsMachine.key(),machine.key());
+  shell.backPhoneSetting();assert.equal(shell.phoneSettingsMachine,undefined);assert.equal(shell.phoneSettingsPage,'machines');
+  shell.backPhoneSetting();assert.equal(shell.phoneSettingsPage,'');assert.equal(shell.phoneSettingsQuery,'机器');
+  assert.equal(shell.phoneSettingsShown,true);assert.deepEqual(pushed,[]);
+  shell.model.section=0;shell.changeSection=index=>{shell.model.section=index;};shell.showPlaceRoot=index=>pushed.push({name:'root',param:index});
+  shell.phoneSettingsShown=false;shell.openSpace('devices');assert.equal(shell.phoneSettingsShown,false);assert.equal(pushed[0].param,8);
+});
+
+test('machine settings restore the exact machine after an owned chat and drop a late open after leaving and reentering',async()=>{
+  const {shell,primary,pushed,machine}=machineSettingsFixture(),session=row('task','owner-a','session');session.group='hub';session.machine='macbook';
+  shell.openFromPhoneSettings('machines');shell.enterPhoneSettingsMachine(machine);
+  const first=shell.phoneSettingsMachine,wait=deferred();primary.viewFor=()=>wait.promise;
+  const late=shell.openLinkedResource(session,destination=>shell.leavePhoneSettingsMachine(destination,first));
+  shell.backPhoneSetting();shell.enterPhoneSettingsMachine(machine);const current=shell.phoneSettingsMachine;assert.notEqual(first,current);
+  wait.resolve(primary);await late;assert.equal(pushed.length,0);assert.equal(shell.phoneSettingsShown,true);
+  await shell.openLinkedResource(session,destination=>shell.leavePhoneSettingsMachine(destination,current));
+  assert.equal(shell.phoneSettingsShown,false);assert.equal(pushed.length,1);assert.equal(pushed[0].name,'session');
+  assert.equal(NavigationContext.from('session',pushed[0].param).row.key(),session.key());
+  pushed.push({name:'tools',param:'child'});assert.equal(shell.returnToPhoneSettings(),false);pushed.pop();
+  assert.equal(shell.returnToPhoneSettings(),true);assert.equal(shell.phoneSettingsMachine,current);
+  assert.equal(shell.leavePhoneSettingsMachine('machine_settings',current),true);pushed.push({name:'machine_settings',param:JSON.stringify(current)});
+  primary.scope=()=> 'different-hub';assert.equal(shell.returnToPhoneSettings(),false);
+});
+
 test('global settings remain workspace-owned and chat settings retain the captured target',()=>{
  const {shell,detail,primary,pushed}=fixture();shell.detailModel=detail;shell.openSettings('models');shell.openSettings('models',true);
  assert.equal(pushed[0].param,'models');assert.equal(shell.settingsModel(pushed[0].param),primary);assert.equal(shell.settingsModel(pushed[1].param),detail);
@@ -384,10 +432,12 @@ test('the system phone drawer paints its surface and selection without overridin
  assert.match(source,/this\.wide\(\) \? Colors\.surface : Colors\.phoneDrawerSurface/);
 });
 
-test('the compact status-area background follows the visible page and drawer', () => {
-  const Shell = new Function('Colors','Color','return '+stripTypeScriptTypes('class Shell {'+method('compactInsetSurface')+'}'))(
-    {grouped:'grouped',phoneDrawerSurface:'drawer'},{Transparent:'clear'});
+test('the compact system-area backgrounds follow the visible page and drawer', () => {
+  const Shell = new Function('Colors','Color','LayoutSafeAreaEdge','return '+stripTypeScriptTypes(
+    'class Shell {'+method('knowledgeSurface')+method('compactInsetEdges')+method('compactInsetSurface')+'}'))(
+    {grouped:'grouped',phoneDrawerSurface:'drawer'},{Transparent:'clear'},{TOP:'top',BOTTOM:'bottom'});
   const shell = Object.assign(new Shell(), {model:{profile:{id:'phone'},section:1},fullHeightPhone:()=>true,
+    environment:{keyboardHeightPx:0},
     phoneTop:'resources',phoneParam:'knowledge',drawerFraction:0,chatSearchShown:false,startSearchInAgents:false,
     projectPlace:()=>false,projectSearching:false,settingsKind:value=>value});
   for (const [page,param,expected] of [
@@ -397,7 +447,12 @@ test('the compact status-area background follows the visible page and drawer', (
     ['session','conversation','clear'],['','','grouped']]) {
     shell.phoneTop=page; shell.phoneParam=param;
     assert.equal(shell.compactInsetSurface(),expected);
+    const groupedToBottom = ['recordings','knowledge_meetings','knowledge'].includes(page) || page==='resources' && param==='knowledge';
+    assert.deepEqual(shell.compactInsetEdges(),groupedToBottom ? ['top','bottom'] : ['top']);
   }
+  shell.phoneTop='knowledge';shell.environment.keyboardHeightPx=810;
+  assert.deepEqual(shell.compactInsetEdges(),['top']);
+  shell.environment.keyboardHeightPx=0;shell.phoneTop='';
   shell.projectPlace=()=>true;
   assert.equal(shell.compactInsetSurface(),'clear');
   shell.projectSearching=true;
@@ -411,6 +466,6 @@ test('the compact status-area background follows the visible page and drawer', (
   shell.model.profile.id='phone';shell.fullHeightPhone=()=>false;
   assert.equal(shell.compactInsetSurface(),'clear');
   assert.match(source,/padding\(\{top:this\.compactNavigationInset\(\)\}\)\.clip\(true\)\s*\.backgroundColor\(this\.compactInsetSurface\(\)\)/);
-  assert.match(source,/\.background\(this\.compactInsetSurface\(\),\s*\{ ignoresLayoutSafeAreaEdges: \[LayoutSafeAreaEdge\.TOP\] \}\)/);
+  assert.match(source,/\.background\(this\.compactInsetSurface\(\),\s*\{ ignoresLayoutSafeAreaEdges: this\.compactInsetEdges\(\) \}\)/);
   assert.doesNotMatch(source,/\.overlay\(this\.knowledge|@Builder knowledgeNavigationInset/);
 });

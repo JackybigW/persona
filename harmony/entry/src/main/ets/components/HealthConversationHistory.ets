@@ -11,6 +11,13 @@ import { BoundRow } from '../models/RowBinding';
 import { ResourceRow, Wire } from '../models/Wire';
 import { NativeEnvironment, nativeEnvironment } from '../platform/NativeEnvironment';
 
+@Builder
+export function HealthRowDivider(start: number) {
+  Row() {
+    Divider().strokeWidth('1vp').color(Colors.systemControls && Colors.styleID === 'glass' ? $r('app.color.phone_health_row_separator') : Colors.divider)
+  }.width('100%').height('1vp').padding({left:start,right:20}).hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+}
+
 @ComponentV2
 export struct HealthConversationHistory {
   @Require @Param model: ClientModel;
@@ -57,8 +64,7 @@ export struct HealthConversationHistory {
     return this.archivingBinding ? this.rows.filter((binding: BoundRow<ResourceRow>) => binding.key !== this.archivingBinding) : this.rows;
   }
   @Computed get listHeight(): number {
-    return this.visibleRows.reduce((sum: number, binding: BoundRow<ResourceRow>) => sum+this.rowHeight(binding.value), 0)
-      + Math.max(0,this.visibleRows.length-1)*this.getUIContext().px2vp(1);
+    return this.visibleRows.reduce((sum: number, binding: BoundRow<ResourceRow>) => sum+this.rowHeight(binding.value), 0);
   }
   private get titleInk(): ResourceColor {
     return Colors.systemControls && Colors.styleID === 'glass' ? (this.env.dark ? Color.White : Color.Black) : Colors.ink;
@@ -90,7 +96,7 @@ export struct HealthConversationHistory {
   }
 
   @Builder face(row: ResourceRow, preview: string, activity: string) {
-    Row() {
+    Row({space:12}) {
       Stack() {
         SymbolGlyph($r('sys.symbol.heart_fill')).fontSize(String(this.scaledLength(17,23))+'vp').fontColor([this.tint])
       }.width(this.scaledLength(32,42)).height(this.scaledLength(32,42)).borderRadius(this.scaledLength(16,21))
@@ -100,16 +106,25 @@ export struct HealthConversationHistory {
           .fontColor(this.titleInk).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).id('health.history.title.'+row.id)
         if (preview) Text(preview).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).lineHeight(String(this.scaledLength(18,25.3))+'vp')
           .fontColor(this.secondaryInk).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).id('health.history.preview.'+row.id)
-      }.alignItems(HorizontalAlign.Start).layoutWeight(1).margin({left:12})
-      if (activity) Text(activity).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).lineHeight(String(this.scaledLength(14.3,21.7))+'vp')
-        .fontColor(this.secondaryInk).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).margin({left:8}).id('health.history.activity.'+row.id)
+      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+      if (activity) {
+        Blank().width(8).flexShrink(0).accessibilityLevel('no')
+        Text(activity).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).lineHeight(String(this.scaledLength(14.3,21.7))+'vp')
+          .fontColor(this.secondaryInk).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).id('health.history.activity.'+row.id)
+      }
     }.width('100%').height(this.rowHeight(row)).padding({left:20,right:20}).alignItems(VerticalAlign.Center)
+  }
+  @Builder bottomDivider(binding: BoundRow<ResourceRow>) {
+    if (this.visibleRows[this.visibleRows.length-1] !== binding) {
+      HealthRowDivider(20+this.scaledLength(32,42)+12)
+    }
   }
   @Builder rowButton(binding: BoundRow<ResourceRow>) {
     Button({type:ButtonType.Normal}) {
       this.face(binding.value, this.preview(binding.value), this.activity(binding.value))
     }.width('100%').height(this.rowHeight(binding.value)).padding(0).buttonStyle(ButtonStyleMode.TEXTUAL)
-      .backgroundColor(Color.Transparent).onClick(() => this.open(binding.value)).id('health.chat.'+binding.value.id)
+      .backgroundColor(Color.Transparent).overlay(this.bottomDivider(binding),{align:Alignment.Bottom})
+      .onClick(() => this.open(binding.value)).id('health.chat.'+binding.value.id)
       .accessibilityText(this.title(binding.value))
       .accessibilityDescription([this.preview(binding.value),this.activity(binding.value)].filter((part: string) => part.length > 0).join(' · '))
       .accessibilityCustomActions(this.archiveAllowed(binding) ?
@@ -149,7 +164,6 @@ export struct HealthConversationHistory {
             (binding: BoundRow<ResourceRow>) => binding.key)
         }.width('100%').height(this.listHeight).scrollBar(BarState.Off).edgeEffect(EdgeEffect.None)
           .nestedScroll({scrollForward:NestedScrollMode.PARENT_FIRST,scrollBackward:NestedScrollMode.PARENT_FIRST})
-          .divider({strokeWidth:'1px',startMargin:20+this.scaledLength(32,42)+12,endMargin:20,color:Colors.divider})
           .backgroundColor(Colors.surface).borderRadius(26).clip(true)
       } else {
         Column() {

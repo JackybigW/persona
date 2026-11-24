@@ -1601,6 +1601,7 @@ export struct SessionTools {
         }.width('100%').alignItems(HorizontalAlign.Start).padding(15)
       } else if (!this.workspace.gitError) LoadingProgress().width(28).height(28).margin(16)
     }.width('100%').height('100%').backgroundColor(Colors.grouped)
+      .background(Colors.grouped, { ignoresLayoutSafeAreaEdges: this.phoneSheetHeight === SheetSize.LARGE ? [] : [LayoutSafeAreaEdge.BOTTOM] })
       .bindSheet($$this.gitSheetOpen,this.gitModal(),{height:this.gitSheetHeight(),dragBar:false,showClose:false})
   }
   private branchOptions(): SelectOption[] { return this.workspace.gitBranches.map((branch: WorkspaceBranch): SelectOption => ({ value: this.branchLabel(branch) })); }

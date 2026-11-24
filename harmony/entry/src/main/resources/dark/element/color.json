@@ -161,6 +161,10 @@
       "value": "#1BEBEBF5"
     },
     {
+      "name": "phone_health_row_separator",
+      "value": "#38383B"
+    },
+    {
       "name": "machine_session_avatar_fill",
       "value": "#3D767680"
     },

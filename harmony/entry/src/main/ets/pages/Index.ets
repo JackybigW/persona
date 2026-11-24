@@ -265,6 +265,8 @@ struct Index {
   @Local phoneSettingsQuery: string = '';
   private phoneSettingsDepth: number = -1;
   private phoneSettingsOwner: string = '';
+  private phoneSettingsReturnRoute: string = 'settings';
+  @Local phoneSettingsMachine: ResourceRow | undefined = undefined;
   @Local spacesInset: number = 0;
   private spacesLayoutReady: boolean = false;
   @Local inlineStopIdentity: string = '';
@@ -629,7 +631,7 @@ struct Index {
       this.phoneTop === 'settings' && this.phonePath.length === 1 && ['machines','schedules'].includes(this.settingsKind(this.phoneParam));
   }
   private returnToPhoneSettings(): boolean {
-    if (this.phoneSettingsDepth < 0 || this.stack.size() !== this.phoneSettingsDepth + 1 || this.stack.getAllPathName()[this.stack.size() - 1] !== 'settings' ||
+    if (this.phoneSettingsDepth < 0 || this.stack.size() !== this.phoneSettingsDepth + 1 || this.stack.getAllPathName()[this.stack.size() - 1] !== this.phoneSettingsReturnRoute ||
       this.phoneSettingsOwner !== this.model.scope() || this.wide()) return false;
     this.phoneSettingsDepth = -1; this.stack.pop(); this.savePath();
     this.spacesShown = true; this.phoneSettingsShown = true; return true;
@@ -992,7 +994,7 @@ struct Index {
   @Monitor('model.profile', 'model.connected', 'model.features') applicationOwnerChanged(): void {
     this.applications.bind(this.model); this.applications.connectionChanged();
   }
-  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.chatForward.end(); this.chatForward.clearNew(); this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsQuery = ''; this.phoneSettingsTrail = []; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
+  @Monitor('model.profile') scopeChanged(): void { if (this.activeScope !== this.model.scope()) { this.chatForward.end(); this.chatForward.clearNew(); this.pendingSearchHit = ''; this.pendingSearchTarget = ''; this.chatSearchShown = false; this.drawerSearching = false; this.phoneSettingsMachine = undefined; this.phoneSettingsQuery = ''; this.phoneSettingsTrail = []; this.phoneSettingsShown = false; this.phoneSettingsDepth = -1; this.pendingInboxHandoff = ''; this.projectCatalog.clear(); this.agentWorktree = undefined; this.pickedAgentTree = ''; this.agentWorkspace.hide(); this.spacesShown = false; this.dismissChatActions(); this.showSheet = false; this.agentFormRevision++; this.creatingAgent = false; this.agentTodo = undefined; this.readerShown = false; this.readerAddress = ''; this.readerTitle = ''; this.detailModel.hideConversation(); this.detailModel = this.model; this.chatReady = false; this.detailRoute = ''; this.routeRevision++; this.bindDeviceOwner(this.model); } this.syncConversationRows(); this.restoreScope(); deviceFeatures.context(); }
   @Monitor('model.conversations', 'model.mainId', 'model.mainMachineId', 'model.sidebarConfig', 'model.connected', 'spacesShown', 'breakpoint', 'collapsed', 'sidebarTaskHistory.revision') conversationsChanged(): void { this.syncConversationRows(); }
   @Monitor('model.appearance') appearanceChanged(): void {
     this.getUIContext().getHostContext()?.getApplicationContext().setColorMode(this.model.appearance === 1 ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT : this.model.appearance === 2 ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -1085,13 +1087,14 @@ struct Index {
     if (row.kind === 'session') { this.stack.clear(); this.tool = 0; }
     this.stack.pushPath({ name: name, param: JSON.stringify(this.routeTarget(row, root || !this.stack.size())) }); this.savePath();
   }
-  private async openLinkedResource(row: ResourceRow): Promise<void> {
+  private async openLinkedResource(row: ResourceRow, beforePush?: (destination:string) => boolean): Promise<void> {
     const generation = this.model.connectionGeneration(), scope = this.model.scope(), source = this.activeChild;
     try {
       if (!['inbox', 'todo', 'knowledge', 'file', 'todo_source', 'todo_thread'].includes(row.kind)) await this.model.viewFor(row);
       if (!this.model.owns(generation, scope) || this.activeChild !== source) return;
-      this.chatReady = false; this.detailRoute = '';
       const target = this.routeTarget(row, false), name = NavigationContext.destination(target), data = target.data();
+      if (beforePush && !beforePush(name)) return;
+      this.chatReady = false; this.detailRoute = '';
       const handoff = target.kind === 'inbox' && Wire.bool(data, 'open_handoff');
       if (Wire.has(data, 'open_handoff')) data['open_handoff'] = false; target.raw = JSON.stringify(data);
       const param = JSON.stringify(target);
@@ -1409,6 +1412,7 @@ struct Index {
   private openSpace(kind: string): void {
     this.phoneSettingsDepth = -1;
     if (kind === 'settings' && !this.wide() && this.spacesShown) {
+      this.phoneSettingsMachine = undefined;
       this.phoneSettingsQuery = '';
       this.phoneSettingsTrail = [];
       this.phoneSettingsShown = true; return;
@@ -2010,13 +2014,36 @@ struct Index {
       this.phoneSettingsTrail = pushPhoneSetting(this.phoneSettingsTrail, page);
       return;
     }
-    this.phoneSettingsDepth = this.stack.size();
-    this.phoneSettingsOwner = this.model.scope();
-    this.phoneSettingsShown = false;
-    this.spacesShown = false;
+    this.suspendPhoneSettings('settings');
     this.openSettings(page);
   }
+  private suspendPhoneSettings(destination:string):void {
+    this.phoneSettingsDepth = this.stack.size();
+    this.phoneSettingsOwner = this.model.scope();
+    this.phoneSettingsReturnRoute = destination;
+    this.phoneSettingsShown = false;
+    this.spacesShown = false;
+  }
+  private enterPhoneSettingsMachine(row:ResourceRow):void {
+    const profile = this.model.profile;
+    if (this.phoneSettingsShown && this.phoneSettingsPage === 'machines' && !this.phoneSettingsMachine &&
+        row.id && row.group === profile.id && (!profile.manager || row.manager === profile.manager)) {
+      // A new visit must have its own identity even if the directory reuses the same row.
+      this.phoneSettingsMachine = NavigationContext.rowFrom(JSON.stringify(row));
+    }
+  }
+  @Computed get phoneSettingsMachineTitle():string {
+    const selected = this.phoneSettingsMachine;
+    if (!selected) return '';
+    return this.model.directoryMachines.find((row:ResourceRow) => row.key() === selected.key())?.title || selected.id;
+  }
+  private leavePhoneSettingsMachine(destination:string, origin:ResourceRow | undefined):boolean {
+    if (!this.phoneSettingsShown || this.phoneSettingsPage !== 'machines' || this.phoneSettingsMachine !== origin) return false;
+    this.suspendPhoneSettings(destination);
+    return true;
+  }
   private backPhoneSetting():void {
+    if (this.phoneSettingsPage === 'machines' && this.phoneSettingsMachine) { this.phoneSettingsMachine = undefined; return; }
     if (this.phoneSettingsPage==='phone_inbox_sources' && this.inboxSourcesNav.back()) return;
     this.phoneSettingsTrail=this.phoneSettingsTrail.slice(0,-1);
   }
@@ -2059,30 +2086,62 @@ struct Index {
     if (!this.model.profile.id || !this.fullHeightPhone() || this.environment.safeTopPx <= 0) return 0;
     return Math.max(0, Tokens.compactStatusInset - this.getUIContext().px2vp(this.environment.safeTopPx));
   }
+  private knowledgeSurface(): boolean {
+    return this.phoneTop === 'resources' && this.phoneParam === 'knowledge' ||
+      ['knowledge', 'knowledge_meetings', 'recordings'].includes(this.phoneTop);
+  }
+  private compactInsetEdges(): LayoutSafeAreaEdge[] {
+    const bottom = this.model.profile.id && this.fullHeightPhone() && !this.environment.keyboardHeightPx &&
+      !this.drawerFraction && !this.chatSearchShown && this.knowledgeSurface();
+    return bottom ? [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM] : [LayoutSafeAreaEdge.TOP];
+  }
   private compactInsetSurface(): ResourceColor {
     if (!this.model.profile.id || !this.fullHeightPhone()) return Color.Transparent;
     if (this.drawerFraction > 0) return Colors.phoneDrawerSurface;
     if (this.chatSearchShown && this.startSearchInAgents) return Colors.grouped;
     const page = this.phoneTop;
-    if (page === 'resources' && (this.phoneParam === 'knowledge' || this.phoneParam === 'todo' || this.phoneParam === 'health') ||
-      ['knowledge', 'knowledge_meetings', 'recordings', 'project_tree'].includes(page) ||
+    if (this.knowledgeSurface() || page === 'resources' && (this.phoneParam === 'todo' || this.phoneParam === 'health') || page === 'project_tree' ||
       page === 'settings' && this.settingsKind(this.phoneParam) === 'machines') return Colors.grouped;
     if (!page && (this.projectPlace() ? this.projectSearching : this.model.section === 1)) return Colors.grouped;
     return Color.Transparent;
   }
+  @Builder phoneMachineDirectory(selected:ResourceRow | undefined) {
+    MachineDirectory({model:this.model,selected:selected,settingsScope:true,settingsHeading:!selected,
+      active:this.phoneSettingsShown && this.phoneSettingsMachine === selected,
+      onMachine:(row:ResourceRow) => this.enterPhoneSettingsMachine(row),
+      onDetails:(row:ResourceRow) => {
+        if (selected && row.key() === selected.key() && this.leavePhoneSettingsMachine('machine_settings',selected))
+          this.pushPlace('machine_settings',JSON.stringify(row));
+      },
+      onManage:() => {
+        if (this.leavePhoneSettingsMachine('machine_settings',undefined)) this.pushPlace('machine_settings','');
+      },
+      onSession:(row:ResourceRow) => {
+        if (selected && row.group === selected.group && row.manager === selected.manager && row.machine === selected.id)
+          this.openLinkedResource(row,(destination:string):boolean => this.leavePhoneSettingsMachine(destination,selected));
+      }})
+  }
   @Builder phoneSettings() {
     Column() {
       if (this.phoneSettingsPage || !this.phoneSettingsQuery.trim()) Row() {
-        if (this.phoneSettingsPage) PhoneIconButton({symbol:'navigationBack',label:tr('back'),identity:'settings.back',
+        if (this.phoneSettingsPage) PhoneIconButton({symbol:'navigationBack',
+          label:this.phoneSettingsPage === 'machines' ? tr(this.phoneSettingsMachine ? 'phone_machines' : 'settings') : tr('back'),identity:'settings.back',
           action:() => { this.backPhoneSetting(); }})
         else PhoneIconButton({symbol:'navigationClose',label:tr('close'),identity:'settings.close',
           action:() => { this.phoneSettingsQuery = ''; this.phoneSettingsShown = false; }})
-        Text(this.phoneSettingsPage==='phone_inbox_sources' ? this.inboxSourcesNav.title || tr('phone_inbox_sources') :
+        Text(this.phoneSettingsPage === 'machines' ? this.phoneSettingsMachineTitle :
+          this.phoneSettingsPage==='phone_inbox_sources' ? this.inboxSourcesNav.title || tr('phone_inbox_sources') :
           this.phoneSettingsPage === 'appearance' ? '' : this.phoneSettingsPage === 'phone_language_options' ? tr('language') : this.phoneSettingsPage ? tr(this.settingsLabel(this.phoneSettingsPage)) : tr('settings'))
           .layoutWeight(1).textAlign(TextAlign.Center).fontSize(18).maxFontScale(Tokens.interfaceScaleFor(18)).fontWeight(FontWeight.Bold).fontColor(Colors.ink)
         Blank().width(PhoneStyle.bar)
       }.width('100%').padding({left:PhoneStyle.page,right:PhoneStyle.page,top:16,bottom:10})
-      if (phoneAppearancePage(this.phoneSettingsPage)) {
+      if (this.phoneSettingsPage === 'machines') {
+        Stack() {
+          Column() { this.phoneMachineDirectory(undefined) }.width('100%').height('100%')
+            .visibility(this.phoneSettingsMachine ? Visibility.Hidden : Visibility.Visible)
+          if (this.phoneSettingsMachine) this.phoneMachineDirectory(this.phoneSettingsMachine)
+        }.width('100%').layoutWeight(1)
+      } else if (phoneAppearancePage(this.phoneSettingsPage)) {
         SettingsPage({model:this.model,page:'appearance',phoneAppearanceRoute:this.phoneSettingsPage,active:this.phoneSettingsShown,
           agentWorkspace:this.agentWorkspace,onOpen:(key:string) => this.openFromPhoneSettings(key)}).layoutWeight(1)
       } else if (this.phoneSettingsPage === 'phone_knowledge_selection') {
@@ -3176,6 +3235,17 @@ struct Index {
   }
   build() {
     Stack() {
+    if (this.drawerFraction > 0 && this.fullHeightPhone() && !this.environment.keyboardHeightPx) {
+      Row() {
+        Row().width(this.drawerFraction * this.drawerWidth()).height('100%')
+          .background(Colors.phoneDrawerSurface, { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+        Stack() {
+          Row().width('100%').height('100%').background(Colors.canvas, { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+          Row().width('100%').height('100%').opacity(this.drawerFraction)
+            .background(this.environment.dark ? '#73000000' : '#33000000', { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.BOTTOM] })
+        }.layoutWeight(1).height('100%')
+      }.width('100%').height('100%').hitTestBehavior(HitTestMode.None).accessibilityLevel('no-hide-descendants')
+    }
     WithTheme({ theme: nativeLookTheme(this.look, this.model.style, this.environment.dark), colorMode: this.environment.dark ? ThemeColorMode.DARK : ThemeColorMode.LIGHT }) {
     ThemeScope({ systemControls: this.look.accentId === 'style' && usesSystemStyleColors(this.model.style),
       styleID: phoneInterfaceStyleID(this.model.style),
@@ -3275,7 +3345,7 @@ struct Index {
       }
     }
     }.width('100%').height('100%').backgroundColor(Colors.canvas)
-      .background(this.compactInsetSurface(), { ignoresLayoutSafeAreaEdges: [LayoutSafeAreaEdge.TOP] })
+      .background(this.compactInsetSurface(), { ignoresLayoutSafeAreaEdges: this.compactInsetEdges() })
       .bindSheet($$this.readerShown, this.readerContent(), { title: { title: this.readerTitle }, height: Tokens.readerFull, width: Tokens.readerFull, preferType: SheetType.BOTTOM,
         detents: [Tokens.readerFull, Tokens.readerPartial], enableOutsideInteractive: true, showClose: true })
   }

@@ -110,7 +110,9 @@ export class ProjectWorktree {
   title: string = '';
   cwd: string = '';
   branch: string = '';
+  reportedBranch?: string;
   parent: string = '';
+  parentReported: boolean = false;
   parentKey: string = '';
   breadcrumb: string = '';
   children: ProjectWorktree[] = [];
@@ -140,7 +142,12 @@ export class ProjectWorktree {
   get boundStart(): boolean { return !!this.sourceId && (this.pickerWorkspace || this.source === 'herdr' || this.source === 'herdr-core'); }
   receiptCurrent?: () => boolean;
   matchesCreated(child: ProjectWorktree): boolean {
-    return this.key === child.key && this.cwd === child.cwd && this.branch === child.branch && (!this.parent || this.parent === child.parent);
+    // Some terminal hosts list only the machine, workspace ID and checkout directory.
+    // Their create receipt supplies the optional fields until the host actually reports them.
+    if (this.key !== child.key || this.cwd !== child.cwd) return false;
+    if (this.reportedBranch !== undefined && this.reportedBranch !== child.branch) return false;
+    return (!this.branch || this.branch === child.branch) &&
+      (this.parent === child.parent || (!this.parentReported && !this.parent));
   }
   get canStart(): boolean { return this.online && this.startAllowed && !!this.cwd && (this.boundStart || this.source === 'session-directory' || !this.source); }
 }
@@ -226,9 +233,10 @@ export function projectDirectory(catalog: ResourceRow[], sessions: ResourceRow[]
     const machine = computer(tree.group, tree.manager, tree.machine);
     tree.machineTitle = machine?.title || tree.machine; tree.startAllowed = startAllowed(machine); tree.cwd = row.path;
     tree.branch = Wire.text(data, 'branch');
+    if (Wire.has(data, 'branch')) tree.reportedBranch = tree.branch;
     tree.title = tree.source === 'session-directory' && cleanPath(row.title) === cleanPath(tree.cwd) ? leaf(tree.cwd) :
       row.title || tree.branch || leaf(tree.cwd);
-    tree.parent = Wire.text(data, 'parent_source_id');
+    tree.parent = Wire.text(data, 'parent_source_id'); tree.parentReported = Wire.has(data, 'parent_source_id');
     const catalogWorkspace = tree.source === 'orca' || tree.source === 'paseo';
     const address = tree.sourceId.split('::');
     const hostProject = Wire.text(data, 'project_id') || (catalogWorkspace && address.length > 1 ? address[0] : '');
@@ -509,7 +517,7 @@ export class ProjectCatalog {
     this.createdParents.set(scope, next); await owner.saveView('worktree-parents', JSON.stringify(Wire.payload(['links'],[next])));
   }
   private addKnownParent(owner: ClientModel, data: Record<string, Object>): Record<string, Object> {
-    if (Wire.text(data, 'parent_source_id')) return data;
+    if (Wire.has(data, 'parent_source_id')) return data;
     const link = this.createdParents.get(owner.scope())?.find((r: Record<string, Object>) => Wire.text(r, 'id') === Wire.text(data, 'source_id') &&
       Wire.text(r, 'path') === Wire.text(data, 'cwd') && Wire.text(r, 'source') === Wire.text(data, 'source') && Wire.text(r, 'machine') === Wire.text(data, 'machine_id'));
     if (!link) return data;

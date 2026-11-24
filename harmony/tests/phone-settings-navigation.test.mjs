@@ -26,7 +26,7 @@ test('the phone pops each appearance child to its real origin', () => {
   }
   assert.equal(phoneSettingsLink('phone_agent_layout'), 'phone_look_layout');
   assert.equal(phoneAppearancePage('phone_look_avatar'), true);
-  assert.equal(phoneSettingsLink('machines'), '');
+  assert.equal(phoneSettingsLink('models'), '');
   assert.deepEqual(appearance, ['appearance']);
 });
 
