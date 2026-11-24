@@ -1054,6 +1054,10 @@ struct Index {
   private savePath(): void {
     if (this.activeScope !== this.model.scope()) this.restoreScope();
     this.syncPhonePath(); this.navigationIntent++;
+    const child = this.projectCatalog.createdSelection;
+    if (child && !this.phonePath.some((name:string,i:number) => name === 'project_tree' && this.stack.getParamByIndex(i) === child.key)) {
+      this.projectCatalog.createdSelection = undefined;
+    }
     const key = this.model.scope() + ':' + this.model.section;
     if (this.navigationRestoredScope === this.model.scope() || this.stack.size() || this.paths.has(key)) this.paths.set(key, this.stack);
     const tabs: Record<string, Object>[] = [];
@@ -1990,7 +1994,7 @@ struct Index {
   @Builder agentsList() {
     AgentListPage({ projectCatalog:this.projectCatalog,
       onRepositoryOpen:(kind:string,key:string) => this.openAgentRepositoryRoute(kind,key),
-      onRepositoryChanged:(tree:ProjectWorktree,change:WorktreeChange) => { this.worktreeChanged(tree,change).catch((err:Error) => this.model.reportError(err)); },
+      onRepositoryChanged:(tree:ProjectWorktree,change:WorktreeChange) => { this.worktreeChanged(tree,change,():boolean => this.agentWorkspace.groupingMode === 'repo' && (this.wide() || !this.stack.size())).catch((err:Error) => this.model.reportError(err)); },
       onOpenTodo:(row:ResourceRow) => this.openLinkedResource(row), onSearchMode:(editing:boolean)=>{this.agentSearching=editing;}, compactRoot:!this.wide() && !this.rail(), model: this.model, workspace: this.agentWorkspace, retainWorkspace: true, active: this.model.section === 1, selectedRow: this.detailModel.selected, selectionVisible: this.chatSelectionShown('session'), rail: this.rail(), readingDetail: this.readingAgentDetail(),
       onOpen: (row: ResourceRow) => this.openRow(row), onVisible: (row: ResourceRow, ratio: number) => {
         this.rowVisibility.set(this.model.scope() + row.key(), ratio); if (row.key() === this.detailModel.selected.key()) this.visibilityEpoch++;
@@ -2111,18 +2115,40 @@ struct Index {
     SettingsDirectory({model:this.model,ownerName: this.model.profile.name || tr('persona'), avatar: this.look.avatarUri,
       label: (key: string): string => this.settingsLabel(key), onOpen: (key: string) => this.openSettings(key)})
   }
-  private async worktreeChanged(tree: ProjectWorktree, change: WorktreeChange): Promise<void> {
+  private async worktreeChanged(tree: ProjectWorktree, change: WorktreeChange, atOrigin: () => boolean = () => true): Promise<void> {
     const root = this.model, scope = root.scope(), epoch = root.connectionGeneration(), stack = this.stack;
     const names = stack.getAllPathName(), intent = this.navigationIntent, section = this.model.section;
     const source = new ResourceRow(); source.group = tree.group; source.manager = tree.manager;
-    const owner = root.directoryOwnerFor(source);
+    const owner = root.directoryOwnerFor(source), ownerEpoch = owner?.connectionGeneration(), ownerScope = owner?.scope();
     const live = (): boolean => root.owns(epoch, scope) && this.model === root;
     const stay = (): boolean => live() && this.stack === stack && this.navigationIntent === intent && this.model.section === section && (section === 4 || section === 1);
+    const created = change.created;
+    if (created) {
+      if (!created.receiptCurrent?.()) return;
+      const available = (): boolean => {
+        const machine = root.directoryMachines.find((row:ResourceRow) => row.group === created.group &&
+          row.manager === created.manager && row.id === created.machine);
+        const known = this.projectCatalog.tree(created.key);
+        return !!machine && this.agentMachineOnline(machine) && (!known || known.canStart && known.matchesCreated(created));
+      };
+      if (owner && available() && atOrigin() && stay() && !this.showSheet) {
+        this.projectCatalog.selectCreated(created);
+        const browser = section === 4 ? this.projectCatalog.browser : this.projectCatalog.agentBrowser;
+        browser.selectedTree = created.key; browser.selectedSession = '';
+        this.pushPlace('project_tree',created.key);
+        const childIntent = this.navigationIntent;
+        const stillSelected = (): boolean => live() && created.receiptCurrent?.() === true && available() && !!this.projectCatalog.selectedWorktree(created.key) && this.stack === stack &&
+          this.navigationIntent === childIntent && this.model.section === section &&
+          this.stack.getAllPathName().slice(-1)[0] === 'project_tree' && this.stack.getParamByIndex(this.stack.size()-1) === created.key;
+        void this.prepareAgent(undefined,created,false,stillSelected);
+      }
+    }
     if (owner && (change.action === 'create' || change.action === 'clean')) {
       try { await this.projectCatalog.saveParent(owner, tree, change.id, change.action === 'create' ? change.path : '', change.parent); }
       catch (_) { /* The host mutation succeeded; its inventory remains authoritative. */ }
     }
     if (!live()) return;
+    if (change.action === 'clean' && this.projectCatalog.createdSelection?.key === tree.key) this.projectCatalog.createdSelection = undefined;
     if (change.action === 'clean' && stay()) {
       const index = names.findIndex((name: string, i: number) => name === 'project_tree' && stack.getParamByIndex(i) === tree.key);
       if (index === 0) stack.clear(); else if (index > 0) stack.popToIndex(index - 1);
@@ -2130,9 +2156,9 @@ struct Index {
     }
     this.projectCatalog.notice = tr(change.action === 'create' ? 'tree_created' : change.action === 'rename' ? 'tree_renamed' : change.branchRetained ? 'tree_cleaned_branch' : 'tree_cleaned');
     await this.projectCatalog.refresh(root);
-    if (change.action === 'create' && stay()) {
-      const key = JSON.stringify([tree.group, tree.manager, tree.machine, tree.source, change.id]);
-      if (this.projectCatalog.tree(key)) this.pushPlace('project_tree', key);
+    if (change.action === 'create' && !created && change.id !== tree.sourceId && change.parent === tree.sourceId && owner?.connected && ownerEpoch !== undefined && ownerScope !== undefined && owner.owns(ownerEpoch,ownerScope) && stay() && atOrigin()) {
+      const key = JSON.stringify([tree.group, tree.manager, tree.machine, tree.source, change.id]), actual = this.projectCatalog.tree(key);
+      if (actual && actual.cwd === change.path && actual.branch === change.branch) this.pushPlace('project_tree',key);
     }
   }
   // Selection marks the detail open beside the repository column. A stack navigation has no adjacent detail.
@@ -2154,7 +2180,8 @@ struct Index {
           onTree: (key: string) => this.pushPlace('project_tree', key),
           onSession: (row: ResourceRow) => this.openLinkedResource(row),
           onStart: (tree: ProjectWorktree) => this.prepareAgent(undefined, tree),
-          onChanged: (tree: ProjectWorktree, change: WorktreeChange) => { this.worktreeChanged(tree, change).catch((err: Error) => this.model.reportError(err)); },
+          onChanged: (tree: ProjectWorktree, change: WorktreeChange) => { this.worktreeChanged(tree, change, (): boolean => name === 'projects' ? this.projectPlace() && (this.wide() || !this.stack.size()) :
+            this.phoneTop === name && this.phoneParam === param).catch((err: Error) => this.model.reportError(err)); },
           onRefresh: () => this.projectCatalog.refresh(this.model) })
   }
   @Builder projectAgentMatches(workspace:AgentWorkspace,tasks:AgentTaskGrouping,decisions:AgentDecisionQueue) {
@@ -2254,7 +2281,7 @@ struct Index {
   }
   private pickerOptions(): LaunchChoice[] {
     if (this.agentPanel === 'workspace') return [new LaunchChoice('',tr('flow_choose_folder'))].concat(
-      this.availableAgentTrees().filter((t:ProjectWorktree) => t.boundStart).map((t:ProjectWorktree) => new LaunchChoice(t.key,t.title,[t.branch,t.cwd].filter((v:string) => !!v).join(' · '))));
+      this.availableAgentTrees().filter((t:ProjectWorktree) => t.pickerWorkspace).map((t:ProjectWorktree) => new LaunchChoice(t.key,t.title,[t.branch,t.cwd].filter((v:string) => !!v).join(' · '))));
     if (this.agentPanel === 'launcher') return [new LaunchChoice('',tr('phone_launcher_default'),this.machineDefaultLabel)].concat(
       this.agentLauncherOptions.map((value:string,i:number) => new LaunchChoice(value,this.agentLauncherLabels[i] || value,
         Wire.text(this.launcherData.find((v:Record<string,Object>) => Wire.text(v,'name') === value) || {},'agent_type')))).concat(this.blockedLaunchers);
@@ -2300,7 +2327,7 @@ struct Index {
     const refreshModels = this.agentPanel === 'launcher' || this.agentPanel === 'preset';
     if (this.agentPanel === 'workspace') {
       const tree = this.availableAgentTrees().find((t:ProjectWorktree) => t.key === value);
-      if (value && (!tree || !tree.boundStart)) return;
+      if (value && (!tree || !tree.pickerWorkspace)) return;
       this.pickedAgentTree = value;
       if (tree) this.directory = tree.cwd;
     } else if (this.agentPanel === 'folder') {
@@ -2618,7 +2645,21 @@ struct Index {
           } }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).width('100%')
             .padding({left:16,right:16,top:12,bottom:12}).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
         }
-        if (this.agentWorktree || this.selectedAgentTree() || this.availableAgentTrees().some((t:ProjectWorktree) => t.boundStart)) {
+        if (this.agentWorktree) {
+          this.agentSectionTitle('project_join_space',false)
+          Column() {
+            Row({space:12}) {
+              SymbolGlyph(Symbols.spaces).fontSize('18vp').fontColor([Colors.link])
+              Text(this.agentWorktree.title).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(Colors.ink)
+                .layoutWeight(1).id('agent.workspace')
+            }.width('100%').padding({left:20,right:20,top:12,bottom:12})
+            this.launchDivider()
+            Text(this.agentPathLabel(this.agentWorktree.cwd)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15)).fontFamily('monospace')
+              .fontColor(Colors.secondary).width('100%').padding({left:20,right:20,top:12,bottom:12}).id('agent.worktree')
+          }.width('100%').backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
+          Text(tr('project_join_help')).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13)).fontColor(Colors.secondary)
+            .width('100%').padding({left:20,right:20,top:6})
+        } else if (this.selectedAgentTree() || this.availableAgentTrees().some((t:ProjectWorktree) => t.pickerWorkspace)) {
           Column() {
             this.workspaceOption()
             if (this.selectedAgentTree()) {
@@ -2628,7 +2669,7 @@ struct Index {
               }
             }
           }.width('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.sheetCard).borderRadius(PhoneStyle.cardRadius)
-            .margin({top:this.agentWorktree ? 0 : 35})
+            .margin({top:35})
           if (this.selectedAgentTree()) {
             Column() {
               Text(this.selectedTreeKind(this.selectedAgentTree()!)).fontSize(13).maxFontScale(Tokens.interfaceScaleFor(13))
@@ -2741,9 +2782,10 @@ struct Index {
     } catch (_) { /* Older nodes support entering the existing launcher name directly. */ }
   }
   private agentDraftKey(): string { return 'new-agent:' + (this.agentWorktree?.key || this.agentTodo?.id || 'standalone'); }
-  private async prepareAgent(todo?: ResourceRow, tree?: ProjectWorktree, keepForward: boolean = false): Promise<void> {
+  private async prepareAgent(todo?: ResourceRow, tree?: ProjectWorktree, keepForward: boolean = false, atDestination?: () => boolean): Promise<void> {
     if (!keepForward) this.chatForward.clearNew();
     const revision = ++this.agentFormRevision, generation = this.model.connectionGeneration(), scope = this.model.scope();
+    const current = (): boolean => revision === this.agentFormRevision && this.model.owns(generation,scope) && (!atDestination || atDestination());
     this.focusedAgentField = ''; this.agentTabName = '';
     this.startTreeSource = undefined; this.startWorktree.close(); this.startFailure = ''; this.agentPanel = '';
     this.launchChoices.clear(); this.recentSetups = []; this.recentAgentDirectories = []; this.agentModelId = ''; this.agentEffort = '';
@@ -2752,10 +2794,10 @@ struct Index {
       let owner = todo ? await this.model.viewFor(todo) : this.model;
       if (tree) {
         const machine = this.model.directoryMachines.find((row: ResourceRow) => row.group === tree.group && row.manager === tree.manager && row.id === tree.machine);
-        if (!tree.canStart || !machine) throw new Error('request_updated');
+        if (!tree.canStart || !machine || !this.agentMachineOnline(machine)) throw new Error('request_updated');
         owner = await this.model.viewFor(machine);
       }
-      if (revision !== this.agentFormRevision || !this.model.owns(generation, scope)) return;
+      if (!current()) return;
       this.agentModel = owner; this.agentWorktree = tree;
       if (tree) {
         const index = this.agentMachines().findIndex((row: ResourceRow) => row.id === tree.machine);
@@ -2764,7 +2806,7 @@ struct Index {
       }
       if (!tree && !this.projectCatalog.projects.length && !this.projectCatalog.loading) this.projectCatalog.refresh(this.model);
       const raw = await owner.loadView(this.agentDraftKey());
-      if (revision !== this.agentFormRevision || !this.model.owns(generation, scope)) return;
+      if (!current()) return;
       const saved = Wire.parse(raw); this.newTask = Wire.text(saved, 'task', todo ? todo.title + (Wire.text(todo.data(), 'notes') ? '\n\n' + Wire.text(todo.data(), 'notes') : '') : '');
       if (!tree) {
         const index = this.agentMachines().findIndex((row: ResourceRow) => row.id === Wire.text(saved, 'machine') && (!row.group || row.group === owner.profile.id) && (!row.manager || row.manager === owner.profile.manager));
@@ -2782,7 +2824,7 @@ struct Index {
       const first = this.chosenAgentMachine();
       if (first && first.group && (first.group !== owner.profile.id || first.manager !== owner.profile.manager)) this.pickAgentMachine(first,true);
       else { this.loadAgentLaunchers(); this.loadRecentSetups(); }
-    } catch (error) { if (revision === this.agentFormRevision && this.model.owns(generation, scope)) {
+    } catch (error) { if (current()) {
         if (tree) this.projectCatalog.startError = true;
         this.model.reportError(error as Error);
       } }
@@ -2874,8 +2916,10 @@ struct Index {
   private selectedAgentTree():ProjectWorktree|undefined {
     if (this.pickedAgentTree) return this.availableAgentTrees().find((tree:ProjectWorktree) => tree.key === this.pickedAgentTree);
     if (!this.agentWorktree) return undefined;
-    const current = this.projectCatalog.tree(this.agentWorktree.key);
-    return current && current.cwd === this.agentWorktree.cwd ? current : undefined;
+    const preset = this.agentWorktree;
+    if (preset.receiptCurrent && !preset.receiptCurrent()) return undefined;
+    const current = preset.receiptCurrent ? this.projectCatalog.selectedWorktree(preset.key) : this.projectCatalog.tree(preset.key);
+    return current && current.cwd === preset.cwd && (!preset.receiptCurrent || current.matchesCreated(preset)) ? current : undefined;
   }
   private chosenAgentMachine():ResourceRow|undefined {
     const machines = this.agentMachines();
@@ -2887,7 +2931,8 @@ struct Index {
   private async createAgent(): Promise<void> {
     const machine = this.chosenAgentMachine(), tree = this.selectedAgentTree(); if (!machine || !this.canStartAgent()) return;
     const owner = this.agentModel, generation = owner.connectionGeneration(), scope = owner.scope(), rootGeneration = this.model.connectionGeneration(), rootScope = this.model.scope(), revision = this.agentFormRevision, fingerprint = this.agentFingerprint(), draftKey = this.agentDraftKey();
-    const valid = (): boolean => owner.owns(generation, scope) && this.model.owns(rootGeneration, rootScope) && revision === this.agentFormRevision && this.showSheet && this.sheetKind === 'newagent' && fingerprint === this.agentFingerprint();
+    const valid = (): boolean => owner.owns(generation, scope) && this.model.owns(rootGeneration, rootScope) && revision === this.agentFormRevision && this.showSheet && this.sheetKind === 'newagent' && fingerprint === this.agentFingerprint() &&
+      (!this.agentWorktree?.receiptCurrent || this.selectedAgentTree()?.canStart === true && !!this.chosenAgentMachine() && this.agentMachineOnline(this.chosenAgentMachine()!));
     this.creatingAgent = true;
     try {
       const effort = this.startAgentEffort();

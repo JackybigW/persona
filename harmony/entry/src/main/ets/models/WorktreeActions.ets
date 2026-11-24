@@ -12,6 +12,7 @@ export class WorktreeChange {
   branch: string = '';
   parent: string = '';
   branchRetained: boolean = false;
+  created: ProjectWorktree | undefined = undefined;
 }
 
 export function checkoutName(branch: string): string {
@@ -305,6 +306,23 @@ export class WorktreeActions {
       !Wire.bool(value, 'branch_deleted');
     return change;
   }
+  private createdSelection(value: Record<string,Object>): ProjectWorktree | undefined {
+    const parent = this.tree!, id = Wire.text(value,'workspace_id'), path = Wire.text(value,'path'), branch = Wire.text(value,'branch');
+    const parentId = Wire.text(value,'parent_workspace_id') || parent.sourceId;
+    if (id === parent.sourceId || parentId !== parent.sourceId || checkoutComparable(path) === checkoutComparable(parent.cwd) ||
+      !this.acknowledged(value)) return undefined;
+    const root = this.root!, owner = this.owner!, rootScope = this.rootScope, rootEpoch = this.rootEpoch;
+    const scope = this.ownerScope, epoch = this.ownerEpoch, target = new ResourceRow();
+    target.group = parent.group; target.manager = parent.manager;
+    const child = new ProjectWorktree();
+    child.group = parent.group; child.manager = parent.manager; child.machine = parent.machine; child.machineTitle = parent.machineTitle;
+    child.source = parent.source; child.sourceId = id; child.cwd = path; child.branch = branch; child.title = branch;
+    child.key = JSON.stringify([child.group,child.manager,child.machine,child.source,id]);
+    child.parent = parentId; child.parentKey = parent.key; child.startAllowed = parent.startAllowed;
+    child.receiptCurrent = (): boolean => root.connected && root.owns(rootEpoch,rootScope) && owner.connected &&
+      owner.owns(epoch,scope) && root.directoryOwnerFor(target) === owner;
+    return child;
+  }
   async submit(): Promise<WorktreeChange | undefined> {
     if (!this.canSubmit) return undefined;
     const rev = this.revision;
@@ -348,7 +366,9 @@ export class WorktreeActions {
       const result = await owner.repo().call(path, 'POST', body, this.requestId, admit, false,
         (value: Record<string,Object>): boolean => operationAcknowledged(action,sourceId,body,value));
       if (!this.current(rev)) return undefined;
-      const change = this.change(result); this.ready = false;
+      const change = this.change(result);
+      if (action === 'create') change.created = this.createdSelection(result);
+      this.ready = false;
       if (action === 'rename' || action === 'clean') await view.clearIfUnchanged(snapshot).catch(() => undefined);
       else await view.write('').catch(() => undefined);
       return this.current(rev) ? change : undefined;
