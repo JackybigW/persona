@@ -405,6 +405,10 @@ func (s *stateFile) engineHistories() map[string][]proto.EngineLeg {
 }
 
 func (s *stateFile) get(id string) (sessionState, bool) {
+	// A nil state file has no session records.
+	if s == nil {
+		return sessionState{}, false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.Sessions[id]

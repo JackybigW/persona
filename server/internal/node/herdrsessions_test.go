@@ -206,3 +206,21 @@ func TestBlockedHerdrSessionSkipsHooksAndOutsideClaudes(t *testing.T) {
 	}
 	_ = time.Second
 }
+
+func TestBlockedHerdrSessionAtRestWithoutStateFile(t *testing.T) {
+	n := testHerdrNode(t.TempDir())
+	n.state = nil
+	const sid = "0e000000-0000-4000-8000-0000000000ff"
+	n.herdrSessionsBlocked = []string{"agent"}
+	n.herdrBlockedIDs = map[string]string{sid: "agent"}
+
+	if !n.restBlocked(sid, "", nil) {
+		t.Fatal("a remembered session in a blocked herdr session should stay out without a state file")
+	}
+
+	// The assistant exemption still applies when no state file has been loaded.
+	n.procs = map[string]*assistantProc{sid: {}}
+	if n.restBlocked(sid, "", nil) {
+		t.Fatal("an assistant conversation must remain visible without a state file")
+	}
+}
