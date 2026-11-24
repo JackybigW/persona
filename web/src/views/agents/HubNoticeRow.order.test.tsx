@@ -23,7 +23,7 @@ vi.hoisted(() => {
   g.IS_REACT_ACT_ENVIRONMENT = true;
   g.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 });
-import { HubNoticeLine } from "./HubNoticeRow";
+import { HubNoticeLine } from "./HubNoticeBody";
 
 const base = { version: "1.0.0", build: 1, channel: "release", can_update: true, busy: [], auto: false, auto_notice: false, confirmed: true };
 const latest = { version: "1.1.0", build: 2, newer: true, bad: false };
