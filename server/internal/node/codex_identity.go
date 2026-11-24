@@ -100,7 +100,7 @@ func (n *Node) codexRolloutHomes(pane string) []string {
 }
 
 func (n *Node) codexPublicID(home, raw string) string {
-	if n.codices == nil {
+	if n.codices == nil || strings.HasPrefix(raw, "c0de-") {
 		return raw
 	}
 	return n.registerCodex(home, raw, "")

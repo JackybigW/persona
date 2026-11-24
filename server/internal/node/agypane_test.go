@@ -324,12 +324,17 @@ func TestAgyPaneSessionList(t *testing.T) {
 			} else {
 				want[agyTestRow] = model
 			}
+			// A pane whose conversation is known is titled after it (agytitle.go), else after its terminal.
+			title := "agy"
+			if tc.conversation != "" && !tc.ambiguous {
+				title = "ACP conversation"
+			}
 			herdr.reply("session.snapshot", snapshot(nil, nil, agents, nil))
 			rows := listSessions(t, n)
 			got := make(map[string]string, len(rows))
 			for _, row := range rows {
 				got[row.SessionID] = row.Model
-				if row.SessionID == agyTestRow && (row.PaneID != agyTestPane || row.Host != host.Herdr || row.Status != tc.status || row.Title != "agy") {
+				if row.SessionID == agyTestRow && (row.PaneID != agyTestPane || row.Host != host.Herdr || row.Status != tc.status || row.Title != title) {
 					t.Errorf("pane metadata changed: %+v", row)
 				}
 			}
@@ -449,7 +454,7 @@ func TestAgyPaneConversationIsolation(t *testing.T) {
 			}
 			seedAgents(t, n, f, first, second)
 			got, _ := agyTestItems(t, n, row2, nil)
-			if len(got) != 1 || got[0].Kind != "notice" || got[0].TS.IsZero() || !strings.Contains(got[0].Text, "herdr integration install antigravity-cli") {
+			if len(got) != 1 || got[0].Kind != "notice" || got[0].TS.IsZero() || !strings.Contains(got[0].Text, "personad node doctor") {
 				t.Fatalf("terminal notice: %+v", got)
 			}
 			assertMissingItem(row2, items[0].ID)
@@ -821,6 +826,7 @@ func TestAgyPaneResumeAndTerminalControls(t *testing.T) {
 	const model = "test-model"
 	n.noteWorkAgent(context.Background(), n.hosts.Get(host.Herdr).(*herdrHost), agyTestPane, agyTestRow, home, agyAgent, agyAgent, model, "", "")
 	assertAgyResumeReport(t, f, 0, model, "", "")
+	stubAgyNativePrompt(t, n, f, agyTestPane, agyTestID)
 	agyTestCall(t, n, "session.send", agyTestRow, map[string]any{"text": "first\nsecond"})
 	agyTestCall(t, n, "session.interrupt", agyTestRow, nil)
 	assertTrace(t, f.trace("agent.prompt", "pane.send_keys", "pane.send_input"), []string{

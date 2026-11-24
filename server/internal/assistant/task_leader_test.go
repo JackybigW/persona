@@ -584,9 +584,10 @@ func TestWorkerReportWithNobodyAboveCancelsReadably(t *testing.T) {
 // A worker that does not start is told to its leader as a supervision signal, not to a conversation, and no start remedy
 // (a main-chat tool) is begun for it.
 func TestFailedWorkerStartIsTheLeadersToHear(t *testing.T) {
-	// An unanswered start now reconciles with the machine before it fails (#6540); keep that window to milliseconds
-	// here, this test is about who hears the failure, not how long reconciliation is allowed to take.
-	shortTaskStartReconcile(t)
+	// An unanswered start now reconciles with the machine before it fails (#6540); keep that window short here, this
+	// test is about who hears the failure, not how long reconciliation is allowed to take. The fake fails the start at
+	// once, so the start keeps its budget (#14158).
+	shortTaskStartAdopt(t)
 	s, f := newQuietService(t)
 	startTaskLeader(t, s, f)
 	f.mu.Lock()
@@ -788,7 +789,7 @@ func TestWorkerSignalsGoToTheLeaderAndTheJudgeDoesNotCloseIt(t *testing.T) {
 			proto.Session{SessionID: worker, MachineID: "box", Cwd: "/code/app", Agent: "claude", Status: status, State: state, LastText: text,
 				PendingInteractions: pending, UpdatedAt: time.Now()})
 		if status == proto.StatusWorking {
-			s.taskWorking(ctx, "box", worker)
+			s.taskWorking(ctx, "box", worker, startRow{})
 		} else {
 			s.taskTurnEnded(ctx, "box", worker)
 		}
@@ -1145,7 +1146,7 @@ func TestJudgeDoesNotCloseALeadersWorkerThatPassedItsCheck(t *testing.T) {
 	f.mu.Unlock()
 	f.setSessions("box", proto.Session{SessionID: "s1", MachineID: "box", Agent: "claude", Status: proto.StatusIdle},
 		proto.Session{SessionID: worker, MachineID: "box", Cwd: "/code/app", Agent: "claude", Status: proto.StatusWorking, State: proto.StateWorking, UpdatedAt: time.Now()})
-	s.taskWorking(ctx, "box", worker)
+	s.taskWorking(ctx, "box", worker, startRow{})
 	f.setSessions("box", proto.Session{SessionID: "s1", MachineID: "box", Agent: "claude", Status: proto.StatusIdle},
 		proto.Session{SessionID: worker, MachineID: "box", Cwd: "/code/app", Agent: "claude", Status: proto.StatusDone, State: proto.StateUnread,
 			LastText: "做完了，证据见 PR\n交付：已上线并实测；卡点：无；谁来解：无", UpdatedAt: time.Now()})
@@ -1178,15 +1179,16 @@ func TestWorkerAutomaticSignalsGoToLeader(t *testing.T) {
 				stall := proto.Session{SessionID: w.Agents[0].SessionID, MachineID: "box", Cwd: "/code/app", Agent: "claude",
 					Status: proto.StatusWorking, State: proto.StateWorking, UpdatedAt: time.Now().Add(-superviseStallMin - time.Minute)}
 				f.setSessions("box", proto.Session{SessionID: "s1", MachineID: "box", Agent: "claude", Status: proto.StatusIdle}, stall)
-				f.hello.Locale = "en"
+				f.setLocale("en")
 				s.superviseWatch(ctx, time.Now().Add(11*time.Minute))
 				due := gotMessage(t, f, "Persona · supervision", "改登录页", "automatic estimate reached")
 				if !strings.Contains(due, "not an overdue judgment") {
 					t.Fatalf("leader's estimate_due lacks its fact: %s", due)
 				}
-				if b, ok := s.briefOfTodo(w.ID); !ok || b.EstimateDueToldAt == nil {
-					t.Fatalf("leader delivery did not persist estimate_due: %+v", b)
-				}
+				waitFor(t, "leader delivery to persist estimate_due", func() bool {
+					b, ok := s.briefOfTodo(w.ID)
+					return ok && b.EstimateDueToldAt != nil
+				})
 			case sigOrphaned:
 				// A session its computer no longer lists: the orphan pass marks it closed, and the worker's signal goes to the leader.
 				f.setSessions("box", proto.Session{SessionID: "s1", MachineID: "box", Agent: "claude", Status: proto.StatusIdle})
@@ -1725,18 +1727,18 @@ func TestLeaderRestartedOnAnotherComputerIsStillReached(t *testing.T) {
 func TestTaskLeaderRefusedOnWorkTrustMachine(t *testing.T) {
 	s, f := newQuietService(t)
 	ctx := context.Background()
-	f.hello.Assistant.WorkMachines = []string{"box"}
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = []string{"box"} })
 	args := leaderPlanArgs("leader")
 	if _, err := s.toolTaskPlan(ctx, "conv1", args); err == nil || !strings.Contains(err.Error(), "work-trust computer") {
 		t.Fatalf("planning a leader on a work-trust computer: %v", err)
 	}
 	// A saved plan that names one is held at Start too.
-	f.hello.Assistant.WorkMachines = nil
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = nil })
 	res, err := s.toolTaskPlan(ctx, "conv1", args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.hello.Assistant.WorkMachines = []string{"box"}
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = []string{"box"} })
 	_, err = s.startPlan(ctx, planIDRe.FindString(res), nil, false)
 	var invalid planInvalid
 	if !errors.As(err, &invalid) || !strings.Contains(err.Error(), "work-trust computer") {
@@ -1752,7 +1754,7 @@ func TestTaskLeaderRefusedOnWorkTrustMachine(t *testing.T) {
 func TestTaskLeaderNeverLandsOnWorkTrustMachine(t *testing.T) {
 	s, f := newQuietService(t)
 	ctx := context.Background()
-	f.hello.Assistant.WorkMachines = []string{"box"}
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = []string{"box"} })
 	_, _, err := s.startTaskAgent(ctx, &PlanTask{Title: "L", Prompt: "p", Machine: "box", Cwd: "/code/app", Role: roleLeader, Permission: "bypassPermissions"}, true)
 	if err == nil || !strings.Contains(err.Error(), "work-trust computer") {
 		t.Fatalf("starting a task leader on a work-trust computer: %v", err)
@@ -1764,7 +1766,7 @@ func TestTaskLeaderNeverLandsOnWorkTrustMachine(t *testing.T) {
 		t.Fatalf("a start went out: %v", f.starts)
 	}
 	// Retry of a saved leader plan on a computer that is work-trust now.
-	f.hello.Assistant.WorkMachines = nil
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = nil })
 	res, err := s.toolTaskPlan(ctx, "conv1", leaderPlanArgs("leader"))
 	if err != nil {
 		t.Fatal(err)
@@ -1780,7 +1782,7 @@ func TestTaskLeaderNeverLandsOnWorkTrustMachine(t *testing.T) {
 	if err := s.failTodo(ctx, todo, "did not start"); err != nil {
 		t.Fatal(err)
 	}
-	f.hello.Assistant.WorkMachines = []string{"box"}
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = []string{"box"} })
 	if _, err := s.retryTask(ctx, todo); err == nil || !strings.Contains(err.Error(), "work-trust computer") {
 		t.Fatalf("retrying a leader plan on a work-trust computer: %v", err)
 	}
@@ -1789,7 +1791,7 @@ func TestTaskLeaderNeverLandsOnWorkTrustMachine(t *testing.T) {
 // healthyPlace never moves a flexible task leader to a work-trust computer, while an ordinary task may go there.
 func TestHealthDetourSkipsWorkTrustForTaskLeaders(t *testing.T) {
 	s, f := rerouteHub(t)
-	f.hello.Assistant.WorkMachines = []string{"box"}
+	f.setHello(func(h *Hello) { h.Assistant.WorkMachines = []string{"box"} })
 	blockWorkLauncher(s, "l4")
 	failWorkLauncherCheck(s, "server") // box is the only healthy alternative
 	ctx := context.Background()
@@ -2001,7 +2003,7 @@ func TestLeaderRetryDeliveredIsNotRedeliveredAfterRestart(t *testing.T) {
 	f.setSessions("box",
 		proto.Session{SessionID: "s1", MachineID: "box", Cwd: "/code/app", Agent: "claude", Status: proto.StatusIdle},
 		proto.Session{SessionID: worker, MachineID: "box", Cwd: "/code/app", Agent: "claude", Status: proto.StatusWorking, State: proto.StateWorking, UpdatedAt: time.Now()})
-	s.taskWorking(ctx, "box", worker)
+	s.taskWorking(ctx, "box", worker, startRow{})
 	f.mu.Lock()
 	f.failSend = &rpc.Error{Code: "peer_unconfirmed", Message: "not taken", Data: json.RawMessage(`{"delivered":"unknown"}`)}
 	f.mu.Unlock()
