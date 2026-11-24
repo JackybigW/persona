@@ -1,0 +1,78 @@
+# Which paths are Persona Core, for the checks that control changes to it (#14916, part of #13430;
+# CONTRIBUTING.md "Changing Persona Core", docs/architecture/core-and-modules.md "Guards").
+#
+# Read by scripts/test/core_paths.py (`is_core(path)`, `core_files(paths)`). Checked by scripts/test/test_core_paths.py:
+# the file parses, every explicit path exists (a stale line fails), module directories are never core and sample paths
+# classify as expected. It feeds scripts/hooks/codeowners.py (the generated block of .github/CODEOWNERS) and
+# scripts/hooks/core-change-check.py (the merge gate in scripts/hooks/merge-pr.sh).
+#
+# Lines (`#` starts a comment):
+#   classified <kind> <root>...   every file under the roots whose unit schema/module-classification.txt classifies `core`
+#                                 (kind: go, web, gradle, apple); a unit it classifies as a module id is never core. The
+#                                 classification file is the one list of units, so it is not repeated here.
+#                                   go      server/ and sdk/go/: a file with no classified directory above it (go.mod,
+#                                           migrations) is core
+#                                   web     web/src/
+#                                   gradle  android/: a file belongs to the project with the longest matching directory
+#                                   apple   apple/: a file belongs to the nearest classified directory
+#   core <path>                   a foundation path named explicitly so it is visible at a glance: a file, a directory
+#                                 (and all below it) or a glob with `*`. A test-only change in it does not count.
+#   guard <path>                  the same, but a test file in it counts too: the path is itself a guard or a gate
+#
+# Not core: docs/, module directories (server/internal/modules/<id>, web/src/modules/<id>, android/module/<id>, the
+# Apple module directories the classification names), and everything the lines above do not reach.
+#
+# Test-only changes do not count as a core change; tests may be added freely. A file is test-only when it is
+#   Go     *_test.go, or anything under testdata/
+#   web    *.test.ts, *.test.tsx, *.test.js, *.test.mjs, *.spec.*, anything under __tests__/
+#   Android  anything under src/test/, src/androidTest/ or src/*Test/ of a project
+#   Apple  a path with a directory named *Tests (PersonaTests, PersonaUITests), or a file *Tests.swift / *Test.swift
+# unless a `guard` line names the path. Fixtures a test reads sit in these places too (testdata/, test directories).
+
+classified go server sdk/go
+classified web web/src
+classified gradle android
+classified apple apple
+
+# --- The foundation interfaces and the composition roots ----------------------------------------------------------
+core server/internal/modapi
+core server/internal/assistant/kernel
+core server/internal/moduleswitch
+core server/internal/modules/all
+core web/src/core/module-*
+core android/core/moduleapi
+core apple/Packages/PersonaModuleAPI
+core apple/Persona/App/Modules.swift
+core apple/modules.yml
+core apple/modules-core-only.yml
+core schema/module.schema.json
+core schema/module-classification.txt
+core schema/core-paths.txt
+
+# --- Hub feature flags --------------------------------------------------------------------------------------------
+core server/internal/proto/proto.go
+core server/internal/proto/features_*.go
+core server/internal/hub/extensions_link.go
+
+# --- Guards and gates (a test file here counts) --------------------------------------------------------------------
+guard server/internal/archguard
+guard web/src/core/module-boundary.lint.test.ts
+guard web/eslint.modules.config.mjs
+guard android/module-guard-baseline.txt
+guard scripts/test/test_module_*.py
+guard scripts/test/module_classification.py
+guard scripts/test/test_apple_module_refs.py
+guard scripts/test/apple_module_refs_baseline.json
+guard scripts/test/core_paths.py
+guard scripts/test/test_core_paths.py
+guard scripts/test/test_core_references_no_module.py
+guard scripts/ci/module-e2e.py
+guard scripts/ci/core-only-smoke.py
+guard scripts/ci/web_module_boundary_ratchet.py
+guard scripts/hooks/merge-pr.sh
+guard scripts/hooks/core-change-check.py
+guard scripts/hooks/codeowners.py
+guard scripts/test/test_codeowners.py
+guard scripts/test/test_core_change_check.py
+guard scripts/test/test_merge_pr_sh.py
+guard .github/CODEOWNERS

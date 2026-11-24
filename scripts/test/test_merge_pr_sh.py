@@ -42,7 +42,9 @@ state = json.load(open(state_path))
 entry = {"argv": args, "cwd": os.getcwd()}
 out = ""
 if args[:2] == ["pr", "view"]:
-    out = json.dumps({k: state["pr"][k] for k in args[args.index("--json") + 1].split(",")})
+    out = json.dumps({k: state["pr"].get(k, [] if k == "labels" else None) for k in args[args.index("--json") + 1].split(",")})
+elif args[:1] == ["api"] and any(a.endswith("/pulls/7/files?per_page=100") for a in args):
+    out = "\n".join(state.get("files", []))  # the changed files, as `filename<TAB>previous_filename` rows
 elif args[:2] == ["repo", "view"]:
     out = "example/persona"
 elif args[:2] == ["pr", "merge"]:
@@ -88,6 +90,10 @@ class MergePrTests(unittest.TestCase):
         (self.repo / "scripts/ci").mkdir()
         for name in RATCHET_SCRIPTS:
             shutil.copy2(SCRIPTS / "ci" / name, self.repo / "scripts/ci" / name)
+        for rel in ("scripts/test/core_paths.py", "scripts/test/module_classification.py", "scripts/ci/android-shards.py",
+                    "schema/core-paths.txt", "schema/module-classification.txt", "android/settings.gradle.kts"):
+            (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(SCRIPTS.parent / rel, self.repo / rel)  # what core-change-check.py reads
         (self.repo / "config.example.json").write_text("{}\n")
         self.git("add", ".")
         self.git("commit", "-q", "-m", "Initial")
@@ -125,6 +131,53 @@ class MergePrTests(unittest.TestCase):
 
     def merges(self, calls):
         return [c for c in calls if c["argv"][:2] == ["pr", "merge"]]
+
+    def merge_with_files(self, files, labels=(), body="Adds notes.\n\nFixes #6"):
+        pr = self.view(self.open_pr(), body=body, labels=[{"name": n} for n in labels])
+        self.state.write_text(json.dumps({"pr": pr, "files": files}))
+        result = subprocess.run(["bash", str(self.repo / "scripts/hooks/merge-pr.sh"), "7"], cwd=self.repo, env=self.env,
+                                capture_output=True, text=True, timeout=60)
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+        return result, calls
+
+    def test_a_core_change_needs_the_label_and_the_reason(self):
+        """core-change-check.py (#14916): a PR that changes a core path merges only with the label and the section."""
+        core = ["server/internal/hub/hub.go"]
+        why = "Fixes #6\n\n## Why this must change the core\n\nThe hub must route the new frame.\n"
+        for name, labels, body in (("no label, no section", (), "Fixes #6"), ("no label", (), why),
+                                   ("no section", ("core-change",), "Fixes #6"),
+                                   ("placeholder", ("core-change",), "Fixes #6\n\n## Why this must change the core\n\nN/A\n")):
+            with self.subTest(name):
+                self.log.unlink(missing_ok=True)
+                result, calls = self.merge_with_files(core, labels, body)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("server/internal/hub/hub.go", result.stderr)
+                self.assertIn("not merged", result.stderr)
+                self.assertEqual(self.merges(calls), [])
+        self.log.unlink(missing_ok=True)
+        result, calls = self.merge_with_files(core, ("core-change",), why)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(self.merges(calls)), 1)
+        self.assertEqual(len([c for c in calls if c["argv"][:2] == ["pr", "view"]]), 1)  # still one snapshot
+
+    def test_module_docs_and_tests_only_changes_merge_untouched(self):
+        for name, files in (("module", ["server/internal/modules/voice/voice.go", "web/src/modules/lark/a.ts"]),
+                            ("docs", ["docs/architecture/core-and-modules.md"]),
+                            ("tests", ["server/internal/hub/hub_test.go", "web/src/views/chat/Chat.test.tsx"]),
+                            ("moved out of core", ["web/src/views/chat/A.tsx\t"])):
+            with self.subTest(name):
+                self.log.unlink(missing_ok=True)
+                result, calls = self.merge_with_files(files)
+                if name == "moved out of core":
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)  # it is a core file
+                else:
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(len(self.merges(calls)), 1)
+
+    def test_a_rename_out_of_a_core_path_counts(self):
+        result, _ = self.merge_with_files(["web/src/modules/lark/A.tsx\tweb/src/views/chat/A.tsx"])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("web/src/views/chat/A.tsx", result.stderr)
 
     def test_merges_the_scanned_head_title_and_body_once(self):
         head = self.open_pr()
@@ -211,7 +264,7 @@ class MergePrTests(unittest.TestCase):
         result, calls = self.merge_pr(self.view(self.open_pr(), isCrossRepository=True))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(self.merges(calls)), 1)
-        self.assertEqual([c for c in calls if c["argv"][0] == "api"], [])
+        self.assertEqual([c for c in calls if c["argv"][0] == "api" and "-X" in c["argv"]], [])  # no DELETE (the files read is a GET)
 
     def test_a_clone_without_remote_tracking_refs_scans_the_fetched_base(self):
         self.git("config", "--unset-all", "remote.origin.fetch")

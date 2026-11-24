@@ -1,1 +1,64 @@
 /docs/SUPER_RULES.md @chyroc
+
+# BEGIN persona-core (generated from schema/core-paths.txt by scripts/hooks/codeowners.py; do not edit)
+/.github/CODEOWNERS @chyroc @szupzj18
+/android/ @chyroc @szupzj18
+/android/*/
+/android/app/ @chyroc @szupzj18
+/android/core/ @chyroc @szupzj18
+/android/feature/ @chyroc @szupzj18
+/android/platform/ @chyroc @szupzj18
+/apple/ @chyroc @szupzj18
+/apple/Modules/
+/apple/PersonaCallIntents/
+/apple/PersonaLink/
+/apple/Packages/BeautifulUI/
+/apple/Packages/PersonaScreenCore/
+/apple/Packages/PersonaScreenKit/
+/apple/Persona/Calls/
+/apple/Persona/CarPlay/
+/apple/Persona/Code/
+/apple/Persona/Glasses/
+/apple/Persona/Recording/
+/apple/Persona/Voice/
+/apple/Persona/Views/Feishu/
+/apple/Persona/Views/Knowledge/
+/apple/Persona/Views/Mail/
+/apple/Persona/Views/Voice/
+/schema/core-paths.txt @chyroc @szupzj18
+/schema/module-classification.txt @chyroc @szupzj18
+/schema/module.schema.json @chyroc @szupzj18
+/scripts/ci/core-only-smoke.py @chyroc @szupzj18
+/scripts/ci/module-e2e.py @chyroc @szupzj18
+/scripts/ci/web_module_boundary_ratchet.py @chyroc @szupzj18
+/scripts/hooks/codeowners.py @chyroc @szupzj18
+/scripts/hooks/core-change-check.py @chyroc @szupzj18
+/scripts/hooks/merge-pr.sh @chyroc @szupzj18
+/scripts/test/apple_module_refs_baseline.json @chyroc @szupzj18
+/scripts/test/core_paths.py @chyroc @szupzj18
+/scripts/test/module_classification.py @chyroc @szupzj18
+/scripts/test/test_apple_module_refs.py @chyroc @szupzj18
+/scripts/test/test_codeowners.py @chyroc @szupzj18
+/scripts/test/test_core_change_check.py @chyroc @szupzj18
+/scripts/test/test_core_paths.py @chyroc @szupzj18
+/scripts/test/test_core_references_no_module.py @chyroc @szupzj18
+/scripts/test/test_merge_pr_sh.py @chyroc @szupzj18
+/scripts/test/test_module_classification.py @chyroc @szupzj18
+/scripts/test/test_module_flags.py @chyroc @szupzj18
+/scripts/test/test_module_schema.py @chyroc @szupzj18
+/sdk/go/ @chyroc @szupzj18
+/server/ @chyroc @szupzj18
+/server/internal/lark/
+/server/internal/orcart/
+/server/internal/protectedapps/
+/server/internal/rexcli/
+/server/internal/terncli/
+/server/internal/transcribelive/
+/server/internal/modules/*/
+/server/internal/modules/all/ @chyroc @szupzj18
+/web/ @chyroc @szupzj18
+/web/*/
+/web/src/ @chyroc @szupzj18
+/web/src/modules/*/
+/web/src/views/knowledge/
+# END persona-core

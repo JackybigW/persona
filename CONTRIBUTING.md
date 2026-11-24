@@ -47,6 +47,32 @@ and copyable `gh` commands: [`docs/operations/collaboration.md`](docs/operations
 6. **Merge after local verification passes.** Opening a PR runs no hosted CI, so the PR says what you ran and what you
    didn't. With write access, merge through `scripts/hooks/merge-pr.sh <number>`; otherwise a maintainer merges.
 
+## Changing Persona Core
+
+Persona Core is the part of Persona that is not a feature module: the hub's core packages, the three clients' shells, and the
+interfaces that modules plug into. A change there affects every module and every user, so it gets a little more care.
+Module directories, docs and tests-only changes are not affected.
+
+**What counts as core.** [`schema/core-paths.txt`](schema/core-paths.txt) is the list: everything
+[`schema/module-classification.txt`](schema/module-classification.txt) classifies `core` (server, web, Android and Apple), plus
+the foundation interfaces named one by one (module API, module switch, composition roots, guards, hub feature flags). A change
+that touches only tests inside a core path (`*_test.go`, `*.test.ts(x)`, test source sets, `testdata`) is not a core change:
+add tests freely. `python3 scripts/test/core_paths.py --table` counts the files.
+
+**What to do when your PR touches it:**
+
+1. Say in the issue why the core has to change and cannot be done in a module (or through an existing extension point).
+2. Add the label `core-change` to the PR.
+3. Fill in the section `## Why this must change the core` in the PR template: one or more real lines, not "n/a".
+4. Expect the owners' review. `.github/CODEOWNERS` requests it for core paths; whether it is *required* before a merge is
+   a branch setting the repository administrator controls.
+
+**Checks.** `scripts/hooks/core-change-check.py <PR number>` fails a core-touching PR without the label or the section, and
+lists the core files it saw; `scripts/hooks/merge-pr.sh` runs it before every merge. `scripts/test/test_core_paths.py`,
+`scripts/test/test_codeowners.py` (regenerate the block with `python3 scripts/hooks/codeowners.py --write` after editing the
+list) and `scripts/test/test_core_references_no_module.py` (core never imports a module) run in `scripts/ci/scripts.sh`.
+Run any of them locally with `python3 scripts/test/<name>.py`.
+
 ## Verifying your change
 
 Run the checks for every area you touched ("Build and verify" in [`CLAUDE.md`](CLAUDE.md#build-and-verify)). The portable
