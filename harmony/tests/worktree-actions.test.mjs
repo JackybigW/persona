@@ -22,7 +22,8 @@ registerHooks({
   }
 });
 const { WorktreeActions, validWorktreeBranch, checkoutPath } = await import('../entry/src/main/ets/models/WorktreeActions.ets');
-const { ProjectWorktree } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
+const { ProjectCatalog, ProjectWorktree } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
+const { ResourceRow, Wire } = await import('../entry/src/main/ets/models/Wire.ets');
 const { HttpFailure } = await import('worktree:transport');
 
 function fixture() {
@@ -68,7 +69,7 @@ function fixture() {
       }
       assert.equal(admit(), true); writes.push({ path, method, body, id });
       const result = path.endsWith('/delete') ? removed : path.endsWith('/rename') ? behavior.renameReceipt :
-        { workspace_id: 'new-id', path: body.path || '/qa/automatic', branch: body.branch || 'automatic', parent_workspace_id: 'child' };
+        behavior.createReply || { workspace_id: 'new-id', path: body.path || '/qa/automatic', branch: body.branch || 'automatic', parent_workspace_id: 'child' };
       if (behavior.unknown || !acknowledged(result)) { blocked.push({ id,path,method,state:'unknown',createdAt:new Date().toISOString() }); throw new HttpFailure(0, 'result_unknown', true); }
       return result;
     }
@@ -85,7 +86,8 @@ function fixture() {
         clearIfUnchanged: async expected => { if (views.get(scoped) === expected) views.delete(scoped); }};
     },
     scope() { return this.name; }, owns(epoch, scope) { return this.name === scope && this.epoch === epoch; }, repo: () => repo };
-  const root = { ...owner, name: 'root', viewFor: async () => owner };
+  const root = { ...owner, name: 'root', viewFor: async () => owner,
+    directoryOwnerFor: row => row.group === 'home' && row.manager === 'default' ? owner : undefined };
   const tree = Object.assign(new ProjectWorktree(), { source: 'herdr', sourceId: 'child', machine: 'Studio/1', machineTitle: 'Studio',
     group: 'home', manager: 'default', cwd: '/qa/child', title: 'Child', online: true, startAllowed: true });
   return { form: new WorktreeActions(), root, owner, tree, behavior, writes, queries, finished, blocked, replayed, reads, views, cleanupResult: removed };
@@ -798,4 +800,101 @@ test('confirmation rereads both workspaces, the owner and both saved forms and c
   assert.equal(f.record.state,'unknown',String(change));assert.equal(f.blocked[0].state,'unknown');
   assert.equal(f.writes.length,1);assert.equal(f.form.canSubmit,false);assert.equal(f.replayed.length,0);
  }
+});
+
+function nativeMethods(path, names, dependencies) {
+  const text = readFileSync(new URL('../entry/src/main/ets/' + path,import.meta.url),'utf8');
+  const methods = names.map(name => {
+    const found = new RegExp('^  private (?:async )?' + name + '\\(','m').exec(text);
+    assert.ok(found,name);
+    const line = text.indexOf('\n',found.index);
+    return text.slice(found.index,text.slice(found.index,line).trimEnd().endsWith('}') ? line : text.indexOf('\n  }',line)+4);
+  });
+  return new Function(...Object.keys(dependencies),'return '+stripTypeScriptTypes('class NativePage {'+methods.join('\n')+'}'))(...Object.values(dependencies));
+}
+
+const NativeProjects = nativeMethods('components/ProjectsPage.ets',['complete','editorDismissed'],{});
+const NativeRoute = nativeMethods('pages/Index.ets',['worktreeChanged','prepareAgent','selectedAgentTree','agentDraftKey',
+  'agentMachines','machineKey','agentMachineOnline','chosenAgentMachine'],{ResourceRow,Wire,tr:key=>key});
+const nextFrame = () => new Promise(resolve=>setImmediate(resolve));
+
+async function projectCreateUI() {
+  const f=fixture(), {root,owner,tree,form}=f;
+  Object.assign(owner.profile,{id:tree.group,manager:tree.manager});
+  const machine=ResourceRow.from({id:tree.machine,name:'Test machine',online:true},'machine');
+  machine.group=tree.group; machine.manager=tree.manager;
+  root.section=4; root.directoryMachines=[machine];owner.machines=[machine];
+  root.reportError=error=>{throw error;}; owner.loadView=async()=>'';
+  tree.key=JSON.stringify([tree.group,tree.manager,tree.machine,tree.source,tree.sourceId]);
+  const catalog=new ProjectCatalog(), routes=[{name:'project_tree',key:tree.key}];
+  catalog.projects=[{trees:[tree]}];
+  const refreshed=Promise.withResolvers();catalog.saveParent=async()=>{};catalog.refresh=()=>refreshed.promise;
+  const stack={size:()=>routes.length,getAllPathName:()=>routes.map(r=>r.name),getParamByIndex:i=>routes[i]?.key};
+  const route=Object.assign(new NativeRoute(),{model:root,projectCatalog:catalog,stack,navigationIntent:0,agentFormRevision:0,
+    machineIntent:0,showSheet:false,chatForward:{clearNew(){}},startWorktree:{close(){}},launchChoices:{clear(){}},
+    loadRecentSetups(){},loadAgentLaunchers(){},pushPlace(name,key){routes.push({name,key});this.navigationIntent++;}});
+  let settled, currentPage=true;
+  const screen=Object.assign(new NativeProjects(),{editedTree:tree,editor:form,editorShown:true,
+    onChanged:(origin,change)=>{settled=route.worktreeChanged(origin,change,()=>currentPage);}});
+  await form.open(root,tree,'create');form.automatic=true;
+  return {...f,machine,catalog,routes,route,screen,leave:()=>{currentPage=false;},finish:async()=>{refreshed.resolve();await settled;}};
+}
+
+test('a direct host receipt presents New Agent only after the editor closes, before inventory catches up; cancel leaves the child selected',async()=>{
+  const f=await projectCreateUI();
+  await f.screen.complete();
+  assert.equal(f.screen.editorShown,false);assert.equal(f.route.showSheet,false);
+  assert.equal(f.routes.length,1);assert.equal(f.writes.length,1);
+  f.screen.editorDismissed();await nextFrame();
+  const preset=f.route.selectedAgentTree();
+  assert.deepEqual([preset.sourceId,preset.source,preset.branch,preset.cwd,preset.parent],['new-id','herdr','automatic','/qa/automatic','child']);
+  assert.equal(f.route.agentModel,f.owner);assert.equal(f.route.directory,preset.cwd);
+  assert.deepEqual([f.route.sheetKind,f.route.showSheet,f.route.pickedAgentTree],['newagent',true,'']);
+  assert.deepEqual(f.routes.at(-1),{name:'project_tree',key:preset.key});assert.equal(f.catalog.browser.selectedTree,preset.key);
+  assert.equal(f.catalog.tree(preset.key),undefined,'the receipt does not add a catalog management target');
+  f.screen.editorDismissed();assert.equal(f.routes.length,2,'native dismissal is consumed once');
+  f.route.showSheet=false;await f.finish();
+  assert.equal(f.routes.at(-1).key,preset.key);assert.equal(f.catalog.selectedWorktree(preset.key),preset);
+  assert.deepEqual(f.writes.map(w=>w.path),['/api/v1/machines/Studio%2F1/worktree/create']);
+  const other=Object.assign(new ProjectWorktree(),preset,{cwd:'/another/checkout'});
+  f.catalog.projects=[{trees:[other]}];assert.equal(f.route.selectedAgentTree(),undefined,'same id and different path cannot be substituted');
+  f.owner.epoch++;f.catalog.projects=[];assert.equal(f.catalog.selectedWorktree(preset.key),undefined);
+});
+
+test('cancel, uncertain creation, a different parent, offline machine, changed surface and retired owner cannot open a child form',async()=>{
+  for (const kind of ['cancel','unknown','same id','other parent','offline','new machine trust','other page','retired owner','owner replacement','another sheet']) {
+    const f=await projectCreateUI();
+    if (kind==='cancel') f.screen.editorShown=false;
+    else {
+      if (kind==='unknown') f.behavior.unknown=true;
+      if (kind==='same id'||kind==='other parent') f.behavior.createReply={workspace_id:kind==='same id'?'child':'new-id',
+        branch:'automatic',path:'/qa/automatic',parent_workspace_id:kind==='other parent'?'different':'child'};
+      await f.screen.complete();
+    }
+    if (kind==='offline') f.owner.connected=false;
+    if (kind==='new machine trust') f.root.directoryMachines=[];
+    if (kind==='other page') f.leave();
+    if (kind==='retired owner') f.owner.epoch++;
+    if (kind==='owner replacement') f.root.directoryOwnerFor=()=>({...f.owner});
+    if (kind==='another sheet') f.route.showSheet=true;
+    f.screen.editorDismissed();await f.finish();await nextFrame();
+    assert.equal(f.route.sheetKind,undefined,kind);assert.equal(f.routes.length,1,kind);
+    assert.equal(f.writes.filter(w=>w.path.endsWith('/sessions')).length,0,kind);
+  }
+});
+
+test('a different navigation, directory identity or owner that wins the draft read never receives the late form',async()=>{
+  for (const change of ['back','different branch','generation','offline machine','different form']) {
+    const f=await projectCreateUI(), draft=Promise.withResolvers();
+    f.owner.loadView=()=>draft.promise;await f.screen.complete();f.screen.editorDismissed();await nextFrame();
+    const preset=f.catalog.createdSelection;assert.ok(preset);
+    if (change==='back') { f.routes.pop();f.route.navigationIntent++; }
+    if (change==='different branch') f.catalog.projects=[{trees:[Object.assign(new ProjectWorktree(),preset,{branch:'wrong'})]}];
+    if (change==='generation') f.owner.epoch++;
+    if (change==='offline machine') f.machine.state='offline';
+    if (change==='different form') f.route.agentFormRevision++;
+    draft.resolve('');await f.finish();await nextFrame();
+    assert.equal(f.route.showSheet,false,change);
+    assert.equal(f.writes.length,1);
+  }
 });

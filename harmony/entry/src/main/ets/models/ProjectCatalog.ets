@@ -135,7 +135,13 @@ export class ProjectWorktree {
     if (action === 'create') return ['herdr', 'herdr-core', 'orca'].includes(this.source);
     return action === 'clean' && !this.main && ['herdr', 'orca', 'paseo'].includes(this.source);
   }
-  get boundStart(): boolean { return this.source === 'paseo' || this.source === 'orca'; }
+  // New Agent's general picker lists checkout engines. A terminal host is joined from its own workspace menu.
+  get pickerWorkspace(): boolean { return this.source === 'paseo' || this.source === 'orca'; }
+  get boundStart(): boolean { return !!this.sourceId && (this.pickerWorkspace || this.source === 'herdr' || this.source === 'herdr-core'); }
+  receiptCurrent?: () => boolean;
+  matchesCreated(child: ProjectWorktree): boolean {
+    return this.key === child.key && this.cwd === child.cwd && this.branch === child.branch && (!this.parent || this.parent === child.parent);
+  }
   get canStart(): boolean { return this.online && this.startAllowed && !!this.cwd && (this.boundStart || this.source === 'session-directory' || !this.source); }
 }
 
@@ -354,7 +360,7 @@ export function trimAgentProjects(projects: PersonaProject[], includeEmpty: bool
     for (const tree of project.trees) trees.set(tree.key,tree);
     for (const tree of project.trees) {
       const matches = !query || (tree.title + ' ' + tree.cwd).toLocaleLowerCase().includes(query);
-      if (!tree.agents.length && !(includeEmpty && tree.boundStart && matches)) continue;
+      if (!tree.agents.length && !(includeEmpty && tree.pickerWorkspace && matches)) continue;
       let current: ProjectWorktree | undefined = tree;
       while (current && !keep.has(current.key)) { keep.add(current.key); current=trees.get(current.parentKey); }
     }
@@ -410,6 +416,9 @@ export class ProjectBrowserState {
 @ObservedV2
 export class ProjectCatalog {
   @Trace projects: PersonaProject[] = [];
+  // The create reply can arrive before the first directory snapshot containing this particular child.
+  @Trace createdSelection: ProjectWorktree | undefined = undefined;
+  private createdListed: boolean = false;
   @Trace loading: boolean = false;
   @Trace partial: boolean = false;
   @Trace startError: boolean = false;
@@ -425,7 +434,7 @@ export class ProjectCatalog {
   private snapshots: Map<string, ResourceRow[]> = new Map();
   private savedSessions: Map<string, ResourceRow[]> = new Map();
   private savedComputers: Map<string, ResourceRow[]> = new Map();
-  clear(): void { this.sequence++; this.ownerScope = ''; this.projectedFields = []; this.notice = ''; this.browser.clear(); this.agentBrowser.clear(); this.foldsRestored = false; this.createdParents.clear(); this.snapshots.clear(); this.savedSessions.clear(); this.savedComputers.clear(); this.projects = []; this.partial = false; this.startError = false; this.loading = false; }
+  clear(): void { this.sequence++; this.createdSelection = undefined; this.ownerScope = ''; this.projectedFields = []; this.notice = ''; this.browser.clear(); this.agentBrowser.clear(); this.foldsRestored = false; this.createdParents.clear(); this.snapshots.clear(); this.savedSessions.clear(); this.savedComputers.clear(); this.projects = []; this.partial = false; this.startError = false; this.loading = false; }
 
   /** Rebuild from the Agents projection's actual unpinned rows; empty workspaces come only from the owning catalog. */
   agentDirectory(model: ClientModel, sessions: ResourceRow[], includeEmpty: boolean, query: string,
@@ -475,6 +484,7 @@ export class ProjectCatalog {
     }
     if (fields.length === this.projectedFields.length && fields.every((field: string, index: number) => field === this.projectedFields[index])) return;
     this.projects = projectDirectory(rows, sessions, machines);
+    if (this.createdSelection && this.tree(this.createdSelection.key)) this.createdListed = true;
     this.projectedFields = fields;
   }
   toggleBrowserFold(model:ClientModel,id:string,open:boolean): void {
@@ -607,6 +617,18 @@ export class ProjectCatalog {
       this.syncRows(model); this.partial = partial;
     } catch (_) { if (current()) this.partial = true; }
     finally { if (this.sequence === revision) this.loading = false; }
+  }
+
+  selectCreated(tree: ProjectWorktree): void {
+    this.createdListed = !!this.tree(tree.key);
+    this.createdSelection = tree;
+  }
+  selectedWorktree(key: string): ProjectWorktree | undefined {
+    const known = this.tree(key), created = this.createdSelection;
+    if (!created || created.key !== key) return known;
+    if (!created.receiptCurrent?.()) return undefined;
+    if (known) return known.matchesCreated(created) ? known : undefined;
+    return this.createdListed ? undefined : created;
   }
 
   tree(key: string): ProjectWorktree | undefined {

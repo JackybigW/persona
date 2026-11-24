@@ -1113,6 +1113,14 @@
       "value": "工作区"
     },
     {
+      "name": "project_join_space",
+      "value": "加入空间"
+    },
+    {
+      "name": "project_join_help",
+      "value": "在所选工作树中打开新的会话标签。"
+    },
+    {
       "name": "latest",
       "value": "最新消息"
     },

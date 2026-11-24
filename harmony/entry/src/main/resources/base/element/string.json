@@ -1113,6 +1113,14 @@
       "value": "Workspace"
     },
     {
+      "name": "project_join_space",
+      "value": "Join Space"
+    },
+    {
+      "name": "project_join_help",
+      "value": "Opens a new tab in the selected worktree."
+    },
+    {
       "name": "latest",
       "value": "Latest"
     },
