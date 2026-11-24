@@ -2354,7 +2354,7 @@ code. Its fields use the names of the module contract in #13430 section 4, in ca
 | `feature` | `feature` (its hello feature flag, `module.<id>`; see "When a module is there") | yes |
 | `needs` | `needs` (other modules it may import; ESLint holds it to them) | yes (guard) |
 | `wants` | `wants` (modules it uses when they are there) | declared, not yet served |
-| `shell_places` | `routes` (a page: a base segment, its aliases, its title), `extensionPages` (reserved `/extension/-<id>/…` pages the module draws, such as the health module's water and protein pages, #13176), `navItems` (a sidebar entry and the page it follows) and `kbKinds` (knowledge entry kinds whose page it adds parts to: the `kb.detail` slot) | yes |
+| `shell_places` | `routes` (a page: a base segment, its aliases, its title), `extensionPages` (reserved `/extension/-<id>/…` pages the module draws, such as the health module's water and protein pages, #13176), `navItems` (a sidebar entry and the page it follows), `kbKinds` (knowledge entry kinds whose page it adds parts to: the `kb.detail` slot) and `standalonePages` (pages it draws on their own, without the app shell: see **Pages of their own** below) | yes |
 | `i18n_namespaces` | `i18nNamespaces` and `locales` (its catalog loaders) | yes |
 | `settings` | `settingsTabs` (a Settings category in one of its groups) | yes (#13846) |
 | `chat_card_kinds` | `cardRenderers` (pending-card kinds the core has no card for) | yes (#13846) |
@@ -2455,6 +2455,37 @@ its profile out. The page lays itself out as a function of those parts (`ModuleK
 until it is in, or with no module on for the kind, the page draws with none. One module per kind. While the module is
 off, an entry of its kind is absent: its address routes as an unknown one, an open one says it is not there, and the
 lists and searches that would show it leave it out.
+
+**Pages of their own** (#14404, `standalonePages`). A module may draw a page with no app shell (no sign-in flow, no
+sidebar), named by its address' first segment: the screen-share module's `/screen/<machine>`. The modules that have
+one are also listed in `web/src/modules/standalone.ts`, the part of the module list `main.tsx` loads before App
+(`index.ts` takes them in). Its `standalonePage(address)` finds the module for the address: while it is on, it loads
+the module's strings, then its code, and returns what `ModuleCode.Standalone(address)` draws, which `main.tsx` renders
+as the whole page; that function takes from the address what must not stay there (the app's token in the fragment)
+before App could read it, and returns null for an address that is not its page after all, which then opens the app.
+Before it loads anything of the module it reads one hello on a socket of its own (`hubServesHere`, at most 2.5 s; none
+in time is "no hello yet", so on). While the module is off (this browser's switch, or a hello with the `modules`
+marker and without its flag) the address is absent: its fragment is dropped, so a token meant for the page is never
+taken for a sign-in, the app routes it as an unknown address, and the module's chunk and strings are never requested. That file reaches the descriptors, the switch and the strings loader, never the host or the whole
+list: what `main.tsx` reaches is split out of App's chunks, and the whole list made the first screen about 30 KB
+heavier (so `moduleFeature` and `MODULES_FEATURE` live in `web/src/core/module-flags.ts`, which the host re-exports).
+Inside the app the host serves the field like the others: `registerModule` refuses a segment that is a core address,
+another module's page of its own, or a route of any module; `loadModule` refuses code without `Standalone`;
+`standaloneAt(segments)` answers absent while the module is off; and the core's links to the page ask
+`standaloneOn(base)`, which follows the hub flag like any module entry (the machine page's **View screen**). The code is
+the module's `standalone.tsx`: the build (`vite.config.ts`, `src/startup-preload.ts` `standalonePages`) reads
+`standalonePages` from each `module.ts`, preloads that file's chunks on its addresses (not while this browser switched
+the module off), and lets its import run without waiting for the rest of the catalog, as `main.tsx`'s own imports do;
+so that file and what it imports statically may read only the first screen's core strings and the module's own (the
+build checks it).
+
+**The screen-share module** (#14404). The live screen of a computer (`web/src/modules/screen-share/`,
+`docs/extensions/computer-use.md` "Live view"): the noVNC view, the video picture and its tiers, the Displays menu, the
+stats overlay and the data-use meter, with their strings (`screen-share-screen.json`, `screen-share-screenview.json`,
+`screen-share-video.json`, `screen-share-displays.json`), which no longer ship in every first screen's catalog. Its hub
+flag is `module.screen-share`; off, the machine page has no **View screen** and `/screen/<machine>` is an unknown
+address. Its Labs name and line are `sidebar.json`'s. `lib/computer.ts` (whether a Mac offers its screen, the page's
+address) stays in core with the machine page.
 
 **The recording module** (#13407, web half). A recording's parts of its knowledge page
 (`web/src/modules/recording/`, `docs/assistant/meeting-minutes.md`, `docs/assistant/day-recap.md`): Rename and Hand to
@@ -2581,14 +2612,14 @@ It renders escaped plain text (no HTML, links, images or cards), keeps work deta
 
 ## Subscription usage (bottom of the sidebar, #2432)
 
-At the very bottom of the sidebar (below the Agents list): one thin bar for each of the two fullest subscription accounts, turning the warning color at ≥ 80%. Clicking opens a popover with one row per window per account (length, % used, bar, reset countdown, pace hint),
+At the very bottom of the sidebar (below the Agents list): one thin bar for each of the two subscription accounts with the least headroom left before their protection line, filled to what is left and labelled "N% left" (green, orange or red by `remainingTone`, #14690). Clicking opens a popover with one row per window per account (length, % left, bar, reset countdown, pace hint) and one reset timeline for all accounts under the provider cards; it takes up to three columns when one would not fit the window's height (`docs/server/usage-windows.md`, "Provider cards and the reset timeline"),
 with the sample time to the right of the title. **With no data the whole block is not drawn.** Data comes from `GET /api/v1/usage/windows` (the manager groups samples from each computer's node and the hub forwards them),
 refreshed once a minute, with no requests while the page is in the background. The pace and countdown algorithms, and how Claude's usage is hooked up, are in [usage-windows.md](../server/usage-windows.md).
 Accounts come from files read on the computers and from the account-pool gateways the hub queries (#2595): in the popover, the line under each account's title gives the plan and the source ("MacBook · Relay": the computers that read it by name, then the gateways; with only one source it names that one).
 Single-model windows put the model name next to the length (not used for sorting); when a gateway can't be read it says "these are its last numbers". The sidebar bar's tooltip also gives the source. Gateways are configured under "Usage sources" in the admin interface (`docs/operations/admin.md`).
-A prepaid account with no rate-limit window (the official DeepSeek launcher, #11825) is a row of its own: the collapsed strip shows its name and the provider's amount and currency ("CNY 12.34"), without taking a bar from the two fullest window accounts, and the popover lists it beside them. A genuine zero is shown as `CNY 0.00`; an unreadable balance shows `—` in the strip, and the popover says "Balance unavailable" and why, so it never becomes a zero; a failure after a successful read keeps the last amount and says so.
-**Pinning chosen accounts (#12418):** By default the collapsed strip shows the two fullest window accounts plus live prepaid balance rows. Inside the popover, each live account (window or balance) has a pin toggle to choose which account(s) stay visible in the collapsed strip, with a **Reset to automatic** action whenever custom pins are active. The selection is stored per browser in `localStorage` (`persona.usage.pinnedAccounts`), syncs across tabs via `storage` events, and is display-only (it does not affect launchers, models, sign-in state, scheduling, or backend polling). The popover still lists every live account; if all pinned accounts go offline, expire, or are hidden by an administrator, the collapsed strip falls back automatically to the default ranking rather than rendering empty.
-Code: `lib/usage-windows.ts` (pure functions and pinned-account store, with unit tests), `views/UsageBars.tsx`, `views/UsagePopover.tsx`; the mock hub has `MOCK_USAGE=none` to simulate no data and `MOCK_USAGE=gateways` to simulate a mix of computer and gateway accounts.
+A prepaid account with no rate-limit window (the official DeepSeek launcher, #11825) is a row of its own: the collapsed strip shows its name and the provider's amount and currency ("CNY 12.34"), without taking a bar from the two window accounts, and the popover lists it beside them. A genuine zero is shown as `CNY 0.00`; an unreadable balance shows `—` in the strip, and the popover says "Balance unavailable" and why, so it never becomes a zero; a failure after a successful read keeps the last amount and says so.
+**Pinning chosen accounts (#12418):** By default the collapsed strip shows the two window accounts with the least headroom plus live prepaid balance rows. Inside the popover, each live account (window or balance) has a pin toggle to choose which account(s) stay visible in the collapsed strip, with a **Reset to automatic** action whenever custom pins are active. The selection is stored per browser in `localStorage` (`persona.usage.pinnedAccounts`), syncs across tabs via `storage` events, and is display-only (it does not affect launchers, models, sign-in state, scheduling, or backend polling). The popover still lists every live account; if all pinned accounts go offline, expire, or are hidden by an administrator, the collapsed strip falls back automatically to the default ranking rather than rendering empty.
+Code: `lib/usage-windows.ts` (pure functions and pinned-account store, with unit tests), `lib/usage-timeline.ts` (the popover's timeline and pause rules), `views/UsageBars.tsx`, `views/UsagePopover.tsx`; the mock hub has `MOCK_USAGE=none` to simulate no data and `MOCK_USAGE=gateways` to simulate a mix of computer and gateway accounts.
 
 ## Model pill and model panel (#5032)
 
