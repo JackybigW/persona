@@ -818,15 +818,15 @@ const NativeRoute = nativeMethods('pages/Index.ets',['worktreeChanged','prepareA
   'agentMachines','machineKey','agentMachineOnline','chosenAgentMachine'],{ResourceRow,Wire,tr:key=>key});
 const nextFrame = () => new Promise(resolve=>setImmediate(resolve));
 
-async function projectCreateUI() {
+async function projectCreateUI(origin = 'project_tree', section = 4) {
   const f=fixture(), {root,owner,tree,form}=f;
   Object.assign(owner.profile,{id:tree.group,manager:tree.manager});
   const machine=ResourceRow.from({id:tree.machine,name:'Test machine',online:true},'machine');
   machine.group=tree.group; machine.manager=tree.manager;
-  root.section=4; root.directoryMachines=[machine];owner.machines=[machine];
+  root.section=section; root.directoryMachines=[machine];owner.machines=[machine];
   root.reportError=error=>{throw error;}; owner.loadView=async()=>'';
   tree.key=JSON.stringify([tree.group,tree.manager,tree.machine,tree.source,tree.sourceId]);
-  const catalog=new ProjectCatalog(), routes=[{name:'project_tree',key:tree.key}];
+  const catalog=new ProjectCatalog(), routes=origin==='project_tree' ? [{name:'project_tree',key:tree.key}] : [];
   catalog.projects=[{trees:[tree]}];
   const refreshed=Promise.withResolvers();catalog.saveParent=async()=>{};catalog.refresh=()=>refreshed.promise;
   const stack={size:()=>routes.length,getAllPathName:()=>routes.map(r=>r.name),getParamByIndex:i=>routes[i]?.key};
@@ -835,7 +835,7 @@ async function projectCreateUI() {
     loadRecentSetups(){},loadAgentLaunchers(){},pushPlace(name,key){routes.push({name,key});this.navigationIntent++;}});
   let settled, currentPage=true;
   const screen=Object.assign(new NativeProjects(),{editedTree:tree,editor:form,editorShown:true,
-    onChanged:(origin,change)=>{settled=route.worktreeChanged(origin,change,()=>currentPage);}});
+    onChanged:(tree,change)=>{settled=route.worktreeChanged(tree,change,origin,()=>currentPage);}});
   await form.open(root,tree,'create');form.automatic=true;
   return {...f,machine,catalog,routes,route,screen,leave:()=>{currentPage=false;},finish:async()=>{refreshed.resolve();await settled;}};
 }
@@ -896,5 +896,23 @@ test('a different navigation, directory identity or owner that wins the draft re
     draft.resolve('');await f.finish();await nextFrame();
     assert.equal(f.route.showSheet,false,change);
     assert.equal(f.writes.length,1);
+  }
+});
+
+
+test('creating from either repository list presents the prefilled form over the existing search and returns to that list on Cancel',async()=>{
+  for (const [origin,section] of [['agent_repositories',1],['projects',4],['project',1],['machine_projects',6]]) {
+    const f=await projectCreateUI(origin,section);
+    const browser=origin==='agent_repositories' ? f.catalog.agentBrowser : f.catalog.browser;
+    browser.setSearch('login-form','all/work');browser.machine='selected-machine';browser.toggle('untouched-project',true);
+    const folds=[...browser.preferences];browser.remember('origin','last-visible-row');
+    await f.screen.complete();f.screen.editorDismissed();await nextFrame();
+    const child=f.route.selectedAgentTree();assert.equal(child.sourceId,'new-id');
+    assert.equal(f.route.showSheet,true);assert.equal(f.route.directory,child.cwd);
+    assert.deepEqual(f.routes,[],'the repository row has never pushed a detail page');
+    f.route.showSheet=false;await f.finish();
+    assert.deepEqual(f.routes,[]);assert.equal(browser.selectedTree,child.key);
+    assert.equal(browser.query,'login-form');assert.equal(browser.machine,'selected-machine');assert.deepEqual(browser.preferences,folds);
+    assert.equal(browser.anchor('origin'),'last-visible-row');assert.equal(f.writes.length,1);
   }
 });
