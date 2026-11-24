@@ -2,29 +2,24 @@
 
 # BEGIN persona-core (generated from schema/core-paths.txt by scripts/hooks/codeowners.py; do not edit)
 /.github/CODEOWNERS @chyroc @szupzj18
-/android/ @chyroc @szupzj18
-/android/*/
-/android/app/ @chyroc @szupzj18
-/android/core/ @chyroc @szupzj18
-/android/feature/ @chyroc @szupzj18
-/android/platform/ @chyroc @szupzj18
-/apple/ @chyroc @szupzj18
-/apple/Modules/
-/apple/PersonaCallIntents/
-/apple/PersonaLink/
-/apple/Packages/BeautifulUI/
-/apple/Packages/PersonaScreenCore/
-/apple/Packages/PersonaScreenKit/
-/apple/Persona/Calls/
-/apple/Persona/CarPlay/
-/apple/Persona/Code/
-/apple/Persona/Glasses/
-/apple/Persona/Recording/
-/apple/Persona/Voice/
-/apple/Persona/Views/Feishu/
-/apple/Persona/Views/Knowledge/
-/apple/Persona/Views/Mail/
-/apple/Persona/Views/Voice/
+/android/module-guard-baseline.txt @chyroc @szupzj18
+/android/core/contracts/ @chyroc @szupzj18
+/android/core/data/ @chyroc @szupzj18
+/android/core/domain/ @chyroc @szupzj18
+/android/core/hub/ @chyroc @szupzj18
+/android/core/inbox/ @chyroc @szupzj18
+/android/core/moduleapi/ @chyroc @szupzj18
+/android/core/rustcore/ @chyroc @szupzj18
+/android/core/rustcore-android/ @chyroc @szupzj18
+/apple/modules-core-only.yml @chyroc @szupzj18
+/apple/modules.yml @chyroc @szupzj18
+/apple/Packages/PersonaCore/ @chyroc @szupzj18
+/apple/Packages/PersonaKit/ @chyroc @szupzj18
+/apple/Packages/PersonaModuleAPI/ @chyroc @szupzj18
+/apple/Packages/PersonaWire/ @chyroc @szupzj18
+/apple/Persona/App/Modules.swift @chyroc @szupzj18
+/native/ @chyroc @szupzj18
+/native/iphone-bridge/
 /schema/core-paths.txt @chyroc @szupzj18
 /schema/module-classification.txt @chyroc @szupzj18
 /schema/module.schema.json @chyroc @szupzj18
@@ -56,9 +51,124 @@
 /server/internal/transcribelive/
 /server/internal/modules/*/
 /server/internal/modules/all/ @chyroc @szupzj18
-/web/ @chyroc @szupzj18
-/web/*/
-/web/src/ @chyroc @szupzj18
-/web/src/modules/*/
-/web/src/views/knowledge/
+/web/eslint.modules.config.mjs @chyroc @szupzj18
+/web/src/core/module-boundary.lint.test.ts @chyroc @szupzj18
+/web/src/core/module-features.ts @chyroc @szupzj18
+/web/src/core/module-flags.ts @chyroc @szupzj18
+/web/src/core/module-host.test.ts @chyroc @szupzj18
+/web/src/core/module-host.ts @chyroc @szupzj18
+/web/src/core/module-hub-reset.test.ts @chyroc @szupzj18
+/web/src/core/module-switch.ts @chyroc @szupzj18
+/web/src/lib/agent-actions.ts @chyroc @szupzj18
+/web/src/lib/agent-chatlist-filter.ts @chyroc @szupzj18
+/web/src/lib/agent-filter.ts @chyroc @szupzj18
+/web/src/lib/agent-groups.ts @chyroc @szupzj18
+/web/src/lib/agent-handoff.ts @chyroc @szupzj18
+/web/src/lib/agent-kind.ts @chyroc @szupzj18
+/web/src/lib/agent-open.ts @chyroc @szupzj18
+/web/src/lib/agent-outgoing.ts @chyroc @szupzj18
+/web/src/lib/agent-repos-core.ts @chyroc @szupzj18
+/web/src/lib/agent-repos.ts @chyroc @szupzj18
+/web/src/lib/agent-search.ts @chyroc @szupzj18
+/web/src/lib/agent-settings.ts @chyroc @szupzj18
+/web/src/lib/handoff-card.test.ts @chyroc @szupzj18
+/web/src/lib/handoff-card.ts @chyroc @szupzj18
+/web/src/lib/handoff-memory.test.ts @chyroc @szupzj18
+/web/src/lib/handoff-memory.ts @chyroc @szupzj18
+/web/src/lib/handoff.test.ts @chyroc @szupzj18
+/web/src/lib/handoff.ts @chyroc @szupzj18
+/web/src/lib/hub-notice.test.ts @chyroc @szupzj18
+/web/src/lib/hub-notify.test.ts @chyroc @szupzj18
+/web/src/lib/hub-notify.ts @chyroc @szupzj18
+/web/src/lib/hub-settings.test.ts @chyroc @szupzj18
+/web/src/lib/hub-update-settings.ts @chyroc @szupzj18
+/web/src/lib/hub-update.ts @chyroc @szupzj18
+/web/src/lib/hubs.test.ts @chyroc @szupzj18
+/web/src/lib/hubs.ts @chyroc @szupzj18
+/web/src/lib/machine-alerts.test.ts @chyroc @szupzj18
+/web/src/lib/machine-alerts.ts @chyroc @szupzj18
+/web/src/lib/machine-capabilities.test.ts @chyroc @szupzj18
+/web/src/lib/machine-capabilities.ts @chyroc @szupzj18
+/web/src/lib/machine-deploy.test.ts @chyroc @szupzj18
+/web/src/lib/machine-deploy.ts @chyroc @szupzj18
+/web/src/lib/machine-detail.test.ts @chyroc @szupzj18
+/web/src/lib/machine-detail.ts @chyroc @szupzj18
+/web/src/lib/machine-diagnosis.test.ts @chyroc @szupzj18
+/web/src/lib/machine-diagnosis.ts @chyroc @szupzj18
+/web/src/lib/machine-handoff.test.ts @chyroc @szupzj18
+/web/src/lib/machine-handoff.ts @chyroc @szupzj18
+/web/src/lib/model-candidates.ts @chyroc @szupzj18
+/web/src/lib/model-change.test.ts @chyroc @szupzj18
+/web/src/lib/model-change.ts @chyroc @szupzj18
+/web/src/lib/model-config-execution.ts @chyroc @szupzj18
+/web/src/lib/model-config.test.ts @chyroc @szupzj18
+/web/src/lib/model-config.ts @chyroc @szupzj18
+/web/src/lib/model-fallback.test.ts @chyroc @szupzj18
+/web/src/lib/model-fallback.ts @chyroc @szupzj18
+/web/src/lib/model-families.test.ts @chyroc @szupzj18
+/web/src/lib/model-families.ts @chyroc @szupzj18
+/web/src/lib/model-id-input.ts @chyroc @szupzj18
+/web/src/lib/model-id.test.ts @chyroc @szupzj18
+/web/src/lib/model-id.ts @chyroc @szupzj18
+/web/src/lib/model-panel.test.ts @chyroc @szupzj18
+/web/src/lib/model-panel.ts @chyroc @szupzj18
+/web/src/lib/model-profile-editor.test.ts @chyroc @szupzj18
+/web/src/lib/model-profile-editor.ts @chyroc @szupzj18
+/web/src/lib/model-profiles.ts @chyroc @szupzj18
+/web/src/lib/model-restore.ts @chyroc @szupzj18
+/web/src/lib/model-switch.test.ts @chyroc @szupzj18
+/web/src/lib/model-switch.ts @chyroc @szupzj18
+/web/src/lib/model-variant-groups.ts @chyroc @szupzj18
+/web/src/lib/node-actions.test.ts @chyroc @szupzj18
+/web/src/lib/node-actions.ts @chyroc @szupzj18
+/web/src/lib/node-health.test.ts @chyroc @szupzj18
+/web/src/lib/node-health.ts @chyroc @szupzj18
+/web/src/lib/node-palette.test.ts @chyroc @szupzj18
+/web/src/lib/node-palette.ts @chyroc @szupzj18
+/web/src/lib/session-actions.ts @chyroc @szupzj18
+/web/src/lib/session-activity.ts @chyroc @szupzj18
+/web/src/lib/session-groups.ts @chyroc @szupzj18
+/web/src/lib/session-history.ts @chyroc @szupzj18
+/web/src/lib/session-insights.ts @chyroc @szupzj18
+/web/src/lib/session-link.ts @chyroc @szupzj18
+/web/src/lib/session-list.ts @chyroc @szupzj18
+/web/src/lib/session-panel.ts @chyroc @szupzj18
+/web/src/lib/session-review-agent.ts @chyroc @szupzj18
+/web/src/lib/task-association.ts @chyroc @szupzj18
+/web/src/lib/task-board.test.ts @chyroc @szupzj18
+/web/src/lib/task-board.ts @chyroc @szupzj18
+/web/src/lib/task-cards.open.test.ts @chyroc @szupzj18
+/web/src/lib/task-cards.test.ts @chyroc @szupzj18
+/web/src/lib/task-cards.ts @chyroc @szupzj18
+/web/src/lib/task-completion-check.ts @chyroc @szupzj18
+/web/src/lib/task-repositories.test.ts @chyroc @szupzj18
+/web/src/lib/task-repositories.ts @chyroc @szupzj18
+/web/src/lib/task-row-status.test.ts @chyroc @szupzj18
+/web/src/lib/task-row-status.ts @chyroc @szupzj18
+/web/src/lib/task-trust.ts @chyroc @szupzj18
+/web/src/lib/task-wait-info.ts @chyroc @szupzj18
+/web/src/lib/task-wait.test.ts @chyroc @szupzj18
+/web/src/lib/task-wait.ts @chyroc @szupzj18
+/web/src/lib/tasks.test.ts @chyroc @szupzj18
+/web/src/lib/tasks.ts @chyroc @szupzj18
+/web/src/lib/todo-calendar.ts @chyroc @szupzj18
+/web/src/lib/todo-decision-label.ts @chyroc @szupzj18
+/web/src/lib/todo-detail-template.ts @chyroc @szupzj18
+/web/src/lib/todo-details.ts @chyroc @szupzj18
+/web/src/lib/todo-goal-fold.ts @chyroc @szupzj18
+/web/src/lib/todo-image.ts @chyroc @szupzj18
+/web/src/lib/todo-list-filter.ts @chyroc @szupzj18
+/web/src/lib/todo-pushes.ts @chyroc @szupzj18
+/web/src/lib/todo-reorganize.ts @chyroc @szupzj18
+/web/src/lib/todo-seen.ts @chyroc @szupzj18
+/web/src/lib/todo-shared-blockers.ts @chyroc @szupzj18
+/web/src/lib/todo-slim-row.ts @chyroc @szupzj18
+/web/src/lib/todo-stage.ts @chyroc @szupzj18
+/web/src/lib/todo-steps.ts @chyroc @szupzj18
+/web/src/lib/todo-thread.ts @chyroc @szupzj18
+/web/src/lib/todo-tree.ts @chyroc @szupzj18
+/web/src/lib/todo-triage.ts @chyroc @szupzj18
+/web/src/lib/todo-view-wire.ts @chyroc @szupzj18
+/web/src/lib/todo-wait-reason.ts @chyroc @szupzj18
+/web/src/lib/configuration/ @chyroc @szupzj18
 # END persona-core

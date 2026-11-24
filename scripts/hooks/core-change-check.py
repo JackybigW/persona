@@ -3,8 +3,10 @@
 
     scripts/hooks/core-change-check.py [--snapshot <file>] <PR number>
 
-Reads the PR's changed files, labels and description through the GitHub CLI. When it changes a core path (the list is
-schema/core-paths.txt; a test-only change does not count) the PR must carry the label `core-change` and its description
+Reads the PR's changed files, labels and description through the GitHub CLI. Persona Core has no UI: the check covers
+tier `core` of schema/core-paths.txt only (the server core, the clients' headless code, the foundation interfaces). A PR
+that changes only the default panel (the clients' interface code), modules, docs or tests passes untouched. When it changes
+a tier-core path (a test-only change does not count) the PR must carry the label `core-change` and its description
 must have a `## Why this must change the core` section with at least one real line. Anything else passes untouched:
 module-only, docs-only and tests-only PRs. Exit 0 = ok, 1 = the PR needs the label or the section, 2 = could not read the PR.
 
@@ -56,7 +58,7 @@ def evaluate(files, labels, body):
     """(ok, message) for a PR with these changed files (renames: both names), label names and description."""
     touched = core_paths.core_files(files)
     if not touched:
-        return True, "core-change-check: no core path changed; nothing to add"
+        return True, "core-change-check: no tier-core path changed (panel, module, docs and test changes are free); nothing to add"
     missing = []
     if LABEL not in labels:
         missing.append(f"add the label `{LABEL}`")
@@ -65,9 +67,9 @@ def evaluate(files, labels, body):
                        "core must change (not a placeholder)")
     shown = "\n".join(f"  {p}" for p in touched[:LISTED])
     more = f"\n  … and {len(touched) - LISTED} more" if len(touched) > LISTED else ""
-    listing = f"{len(touched)} core file{'s' * (len(touched) != 1)} changed (schema/core-paths.txt):\n{shown}{more}"
+    listing = f"{len(touched)} tier-core file{'s' * (len(touched) != 1)} changed (tier core of schema/core-paths.txt):\n{shown}{more}"
     if missing:
-        return False, ("core-change-check: this PR changes Persona Core and is not ready.\n"
+        return False, ("core-change-check: this PR changes Persona Core (tier core: no UI; the clients' interface code is the panel tier and is not checked) and is not ready.\n"
                        + listing + "\nTo fix it: " + "; ".join(missing)
                        + ".\nSee CONTRIBUTING.md \"Changing Persona Core\".")
     return True, "core-change-check: core change with label and reason.\n" + listing

@@ -26,7 +26,10 @@ class RuleTests(unittest.TestCase):
     def test_pr_without_core_paths_passes_untouched(self):
         for files in (["docs/a.md"], ["server/internal/modules/voice/v.go"], ["web/src/modules/lark/x.ts", "README.md"],
                       [CORE.replace(".go", "_test.go")], ["server/internal/hub/testdata/a.json"],
-                      ["web/src/views/chat/Chat.test.tsx"], []):
+                      ["web/src/views/chat/Chat.test.tsx"], [],
+                      # the default panel (tier panel) is not Core
+                      ["web/src/views/chat/ChatView.tsx", "web/src/App.tsx"], ["android/feature/agents/src/main/kotlin/A.kt"],
+                      ["android/app/src/main/kotlin/A.kt", "apple/Persona/Views/Chat/ChatView.swift"]):
             ok, message = self.ok(files)
             self.assertTrue(ok, (files, message))
 
@@ -49,10 +52,19 @@ class RuleTests(unittest.TestCase):
         self.assertIn("add the label", message)
         self.assertNotIn("add a section", message)
 
+    def test_failure_names_the_tier_and_ignores_panel_files(self):
+        ok, message = self.ok(["web/src/views/chat/ChatView.tsx", "web/src/lib/task-board.ts"])
+        self.assertFalse(ok)
+        self.assertIn("tier core", message)
+        self.assertIn("web/src/lib/task-board.ts", message)
+        self.assertNotIn("ChatView.tsx", message)
+        for headless in ("android/core/hub/src/main/kotlin/A.kt", "apple/Packages/PersonaWire/Sources/A.swift", "native/app-core/src/lib.rs"):
+            self.assertFalse(self.ok([headless])[0], headless)
+
     def test_lists_the_first_twenty(self):
         files = [f"server/internal/hub/f{i:02d}.go" for i in range(25)]
         ok, message = self.ok(files)
-        self.assertIn("25 core files", message)
+        self.assertIn("25 tier-core files", message)
         self.assertIn("f19.go", message)
         self.assertNotIn("f20.go", message)
         self.assertIn("and 5 more", message)
@@ -114,9 +126,9 @@ elif a[:1] == ["api"]:
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_cli_counts_the_old_name_of_a_rename(self):
-        r = self.run_cli({"labels": [], "body": "", "files": ["web/src/modules/lark/A.tsx\tweb/src/views/chat/A.tsx"]}, "9")
+        r = self.run_cli({"labels": [], "body": "", "files": ["web/src/modules/lark/A.tsx\tweb/src/lib/task-board.ts"]}, "9")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("web/src/views/chat/A.tsx", r.stderr)
+        self.assertIn("web/src/lib/task-board.ts", r.stderr)
 
     def test_cli_usage_and_unreadable_pr(self):
         self.assertEqual(self.run_cli({}, "not-a-number").returncode, 2)

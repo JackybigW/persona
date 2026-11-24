@@ -1,6 +1,11 @@
 """Read schema/core-paths.txt: which paths are Persona Core (#14916; the file's header describes the format).
 
-    is_core(path)        True when a change to this file counts as a change to the core (a test-only file does not)
+Persona Core has no UI (#13430): tier `core` is the server core, the clients' headless code and the foundation
+interfaces; tier `panel` is the clients' interface code, the default panel built on Core; module directories are neither.
+
+    is_core(path)        True when a change to this file counts as a change to the core (tier core; a test-only file does not)
+    is_panel(path)       True for a file of the default panel (location only: tests of the panel are panel too)
+    tier(path)           'core' | 'panel' | 'module' | 'other', by location (tests of a core path are still 'core')
     core_files(paths)    the paths that are core, in order
 
 CLI (the numbers in a PR description):  python3 scripts/test/core_paths.py --table
@@ -20,6 +25,7 @@ import module_classification as mc  # noqa: E402
 ROOT = mc.ROOT
 FILE = ROOT / "schema" / "core-paths.txt"
 KINDS = ("go", "web", "gradle", "apple")
+TIERS = ("core", "panel")
 
 
 class FormatError(ValueError):
@@ -28,7 +34,7 @@ class FormatError(ValueError):
 
 @dataclass(frozen=True)
 class Explicit:
-    kind: str  # "core" or "guard"
+    kind: str  # "core", "headless" (client code with no UI, tier core) or "guard"
     path: str
     line: int
 
@@ -39,17 +45,18 @@ class Explicit:
 
 
 def parse(text):
-    """(classified: kind -> roots, explicit entries); FormatError on a malformed line."""
+    """(classified: kind -> (tier, roots), explicit entries); FormatError on a malformed line."""
     classified, explicit = {}, []
     for n, raw in enumerate(text.splitlines(), 1):
         words = raw.split("#", 1)[0].split()
         if not words:
             continue
         if words[0] == "classified":
-            if len(words) < 3 or words[1] not in KINDS or words[1] in classified:
-                raise FormatError(f"line {n}: expected `classified <{'|'.join(KINDS)}> <root>...`, once per kind: {raw!r}")
-            classified[words[1]] = tuple(w.rstrip("/") for w in words[2:])
-        elif words[0] in ("core", "guard"):
+            if len(words) < 4 or words[1] not in TIERS or words[2] not in KINDS or words[2] in classified:
+                raise FormatError(f"line {n}: expected `classified <{'|'.join(TIERS)}> <{'|'.join(KINDS)}> <root>...`, "
+                                  f"once per kind: {raw!r}")
+            classified[words[2]] = (words[1], tuple(w.rstrip("/") for w in words[3:]))
+        elif words[0] in ("core", "headless", "guard"):
             if len(words) != 2 or words[1].startswith("/") or ".." in words[1].split("/"):
                 raise FormatError(f"line {n}: expected `{words[0]} <repo-relative path>`: {raw!r}")
             explicit.append(Explicit(words[0], words[1], n))
@@ -87,7 +94,14 @@ class Core:
         return mc.classify(d, kind, self.rules)[0]
 
     def _under(self, kind, path):
-        return any(path == r or path.startswith(r + "/") for r in self.classified[kind])
+        return any(path == r or path.startswith(r + "/") for r in self.classified[kind][1])
+
+    def _located_tier(self, path):
+        """The tier of the classified root a path sits under ('core' or 'panel'), None outside every root."""
+        for kind, (tier, _) in self.classified.items():
+            if self._under(kind, path):
+                return tier
+        return None
 
     def classification(self, path):
         """"core", a module id, or None for a file the classification does not cover."""
@@ -115,14 +129,27 @@ class Core:
                 d = d.rsplit("/", 1)[0]
         return None
 
-    def is_core(self, path, tests_count=False):
+    def tier(self, path):
+        """'core' | 'panel' | 'module' | 'other', by location; whether a test file counts is is_core's business."""
         cls = self.classification(path)
         if cls is not None and cls != mc.CORE:
-            return False  # a module's file is never core
+            return "module"  # a module's file is never core and never panel
+        if any(e.matches(path) for e in self.explicit):
+            return "core"
+        if cls == mc.CORE:
+            return self._located_tier(path) or "other"
+        return "other"
+
+    def is_panel(self, path):
+        return self.tier(path) == "panel"
+
+    def is_core(self, path, tests_count=False):
+        if self.tier(path) != "core":
+            return False
         for e in self.explicit:
-            if e.matches(path) and (e.kind == "guard" or tests_count or not is_test_only(path)):
+            if e.kind == "guard" and e.matches(path):
                 return True
-        return cls == mc.CORE and (tests_count or not is_test_only(path))
+        return tests_count or not is_test_only(path)
 
 
 @lru_cache(maxsize=None)
@@ -132,6 +159,14 @@ def _default():
 
 def is_core(path):
     return _default().is_core(path)
+
+
+def is_panel(path):
+    return _default().is_panel(path)
+
+
+def tier(path):
+    return _default().tier(path)
 
 
 def core_files(paths):
@@ -167,6 +202,17 @@ def table(files):
     return sorted((a, p, n) for (a, p), n in rows.items())
 
 
+def tier_counts(files):
+    """{(tier, area): file count} over all tracked files (tests included), area = server | web | android | apple | other."""
+    c, out = _default(), {}
+    for f in files:
+        t = c.tier(f)
+        if t in ("core", "panel"):
+            area = {"server": "server", "sdk": "server", "web": "web", "android": "android", "apple": "apple"}.get(f.split("/")[0], "other")
+            out[(t, area)] = out.get((t, area), 0) + 1
+    return out
+
+
 if __name__ == "__main__":
     if "--table" in sys.argv:
         files = tracked()
@@ -176,5 +222,18 @@ if __name__ == "__main__":
         for area, n in sorted(total.items()):
             print(f"{area}\t{n}")
         print("total core files (tests included)\t%d of %d tracked" % (sum(total.values()), len(files)))
+    elif "--tiers" in sys.argv:
+        files = tracked()
+        for (t, area), n in sorted(tier_counts(files).items()):
+            print(f"{t}\t{area}\t{n}")
+    elif "--dirs" in sys.argv:  # tier core files by directory, depth 3 (the core path list as a reader expands it)
+        files = tracked()
+        c, rows = _default(), {}
+        for f in files:
+            if c.tier(f) == "core":
+                k = "/".join(f.split("/")[:3]) if f.count("/") > 2 else f
+                rows[k] = rows.get(k, 0) + 1
+        for k, n in sorted(rows.items()):
+            print(f"{n}\t{k}")
     else:
-        print("usage: core_paths.py --table")
+        print("usage: core_paths.py --table | --tiers | --dirs")

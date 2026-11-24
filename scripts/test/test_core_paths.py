@@ -1,6 +1,7 @@
 """schema/core-paths.txt (#14916): it parses, every explicit path exists, module directories are never core, and sample
 paths classify as expected. Run: python3 scripts/test/test_core_paths.py"""
 import fnmatch
+import re
 from pathlib import Path
 import sys
 import unittest
@@ -13,28 +14,47 @@ FILES = cp.tracked()
 CORE = cp.Core()
 
 SAMPLES = {
-    True: [
+    "core": [
         "server/internal/hub/hub.go", "server/internal/modapi/modapi.go", "server/internal/modules/all/all.go",
         "server/internal/modules/all/node/node.go", "server/go.mod", "sdk/go/ext/ext.go",
-        "web/src/views/chat/ChatView.tsx", "web/src/core/module-host.ts", "web/src/main.tsx",
-        "android/app/src/main/kotlin/A.kt", "android/core/moduleapi/src/main/kotlin/A.kt",
-        "apple/Persona/Views/Chat/ChatView.swift", "apple/Shared/Design/Theme.swift", "apple/Persona/App/Modules.swift",
-        "apple/modules.yml", "schema/core-paths.txt", "schema/module-classification.txt", "scripts/hooks/merge-pr.sh",
-        ".github/CODEOWNERS", "server/internal/proto/proto.go",
+        "web/src/core/module-host.ts", "web/src/lib/task-board.ts", "web/src/lib/agent-actions.ts",
+        "android/core/hub/src/main/kotlin/A.kt", "android/core/data/src/main/kotlin/A.kt",
+        "android/core/moduleapi/src/main/kotlin/A.kt", "native/app-core/Cargo.toml",
+        "apple/Packages/PersonaWire/Sources/PersonaWire/Wire.swift", "apple/Packages/PersonaModuleAPI/Package.swift",
+        "apple/Persona/App/Modules.swift", "apple/modules.yml", "schema/core-paths.txt", "schema/module-classification.txt",
+        "scripts/hooks/merge-pr.sh", ".github/CODEOWNERS", "server/internal/proto/proto.go",
         "server/internal/archguard/archguard_test.go",  # a guard: its tests count
         "scripts/test/test_module_flags.py",
     ],
-    False: [
-        "docs/architecture/core-and-modules.md", "README.md", "server/internal/modules/voice/voice.go",
-        "server/internal/modules/voice/module.json", "web/src/modules/lark/module.ts", "web/src/views/knowledge/Page.tsx",
-        "android/module/voice/src/main/kotlin/A.kt", "apple/Persona/Views/Mail/MailView.swift", "apple/Persona/Voice/V.swift",
-        "apple/Modules/Health/H.swift", "apple/project.yml", "web/package.json", "android/build.gradle.kts",
-        # tests-only changes inside a core path
-        "server/internal/hub/hub_test.go", "server/internal/hub/testdata/x.json", "web/src/views/chat/ChatView.test.tsx",
-        "android/app/src/test/kotlin/A.kt", "android/core/hub/src/androidTest/kotlin/A.kt",
-        "apple/PersonaTests/ChatTests.swift", "server/internal/modapi/modapi_test.go", "web/src/core/module-host.test.ts",
+    "panel": [
+        "web/src/views/chat/ChatView.tsx", "web/src/main.tsx", "web/src/App.tsx", "web/src/lib/use-hub.ts",
+        "web/src/core/ModulePage.tsx", "web/src/ui/Button.tsx",
+        "android/app/src/main/kotlin/A.kt", "android/feature/agents/src/main/kotlin/A.kt",
+        "android/core/designsystem/src/main/kotlin/A.kt", "android/core/navigation/src/main/kotlin/A.kt",
+        "android/platform/notify/src/main/kotlin/A.kt",
+        "apple/Persona/Views/Chat/ChatView.swift", "apple/Shared/Design/Theme.swift", "apple/Vision/V.swift",
+        "apple/Packages/PersonaSSH/Sources/A.swift",
     ],
+    "module": [
+        "server/internal/modules/voice/voice.go", "server/internal/modules/voice/module.json",
+        "web/src/modules/lark/module.ts", "android/module/voice/src/main/kotlin/A.kt", "apple/Modules/Health/H.swift",
+        "apple/Persona/Views/Mail/MailView.swift", "apple/Persona/Voice/V.swift",
+    ],
+    "other": ["docs/architecture/core-and-modules.md", "README.md", "apple/project.yml", "web/package.json",
+              "android/build.gradle.kts"],
 }
+# Tests-only changes never count as a core change, whatever the tier.
+TESTS_ONLY = [
+    "server/internal/hub/hub_test.go", "server/internal/hub/testdata/x.json", "web/src/core/module-host.test.ts",
+    "android/core/hub/src/androidTest/kotlin/A.kt", "android/core/hub/src/test/kotlin/A.kt",
+    "apple/Packages/PersonaWire/Tests/PersonaWireTests/A.swift", "server/internal/modapi/modapi_test.go",
+    "web/src/views/chat/ChatView.test.tsx", "android/app/src/test/kotlin/A.kt", "apple/PersonaTests/ChatTests.swift",
+]
+
+# What a tier-core client directory must not contain (non-test files only): a UI framework import or a .tsx file.
+UI_IMPORT = re.compile(
+    r"^\s*import\s+(androidx\.compose\b|SwiftUI|UIKit|AppKit)|\bfrom\s+[\"']react(-dom)?(/[^\"']*)?[\"']"
+    r"|\brequire\([\"']react", re.M)
 
 
 class CorePathsTests(unittest.TestCase):
@@ -44,12 +64,14 @@ class CorePathsTests(unittest.TestCase):
         self.assertTrue(explicit)
 
     def test_bad_lines_are_refused(self):
-        base = "classified go server\nclassified web web/src\nclassified gradle android\nclassified apple apple\n"
-        for bad in ("nonsense x\n", "core\n", "core /abs\n", "core a/../b\n", "classified go server\n"):
+        base = ("classified core go server\nclassified panel web web/src\nclassified panel gradle android\n"
+                "classified panel apple apple\n")
+        for bad in ("nonsense x\n", "core\n", "core /abs\n", "headless a/../b\n", "classified core go server\n",
+                    "classified middle go server\n"):
             with self.assertRaises(cp.FormatError, msg=bad):
                 cp.parse(base + bad)
         with self.assertRaises(cp.FormatError):
-            cp.parse("classified go server\n")
+            cp.parse("classified core go server\n")
 
     def test_every_explicit_path_exists(self):
         for e in CORE.explicit:
@@ -67,11 +89,13 @@ class CorePathsTests(unittest.TestCase):
                     self.assertIn(CORE.classification(f), (mc.CORE, None),
                                   f"line {e.line}: {f} belongs to module {CORE.classification(f)!r}")
 
-    def test_module_directories_are_never_core(self):
+    def test_module_directories_are_never_core_or_panel(self):
         for f in FILES:
             cls = CORE.classification(f)
             if cls not in (mc.CORE, None):
                 self.assertFalse(CORE.is_core(f, tests_count=True), f"{f} is in module {cls} but counts as core")
+                self.assertFalse(CORE.is_panel(f), f"{f} is in module {cls} but counts as panel")
+                self.assertEqual(CORE.tier(f), "module", f)
 
     def test_modules_dirs_are_modules(self):
         mods = [f for f in FILES if f.startswith(("server/internal/modules/", "web/src/modules/", "android/module/"))]
@@ -80,14 +104,49 @@ class CorePathsTests(unittest.TestCase):
             if f.startswith("server/internal/modules/all/") or f.count("/") < 4 and f.startswith("web/src/modules/"):
                 continue  # the composition roots and the module list, which are core
             self.assertFalse(cp.is_core(f), f)
+            self.assertFalse(cp.is_panel(f), f)
 
     def test_samples(self):
         for want, paths in SAMPLES.items():
             for p in paths:
-                self.assertEqual(cp.is_core(p), want, p)
+                self.assertEqual(cp.tier(p), want, p)
+                self.assertEqual(cp.is_core(p), want == "core", p)
+                self.assertEqual(cp.is_panel(p), want == "panel", p)
+
+    def test_tests_only_changes_do_not_count(self):
+        for p in TESTS_ONLY:
+            self.assertFalse(cp.is_core(p), p)
+        self.assertEqual(cp.tier("apple/Packages/PersonaWire/Tests/PersonaWireTests/A.swift"), "core")
+        self.assertEqual(cp.tier("web/src/views/chat/ChatView.test.tsx"), "panel")
+
+    def test_headless_client_directories_have_no_ui_import(self):
+        """Core has no UI: a file under a `headless` path (or a client file the tier puts in core, outside the
+        foundation lines) must not import a UI framework or be a .tsx file. A failure names the file."""
+        checked = 0
+        for e in CORE.explicit:
+            if e.kind != "headless":
+                continue
+            hits = [f for f in FILES if e.matches(f) and not cp.is_test_only(f)]
+            self.assertTrue(hits, f"line {e.line}: `headless {e.path}` matches no non-test file")
+            for f in hits:
+                self.assertFalse(f.endswith(".tsx"), f"{f}: a .tsx file cannot be tier-core headless code (line {e.line})")
+                if not f.endswith((".kt", ".swift", ".ts", ".js", ".mjs", ".rs")):
+                    continue
+                text = (cp.ROOT / f).read_text(encoding="utf-8", errors="replace")
+                m = UI_IMPORT.search(text)
+                self.assertIsNone(m, f"{f}: imports a UI framework ({m and m.group(0).strip()}); it cannot be headless "
+                                     f"(schema/core-paths.txt line {e.line}); move it to the panel or split the UI out")
+                checked += 1
+        self.assertGreater(checked, 500)
+
+    def test_headless_paths_are_not_foundation_ui(self):
+        # The UI-import guard above covers `headless`; the explicit foundation `core` lines may name a file that
+        # declares a UI-typed contract (the module API), so they are not scanned.
+        self.assertTrue(any(e.kind == "headless" for e in CORE.explicit))
 
     def test_core_files_keeps_order(self):
-        self.assertEqual(cp.core_files(["docs/a.md", "server/go.mod", "web/src/modules/lark/a.ts", "apple/modules.yml"]),
+        self.assertEqual(cp.core_files(["docs/a.md", "server/go.mod", "web/src/modules/lark/a.ts", "apple/modules.yml",
+                                        "web/src/views/chat/ChatView.tsx"]),
                          ["server/go.mod", "apple/modules.yml"])
 
     def test_test_only_rule(self):
@@ -97,9 +156,12 @@ class CorePathsTests(unittest.TestCase):
         for p in ("server/internal/hub/hub.go", "android/app/src/main/A.kt", "web/src/test-utils.ts"):
             self.assertFalse(cp.is_test_only(p), p)
 
-    def test_every_tracked_file_is_decided(self):
-        # The reader must run over the whole repository without error.
-        self.assertGreater(len([f for f in FILES if cp.is_core(f)]), 1000)
+    def test_the_core_is_a_minority_of_the_clients(self):
+        counts = cp.tier_counts(FILES)
+        for area in ("web", "apple"):  # the interface is most of each of these clients
+            self.assertGreater(counts.get(("panel", area), 0), 3 * counts.get(("core", area), 0), area)
+        self.assertGreater(counts.get(("panel", "android"), 0), counts.get(("core", "android"), 0))
+        self.assertGreater(counts[("core", "server")], 1000)
 
 
 if __name__ == "__main__":

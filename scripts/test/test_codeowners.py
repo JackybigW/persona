@@ -54,9 +54,20 @@ class CodeownersTests(unittest.TestCase):
                 self.assertTrue(owned(f, patterns), f"core file {f} has no owner")
             elif cls not in (None, "core"):
                 self.assertFalse(owned(f, patterns), f"module file {f} ({cls}) has an owner")
+            elif c.is_panel(f):
+                self.assertFalse(owned(f, patterns), f"panel file {f} has an owner from the generated block")
+
+    def test_samples(self):
+        patterns = [(l.split()[0], len(l.split()) > 1) for l in co.block().splitlines() if l and not l.startswith("#")]
+        for f in ("server/internal/hub/hub.go", "android/core/hub/src/main/kotlin/persona/core/hub/Hub.kt",
+                  "apple/Packages/PersonaWire/Package.swift", "web/src/core/module-host.ts"):
+            self.assertTrue(owned(f, patterns), f)
+        for f in ("web/src/views/chat/ChatView.tsx", "android/feature/agents/src/main/kotlin/A.kt", "apple/Persona/Views/Chat/ChatView.swift",
+                  "android/app/src/main/kotlin/A.kt", "web/src/modules/lark/module.ts", "docs/architecture/core-and-modules.md"):
+            self.assertFalse(owned(f, patterns), f)
 
     def test_few_patterns(self):
-        self.assertLess(len(co.block().splitlines()), 90)
+        self.assertLess(len(co.block().splitlines()), 250)
 
     def test_replace_keeps_the_rest(self):
         old = "/docs/SUPER_RULES.md @chyroc\n\n" + co.BEGIN + "\n/x/ @a\n" + co.END + "\n# tail\n"

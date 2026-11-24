@@ -164,7 +164,8 @@ class MergePrTests(unittest.TestCase):
         for name, files in (("module", ["server/internal/modules/voice/voice.go", "web/src/modules/lark/a.ts"]),
                             ("docs", ["docs/architecture/core-and-modules.md"]),
                             ("tests", ["server/internal/hub/hub_test.go", "web/src/views/chat/Chat.test.tsx"]),
-                            ("moved out of core", ["web/src/views/chat/A.tsx\t"])):
+                            ("moved out of core", ["web/src/lib/task-board.ts\t"]),
+                            ("panel only", ["web/src/views/chat/ChatView.tsx", "android/feature/agents/src/main/kotlin/A.kt"])):
             with self.subTest(name):
                 self.log.unlink(missing_ok=True)
                 result, calls = self.merge_with_files(files)
@@ -175,9 +176,9 @@ class MergePrTests(unittest.TestCase):
                     self.assertEqual(len(self.merges(calls)), 1)
 
     def test_a_rename_out_of_a_core_path_counts(self):
-        result, _ = self.merge_with_files(["web/src/modules/lark/A.tsx\tweb/src/views/chat/A.tsx"])
+        result, _ = self.merge_with_files(["web/src/modules/lark/A.tsx\tweb/src/lib/task-board.ts"])
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("web/src/views/chat/A.tsx", result.stderr)
+        self.assertIn("web/src/lib/task-board.ts", result.stderr)
 
     def test_merges_the_scanned_head_title_and_body_once(self):
         head = self.open_pr()

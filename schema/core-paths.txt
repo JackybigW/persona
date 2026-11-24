@@ -1,26 +1,38 @@
 # Which paths are Persona Core, for the checks that control changes to it (#14916, part of #13430;
 # CONTRIBUTING.md "Changing Persona Core", docs/architecture/core-and-modules.md "Guards").
 #
-# Read by scripts/test/core_paths.py (`is_core(path)`, `core_files(paths)`). Checked by scripts/test/test_core_paths.py:
-# the file parses, every explicit path exists (a stale line fails), module directories are never core and sample paths
-# classify as expected. It feeds scripts/hooks/codeowners.py (the generated block of .github/CODEOWNERS) and
-# scripts/hooks/core-change-check.py (the merge gate in scripts/hooks/merge-pr.sh).
+# Persona Core has no UI: it is the abilities and interfaces for Agents, sessions, tasks and to-dos (the hub API and the
+# data model). The clients' interface code is one default panel built on Core. There are two tiers, plus modules:
+#   core    strictly controlled: the core-change check (label + reason) and CODEOWNERS apply, and no module reference.
+#           The server core, the clients' HEADLESS code (wire types, the hub client, data models) and the foundation
+#           interfaces (module host, switch, guards and gates).
+#   panel   the default panel: the clients' interface code. Not under the core-change check, not in CODEOWNERS; only
+#           the no-module-reference guard applies (scripts/test/test_core_references_no_module.py).
+#   module  module directories: neither tier, free to change.
+#
+# Read by scripts/test/core_paths.py (`is_core`, `is_panel`, `tier`, `core_files`). Checked by scripts/test/test_core_paths.py:
+# the file parses, every explicit path exists (a stale line fails), module directories are never core or panel, sample
+# paths classify as expected, and a `headless` path holds no UI import (androidx.compose, SwiftUI, UIKit, AppKit, React,
+# .tsx; test files excluded). It feeds scripts/hooks/codeowners.py (the generated block of .github/CODEOWNERS, tier core
+# only) and scripts/hooks/core-change-check.py (the merge gate in scripts/hooks/merge-pr.sh, tier core only).
 #
 # Lines (`#` starts a comment):
-#   classified <kind> <root>...   every file under the roots whose unit schema/module-classification.txt classifies `core`
-#                                 (kind: go, web, gradle, apple); a unit it classifies as a module id is never core. The
-#                                 classification file is the one list of units, so it is not repeated here.
+#   classified <tier> <kind> <root>...
+#                                 every file under the roots whose unit schema/module-classification.txt classifies `core`
+#                                 gets the tier (kind: go, web, gradle, apple); a unit it classifies as a module id is a
+#                                 module. The classification file is the one list of units, so it is not repeated here.
+#                                 The server is tier core; the three clients' interface code is tier panel unless a
+#                                 line below lifts it.
 #                                   go      server/ and sdk/go/: a file with no classified directory above it (go.mod,
 #                                           migrations) is core
 #                                   web     web/src/
 #                                   gradle  android/: a file belongs to the project with the longest matching directory
 #                                   apple   apple/: a file belongs to the nearest classified directory
 #   core <path>                   a foundation path named explicitly so it is visible at a glance: a file, a directory
-#                                 (and all below it) or a glob with `*`. A test-only change in it does not count.
-#   guard <path>                  the same, but a test file in it counts too: the path is itself a guard or a gate
-#
-# Not core: docs/, module directories (server/internal/modules/<id>, web/src/modules/<id>, android/module/<id>, the
-# Apple module directories the classification names), and everything the lines above do not reach.
+#                                 (and all below it) or a glob with `*`. Tier core. A test-only change in it does not count.
+#   headless <path>               client code with no UI (a directory, a file or a glob): tier core. Proven by the test
+#                                 above, so a file with a UI import cannot be listed.
+#   guard <path>                  tier core, but a test file in it counts too: the path is itself a guard or a gate
 #
 # Test-only changes do not count as a core change; tests may be added freely. A file is test-only when it is
 #   Go     *_test.go, or anything under testdata/
@@ -29,10 +41,74 @@
 #   Apple  a path with a directory named *Tests (PersonaTests, PersonaUITests), or a file *Tests.swift / *Test.swift
 # unless a `guard` line names the path. Fixtures a test reads sit in these places too (testdata/, test directories).
 
-classified go server sdk/go
-classified web web/src
-classified gradle android
-classified apple apple
+classified core go server sdk/go
+classified panel web web/src
+classified panel gradle android
+classified panel apple apple
+
+# --- The clients' headless code (tier core): wire types, hub client, data models, no UI import -----------------------
+# Decided directory by directory (#14916). A directory with any UI import, or one whose job is drawing, stays in the panel.
+headless native/app-core
+headless android/core/hub
+headless android/core/data
+headless android/core/contracts
+headless android/core/domain
+headless android/core/inbox
+headless android/core/rustcore
+headless android/core/rustcore-android
+headless apple/Packages/PersonaWire
+headless apple/Packages/PersonaCore
+headless apple/Packages/PersonaKit
+headless web/src/lib/configuration
+# web/src/lib is one flat directory of ~1,160 files mixing protocol/store code with React hooks: only the files proven
+# to import no React (and to be .ts, not .tsx) are listed, by name prefix for the hub, nodes, machines, models, tasks and
+# hand-offs, and file by file for Agents, sessions and to-dos (their prefixes also hold hooks).
+headless web/src/lib/task*.ts
+headless web/src/lib/hub*.ts
+headless web/src/lib/node*.ts
+headless web/src/lib/machine*.ts
+headless web/src/lib/model*.ts
+headless web/src/lib/handoff*.ts
+headless web/src/lib/agent-actions.ts
+headless web/src/lib/agent-chatlist-filter.ts
+headless web/src/lib/agent-filter.ts
+headless web/src/lib/agent-groups.ts
+headless web/src/lib/agent-handoff.ts
+headless web/src/lib/agent-kind.ts
+headless web/src/lib/agent-open.ts
+headless web/src/lib/agent-outgoing.ts
+headless web/src/lib/agent-repos-core.ts
+headless web/src/lib/agent-repos.ts
+headless web/src/lib/agent-search.ts
+headless web/src/lib/agent-settings.ts
+headless web/src/lib/session-actions.ts
+headless web/src/lib/session-activity.ts
+headless web/src/lib/session-groups.ts
+headless web/src/lib/session-history.ts
+headless web/src/lib/session-insights.ts
+headless web/src/lib/session-link.ts
+headless web/src/lib/session-list.ts
+headless web/src/lib/session-panel.ts
+headless web/src/lib/session-review-agent.ts
+headless web/src/lib/todo-calendar.ts
+headless web/src/lib/todo-decision-label.ts
+headless web/src/lib/todo-detail-template.ts
+headless web/src/lib/todo-details.ts
+headless web/src/lib/todo-goal-fold.ts
+headless web/src/lib/todo-image.ts
+headless web/src/lib/todo-list-filter.ts
+headless web/src/lib/todo-pushes.ts
+headless web/src/lib/todo-reorganize.ts
+headless web/src/lib/todo-seen.ts
+headless web/src/lib/todo-shared-blockers.ts
+headless web/src/lib/todo-slim-row.ts
+headless web/src/lib/todo-stage.ts
+headless web/src/lib/todo-steps.ts
+headless web/src/lib/todo-thread.ts
+headless web/src/lib/todo-tree.ts
+headless web/src/lib/todo-triage.ts
+headless web/src/lib/todo-view-wire.ts
+headless web/src/lib/todo-wait-reason.ts
 
 # --- The foundation interfaces and the composition roots ----------------------------------------------------------
 core server/internal/modapi

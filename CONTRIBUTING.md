@@ -49,15 +49,23 @@ and copyable `gh` commands: [`docs/operations/collaboration.md`](docs/operations
 
 ## Changing Persona Core
 
-Persona Core is the part of Persona that is not a feature module: the hub's core packages, the three clients' shells, and the
-interfaces that modules plug into. A change there affects every module and every user, so it gets a little more care.
-Module directories, docs and tests-only changes are not affected.
+**Persona Core has no UI.** It is the abilities and interfaces for Agents, sessions, tasks and to-dos: the hub API and the data
+model, the clients' headless code (wire types, hub client, data models) and the interfaces modules plug into. The three clients'
+interfaces are one default panel built on Core. Changes to Core affect every module, panel and user, so it gets a little more
+care; the panel and modules do not.
 
-**What counts as core.** [`schema/core-paths.txt`](schema/core-paths.txt) is the list: everything
-[`schema/module-classification.txt`](schema/module-classification.txt) classifies `core` (server, web, Android and Apple), plus
-the foundation interfaces named one by one (module API, module switch, composition roots, guards, hub feature flags). A change
-that touches only tests inside a core path (`*_test.go`, `*.test.ts(x)`, test source sets, `testdata`) is not a core change:
-add tests freely. `python3 scripts/test/core_paths.py --table` counts the files.
+**Two tiers.** [`schema/core-paths.txt`](schema/core-paths.txt) is the list.
+
+- **Core** (strict): the server and Go SDK units [`schema/module-classification.txt`](schema/module-classification.txt) classifies
+  `core`; the clients' headless directories named one by one (a test proves none imports a UI framework); the foundation
+  interfaces (module API, module switch, composition roots, guards, hub feature flags). Rules: the label + reason below, the
+  owners' review, and no module references.
+- **Panel** (the default panel: the clients' interface code, such as `web/src` outside `modules/`, `android/app`,
+  `android/feature/*`, `apple/Persona`). Rule: no module references. No label, no generated owner.
+- **Modules** (their own directories): free.
+
+A change that touches only tests inside a core path (`*_test.go`, `*.test.ts(x)`, test source sets, `testdata`) is not a core
+change: add tests freely. `python3 scripts/test/core_paths.py --tiers` counts the files.
 
 **What to do when your PR touches it:**
 
@@ -67,10 +75,10 @@ add tests freely. `python3 scripts/test/core_paths.py --table` counts the files.
 4. Expect the owners' review. `.github/CODEOWNERS` requests it for core paths; whether it is *required* before a merge is
    a branch setting the repository administrator controls.
 
-**Checks.** `scripts/hooks/core-change-check.py <PR number>` fails a core-touching PR without the label or the section, and
-lists the core files it saw; `scripts/hooks/merge-pr.sh` runs it before every merge. `scripts/test/test_core_paths.py`,
+**Checks.** `scripts/hooks/core-change-check.py <PR number>` fails a PR that touches tier core without the label or the section, and
+lists the tier-core files it saw (panel-only PRs pass untouched); `scripts/hooks/merge-pr.sh` runs it before every merge. `scripts/test/test_core_paths.py`,
 `scripts/test/test_codeowners.py` (regenerate the block with `python3 scripts/hooks/codeowners.py --write` after editing the
-list) and `scripts/test/test_core_references_no_module.py` (core never imports a module) run in `scripts/ci/scripts.sh`.
+list) and `scripts/test/test_core_references_no_module.py` (core and panel never import a module) run in `scripts/ci/scripts.sh`.
 Run any of them locally with `python3 scripts/test/<name>.py`.
 
 ## Verifying your change
