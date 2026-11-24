@@ -578,7 +578,9 @@ file that is no picture, gets no opinion (`ask`: agy's own permissions decide). 
 which wins over another hook's `allow`) with a reason the model passes on, and the file is left as it is. A truncated
 JPEG whose image data began also gets a terminated copy under `<agy config>/persona-media-guard/`, named in the reason,
 so the model can still look at the part that arrived. The hook answers `ask` when its script is gone (the package moved
-on), so a stale plugin never blocks agy; `--no-media-guard` keeps the companion from writing it. Pictures attached to a
+on), so a stale plugin never blocks agy; `--no-media-guard` keeps the companion from writing it. agy runs a hook through
+`/bin/sh` on macOS and Linux and through `cmd.exe` on Windows, so the Windows hook is a `cmd` command (`if exist … else
+echo`) with every path quoted. Pictures attached to a
 message from Persona get the same check: a broken one is left out of the prompt with a line saying so.
 
 Native model errors can be omitted from the JSONL export even when ACP reports a completed prompt. When an idle

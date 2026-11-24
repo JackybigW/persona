@@ -68,7 +68,7 @@ test('everything else gets no opinion, and the script never fails closed', (t) =
   assert.equal(run(JSON.stringify({ toolCall: { name: 'read_file', args: { Path: join(dir, 'cut.png') } } })).decision, 'deny')
 })
 
-test('the plugin is written idempotently and answers "ask" once its script is gone', (t) => {
+test('the plugin is written idempotently and answers "ask" once its script is gone', { skip: process.platform === 'win32' && 'no /bin/sh' }, (t) => {
   const home = mkdtempSync(join(tmpdir(), 'agy-media-guard-'))
   t.after(() => rmSync(home, { recursive: true, force: true }))
   const agyDir = join(home, 'antigravity-cli')
@@ -86,4 +86,31 @@ test('the plugin is written idempotently and answers "ask" once its script is go
   const stale = JSON.parse(readFileSync(join(gone, 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
   assert.deepEqual(sh(stale, payload), { decision: 'ask' })
   assert.ok(existsSync(join(dir, 'plugin.json')))
+})
+
+// agy runs a hook through cmd.exe on Windows, which has no /bin/sh: the command there is cmd's own, with each path quoted.
+test('on Windows the hook is a cmd.exe command', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'agy-media-guard-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const agyDir = join(home, 'antigravity-cli')
+  mkdirSync(agyDir)
+  const node = 'C:\Program Files (x86)\nodejs\node.exe'
+  const dir = installMediaGuard({ agyDir, script: 'C:\pkg\media-guard.mjs', node, platform: 'win32' })
+  const command = JSON.parse(readFileSync(join(dir, 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
+  assert.equal(command, `if exist "C:\pkg\media-guard.mjs" ("${node}" "C:\pkg\media-guard.mjs" --state "${join(agyDir, 'persona-media-guard')}") else (echo {"decision":"ask"})`)
+})
+
+test('cmd.exe runs the Windows hook and answers "ask" once its script is gone', { skip: process.platform !== 'win32' && 'needs cmd.exe' }, (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'agy media guard ('))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const agyDir = join(home, 'antigravity-cli')
+  mkdirSync(agyDir)
+  const hook = (script) => JSON.parse(readFileSync(join(installMediaGuard({ agyDir, script }), 'hooks.json'), 'utf8'))['persona-media-guard'].PreToolUse[0].hooks[0].command
+  // As written, and wrapped in the quotes cmd /c strips: both are how a caller may pass it.
+  const cmd = (command, input) => [command, `"${command}"`].map((line) =>
+    JSON.parse(execFileSync('cmd.exe', ['/d', '/c', line], { input, windowsVerbatimArguments: true }).toString()))
+  writeFileSync(join(home, 'cut.png'), png.subarray(0, 20))
+  const payload = JSON.stringify({ toolCall: { name: 'read_file', args: { Path: join(home, 'cut.png') } } })
+  for (const answer of cmd(hook(SCRIPT), payload)) assert.equal(answer.decision, 'deny')
+  for (const answer of cmd(hook(join(home, 'moved', 'media-guard.mjs')), payload)) assert.deepEqual(answer, { decision: 'ask' })
 })

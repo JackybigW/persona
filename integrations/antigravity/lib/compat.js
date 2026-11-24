@@ -4,13 +4,17 @@ import { fileURLToPath } from 'node:url'
 import { defaultStateRoot, legacyEnvName } from '../../runtime-sdk/lib/compat.js'
 import { stateDir } from '../../runtime-sdk/lib/identity.js'
 
+// On Windows the daemon is personad.exe: without the suffix it was never found, so the assistant got no Persona tools.
+const exe = (options) => ((options.platform || process.platform) === 'win32' ? '.exe' : '')
 export function daemonCandidates(home, options) {
   // An explicit runtime home owns discovery too; an ambient PERSONA_HOME must not replace it.
   const roots = options.stateHome ? [options.stateHome] : [home ? stateDir(home, {}) : stateDir(), join(home, '.persona'), join(home, '.jarvis')]
-  return [options.personadBin, options.jarvisdBin, ...roots.flatMap((root) => [join(root, 'bin', 'personad'), join(root, 'bin', 'jarvisd')])]
+  const x = exe(options)
+  return [options.personadBin, options.jarvisdBin, ...roots.flatMap((root) => [join(root, 'bin', 'personad' + x), join(root, 'bin', 'jarvisd' + x)])]
 }
 export function daemonBinary(home, options) {
-  return daemonCandidates(home, options).find((p) => p && existsSync(p)) || (options.stateHome ? join(options.stateHome, 'bin', 'personad') : join(defaultStateRoot(home), 'bin', 'personad'))
+  const name = 'personad' + exe(options)
+  return daemonCandidates(home, options).find((p) => p && existsSync(p)) || join(options.stateHome || defaultStateRoot(home), 'bin', name)
 }
 const MCP_PROXY = fileURLToPath(new URL('../mcp-proxy.mjs', import.meta.url))
 export function mcpServers(bin, pid, assistant, a2aToken) {
