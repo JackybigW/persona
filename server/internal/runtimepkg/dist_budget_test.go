@@ -22,6 +22,8 @@ import (
 // OpenCode live ACP tool-call normalization (#14130) adds 383 B on main (254,092 B).
 // The dedicated-Assistant environment handoff (#14068) adds 114 B (254,206 B).
 // Claude Code plugin 0.3.0 permission / question / plan approval bridging (#14214) adds 6,363 B (260,569 B).
+// Following an Antigravity conversation past a rewind's abandoned export tail (#14297) adds 320 B; minifying the
+// code #12706 and #14014 left unminified in its runtime saves 544 B (260,335 B).
 // Raise the budget only for code a runtime needs, never to embed the packages raw again.
 func TestDistBudget(t *testing.T) {
 	const budget = 260_569
