@@ -174,7 +174,7 @@ func NewBusHub(o BusOptions) *BusHub {
 			svc := b.svc
 			b.mu.Unlock()
 			params := map[string]any{"id": id, "host": host, "os": runtime.GOOS, "arch": runtime.GOARCH,
-				"deploy": o.Deploy, "version": o.Version, "capabilities": withHealth(withRecording(capabilities, svc), svc), "project_review_app_inputs": reviewAppInputs}
+				"deploy": o.Deploy, "version": o.Version, "capabilities": withPages(withHealth(withRecording(capabilities, svc), svc), id, svc), "project_review_app_inputs": reviewAppInputs}
 			if uid := b.machineUID(); uid != "" {
 				params["machine_uid"] = uid
 			}
