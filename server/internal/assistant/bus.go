@@ -23,6 +23,7 @@ import (
 	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/devicewire"
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/identity"
 	"github.com/nwverse/persona/server/internal/managerconf"
 	"github.com/nwverse/persona/server/internal/memtrim"
 	"github.com/nwverse/persona/server/internal/proto"
@@ -41,10 +42,14 @@ type BusOptions struct {
 	Hub        string // the hub's base URL (http(s)://host:port)
 	Token      string // the assistant's bus token (jb_…)
 	HTTPClient *http.Client
-	Version    string        // this build's, for the hub's roster
-	Deploy     string        // how it was started: "child" (the hub's), DeployService, "external", "docker"
-	Backoff    time.Duration // before dialing again, doubling to a minute (zero: the protocol's 1 s; tests shorten it)
-	Logf       func(format string, args ...any)
+	Version    string // this build's, for the hub's roster
+	Deploy     string // how it was started: "child" (the hub's), DeployService, "external", "docker"
+	// MachineUID is the host's local machine UID (~/.persona/machine-uid) for manager.hello; when empty and
+	// HostDataDir is set, manager.hello reads <HostDataDir>/machine-uid without creating it.
+	MachineUID  string
+	HostDataDir string
+	Backoff     time.Duration // before dialing again, doubling to a minute (zero: the protocol's 1 s; tests shorten it)
+	Logf        func(format string, args ...any)
 	// Devices is the manager's own connections to the computers (devices.go); nil: the hub has them (tests).
 	Devices Devices
 	// Extensions is the manager's extensions, connectors and bots (extensions.go); nil: none here (tests).
@@ -92,6 +97,9 @@ type BusHub struct {
 	pending atomic.Int64  // events received and not yet taken
 	// answering: the hub's requests being answered now (a tool call, an app's call): idle (idle.go) waits for them.
 	answering atomic.Int64
+	// pendingRestart: true while this manager has detected a replaced binary on disk and is waiting for idle before
+	// restarting (carried on manager.hello and live manager.status events).
+	pendingRestart atomic.Bool
 
 	// deltas are the text a followed conversation writes (session.delta), the latest one per conversation: one waits
 	// in events for each at most, so they never crowd out the others (bus_events.go).
@@ -156,7 +164,7 @@ func NewBusHub(o BusOptions) *BusHub {
 				assistantwire.CapabilityAgentSessionArchiveClose, assistantwire.CapabilityAgentNaming, assistantwire.CapabilityAgentAutoname, assistantwire.CapabilityMachinesOwn,
 				assistantwire.CapabilityMeetingAttendance, assistantwire.CapabilityMeetingConversation, assistantwire.CapabilityMeetingPhotos, assistantwire.CapabilityMeetingLiveView,
 				assistantwire.CapabilityMeetingHighlights, assistantwire.CapabilityMeetingNotes, assistantwire.CapabilityMeetingEcho, assistantwire.CapabilityMeetingTranscription,
-				assistantwire.CapabilityTaskInput, assistantwire.CapabilityRecordingDay, assistantwire.CapabilityAssistantSearch, assistantwire.CapabilityHealthIntake, assistantwire.CapabilityAssistantSegments, assistantwire.CapabilityDirectionSessions, assistantwire.CapabilityHTTPBodyStream, assistantwire.CapabilityAssistantStartServiceTier,
+				assistantwire.CapabilityTaskInput, assistantwire.CapabilityRecordingDay, assistantwire.CapabilityAssistantSearch, assistantwire.CapabilityHealthIntake, assistantwire.CapabilityHealthItems, assistantwire.CapabilityAssistantSegments, assistantwire.CapabilityDirectionSessions, assistantwire.CapabilityHTTPBodyStream, assistantwire.CapabilityAssistantStartServiceTier,
 				assistantwire.CapabilityMCPWait, assistantwire.CapabilitySessionsSideFold, assistantwire.CapabilityRemoteImages, assistantwire.CapabilityTodoView,
 				assistantwire.CapabilityTodoRevision, assistantwire.CapabilityTodoPlaces, assistantwire.CapabilityTodoAsks, assistantwire.CapabilityTodoTimeline, assistantwire.CapabilityTodoImages, devicewire.SharingCapability, devicewire.DevelopmentPackagesCapability}
 			if reviewEnabled {
@@ -167,6 +175,12 @@ func NewBusHub(o BusOptions) *BusHub {
 			b.mu.Unlock()
 			params := map[string]any{"id": id, "host": host, "os": runtime.GOOS, "arch": runtime.GOARCH,
 				"deploy": o.Deploy, "version": o.Version, "capabilities": withHealth(withRecording(capabilities, svc), svc), "project_review_app_inputs": reviewAppInputs}
+			if uid := b.machineUID(); uid != "" {
+				params["machine_uid"] = uid
+			}
+			if b.pendingRestart.Load() {
+				params["pending_restart"] = true
+			}
 			if o.Features != nil {
 				if features := o.Features(); len(features) > 0 {
 					params["features"] = features
@@ -244,6 +258,26 @@ func (b *BusHub) Serve(ctx context.Context, svc *Service) error {
 // Connected: the connection to the hub is up now (the knowledge base closes while it is not, kb.go).
 func (b *BusHub) Connected() bool { return b.client.Peer() != nil }
 
+// machineUID returns the host's local machine UID for manager.hello ("" when unavailable).
+func (b *BusHub) machineUID() string {
+	if uid := strings.TrimSpace(b.opts.MachineUID); uid != "" {
+		return uid
+	}
+	if b.opts.HostDataDir != "" {
+		return identity.ReadMachineUID(b.opts.HostDataDir)
+	}
+	return ""
+}
+
+// SetPendingRestart records whether this manager is waiting for idle to restart onto a replaced binary and notifies
+// the hub immediately when the value changes. The same flag is also sent on manager.hello across reconnects.
+func (b *BusHub) SetPendingRestart(pending bool) {
+	if b.pendingRestart.Swap(pending) == pending {
+		return
+	}
+	_ = b.client.Notify(assistantwire.EventManagerStatus, assistantwire.ManagerStatus{PendingRestart: pending})
+}
+
 // CredentialRevoked checks the hub's credential status for a kept message's sender.
 func (b *BusHub) CredentialRevoked(ctx context.Context, id string) (bool, error) {
 	return bus.CredentialRevoked(ctx, b.client.Call, id)
@@ -303,6 +337,13 @@ func (b *BusHub) onHello(res json.RawMessage) error {
 		}()
 	}
 	reported.seal()
+	if b.pendingRestart.Load() && ctx != nil {
+		go func() {
+			if b.client.Wait(ctx) == nil {
+				_ = b.client.Notify(assistantwire.EventManagerStatus, assistantwire.ManagerStatus{PendingRestart: b.pendingRestart.Load()})
+			}
+		}()
+	}
 	if svc != nil && h.Mutes != nil {
 		svc.setMutes(*h.Mutes) // the hub's, before anything is pushed (fleet_mutes.go)
 	}
