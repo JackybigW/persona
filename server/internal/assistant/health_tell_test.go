@@ -102,6 +102,15 @@ func healthTellService(t *testing.T) (*Service, *fakeHub, *healthTellMemStore) {
 	t.Helper()
 	f := healthHub()
 	f.devices[0].Online = true
+	f.answerNode(DeviceAssistantPrepare, func(_ string, raw json.RawMessage) (any, error) {
+		var p struct {
+			Dir string `json:"dir"`
+		}
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		return map[string]any{"cwd": "/home/me/" + p.Dir}, nil
+	})
 	st := &healthTellMemStore{}
 	s := newServiceOn(t, f, st)
 	setSettings(t, s, func(v *Settings) { v.MachineID = "server" })
