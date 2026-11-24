@@ -40,12 +40,13 @@ SIGNAL_WAIT = 60
 UNSIGNALLED_SLEEP = 10 * SIGNAL_WAIT
 # A command that writes <ready> once its SIGTERM handler is in place and exits 42 when the TERM comes; without one it
 # sleeps UNSIGNALLED_SLEEP seconds and exits 3.
-TERM_CATCHER = f"""import signal, sys, time
+TERM_CATCHER = f"""import os, signal, sys, time
 def caught(signum, frame):
     open(sys.argv[2], "w").write("TERM")
     sys.exit(42)
 signal.signal(signal.SIGTERM, caught)
 open(sys.argv[1], "w").write("ready")
+open(os.path.join(os.path.dirname(sys.argv[1]), "catcher.status"), "w").write(f"pid={{os.getpid()}} term={{signal.getsignal(signal.SIGTERM)}}")
 time.sleep({UNSIGNALLED_SLEEP})
 sys.exit(3)
 """
@@ -253,10 +254,15 @@ class HeavySlotTests(unittest.TestCase):
         try:
             proc.communicate(timeout=SIGNAL_WAIT)
         except subprocess.TimeoutExpired:
-            # The command sleeps ten times as long as this wait unless the TERM reaches it: say which side stalled.
+            # Preserve only synthetic process state: whether the helper is alive,
+            # whether its child received TERM, and its own recorded disposition.
+            state = {"helper_poll": proc.poll(), "caught": caught.exists(), "ready": ready.exists()}
+            status = self.tmp / "catcher.status"
+            if status.exists():
+                state["child_status"] = status.read_text()
             if caught.exists():
-                self.fail(f"the command caught the TERM, but the helper had not exited {SIGNAL_WAIT}s later")
-            self.fail(f"the TERM never reached the command: it was still sleeping {SIGNAL_WAIT}s later")
+                self.fail(f"the command caught the TERM, but the helper had not exited {SIGNAL_WAIT}s later: {state}")
+            self.fail(f"the TERM never reached the command: it was still sleeping {SIGNAL_WAIT}s later: {state}")
         self.assertEqual("TERM", caught.read_text())
         self.assertEqual(42, proc.returncode)  # the command's own exit status after it handled the TERM
         self.assertEqual(0, self.run_helper("go", "true", env={"PERSONA_HEAVY_SLOT_TIMEOUT": "0"})[0])
