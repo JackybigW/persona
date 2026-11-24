@@ -450,6 +450,10 @@ func (c *conversation) handle(gen int, e event) {
 		if c.dropAudio {
 			return // the rest of an answer cut off: the user never hears it, so it answers nothing (nudge.go)
 		}
+		if !c.turnsEnd && c.replyAudio.chunks > 0 && now.Sub(c.replyAudio.lastAt) > 1500*time.Millisecond {
+			c.finishReplyAudio(false) // upstream sends no turn-end signal: flush the earlier reply after a quiet gap
+		}
+		c.replyAudio.add(now, len(e.audio), c.outRate)
 		c.modelActed(now) // before its caption of the user's line closes, if that is still open: this answers it
 		c.pace.played(now, len(e.audio), c.outRate)
 		c.closeUser()
@@ -474,6 +478,7 @@ func (c *conversation) handle(gen int, e event) {
 		c.signals, c.turnsEnd = true, true
 		c.reply, c.replyVoiced = e.id, false
 		c.replying = true
+		c.openReply(time.Now())
 	case evTurnEnd:
 		c.dropAudio, c.cutAt = false, time.Time{}
 		c.turnsEnd = true
@@ -493,6 +498,7 @@ func (c *conversation) handle(gen int, e event) {
 				}
 			}
 		}
+		c.closeReply(false)
 		c.closeAsst()
 	case evInterrupted:
 		if e.id != "" {
@@ -505,6 +511,7 @@ func (c *conversation) handle(gen int, e event) {
 			return
 		}
 		c.sendApp(map[string]any{"type": "clear"})
+		c.closeReply(true)
 		c.pace.playEnd = time.Now() // the app drops what it had not played
 		c.closeAsst()
 	case evDelegation:
@@ -617,6 +624,7 @@ func (c *conversation) lost(gen int, why error) {
 		c.reconnects = 0 // it held: a drop now is not one of a run of them (docs/assistant/voice.md "Reconnect and resume")
 	}
 	if c.reconnects >= maxReconnects {
+		c.closeReply(true)
 		down, text := c.down.session == sessionNo(gen), c.down.text
 		c.mu.Unlock()
 		if down {
@@ -643,6 +651,7 @@ func (c *conversation) lost(gen int, why error) {
 	clear(c.unacked) // that session's: an ack or refusal of it never comes
 	c.pace.playEnd = time.Now()
 	c.sendApp(map[string]any{"type": "clear"})
+	c.closeReply(true)
 	c.closeAsst()
 	c.closeUser()
 	if c.owed.result {

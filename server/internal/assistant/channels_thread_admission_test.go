@@ -123,15 +123,16 @@ func waitAdmissionDrained(t *testing.T, s *Service) {
 
 func TestChannelOrdinaryReceiptsReserveTheSameOrderedRoute(t *testing.T) {
 	s, _, _ := admissionChannelService(t, true, nil)
-	first, err := s.admitChannelMessage("examplechat", channel.Message{ID: "first"})
+	ctx := context.Background()
+	first, err := s.admitChannelMessage(ctx, "examplechat", channel.Message{ID: "first"})
 	if err != nil || first == nil {
 		t.Fatalf("first ordinary receipt: %v %v", first, err)
 	}
-	second, err := s.admitChannelMessage("examplechat", channel.Message{ID: "second", Thread: " "})
+	second, err := s.admitChannelMessage(ctx, "examplechat", channel.Message{ID: "second", Thread: " "})
 	if err != nil || second == nil || first.done == nil || second.prev != first.done {
 		t.Fatalf("the second ordinary receipt did not follow the first: %v %v", second, err)
 	}
-	topic, err := s.admitChannelMessage("examplechat", channel.Message{ID: "topic", Thread: "independent"})
+	topic, err := s.admitChannelMessage(ctx, "examplechat", channel.Message{ID: "topic", Thread: "independent"})
 	if err != nil || topic == nil || topic.prev != nil {
 		t.Fatalf("an independent topic waited on the ordinary route: %v %v", topic, err)
 	}

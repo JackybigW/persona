@@ -266,10 +266,8 @@ func checkLegacyOwnerPriorityAcrossRestart(t *testing.T, when string, deliverBef
 	}
 	database := &ledgerDown{DB: taskRecoveryDatabase(t)}
 	s, firstHub, task := newSupervisedServiceOn(t, database)
-	if !deliverBefore {
-		// park_decided is immediate; holdDigest alone would still let this first manager tell it.
-		quietDigest(s)
-	}
+	// park_decided is immediate, so holdDigest alone does not keep it pending for the explicit sendDigest below (#13987).
+	quietDigest(s)
 	holdDigest(s)
 	ctx := context.Background()
 	legacyOwnerPark(t, s, task.ID)
@@ -282,6 +280,7 @@ func checkLegacyOwnerPriorityAcrossRestart(t *testing.T, when string, deliverBef
 	database.down.Store(false)
 	wantBefore := 0
 	if deliverBefore {
+		setSuperviseTimings(s, shortSuperviseTimings)
 		s.sendDigest(ctx)
 		if when != "stored while ledger fails" {
 			wantBefore = 1

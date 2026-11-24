@@ -392,14 +392,14 @@ func TestExternalPRParkReceiptAndReviewRecoverTogether(t *testing.T) {
 	if deliveredBeforeRestart {
 		t.Fatal("the previous manager delivered the receipt reserved for recovery")
 	}
+	// Relay delivery is asynchronous: observe the actual main-conversation message before restarting again.
+	var message string
 	waitFor(t, "the recovered PR receipt to reach main", func() bool {
 		hub.mu.Lock()
-		defer hub.mu.Unlock()
-		return strings.Contains(sentText(hub.sends), receipt)
+		message = sentText(hub.sends)
+		hub.mu.Unlock()
+		return hub.sentTo("conv1") == 1 && strings.Contains(message, receipt)
 	})
-	hub.mu.Lock()
-	message := sentText(hub.sends)
-	hub.mu.Unlock()
 	if hub.sentTo("conv1") != 1 || hub.sentTo("conv2") != 0 ||
 		!strings.Contains(message, receipt) {
 		t.Fatalf("recovered wake did not reach main with the receipt: %q", message)

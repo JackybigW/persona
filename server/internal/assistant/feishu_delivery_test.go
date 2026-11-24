@@ -13,6 +13,7 @@ import (
 
 // Feishu has received the post, but has yet to return its message ID when the actual node disconnects.
 func TestFeishuReconnectWhileFirstCardPostAwaitsAcknowledgement(t *testing.T) {
+	needsLarkLayer(t)
 	tests := []struct {
 		name        string
 		movedOn     bool
@@ -68,11 +69,10 @@ func TestFeishuReconnectWhileFirstCardPostAwaitsAcknowledgement(t *testing.T) {
 				}
 			}
 			if tc.expired {
-				book := &ft.s.fbot
-				book.mu.Lock()
-				later := book.clock().Add(resumeGrace + time.Second)
-				book.now = func() time.Time { return later }
-				book.mu.Unlock()
+				later := ft.s.larkNow().Add(resumeGrace + time.Second)
+				ft.s.lark.mu.Lock()
+				ft.s.lark.now = func() time.Time { return later }
+				ft.s.lark.mu.Unlock()
 			}
 			allow()
 			var updates []string

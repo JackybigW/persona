@@ -66,6 +66,7 @@ var errLost = errors.New("context deadline exceeded") // sent, the reply lost on
 // A morning brief whose first card's reply was lost goes again with the same key: Feishu lands a key once, so the owner does
 // not see it twice.
 func TestFeishuMirrorRetryKeepsItsKey(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(n int) error {
 		if n == 1 {
 			return errLost
@@ -76,7 +77,7 @@ func TestFeishuMirrorRetryKeepsItsKey(t *testing.T) {
 	want := botTarget{Kind: targetPersona, MachineID: "server", SessionID: "m1"}
 	// The transport records an attempt before returning the message ID needed to bind its thread.
 	waitFor(t, "retried card bound to its original conversation", func() bool {
-		return w.s.botTargetFor("om_card", "") == want
+		return w.s.larkModule().Route("om_card", "") == want
 	})
 	keys := w.tried()
 	if len(keys) != 2 || keys[0] == "" || keys[0] != keys[1] {
@@ -86,6 +87,7 @@ func TestFeishuMirrorRetryKeepsItsKey(t *testing.T) {
 
 // One that keeps failing is tried feishuMirrorRetries more times, then given up.
 func TestFeishuMirrorGivesUpAfterItsTries(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(int) error { return errLost })
 	w.s.feishuMirror(context.Background(), "server", "m1")
 	waitFor(t, "all tries", func() bool { return len(w.tried()) == 1+feishuMirrorRetries })
@@ -97,6 +99,7 @@ func TestFeishuMirrorGivesUpAfterItsTries(t *testing.T) {
 
 // A refusal Feishu will repeat (the card's content, a permission) is not tried again.
 func TestFeishuMirrorRefusedIsNotTriedAgain(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(int) error { return &botcard.APIError{Op: "send", Code: 230002, Msg: "bot not in chat"} })
 	w.s.feishuMirror(context.Background(), "server", "m1")
 	time.Sleep(100 * time.Millisecond)
@@ -107,6 +110,7 @@ func TestFeishuMirrorRefusedIsNotTriedAgain(t *testing.T) {
 
 // The main conversation's mirror needs sync: with sync turned off between tries (pushes still on), it stops.
 func TestFeishuMirrorRetryLooksAtItsOwnSwitch(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(int) error { return errLost })
 	w.s.feishuMirror(context.Background(), "server", "m1")
 	w.setFeatures(FeishuFeatures{Main: true, Pushes: true})
@@ -118,6 +122,7 @@ func TestFeishuMirrorRetryLooksAtItsOwnSwitch(t *testing.T) {
 
 // A newer turn meanwhile: the old answer is not sent under it.
 func TestFeishuMirrorRetryDropsAnOldTurn(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(int) error { return errLost })
 	w.s.feishuMirror(context.Background(), "server", "m1")
 	w.f.setItems(proto.Item{Role: "user", Kind: proto.KindText, Text: "早报"}, proto.Item{Role: "assistant", Kind: proto.KindText, Text: "今天三件事"},
@@ -131,6 +136,7 @@ func TestFeishuMirrorRetryDropsAnOldTurn(t *testing.T) {
 // Two runs that asked and answered alike (a task's "no change" twice within Feishu's hour) are two sends: the turn is
 // in the key, so Feishu does not drop the second as a repeat.
 func TestFeishuMirrorKeyIsPerTurn(t *testing.T) {
+	needsLarkLayer(t) // the chat is the lark module's
 	w := mirrorRetryHub(t, func(int) error { return nil })
 	for _, id := range []string{"a1", "a2"} {
 		w.f.setItems(proto.Item{Role: "user", Kind: proto.KindText, Text: "早报"}, proto.Item{ID: id, Role: "assistant", Kind: proto.KindText, Text: "无变动"})

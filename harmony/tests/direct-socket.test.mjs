@@ -175,7 +175,7 @@ function sessionFrame(sequence) {
 
 test('buffered Hub events preserve order across a partial read, including a reentrant reader', () => {
   const client = new HubTransport(new EndpointConfig('https://fixture.invalid', 'fixture', '', '', 'assistant'));
-  const append = bytes => { client.rx = Uint8Array.from([...client.rx, ...bytes]); };
+  const append = bytes => { client.rx.append(bytes, 1024 * 1024); };
   const seen = [];
   client.messageCallback = raw => {
     const {sequence} = JSON.parse(raw);
@@ -189,12 +189,13 @@ test('buffered Hub events preserve order across a partial read, including a reen
   append(Uint8Array.from([...sessionFrame(1), ...next.slice(0, 7)]));
   client.processFrames();
   assert.deepEqual(seen, [1]);
-  assert.equal(client.rx.byteLength, 7);
-  assert.equal(client.rx.buffer.byteLength, 7);
+  assert.equal(client.rx.length, 7);
+  assert.equal(client.rx.view().byteLength, 7);
   append(Uint8Array.from([...next.slice(7), ...sessionFrame(3)]));
   client.processFrames();
   assert.deepEqual(seen, [1, 2, 3, 4]);
-  assert.equal(client.rx.buffer.byteLength, 0);
+  assert.equal(client.rx.length, 0);
+  assert.equal(client.rx.view().byteLength, 0);
 });
 
 test('when an event closes its transport the remaining buffer stays with that old connection', () => {
@@ -204,14 +205,14 @@ test('when an event closes its transport the remaining buffer stays with that ol
   old.messageCallback = raw => {
     seen.push(JSON.parse(raw).sequence);
     old.close();
-    next.rx = sessionFrame(3);
+    next.rx.append(sessionFrame(3), 1024 * 1024);
     next.processFrames();
   };
-  old.rx = Uint8Array.from([...sessionFrame(1), ...sessionFrame(2)]);
+  old.rx.append(Uint8Array.from([...sessionFrame(1), ...sessionFrame(2)]), 1024 * 1024);
   old.processFrames();
   assert.deepEqual(seen, [1, 3]);
   assert.equal(old.closed, true);
-  assert.equal(old.rx.byteLength, 0);
+  assert.equal(old.rx.length, 0);
 });
 
 test('fragmented text is checked as one Hub hello before any following event is delivered', () => {
@@ -223,25 +224,25 @@ test('fragmented text is checked as one Hub hello before any following event is 
   const body = new TextEncoder().encode(JSON.stringify(hello));
   const cut = body.indexOf(0xe5) + 1;
   assert.ok(cut > 1 && cut < body.length);
-  stream.rx = Uint8Array.of(0x01, cut, ...body.subarray(0,cut));
+  stream.rx.append(Uint8Array.of(0x01, cut, ...body.subarray(0,cut)), 1024 * 1024);
   stream.processFrames();
   assert.deepEqual(seen, []);
-  stream.rx = Uint8Array.of(0x8a,0, 0x80,body.length-cut,...body.subarray(cut), ...sessionFrame(1));
+  stream.rx.append(Uint8Array.of(0x8a,0, 0x80,body.length-cut,...body.subarray(cut), ...sessionFrame(1)), 1024 * 1024);
   stream.processFrames();
   assert.deepEqual(seen, [hello,{type:'session',sequence:1}]);
 
   const changed = new TextEncoder().encode(JSON.stringify({type:'hello',hub_id:'other'}));
-  stream.rx = Uint8Array.of(0x81,changed.length,...changed,...sessionFrame(2));
+  stream.rx.append(Uint8Array.of(0x81,changed.length,...changed,...sessionFrame(2)), 1024 * 1024);
   stream.processFrames();
   assert.deepEqual(seen, [hello,{type:'session',sequence:1}]);
   assert.deepEqual(states, ['offline']);
-  assert.equal(stream.rx.byteLength, 0);
+  assert.equal(stream.rx.length, 0);
 });
 
 test('reading a normal batch does not recopy the unconsumed suffix after each message', t => {
   const stream = new HubTransport(new EndpointConfig('https://fixture.invalid', 'fixture', '', '', 'assistant'));
   const order = Array.from({length:12}, (_, i) => i);
-  stream.rx = Uint8Array.from(order.flatMap(i=>Array.from(sessionFrame(i))));
+  stream.rx.append(Uint8Array.from(order.flatMap(i=>Array.from(sessionFrame(i)))), 1024 * 1024);
   const total = stream.rx.length, originalSlice = Uint8Array.prototype.slice, seen = [];
   let copiedSuffix = 0;
   t.mock.method(Uint8Array.prototype, 'slice', function(...args) {
@@ -253,7 +254,7 @@ test('reading a normal batch does not recopy the unconsumed suffix after each me
   stream.processFrames();
   assert.deepEqual(seen, order);
   assert.ok(copiedSuffix <= total, 'unconsumed data was copied repeatedly');
-  assert.equal(stream.rx.buffer.byteLength, 0);
+  assert.equal(stream.rx.length, 0);
 });
 
 test('reserved Health routes keep the paired credentials and use only the Hub’s default manager',async()=>{
