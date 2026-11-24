@@ -320,33 +320,62 @@ test('the dock fits long translated headings before a separate source button and
   assert.match(dock, /\.enabled\(this\.canMoveDecision\(next\)\)[\s\S]*?this\.moveDecision\(next \? 1 : -1\)/);
 });
 
-test('the main plan uses the actual footer edge while its approval stays pinned and its full-text control can scroll', () => {
-  const read = file=>readFileSync(new URL('../entry/src/main/ets/components/'+file,import.meta.url),'utf8');
-  const conversation=read('Conversation.ets'), cards=read('AssistantCards.ets');
-  const C=new Function('Tokens','return '+stripTypeScriptTypes('class Header {'+method('mainDockHeaderEnd',conversation)+'}'))({compactStatusInset:62,gap:8});
-  const D=new Function('Tokens','return '+stripTypeScriptTypes('class Dock {'+method('measuredMainPlanRoom',cards)+'}'))({gap:8});
-  const c=new C(), dock=new D(), env={isFullScreen:true,nativeHoverAvailable:false,keyboardHeightPx:0,windowWidthPx:1206,windowHeightPx:2622,safeBottomPx:2538,safeTopPx:117};
-  c.environment=env;c.getUIContext=()=>({px2vp:value=>value/3});c.model={mainId:'main',mainMachineId:'owner',profile:{id:'test',manager:'manager'},selected:{id:'main',machine:'owner',group:'test',manager:'manager',kind:'conversation'}};
-  dock.shownDecisions=[{kind:'plan'}];
-  const geometry=(paneTop,cardBottom,logicalOrigin=0)=>{
-    c.availableHeight=(2538-paneTop)/3;c.contentTop=paneTop/3+logicalOrigin;
-    dock.mainHeaderEnd=c.mainDockHeaderEnd();dock.cardBottom=cardBottom/3+logicalOrigin;dock.dockRoom=c.availableHeight;
+test('the main plan budgets fixed siblings independently of its own rendered edge', () => {
+  const read = file => readFileSync(new URL('../entry/src/main/ets/components/' + file, import.meta.url), 'utf8');
+  const conversation = read('Conversation.ets'), cards = read('AssistantCards.ets');
+  const tokens = { compactStatusInset: 62, gap: 8, page: 16, fine: 4, footer: 4, touch: 44 };
+  const harness = (name, file) => new Function('Tokens',
+    'return ' + stripTypeScriptTypes('class Layout {' + method(name, file) + '}'))(tokens);
+  const Main = harness('mainDockSpace', conversation), Dock = harness('measuredMainPlanRoom', cards);
+  const main = new Main(), dock = new Dock();
+  const env = { isFullScreen: true, nativeHoverAvailable: false, keyboardHeightPx: 0, windowWidthPx: 1206,
+    windowHeightPx: 2622, safeBottomPx: 2538, safeTopPx: 117 };
+  let density = 3;
+  main.environment = env;
+  main.getUIContext = () => ({ px2vp: value => value / density });
+  main.model = { mainId: 'main', mainMachineId: 'owner', profile: { id: 'test', manager: 'manager' },
+    selected: { id: 'main', machine: 'owner', group: 'test', manager: 'manager', kind: 'conversation' } };
+  main.controlsPadding = () => ({ bottom: 14 });
+  dock.shownDecisions = [{ kind: 'plan' }];
+  function room(paneTopPx, footerHeightPx, stripHeightPx, origin = 0) {
+    main.availableHeight = (env.safeBottomPx - paneTopPx) / density;
+    main.contentTop = paneTopPx / density + origin;
+    main.assistantFooterHeight = footerHeightPx / density;
+    dock.dockRoom = main.availableHeight;
+    dock.actionBarHeight = stripHeightPx / density;
+    dock.mainDockSpace = main.mainDockSpace();
     return dock.measuredMainPlanRoom();
-  };
-  const large=geometry(374,2081), normal=geometry(346,2159);
-  assert.ok(normal>413,'the full regular plan requires only about 413 vp including its pager');
-  // Native 914 frames had a 495.7 vp pager, its 175 vp words area showing the whole full-text link.
-  // iPhone caps those same words to 151 vp. The remainder still belongs to the scrolling body.
-  assert.ok(Math.abs((175-(495.7-large))-151)<1.5);
-  assert.ok(Math.abs(large-geometry(374,2081,-39))<0.001,'both measured positions use the same containing window');
-  env.keyboardHeightPx=500;assert.equal(c.mainDockHeaderEnd(),-1);env.keyboardHeightPx=0;
-  c.model.selected.machine='other';assert.equal(c.mainDockHeaderEnd(),-1);c.model.selected.machine='owner';
-  c.model.selected.kind='session';assert.equal(c.mainDockHeaderEnd(),-1);c.model.selected.kind='conversation';
-  env.windowWidthPx=2800;assert.equal(c.mainDockHeaderEnd(),-1);
-  dock.shownDecisions=[{kind:'permission'}];assert.equal(dock.measuredMainPlanRoom(),0);
-  const limit=method('dockHeightLimit',cards);
-  assert.ok(limit.indexOf('this.dragHeight')<limit.indexOf('this.measuredMainPlanRoom()'));
-  assert.match(limit,/share<0 \? this\.measuredMainPlanRoom\(\) \|\| fallback : shortest\+share/);
+  }
+  const normal = room(346, 157, 84), large = room(374, 216, 103);
+  assert.ok(normal > 413, 'the regular plan has room for its full body');
+  assert.ok(Math.abs((175 - (495.7 - large)) - 151) < 1.5, 'large keeps its independently measured reading cap');
+  assert.equal(room(374, 216, 103, -39), large, 'only the available span matters across window origins');
+  assert.ok(room(374, 276, 103) < large, 'a growing footer gives space back to its actual controls');
+
+  density = 3.5;
+  Object.assign(env, { windowWidthPx: 1280, windowHeightPx: 2832, safeBottomPx: 2734, safeTopPx: 136.5 });
+  const phone = room(403, 183, 98);
+  assert.ok(Math.abs(phone - 433.72) < 0.5);
+  assert.doesNotMatch(method('measuredMainPlanRoom', cards), /cardBottom|measuredDockHeight/);
+  assert.doesNotMatch(method('mainDockSpace', conversation), /controlsHeight|editorHeight/);
+  main.model.decision = { kind: 'plan' };
+  main.showContextMenu = false;
+  const withoutComposer = main.mainDockSpace();
+  main.composerAvailable = () => false;
+  main.showContextMenu = true;
+  assert.equal(main.mainDockSpace(), withoutComposer - tokens.touch - tokens.gap);
+  main.model.decision = undefined;
+  main.assistantFooterHeight = 0;
+  assert.equal(main.mainDockSpace(), -1, 'wait for the independent footer to be measured');
+  main.assistantFooterHeight = 52;
+  env.keyboardHeightPx = 500; assert.equal(main.mainDockSpace(), -1); env.keyboardHeightPx = 0;
+  main.model.selected.machine = 'other'; assert.equal(main.mainDockSpace(), -1); main.model.selected.machine = 'owner';
+  main.model.selected.kind = 'session'; assert.equal(main.mainDockSpace(), -1); main.model.selected.kind = 'conversation';
+  env.windowWidthPx = 2800; assert.equal(main.mainDockSpace(), -1);
+  dock.shownDecisions = [{ kind: 'permission' }]; assert.equal(dock.measuredMainPlanRoom(), 0);
+  const limit = method('dockHeightLimit', cards);
+  assert.ok(limit.indexOf('this.dragHeight') < limit.indexOf('this.measuredMainPlanRoom()'));
+  assert.match(limit, /share<0 \? this\.measuredMainPlanRoom\(\) \|\| fallback : shortest\+share/);
 });
 
 test('the selected language mark scales its painted strokes inside the accessibility-sized row', () => {
