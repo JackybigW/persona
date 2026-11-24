@@ -1126,7 +1126,8 @@ func TestModelProfilePutCrossVersionTolerantDecoding(t *testing.T) {
 	idx := slices.IndexFunc(v.Profiles, func(p ModelProfileView) bool { return p.ID == "cross" })
 	if idx < 0 || v.Profiles[idx].Purposes["assistant"].Model != "claude-opus-5-5" ||
 		v.Profiles[idx].Purposes["assistant"].PermissionMode != "auto" ||
-		v.Profiles[idx].Tiers["strong"].Speed != "fast" {
+		v.Profiles[idx].Tiers["core"].Speed != "fast" || !slices.Contains(v.Profiles[idx].Tiers["core"].Aliases, "strong") {
+		// a tier named strong is read back as core, with strong kept as its alias (#14700)
 		t.Fatalf("known fields lost on tolerant save: %+v", v.Profiles)
 	}
 
