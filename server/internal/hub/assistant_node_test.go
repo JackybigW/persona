@@ -25,6 +25,8 @@ type assistantNode struct {
 	sends       []map[string]any
 	kept        []string     // the last node.configure keep_sessions
 	items       []proto.Item // session.items answers this (assistant_titles_test.go)
+	// recordSendItems makes assistant.send append its user item before answering, as supervision confirmation needs.
+	recordSendItems bool
 	// assistant.handoff answers handoff; assistant.compact notes the session and answers compactErr
 	// (assistant_main_test.go).
 	handoff    map[string]any
@@ -100,6 +102,10 @@ func newAssistantNode(t *testing.T, h *Hub) *assistantNode {
 			return map[string]any{"ok": true}, nil
 		case "assistant.send":
 			n.sends = append(n.sends, p)
+			if n.recordSendItems {
+				text, _ := p["text"].(string)
+				n.items = append(n.items, proto.Item{Role: "user", Kind: proto.KindText, Text: text})
+			}
 			id, _ := p["session_id"].(string)
 			if id == "" {
 				n.made++
