@@ -29,10 +29,11 @@ import (
 // Antigravity native error backfill at every unexported index, loading conversations another agy process created, with read failures in the history token (#14627), 427 B (263,245 B).
 // Antigravity subagent reports and background task results as task notices, invoke_subagent Role / Prompt (#14625), 749 B (263,994 B).
 // Untitled Antigravity conversations take a short title from their first prompt line (#14629), 218 B (264,212 B).
-// The Antigravity companion running the node's program from --personad-bin, else persona-node beside personad (#14582), 204 B (264,416 B).
+// The Antigravity companion running the node's program from --personad-bin, else persona-node beside personad (#14582), 204 B.
+// An API error agy streams as message text becomes the turn's error, kept in history and settled idle (#14628), 231 B (264,647 B with #14582).
 // Raise the budget only for code a runtime needs, never to embed the packages raw again.
 func TestDistBudget(t *testing.T) {
-	const budget = 264_416
+	const budget = 264_647
 	_, out := generateIntegrations(t)
 	entries, err := os.ReadDir(out)
 	if err != nil {
