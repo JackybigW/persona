@@ -322,6 +322,14 @@ func (s *Service) waitInteractionPrepared(ctx context.Context, ix proto.Interact
 // notification for server-owned proposal groups. The notification is closed
 // after the pending entry and its announcement exist, before this waiter blocks.
 func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction, prepared *preparedApproval, ready chan<- struct{}) (proto.Resolution, error) {
+	var registered func(*pending)
+	if ready != nil {
+		registered = func(*pending) { close(ready) }
+	}
+	return s.waitRegisteredInteraction(ctx, ix, prepared, registered)
+}
+
+func (s *Service) waitRegisteredInteraction(ctx context.Context, ix proto.Interaction, prepared *preparedApproval, registered func(*pending)) (proto.Resolution, error) {
 	// The node may send its first request while FleetUp is still restoring the last manager's cards.
 	// Do not let that recovery cancel a card this process is about to persist.
 	s.restoreInteractions(ctx)
@@ -385,8 +393,8 @@ func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction
 			if ix.Kind == proto.IxElicitation && !s.elicitationReachable(ix) {
 				_ = s.resolve(ix.ID, proto.Resolution{Dismiss: true})
 			}
-			if ready != nil {
-				close(ready)
+			if registered != nil {
+				registered(p)
 			}
 			// Resumable node cards reconnect through reporter-less interaction.create requests; MCP elicitation cards
 			// are not resumable, so this branch never has a wait reporter to restore.
@@ -478,8 +486,8 @@ func (s *Service) waitInteractionReady(ctx context.Context, ix proto.Interaction
 	if prepared != nil {
 		s.startPreparedTimer(p)
 	}
-	if ready != nil {
-		close(ready)
+	if registered != nil {
+		registered(p)
 	}
 	resume := pushMCPInteraction(ctx, ix)
 	defer resume()
