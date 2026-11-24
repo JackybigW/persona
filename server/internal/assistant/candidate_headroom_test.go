@@ -30,7 +30,8 @@ func TestHeadroomPace(t *testing.T) {
 	}
 	past := now.Add(-time.Minute)
 	overStart := now.Add(-time.Hour) // the 5 h window below started an hour ago
-	overRecovers := overStart.Add(time.Duration(30.0 / 85 * float64(5*time.Hour)))
+	share := 30.0 / 85
+	overRecovers := overStart.Add(time.Duration(share * float64(5*time.Hour)))
 	cases := []struct {
 		name      string
 		accounts  []proto.UsageAccount

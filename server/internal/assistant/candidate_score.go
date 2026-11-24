@@ -175,7 +175,7 @@ func scoreCandidates(in []scoreInput, prior candidateStats) candidateChoice {
 				score += scoreMu / (1 + 10*c.Headroom.H)
 			}
 			score = math.Round(score*100) / 100
-			line.Score, line.Minutes, line.FirstPass = &score, round2(t), round2(fp)
+			line.Score, line.Minutes, line.FirstPass = &score, roundScore(t), roundScore(fp)
 			eligible = append(eligible, i)
 		}
 		out.Scores[i] = line
@@ -223,7 +223,7 @@ func choiceReason(lines []candidateScore, chosen, firstEligible int) string {
 	return reason
 }
 
-func round2(v float64) float64 { return math.Round(v*100) / 100 }
+func roundScore(v float64) float64 { return math.Round(v*100) / 100 }
 
 // candidateStatsStore reads the efficiency samples (internal/db model_routing_samples.go).
 type candidateStatsStore interface {
