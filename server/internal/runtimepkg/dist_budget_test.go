@@ -26,7 +26,7 @@ import (
 // An Antigravity CLI without session/set_mode: checks skip the switch and starts say to update agy (#14533), 149 B (261,091 B).
 // Antigravity Gemini API-key gateway model discovery routes through HTTP(S)_PROXY and honors NO_PROXY (#14552), 1,497 B (262,588 B).
 // Following an Antigravity conversation past a rewind's abandoned export tail (#14297) adds 320 B; minifying the
-// code #12706 and #14014 left unminified in its runtime saves 512 B (262,588 B → 262,396 B).
+// code #12706 and #14014 left unminified in its runtime saves 520 B (262,673 B on main after #14745 → 262,473 B).
 // Raise the budget only for code a runtime needs, never to embed the packages raw again.
 func TestDistBudget(t *testing.T) {
 	const budget = 262_588
