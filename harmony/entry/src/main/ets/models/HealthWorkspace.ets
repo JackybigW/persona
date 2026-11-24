@@ -480,9 +480,11 @@ export class HealthWorkspace {
       Wire.text(data, 'space') === HEALTH_SPACE;
   }
 
-  canArchiveConversation(row: ResourceRow): boolean {
-    return this.isHealthConversation(row) && this.conversations.some((item: ResourceRow) => item.key() === row.key());
+  listedConversation(row: ResourceRow): ResourceRow | undefined {
+    return this.isHealthConversation(row) ? this.conversations.find((item: ResourceRow) => item.key() === row.key()) : undefined;
   }
+
+  canArchiveConversation(row: ResourceRow): boolean { return !!this.listedConversation(row); }
 
   openReport(report: HealthReport, record: boolean): ResourceRow | undefined {
     const path = record ? report.recordPath : report.path;

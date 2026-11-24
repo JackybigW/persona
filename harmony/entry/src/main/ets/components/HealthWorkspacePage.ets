@@ -14,6 +14,7 @@ import { MarkdownText } from './MarkdownText';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
 import { HealthToday } from './HealthToday';
+import { HealthConversationHistory } from './HealthConversationHistory';
 import { PhoneDictationControl } from './PhoneDictationControl';
 import { PhoneStyle } from '../design/PhoneStyle';
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
@@ -289,26 +290,9 @@ export struct HealthWorkspacePage {
   }
 
   @Builder conversationSection() {
-    Column({ space: Tokens.gap }) {
-      Text(tr('health_chats')).fontSize(Tokens.body).fontWeight(FontWeight.Medium).width('100%')
-      if (this.workspace.loading && !this.workspace.conversations.length) LoadingProgress().width(Tokens.touch).height(Tokens.touch)
-      else if (!this.workspace.conversations.length) Text(tr(this.workspace.error ? 'health_chats_unavailable' : 'health_no_chats'))
-        .fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary')).width('100%')
-      ForEach(this.conversationRowBindings, (binding: BoundRow<ResourceRow>) => {
-        Row({ space: Tokens.gap }) {
-          Button() {
-            Column({ space: Tokens.fine }) {
-              Text(binding.value.title || tr('health_new_chat')).fontSize(Tokens.body).fontWeight(FontWeight.Medium).maxLines(1).width('100%')
-              if (Wire.text(binding.value.data(), 'last_text', binding.value.detail)) Text(Wire.text(binding.value.data(), 'last_text', binding.value.detail)).fontSize(Tokens.meta).fontColor($r('sys.color.font_secondary')).maxLines(2).width('100%')
-            }.alignItems(HorizontalAlign.Start).width('100%')
-          }.layoutWeight(1).constraintSize({ minHeight: Tokens.touch }).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent).onClick(() => {
-          if (this.workspace.isHealthConversation(binding.value)) this.onChat(binding.value);
-          }).id('health.chat.' + binding.value.id)
-      Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('health_archive')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('health_archive', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('health_archive')).bindTips(tr('health_archive')).enabled(!this.workspace.busy && this.workspace.canArchiveConversation(binding.value))
-            .onClick(() => this.confirmArchive(binding.value)).id('health.chat.archive.' + binding.value.id)
-        }.width('100%').alignItems(VerticalAlign.Center)
-      }, (binding: BoundRow<ResourceRow>) => binding.key)
-    }.width('100%').alignItems(HorizontalAlign.Start).padding(14).backgroundColor(Colors.surface).borderRadius(15)
+    HealthConversationHistory({model:this.model,workspace:this.workspace,rows:this.conversationRowBindings,
+      onOpen:(row: ResourceRow) => { if (this.active) this.onChat(row); },
+      onArchive:(row: ResourceRow) => this.confirmArchive(row)})
   }
 
   @Builder memorySection() {

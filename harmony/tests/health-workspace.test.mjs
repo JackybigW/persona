@@ -300,6 +300,33 @@ test('memory index is read only; memory edits and deletion retain the health que
   ]);
 });
 
+test('health history opens the fresh conversation and retires actions for a removed or foreign row', async () => {
+  const { workspace, child, shared } = await opened();
+  const original = workspace.conversations[0];
+  child().state.conversations = [chat(original.id, 'health', { title: 'Renamed health chat', last_text: 'Fresh preview' })];
+  await workspace.refresh();
+  const current = workspace.listedConversation(original);
+  assert.equal(current, workspace.conversations[0]);
+  assert.notEqual(current, original);
+  assert.equal(current.title, 'Renamed health chat');
+  assert.equal(current.data().last_text, 'Fresh preview');
+
+  for (const fields of [{ manager: 'foreign' }, { machine: 'foreign' }, { group: 'another-hub' }]) {
+    const other = Object.assign(ResourceRow.from(current.data(), 'conversation'), { manager: current.manager, machine: current.machine }, fields);
+    assert.equal(workspace.listedConversation(other), undefined);
+    assert.equal(await workspace.archive(other), false);
+  }
+  const otherSpace = Object.assign(ResourceRow.from(chat(original.id, 'main'), 'conversation'), { manager: current.manager, machine: current.machine });
+  assert.equal(workspace.listedConversation(otherSpace), undefined);
+
+  child().state.conversations = [];
+  await workspace.refresh();
+  assert.equal(workspace.listedConversation(original), undefined);
+  assert.equal(workspace.canArchiveConversation(current), false);
+  assert.equal(await workspace.archive(current), false);
+  assert.deepEqual(shared.calls.filter(call => call.method !== 'GET'), []);
+});
+
 test('archive accepts only a listed Health conversation owned by the roster default', async () => {
   const { workspace, child } = await opened();
   const healthRow = workspace.conversations[0];
