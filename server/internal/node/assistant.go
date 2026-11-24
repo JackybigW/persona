@@ -196,6 +196,8 @@ type assistantProc struct {
 	// starts the turn of the message that started the process, already busy, and every later one starts a turn the
 	// node may not have asked for (readAssistant).
 	initSeen bool
+	// staleLooked: when its turn was last checked against Claude Code's own record (assistant_stale_turn.go).
+	staleLooked time.Time
 }
 
 func (p *assistantProc) write(line []byte) error {
@@ -1094,7 +1096,7 @@ func (n *Node) assistantSend(ctx context.Context, id, cwd, launcher, text string
 	if strings.TrimSpace(text) != "" || len(images) == 0 {
 		content = append(content, map[string]any{"type": "text", "text": text})
 	}
-	in := assistantInput{text: text, images: images, content: content}
+	in := assistantInput{text: text, images: images, content: content, supervision: ctx.Value(supervisionDeliveryKey{}) == true}
 	startAttemptsAt := time.Now()
 	if fresh && !p.born.IsZero() {
 		startAttemptsAt = p.born
@@ -1714,6 +1716,7 @@ func (n *Node) assistantSessions() []proto.Session {
 	n.mu.Unlock()
 	var out []proto.Session
 	for _, p := range procs {
+		n.reconcileStaleTurn(p) // a turn whose end the node missed is over here, for every reader of the row (#14351)
 		p.mu.Lock()
 		// A registered replacement is still starting until its recovery message is sent. A round's process works until it
 		// settled (assistant_round.go): the manager keeps supervision messages for it queued meanwhile.
