@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/devicewire"
@@ -106,6 +107,33 @@ func (s *Service) nodeEvent(machine, event string, params json.RawMessage) bool 
 
 // NodeRequest answers what of a node's requests is the manager's (devices.Options.Answer, with NodeAnswer's).
 func (s *Service) nodeRequest(ctx context.Context, machine, method string, params json.RawMessage) (any, bool, error) {
+	// These ids name a direction and its optional coding Agent, not a Persona conversation on the calling node; do not
+	// run conversation-tombstone validation over them.
+	switch method {
+	case "direction.create":
+		if !s.fleetOn() {
+			return nil, false, nil
+		}
+		var in directionCreateInput
+		if err := json.Unmarshal(params, &in); err != nil {
+			return directionNodeReply(nil, directionInvalidf("arguments: %v", err)), true, nil
+		}
+		view, err := s.createOutsideDirection(ctx, in)
+		return directionNodeReply(view, err), true, nil
+	case "direction.progress":
+		if !s.fleetOn() {
+			return nil, false, nil
+		}
+		var in struct {
+			ID string `json:"id"`
+			directionProgressInput
+		}
+		if err := json.Unmarshal(params, &in); err != nil {
+			return directionNodeReply(nil, directionInvalidf("arguments: %v", err)), true, nil
+		}
+		view, err := s.writeDirectionProgress(ctx, strings.TrimSpace(in.ID), in.directionProgressInput)
+		return directionNodeReply(view, err), true, nil
+	}
 	if err := s.conversationParamsAvailable(ctx, machine, params); err != nil {
 		return nil, true, err
 	}
@@ -189,11 +217,13 @@ func (s *Service) nodeRequest(ctx context.Context, machine, method string, param
 		var p struct {
 			Assistant  bool   `json:"assistant"`
 			SessionID  string `json:"session_id"`
+			CallerCwd  string `json:"caller_cwd"`
 			Guest      bool   `json:"guest"` // the node's word that it is a guest conversation (guest.go)
 			Revision   string `json:"revision"`
 			LeaderOnly bool   `json:"leader_only"`
 		}
 		_ = json.Unmarshal(params, &p)
+		ctx = withNodeCallerCwd(ctx, machine, p.SessionID, p.CallerCwd)
 		if p.LeaderOnly {
 			return map[string]any{"tools": s.runtimeLeaderTools(ctx, machine, p.SessionID, p.Guest)}, true, nil
 		}
@@ -211,6 +241,7 @@ func (s *Service) nodeRequest(ctx context.Context, machine, method string, param
 			Name             string                 `json:"name"`
 			Args             json.RawMessage        `json:"args"`
 			SessionID        string                 `json:"session_id"`
+			CallerCwd        string                 `json:"caller_cwd"`
 			Origin           string                 `json:"origin"` // the node's attested origin, including during assistant startup
 			Assistant        bool                   `json:"assistant"`
 			Guest            bool                   `json:"guest"`
@@ -221,6 +252,7 @@ func (s *Service) nodeRequest(ctx context.Context, machine, method string, param
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, true, err
 		}
+		ctx = withNodeCallerCwd(ctx, machine, p.SessionID, p.CallerCwd)
 		ctx = devicewire.WithSourcePermission(ctx, proto.SourcePermission{})
 		if p.SourcePermission.Matches(p.SessionID, p.Name, p.Args) {
 			ctx = devicewire.WithSourcePermission(ctx, p.SourcePermission)

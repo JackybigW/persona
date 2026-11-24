@@ -61,10 +61,12 @@ func cleanCodexClaims(in []runtimeCodexClaim) []runtimeCodexClaim {
 	return out
 }
 
-// codexClaimsOf is what a runtime claims, and when its last connection left (zero while it is connected).
+// codexClaimsOf is what a runtime claims, when its last live connection left (zero while a live connection holds it),
+// and the newest connection serial that updated it.
 type codexClaimsOf struct {
 	claims []runtimeCodexClaim
 	gone   time.Time
+	serial int
 }
 
 // heldCodexClaim is a claim that holds now, and the runtime that made it.
@@ -80,8 +82,7 @@ func (rh *RuntimeHost) claimCodex(h *runtimeConn, claims []runtimeCodexClaim) {
 		claims = nil
 	}
 	claims = cleanCodexClaims(claims)
-	rh.reg.setCodexClaims(h, claims)
-	if len(claims) == 0 {
+	if !rh.reg.setCodexClaims(h, claims) || len(claims) == 0 {
 		return
 	}
 	rh.logger.Printf("runtime %s #%d claims %d Codex app-server instance(s) it serves", h.id(), h.serial, len(claims))
@@ -90,42 +91,89 @@ func (rh *RuntimeHost) claimCodex(h *runtimeConn, claims []runtimeCodexClaim) {
 	}
 }
 
+// codexConnLiveLocked reports whether h is still registered, has not been superseded as stale by a newer hello, and
+// whose peer has not closed yet. Callers hold b.mu.
+func (b *runtimeRegistry) codexConnLiveLocked(h *runtimeConn) bool {
+	if h == nil || b.conns[h.serial] != h || h.superseded {
+		return false
+	}
+	if h.peer != nil {
+		select {
+		case <-h.peer.Done():
+			return false
+		default:
+		}
+	}
+	return true
+}
+
+// hasLiveCodexConnLocked reports whether runtime id still has any live connection. Callers hold b.mu.
+func (b *runtimeRegistry) hasLiveCodexConnLocked(id string) bool {
+	for _, o := range b.conns {
+		if b.codexConnLiveLocked(o) && o.id() == id {
+			return true
+		}
+	}
+	return false
+}
+
 // setCodexClaims replaces what h's runtime claims; none: it claims nothing from now on, with no grace.
-func (b *runtimeRegistry) setCodexClaims(h *runtimeConn, claims []runtimeCodexClaim) {
+// A connection already superseded by a newer hello is ignored so a stale hello cannot overwrite newer claims or clear a
+// departed claimant's keep timestamp. Returns false when h was ignored.
+func (b *runtimeRegistry) setCodexClaims(h *runtimeConn, claims []runtimeCodexClaim) bool {
 	id := h.id()
 	if b == nil || id == "" {
-		return
+		return false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if h.superseded {
+		return false
+	}
+	prev, had := b.codexClaims[id]
+	if had && prev.serial > h.serial {
+		return false
+	}
+	for _, o := range b.conns {
+		if o != h && o.serial > h.serial && o.id() == id {
+			return false
+		}
+	}
 	if len(claims) == 0 {
 		delete(b.codexClaims, id)
-		return
+		return true
 	}
 	if b.codexClaims == nil {
 		b.codexClaims = map[string]codexClaimsOf{}
 	}
-	c := codexClaimsOf{claims: claims}
-	if b.conns[h.serial] != h {
-		c.gone = time.Now() // h closed while its hello was being answered (remove ran first): the claims stand for the keep only
+	c := codexClaimsOf{claims: claims, serial: h.serial}
+	if !b.codexConnLiveLocked(h) && !b.hasLiveCodexConnLocked(id) {
+		// h closed while its hello was being answered (remove ran or peer closed first) and no live connection remains:
+		// preserve an existing grace timestamp so a dead hello cannot extend or clear it, or start the keep now.
+		if had && !prev.gone.IsZero() {
+			c.gone = prev.gone
+		} else {
+			c.gone = time.Now()
+		}
 	}
 	b.codexClaims[id] = c
+	return true
 }
 
-// leftCodexClaims notes that runtime id has no connection any more: its claims stand for codexClaimKeep. Callers hold
-// b.mu.
+// leftCodexClaims notes that runtime id has no live connection any more: its claims stand for codexClaimKeep. Callers
+// hold b.mu.
 func (b *runtimeRegistry) leftCodexClaims(id string) {
 	c, ok := b.codexClaims[id]
 	if !ok || id == "" {
 		return
 	}
-	for _, h := range b.conns {
-		if h.id() == id {
-			return // another connection of the same runtime (it reconnected before the old one was gone)
-		}
+	if b.hasLiveCodexConnLocked(id) {
+		return // another live connection of the same runtime (it reconnected before the old one was gone)
 	}
-	c.gone = time.Now()
-	b.codexClaims[id] = c
+	if c.gone.IsZero() {
+		c.gone = time.Now()
+		b.codexClaims[id] = c
+	}
 }
 
 // heldCodexClaims is every claim that holds now: those of the connected runtimes, and for codexClaimKeep those of the

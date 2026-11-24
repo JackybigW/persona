@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/modelhttp"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -31,6 +32,8 @@ type stateFile struct {
 }
 
 type sessionState struct {
+	ModelSource modelhttp.Source `json:"model_source,omitzero"`
+
 	SegmentRetired          bool            `json:"segment_retired,omitempty"`
 	SegmentOperation        string          `json:"segment_operation,omitempty"`
 	TaskInstructions        string          `json:"task_instructions,omitempty"`
@@ -66,13 +69,19 @@ type sessionState struct {
 	// IsMain (the hub's copy keeps neither, so until the node restarts) for a start that carries no execution: a manual
 	// compaction with no process running (assistant_compact.go).
 	MainCompactWindow int `json:"main_compact_window,omitempty"`
-	// AppMode / AppEffort: the permission mode and effort set on an assistant conversation (modes.go). AppMode
-	// also retains a terminal Codex start constraint for later resumes. They
-	// win over what its transcript recorded and outlive the node: an old "default" there no longer locks it in.
+	// AppMode / AppEffort: the permission mode and effort on an assistant conversation (modes.go). AppMode
+	// also retains a terminal Codex start constraint for later resumes. AppModeExplicit distinguishes a deliberate
+	// per-conversation mode from a legacy/default value; on Claude Code only an explicit one outranks the manager's
+	// current default, while other agents always retain their legacy AppMode precedence.
 	// PlanThen: the mode this session, started in plan mode, goes on in once its plan is approved (planthen.go).
-	PlanThen  string `json:"plan_then,omitempty"`
-	AppMode   string `json:"app_mode,omitempty"`
-	AppEffort string `json:"app_effort,omitempty"`
+	PlanThen        string `json:"plan_then,omitempty"`
+	AppMode         string `json:"app_mode,omitempty"`
+	AppModeExplicit bool   `json:"app_mode_explicit,omitempty"`
+	AppEffort       string `json:"app_effort,omitempty"`
+	// DesktopPendingModel / DesktopPendingEffort: requested initial Codex App settings still awaiting the owning
+	// window's readback. They survive partial creation/restarts and must be confirmed before its first message.
+	DesktopPendingModel  string `json:"desktop_pending_model,omitempty"`
+	DesktopPendingEffort string `json:"desktop_pending_effort,omitempty"`
 	// Tasks: the assistant conversation's background tasks and monitors running right now (node/assistant.go).
 	Tasks []string `json:"tasks,omitempty"`
 	// Compaction: the last compaction the user asked for (assistant_compact.go).
@@ -122,6 +131,9 @@ type sessionState struct {
 	// Claude session id (assistant_round.go). Forked round branches inherit assistant identity and stay hidden from
 	// the ordinary Agents list across node restarts.
 	RoundForkOf string `json:"round_fork_of,omitempty"`
+	// StartOpID is the X-Persona-Op-Id that started this session, kept so reconnect reconciliation after a mid-flight
+	// disconnect or node restart can prove the start already ran (#10674).
+	StartOpID string `json:"start_op_id,omitempty"`
 }
 
 func newState() *stateFile { return &stateFile{Sessions: map[string]sessionState{}} }
@@ -307,6 +319,7 @@ func (s *stateFile) adoptSwitch(id string, v sessionState) {
 	defer s.persistMu.Unlock()
 	s.mu.Lock()
 	if cur, ok := s.Sessions[id]; ok {
+		cur.ModelSource = v.ModelSource
 		cur.Launcher, cur.Model, cur.ModelFingerprint, cur.ModelEffort = v.Launcher, v.Model, v.ModelFingerprint, v.ModelEffort
 		cur.Cwd, cur.StartedAt, cur.PlanThen, cur.Pane, cur.PendingSwitch = v.Cwd, v.StartedAt, v.PlanThen, v.Pane, v.PendingSwitch
 		cur.EngineHistory, cur.PendingHandoff = v.EngineHistory, v.PendingHandoff // a switch to another engine (engine_switch.go)
@@ -398,6 +411,26 @@ func (s *stateFile) get(id string) (sessionState, bool) {
 	return v, ok
 }
 
+// byStartOp finds the session started with opID, if any (#10674).
+func (s *stateFile) byStartOp(opID string) (string, sessionState, bool) {
+	if s == nil || opID == "" {
+		return "", sessionState{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var foundID string
+	var found sessionState
+	for id, v := range s.Sessions {
+		if v.StartOpID != opID {
+			continue
+		}
+		if foundID == "" || id < foundID {
+			foundID, found = id, v
+		}
+	}
+	return foundID, found, foundID != ""
+}
+
 // panes returns the remembered pane of every session (herdr pane ids are not reused while the server lives).
 func (s *stateFile) panes() map[string]string {
 	s.mu.Lock()
@@ -442,6 +475,9 @@ func (s *stateFile) put(id string, v sessionState) bool {
 		}
 		if v.RanAt == 0 {
 			v.RanAt = old.RanAt // owned by recordRunning
+		}
+		if v.StartOpID == "" && old.StartOpID != "" {
+			v.StartOpID = old.StartOpID
 		}
 	}
 	s.Sessions[id] = v

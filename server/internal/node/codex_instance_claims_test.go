@@ -3,8 +3,10 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nwverse/persona/server/internal/proto"
+	"github.com/nwverse/persona/server/internal/rpc"
 )
 
 // claimsTestNode is a node with a runtime socket and a fake hub (runtimeNode) that also follows Codex app-servers, as
@@ -327,6 +330,146 @@ func TestCodexClaimOfAConnectionAlreadyGoneOnlyKeeps(t *testing.T) {
 	b.mu.Unlock()
 	if held := b.heldCodexClaims(); len(held) != 1 || held[0].runtime != "live" {
 		t.Fatalf("held %v", held)
+	}
+}
+
+// A same-instance reconnect that replaces an earlier connection, a stale connection whose hello arrives late, a peer
+// already closed before remove runs, or a conflicting hello must never leave claims permanent once no live connection
+// remains: once codexClaimKeep passes, the node attaches again.
+func TestCodexClaimReconnectAndStaleHelloExpires(t *testing.T) {
+	n := claimsTestNode(t)
+	home := t.TempDir()
+	f, c := connectRemoteFixture(t, n, home, "daemon", remoteRaw)
+	spec := c.spec
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	hello := func(instance string, claims ...map[string]any) map[string]any {
+		h := claimHello(claims...)
+		h["instance"] = instance
+		return h
+	}
+	claim := map[string]any{"endpoint": spec.Endpoint}
+
+	// First connection claims the instance, then the same instance reconnects (closing rt1 as stale).
+	rt1 := dialRuntime(t, n, hello("inst-1", claim))
+	rt2 := dialRuntime(t, n, hello("inst-1", claim))
+	if remoteOf(n, "daemon") != nil {
+		t.Fatal("the instance was not left to the reconnected runtime")
+	}
+	// A conflicting process with another instance is refused and does not disturb the claimant.
+	conflictConn, err := net.Dial("unix", n.runtimeSock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflictPeer := rpc.New("d", conflictConn)
+	cctx, ccancel := context.WithCancel(context.Background())
+	go func() { _ = conflictPeer.Serve(cctx, conflictConn) }()
+	t.Cleanup(func() { ccancel(); _ = conflictConn.Close() })
+	var conflictRes map[string]any
+	callCtx, callCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err = conflictPeer.Call(callCtx, "runtime.hello", hello("inst-2", claim), &conflictRes)
+	callCancel()
+	if err == nil {
+		t.Fatal("conflicting runtime hello succeeded, want runtime_conflict")
+	}
+	ccancel()
+	_ = conflictConn.Close()
+
+	// Now rt2 disconnects as well. Even before rt1's socket finishes cleanup or if a stale hello updates claims late,
+	// no live connection remains so the keep clock must start and never be cleared to zero.
+	_ = rt2.conn.Close()
+	_ = rt1.conn.Close()
+	waitFor(t, "both runtime connections gone", func() bool { return runtimeConns(n) == 0 })
+
+	n.runtimes.mu.Lock()
+	gotGone := n.runtimes.codexClaims["codexd"].gone
+	n.runtimes.mu.Unlock()
+	if gotGone.IsZero() {
+		t.Fatal("claims have a zero keep timestamp after reconnected runtime disconnected")
+	}
+
+	// Unit-level check of the exact races:
+	// 1. A superseded connection still in b.conns (before remove runs) must not block leftCodexClaims from starting
+	//    the keep, and a late setCodexClaims from it or its subsequent remove must not clear/extend gone.
+	// 2. A connection whose peer is already closed while still in b.conns must not clear an existing gone timestamp.
+	b := newRuntimeRegistry()
+	h1 := b.add(nil)
+	h2 := b.add(nil)
+	if stale, err := b.hello(h1, runtimeHello{Runtime: "rt", Instance: "i1"}, nil, nil); err != nil || len(stale) != 0 {
+		t.Fatalf("first hello: stale=%d err=%v", len(stale), err)
+	}
+	if !b.setCodexClaims(h1, []runtimeCodexClaim{{Home: "/a"}}) {
+		t.Fatal("first connection's claims were ignored")
+	}
+	stale, err := b.hello(h2, runtimeHello{Runtime: "rt", Instance: "i1"}, nil, nil)
+	if err != nil || len(stale) != 1 || stale[0] != h1 {
+		t.Fatalf("reconnect hello: stale=%v err=%v", stale, err)
+	}
+	if !b.setCodexClaims(h2, []runtimeCodexClaim{{Home: "/a"}}) {
+		t.Fatal("reconnected connection's claims were ignored")
+	}
+	// h2 leaves while stale h1 has not been removed from b.conns yet.
+	b.remove(h2)
+	b.mu.Lock()
+	afterH2 := b.codexClaims["rt"].gone
+	b.mu.Unlock()
+	if afterH2.IsZero() {
+		t.Fatal("stale h1 still in b.conns prevented leftCodexClaims from starting the keep")
+	}
+	// Backdate gone and verify neither a late setCodexClaims from superseded h1 nor remove(h1) clears/extends it.
+	earlier := time.Now().Add(-30 * time.Second)
+	b.mu.Lock()
+	entry := b.codexClaims["rt"]
+	entry.gone = earlier
+	b.codexClaims["rt"] = entry
+	b.mu.Unlock()
+	if b.setCodexClaims(h1, []runtimeCodexClaim{{Home: "/stale"}}) {
+		t.Fatal("superseded connection's late setCodexClaims was accepted")
+	}
+	b.remove(h1)
+	b.mu.Lock()
+	afterH1 := b.codexClaims["rt"]
+	b.mu.Unlock()
+	if !afterH1.gone.Equal(earlier) || len(afterH1.claims) != 1 || afterH1.claims[0].Home != "/a" {
+		t.Fatalf("stale cleanup altered claims or keep timestamp: %+v", afterH1)
+	}
+	// A newer connection whose peer closed before remove ran must preserve the existing gone timestamp, never clear it.
+	p1, p2 := net.Pipe()
+	t.Cleanup(func() { _ = p1.Close(); _ = p2.Close() })
+	deadPeer := rpc.New("r", p1)
+	deadPeer.Close(errors.New("closed"))
+	h3 := b.add(deadPeer)
+	if stale, err := b.hello(h3, runtimeHello{Runtime: "rt", Instance: "i1"}, nil, nil); err != nil || len(stale) != 0 {
+		t.Fatalf("third hello: stale=%d err=%v", len(stale), err)
+	}
+	b.setCodexClaims(h3, []runtimeCodexClaim{{Home: "/a"}})
+	b.mu.Lock()
+	afterDead := b.codexClaims["rt"]
+	b.mu.Unlock()
+	if !afterDead.gone.Equal(earlier) {
+		t.Fatalf("closed peer reset gone to %v, want %v", afterDead.gone, earlier)
+	}
+
+	// Back to the live node: once codexClaimKeep passes with no surviving connection, attachment resumes.
+	n.runtimes.mu.Lock()
+	claims := n.runtimes.codexClaims["codexd"]
+	claims.gone = time.Now().Add(-codexClaimKeep - time.Second)
+	n.runtimes.codexClaims["codexd"] = claims
+	n.runtimes.mu.Unlock()
+	lists := f.count("thread/loaded/list")
+	n.attachCodexServers(ctx, []proto.CodexServer{spec})
+	waitFor(t, "the node attached again after reconnect disconnect and keep expiry", func() bool {
+		r := remoteOf(n, "daemon")
+		if r == nil {
+			return false
+		}
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.ready
+	})
+	if f.count("thread/loaded/list") <= lists {
+		t.Fatal("the instance was not read again after keep expiry")
 	}
 }
 

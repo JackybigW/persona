@@ -459,6 +459,9 @@ func (rh *RuntimeHost) request(ctx context.Context, h *runtimeConn, method strin
 			params["origin"] = origin
 		}
 		err := n.peer.Call(ctx, "mcp.call", params, &res)
+		if err == nil {
+			res = n.toolViews.stripRaw(p.SessionID, p.Name, res)
+		}
 		return res, err
 	}
 	return nil, fmt.Errorf("unknown method %s", method)
