@@ -50,8 +50,21 @@ export struct HealthToday {
   }
   private title(kind:string): string { return tr('intake_'+kind); }
   private unit(kind:string): string { return tr(kind==='water'?'intake_ml':'intake_g'); }
-  private goal(kind:string,value:IntakePortion): string {
-    return tr('intake_goal').replace('{goal}',this.words(value.goal)).replace('{unit}',this.unit(kind));
+  // ArkUI retains the ring's child callbacks. Read the current traced snapshot inside each callback.
+  private portion(kind: string): IntakePortion | undefined {
+    return kind === 'water' ? this.intake.data?.water : this.intake.data?.protein;
+  }
+  private amountLabel(kind: string): string {
+    const value = this.portion(kind);
+    return value ? this.words(value.today) : '';
+  }
+  private progressRatio(kind: string): number {
+    const value = this.portion(kind);
+    return value ? Math.max(0, Math.min(1, value.today / Math.max(1, value.goal))) : 0;
+  }
+  private goal(kind: string): string {
+    const value = this.portion(kind);
+    return value ? tr('intake_goal').replace('{goal}', this.words(value.goal)).replace('{unit}', this.unit(kind)) : '';
   }
   private goalWidth(label: string): number {
     const ui = this.getUIContext();
@@ -59,8 +72,9 @@ export struct HealthToday {
     return healthGoalWidth(label, this.metric(105, 135.3), (text: string): number =>
       ui.px2vp(Math.ceil(ui.getMeasureUtils().measureText({ textContent: text, fontSize: fontSize }))));
   }
-  private ratioLabel(kind:string,value:IntakePortion): string {
-    return tr('intake_ratio').replace('{today}',this.words(value.today)).replace('{goal}',this.words(value.goal)).replace('{unit}',this.unit(kind));
+  private ratioLabel(kind: string): string {
+    const value = this.portion(kind);
+    return value ? tr('intake_ratio').replace('{today}', this.words(value.today)).replace('{goal}', this.words(value.goal)).replace('{unit}', this.unit(kind)) : '';
   }
   private tint(kind:string): string { return kind==='water' ? (this.env.dark?'#719BFF':'#2457D6') : (this.env.dark?'#F6B650':'#9A5900'); }
   private primaryNumberInk(): ResourceColor {
@@ -114,25 +128,25 @@ export struct HealthToday {
       }
     }.width('100%').height('100%').backgroundColor(Colors.grouped).id('health.intake.detail.'+this.kind)
   }
-  @Builder ring(kind:string,value:IntakePortion) {
+  @Builder ring(kind:string) {
     Button({type:ButtonType.Normal}) {
       Column() {
         Stack() {
-          Progress({value:Math.max(0,Math.min(1,value.today/Math.max(1,value.goal))),total:1,type:ProgressType.Ring})
+          Progress({value:this.progressRatio(kind),total:1,type:ProgressType.Ring})
             .width(this.metric(105,135.3)).height(this.metric(105,135.3)).color(this.tint(kind))
             .backgroundColor('#24'+this.tint(kind).slice(1)).style({strokeWidth:9,enableSmoothEffect:!this.env.reduceMotion}).accessibilityLevel('no')
           Column() {
-            Text(this.words(value.today)).fontSize(22).maxFontScale(Tokens.interfaceScaleFor(22)).fontWeight(600).fontColor(this.primaryNumberInk())
+            Text(this.amountLabel(kind)).fontSize(22).maxFontScale(Tokens.interfaceScaleFor(22)).fontWeight(600).fontColor(this.primaryNumberInk())
               .maxLines(1).minFontSize('13vp').maxFontSize(Tokens.interfaceFontVp(22,this.env.fontScale)).textAlign(TextAlign.Center)
             Text(this.unit(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor($r('sys.color.font_tertiary')).maxLines(1)
           }.width(this.metric(69.1,91)).alignItems(HorizontalAlign.Center)
         }
         Text(this.title(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(600).fontColor(Colors.ink).maxLines(1)
-        Text(this.goal(kind,value)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary)
-          .width(this.goalWidth(this.goal(kind,value))).textAlign(TextAlign.Start).margin({top:4})
+        Text(this.goal(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary)
+          .width(this.goalWidth(this.goal(kind))).textAlign(TextAlign.Start).margin({top:4})
       }.alignItems(HorizontalAlign.Center)
     }.padding(0).backgroundColor(Color.Transparent).buttonStyle(ButtonStyleMode.TEXTUAL)
-      .accessibilityText(this.title(kind)).accessibilityDescription(this.ratioLabel(kind,value))
+      .accessibilityText(this.title(kind)).accessibilityDescription(this.ratioLabel(kind))
       .onClick(() => this.openRing(kind)).id('health.intake.ring.'+kind)
   }
   @Builder action(kind:string,key:string,id:string) {
@@ -145,7 +159,7 @@ export struct HealthToday {
   }
   @Builder water() {
     Column({space:20}) {
-      this.ring('water',this.intake.data!.water)
+      this.ring('water')
       if (this.env.fontScale>=1.5) Column({space:8}) {
         this.action('water','intake_cup','water')
         this.action('water','intake_other','water-amount')
@@ -160,7 +174,7 @@ export struct HealthToday {
     Row({space:8}) {
       this.water()
       Column({space:20}) {
-        this.ring('protein',this.intake.data!.protein)
+        this.ring('protein')
         Row() { this.action('protein','intake_log_grams','protein') }.width('100%')
       }.layoutWeight(1).alignItems(HorizontalAlign.Center)
     }.width('100%').alignItems(VerticalAlign.Top).enabled(!this.intake.busy).id('health.intake.today')

@@ -1113,6 +1113,14 @@
       "value": "ワークスペース"
     },
     {
+      "name": "project_join_space",
+      "value": "スペースに参加"
+    },
+    {
+      "name": "project_join_help",
+      "value": "選択したワークツリーで新しいタブを開きます。"
+    },
+    {
       "name": "latest",
       "value": "最新のメッセージ"
     },

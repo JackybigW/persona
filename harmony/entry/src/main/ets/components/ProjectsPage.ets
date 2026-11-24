@@ -56,6 +56,7 @@ export struct ProjectsPage {
   @Local editor: WorktreeActions = new WorktreeActions();
   @Local editorShown: boolean = false;
   private editedTree: ProjectWorktree | undefined;
+  private createdChange: WorktreeChange | undefined;
   @Local private spaceDecisions: AgentDecisionQueue = new AgentDecisionQueue();
   private stopSpaceEvents: (() => void) | undefined;
   private spaceReadTimer: number = -1;
@@ -112,7 +113,7 @@ export struct ProjectsPage {
   }
   aboutToDisappear(): void {
     this.releaseSearchGroups(); this.retireSearchEvents(); clearTimeout(this.spaceReadTimer); this.stopSpaceEvents?.(); this.spaceDecisions.clear();
-    this.editor.close(); if (this.searchMode) this.onSearchMode(false);
+    this.createdChange = undefined; this.editor.close(); if (this.searchMode) this.onSearchMode(false);
   }
   @Event onProject: (key: string) => void = () => {};
   @Event onTree: (key: string) => void = () => {};
@@ -183,7 +184,7 @@ export struct ProjectsPage {
     return PhoneStyle.inset + 22 * this.outlineControlScale() * Math.min(level,3);
   }
   @Computed get detailTree(): ProjectWorktree | undefined {
-    return this.page === 'project_tree' ? this.catalog.tree(this.target) : undefined;
+    return this.page === 'project_tree' ? this.catalog.selectedWorktree(this.target) : undefined;
   }
   @Computed get detailSessions(): ProjectLine[] {
     const tree = this.detailTree;
@@ -300,8 +301,9 @@ export struct ProjectsPage {
     catch (_) { if (this.model.owns(epoch,scope)) this.catalog.notice = tr('failed'); }
   }
   private menuTarget(key: string): ProjectWorktree | undefined {
-    if (this.page === 'project_tree' && this.target !== key) return undefined;
-    return this.catalog.tree(key);
+    const known = this.catalog.tree(key);
+    if (this.page === 'project_tree' && (this.target !== key || this.catalog.selectedWorktree(key) !== known)) return undefined;
+    return known;
   }
   private menuEntries(key: string): ProjectWorktree[] {
     const current = this.menuTarget(key);
@@ -327,14 +329,21 @@ export struct ProjectsPage {
     if (this.editor.busy) return;
     const current = this.menuTarget(tree.key);
     if (!current || current.cwd !== tree.cwd || !current.permits(action)) return;
-    this.editedTree = current; this.editorShown = true; this.editor.open(this.model, current, action);
+    this.createdChange = undefined; this.editedTree = current; this.editorShown = true; this.editor.open(this.model, current, action);
   }
   private async complete(check: boolean = false, replay: boolean = false): Promise<void> {
     const tree = this.editedTree;
     if (!tree) return;
     const change = check ? await this.editor.reconcile(replay) : await this.editor.submit();
     if (!change || this.editedTree !== tree || !this.editorShown) return;
-    this.editorShown = false; this.onChanged(tree, change);
+    if (change.created) this.createdChange = change;
+    this.editorShown = false;
+    if (!change.created) this.onChanged(tree, change);
+  }
+  private editorDismissed(): void {
+    const tree = this.editedTree, change = this.createdChange;
+    this.createdChange = undefined; this.editedTree = undefined; this.editor.close();
+    if (tree && change?.created?.receiptCurrent?.()) this.onChanged(tree,change);
   }
   private currentEditorTree(): ProjectWorktree | undefined {
     const previous = this.editedTree;
@@ -946,7 +955,7 @@ export struct ProjectsPage {
           ForEach(this.detailSessions,(line:ProjectLine) => {
             this.spaceCard(line.agent!,line.paneName,line.starter,this.target)
           },(line:ProjectLine) => JSON.stringify([line.key,line.agent?.row.raw,line.agent?.state,line.paneName,line.starter]))
-          if (this.detailTree?.canStart) GridCol({span:1}) {
+          if (this.catalog.tree(this.target)?.canStart) GridCol({span:1}) {
             Column({space:8}) {
               SymbolGlyph(Symbols.plus).fontSize('22vp').fontColor([Colors.link])
               Text(tr('new_agent')).fontSize(15*this.spaceCardScale()).maxFontScale(Tokens.interfaceScaleFor(15)).fontWeight(600).fontColor(Colors.link)
@@ -995,7 +1004,7 @@ export struct ProjectsPage {
       }.width('100%').padding({left:this.floatingAgentCards?0:4,right:this.floatingAgentCards?0:4}).id('agents.repositories')
         .bindSheet($$this.editorShown,this.editorSheet(),{height:SheetSize.LARGE,showClose:false,dragBar:false,
           onWillDismiss:(dismiss:DismissSheetAction) => { if (!this.editor.busy) dismiss.dismiss(); },
-          onDisappear:() => { this.editor.close();this.editedTree=undefined; }})
+          onDisappear:() => this.editorDismissed()})
     } else Column() {
       if (this.compact && this.detailTree) this.spaceBar()
       if (this.catalog.loading && !this.catalog.projects.length) LoadingProgress().width(29).height(29).margin(14)
@@ -1018,6 +1027,6 @@ export struct ProjectsPage {
     }.width('100%').height('100%').alignItems(HorizontalAlign.Start).backgroundColor(Colors.grouped)
       .bindSheet($$this.editorShown, this.editorSheet(), { height: SheetSize.LARGE, showClose: false, dragBar: false,
         onWillDismiss: (dismiss: DismissSheetAction) => { if (!this.editor.busy) dismiss.dismiss(); },
-        onDisappear: () => { this.editor.close(); this.editedTree = undefined; } })
+        onDisappear: () => this.editorDismissed() })
   }
 }

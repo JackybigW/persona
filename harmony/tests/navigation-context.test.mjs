@@ -192,13 +192,15 @@ test('opening assistant detail restores decision authorization for its captured 
 test('a new owner receives a fresh stack before async hydration and merges only its own new intent',async()=>{
  class Stack { routes=[];size(){return this.routes.length;}pushPath(route){this.routes.push(route);}getAllPathName(){return this.routes.map(r=>r.name);}getParamByIndex(i){return this.routes[i]?.param;} }
  const NativeScope=new Function('Wire','NavPathStack','NavigationContext','return '+stripTypeScriptTypes('class NativeScope {'+['routeRow','syncPhonePath','restoreScope','savePath','changeSection'].map(method).join('\n')+'}'))(Wire,Stack,NavigationContext);
- const s=new NativeScope(),gate=deferred(),saved=[];s.meetingServices={pendingOpen:false};s.model={section:0,scope:()=> 'B',loadView:()=>gate.promise,saveView:async(k,v)=>saved.push(JSON.parse(v)),releaseTerminal(){},sessions:[]};
+ const s=new NativeScope(),gate=deferred(),saved=[];
+ s.projectCatalog={createdSelection:{key:'old-owner-worktree'}};s.meetingServices={pendingOpen:false};s.model={section:0,scope:()=> 'B',loadView:()=>gate.promise,saveView:async(k,v)=>saved.push(JSON.parse(v)),releaseTerminal(){},sessions:[]};
  s.stack=new Stack();s.stack.pushPath({name:'conversation',param:'private-A'});s.paths=new Map();s.activeScope='A';s.restoring=0;s.navigationIntent=0;s.rowVisibility=new Map();s.routeRevision=0;s.detailModel={hideConversation(){}};s.wide=()=>false;s.ensureMainDestination=()=>{};
  const restoring=s.restoreScope();assert.equal(s.stack.size(),0);
  s.changeSection(1);s.stack.pushPath({name:'session',param:'B-notification'});s.savePath();assert.equal(saved.length,0);
  gate.resolve(JSON.stringify({section:0,tabs:[{index:0,routes:[{name:'conversation',param:JSON.stringify(row('saved-B','owner-b'))}]}]}));await restoring;
  assert.equal(s.model.section,1);assert.deepEqual(s.stack.routes,[{name:'session',param:'B-notification'}]);
  assert.equal(JSON.stringify(saved).includes('private-A'),false);assert.equal(JSON.stringify(saved).includes('saved-B'),true);
+ assert.equal(s.projectCatalog.createdSelection,undefined);
 });
 
 

@@ -300,6 +300,33 @@ test('memory index is read only; memory edits and deletion retain the health que
   ]);
 });
 
+test('health history opens the fresh conversation and retires actions for a removed or foreign row', async () => {
+  const { workspace, child, shared } = await opened();
+  const original = workspace.conversations[0];
+  child().state.conversations = [chat(original.id, 'health', { title: 'Renamed health chat', last_text: 'Fresh preview' })];
+  await workspace.refresh();
+  const current = workspace.listedConversation(original);
+  assert.equal(current, workspace.conversations[0]);
+  assert.notEqual(current, original);
+  assert.equal(current.title, 'Renamed health chat');
+  assert.equal(current.data().last_text, 'Fresh preview');
+
+  for (const fields of [{ manager: 'foreign' }, { machine: 'foreign' }, { group: 'another-hub' }]) {
+    const other = Object.assign(ResourceRow.from(current.data(), 'conversation'), { manager: current.manager, machine: current.machine }, fields);
+    assert.equal(workspace.listedConversation(other), undefined);
+    assert.equal(await workspace.archive(other), false);
+  }
+  const otherSpace = Object.assign(ResourceRow.from(chat(original.id, 'main'), 'conversation'), { manager: current.manager, machine: current.machine });
+  assert.equal(workspace.listedConversation(otherSpace), undefined);
+
+  child().state.conversations = [];
+  await workspace.refresh();
+  assert.equal(workspace.listedConversation(original), undefined);
+  assert.equal(workspace.canArchiveConversation(current), false);
+  assert.equal(await workspace.archive(current), false);
+  assert.deepEqual(shared.calls.filter(call => call.method !== 'GET'), []);
+});
+
 test('archive accepts only a listed Health conversation owned by the roster default', async () => {
   const { workspace, child } = await opened();
   const healthRow = workspace.conversations[0];
@@ -312,6 +339,104 @@ test('archive accepts only a listed Health conversation owned by the roster defa
     '/api/v1/assistant/conversations/health-1/archive'
   ]);
   assert.equal(workspace.canArchiveConversation(healthRow), false);
+});
+
+test('Health archive dispatches once and reconciles the same owner’s three remaining conversations', async () => {
+  const original = ['one', 'two', 'three', 'four'].map(id => chat(id));
+  const { workspace, child } = await opened({ conversations: original });
+  const state = child().state;
+  const target = workspace.conversations.find(row => row.id === 'two');
+  const arrived = deferred(), answer = deferred();
+  state.onCall = async call => {
+    if (call.method === 'POST') {
+      arrived.resolve();
+      await answer.promise;
+      state.conversations = original.map(row => row.id === 'two' ? {...row, archived: true} : row);
+      return {ok: true, archived: true};
+    }
+  };
+  const from = state.calls.length;
+  const request = workspace.archive(target);
+  await arrived.promise;
+  assert.equal(await workspace.archive(target), false);
+  answer.resolve();
+  assert.equal(await request, true);
+  assert.equal(await workspace.archive(target), false);
+  assert.deepEqual(state.calls.slice(from).filter(call => call.method === 'POST').map(call => [call.path, call.body]),
+    [['/api/v1/assistant/conversations/two/archive', {}]]);
+  assert.ok(state.calls.slice(from).some(call => call.path === '/api/v1/assistant?space=health' && call.method === 'GET'));
+  assert.deepEqual(workspace.conversations.map(row => row.id).sort(), ['four', 'one', 'three']);
+  await workspace.refresh();
+  assert.deepEqual(workspace.conversations.map(row => row.id).sort(), ['four', 'one', 'three']);
+});
+
+test('a refused or unsettled Health archive keeps the original row and never resends the pending write', async () => {
+  const { workspace, child } = await opened();
+  const state = child().state;
+  const target = workspace.conversations[0];
+  state.onCall = async call => { if (call.method === 'POST') throw failure(403,'forbidden'); };
+  assert.equal(await workspace.archive(target), false);
+  assert.equal(workspace.error, 'permission_denied');
+  assert.ok(workspace.listedConversation(target));
+  state.onCall = async call => { if (call.method === 'POST') throw failure(0,'lost',true); };
+  assert.equal(await workspace.archive(target), false);
+  assert.ok(workspace.listedConversation(target));
+  assert.equal(await workspace.archive(target), false);
+  assert.equal(workspace.writeState, 'pending');
+  assert.equal(state.calls.filter(call => call.method === 'POST').length, 2);
+});
+
+test('an earlier Health list read cannot bring back a successfully archived session', async () => {
+  const { workspace, child } = await opened({conversations: [chat('one'), chat('two')]});
+  const state = child().state, entered = deferred(), pending = deferred();
+  let intercept = true;
+  state.onCall = async call => {
+    if (intercept && call.path === '/api/v1/assistant?space=health') {
+      intercept = false;
+      entered.resolve();
+      return pending.promise;
+    }
+  };
+  const refresh = workspace.refresh();
+  await entered.promise;
+  assert.ok(await workspace.archive(workspace.conversations.find(row => row.id === 'two')));
+  pending.resolve({machine_id: state.machine, conversations: [chat('one'), chat('two')]});
+  await refresh;
+  assert.deepEqual(workspace.conversations.map(row => row.id), ['one']);
+});
+
+test('native Health archive callbacks share one pending row and restore the button after a refusal', async () => {
+  const dir = new URL('../entry/src/main/ets/components/', import.meta.url);
+  const source = readFileSync(new URL('HealthConversationHistory.ets',dir),'utf8');
+  const page = readFileSync(new URL('HealthWorkspacePage.ets',dir),'utf8');
+  assert.doesNotMatch(page, /confirmArchive\s*\(/);
+  function method(start) {
+    const at = source.indexOf(start);
+    const end = source.indexOf('\n  }',at);
+    assert.ok(at >= 0 && end > at);
+    return source.slice(at,end+4).replace('@Computed ', '').replace('private ', '');
+  }
+  const impl = [method('@Computed get visibleRows('),method('private archiveAllowed('),method('private async archive(')].join('\n');
+  const View = Function('tr', stripTypeScriptTypes('class View {\n'+impl+'\n}')+'\nreturn View;')(key=>key);
+  const actions = source.slice(source.indexOf('@Builder rowButton('),source.indexOf('  build()'));
+  assert.equal((actions.match(/this\.archive\(binding\)/g) || []).length,4,'swipe action, full-swipe release, context menu and screen reader');
+  assert.doesNotMatch(actions,/onEnterActionArea|onOffsetChange/);
+  const view = new View(), gate = deferred(), notices = [], invoked = [];
+  const first = {key:'first',value:{id:'one'}}, another = {key:'second',value:{id:'two'}};
+  view.mounted = true; view.rows = [first,another]; view.archivingBinding = '';
+  view.getUIContext = () => ({getPromptAction:()=>({showToast:({message})=>notices.push(message)})});
+  view.model = {connected:true,demo:false,scope:()=> 'test-scope',connectionGeneration:()=>1,owns:(g,s)=>g===1 && s==='test-scope'};
+  view.workspace = {busy:false,canArchiveConversation:()=>true,error:'permission_denied',
+    archive:row=>{invoked.push(row);return gate.promise;}};
+  const entry = view.archive(first);
+  assert.deepEqual(view.visibleRows,[another]);
+  await view.archive(first);
+  assert.deepEqual(invoked,[first.value]);
+  gate.resolve(false); await entry;
+  assert.deepEqual(view.visibleRows,[first,another]);
+  assert.deepEqual(notices,['permission_denied']);
+  await view.archive({key:'from-old-owner',value:first.value});
+  assert.deepEqual(invoked,[first.value]);
 });
 
 test('opening and deleting a report preserve its manager, machine, record and exact delete target', async () => {
@@ -581,4 +706,56 @@ test('Health upload and suggestion controls subscribe to machine readiness on th
   Object.defineProperty(workspace,'reportUploadAllowed',{get(){observed.push('reportUploadAllowed');return false;},configurable:true});
   assert.equal(workspace.canUploadReports(),false);assert.deepEqual(observed,['reportUploadAllowed']);
   observed.length=0;assert.equal(workspace.canStartConversation(),false);assert.deepEqual(observed,['reportUploadAllowed']);
+});
+
+test('retained Health gauge callbacks follow both metrics, authoritative goals, undo and disconnect', async () => {
+  const source = readFileSync(new URL('../entry/src/main/ets/components/HealthToday.ets', import.meta.url), 'utf8');
+  const methods = ['portion', 'amountLabel', 'progressRatio', 'goal', 'ratioLabel'].map(name => {
+    const start = source.indexOf('  private ' + name + '(');
+    const end = source.indexOf('\n  }', start);
+    assert.notEqual(start, -1);
+    assert.ok(end > start);
+    return source.slice(start, end + 4).replace('private ', '');
+  });
+  const leaves = source.slice(source.indexOf('@Builder ring('), source.indexOf('@Builder action('));
+  assert.match(leaves, /@Builder ring\(kind:string\)/);
+  for (const binding of ['Text(this.amountLabel(kind))', 'Progress({value:this.progressRatio(kind)', 'Text(this.goal(kind))', '.accessibilityDescription(this.ratioLabel(kind))']) {
+    assert.ok(leaves.includes(binding), binding);
+  }
+  const js = stripTypeScriptTypes('class View {\n' + methods.join('\n') + '\n}');
+  const labels = {intake_goal: '{goal} {unit}', intake_ratio: '{today}/{goal} {unit}'};
+  const View = Function('tr', js + '\nreturn View;')(key => labels[key]);
+  const env = intakeFixture();
+  const intake = env.workspace.intake;
+  await env.workspace.open(env.root);
+  const view = new View();
+  view.intake = intake;
+  view.words = new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format;
+  view.unit = kind => kind === 'water' ? 'ml' : 'g';
+  const retained = kind => () => [view.amountLabel(kind), view.progressRatio(kind), view.goal(kind), view.ratioLabel(kind)];
+  const water = retained('water');
+  const protein = retained('protein');
+  function expectAmounts(waterAmount, proteinAmount, waterGoal = 1650, proteinGoal = 42) {
+    assert.deepEqual(water(), [view.words(waterAmount), Math.min(1, waterAmount / waterGoal),
+      view.words(waterGoal) + ' ml', view.words(waterAmount) + '/' + view.words(waterGoal) + ' ml']);
+    assert.deepEqual(protein(), [view.words(proteinAmount), Math.min(1, proteinAmount / proteinGoal),
+      view.words(proteinGoal) + ' g', view.words(proteinAmount) + '/' + view.words(proteinGoal) + ' g']);
+  }
+  expectAmounts(100, 7.5);
+  for (const [kind, amount, waterTotal, proteinTotal] of [
+    ['water', undefined, 281.5, 7.5], ['water', 125.5, 225.5, 7.5], ['protein', 42.2, 100, 49.7]
+  ]) {
+    await intake.record(kind, amount);
+    expectAmounts(waterTotal, proteinTotal);
+    await intake.act(intake.actionId);
+    expectAmounts(100, 7.5);
+  }
+  // An external read may replace both goals as well as the two totals.
+  env.current.readOverride = () => ({...env.value(), water: {today: 1500, goal: 2400}, protein: {today: 28.1, goal: 75}});
+  await intake.refresh();
+  expectAmounts(1500, 28.1, 2400, 75);
+  assert.equal(env.writes.length, 6);
+  env.workspace.hide();
+  assert.deepEqual(water(), ['', 0, '', '']);
+  assert.deepEqual(protein(), ['', 0, '', '']);
 });

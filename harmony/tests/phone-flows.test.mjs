@@ -410,10 +410,14 @@ test('New Agent shows the row and picker default from the current machine purpos
   assert.equal(form.agentPanel,'');assert.equal(form.launchRowDetail('model'),'model is fixed by launcher');
 });
 
-test('the start sheet and the session request agree on thinking effort for each launcher and model', async () => {
+function startRepositoryClass() {
   const repoSource = readFileSync(new URL('../entry/src/main/ets/models/HubRepository.ets', import.meta.url), 'utf8');
   const create = repoSource.match(/^  async createAgent\([^]*?^  }/m)[0];
-  const StartRepository = new Function('Wire','ResourceRow','return '+stripTypeScriptTypes('class StartRepository {\n'+create+'\n}'))(Wire,ResourceRow);
+  return new Function('Wire','ResourceRow','return '+stripTypeScriptTypes('class StartRepository {\n'+create+'\n}'))(Wire,ResourceRow);
+}
+
+test('the start sheet and the session request agree on thinking effort for each launcher and model', async () => {
+  const StartRepository = startRepositoryClass();
   const starts = [];
   const repository = Object.assign(new StartRepository(), {owner:'work', async call(path,method,data,op,allowed) {
     assert.equal(path,'/api/v1/sessions'); assert.equal(method,'POST'); assert.equal(allowed(),true);
@@ -456,6 +460,30 @@ test('the start sheet and the session request agree on thinking effort for each 
     assert.equal(wire.tab_name,launcher.name==='codex' ? '版本复核' : undefined);
     assert.equal(Object.hasOwn(wire,'effort'),!!expected,launcher.name);
     assert.equal(wire.effort??'',expected,launcher.name);
+  }
+});
+
+test('explicit Start keeps a confirmed terminal or engine workspace bound to the exact host and never starts on opening',async()=>{
+  const Repository=startRepositoryClass();
+  for (const host of ['herdr','herdr-core','orca']) {
+    const root=clientForForm('workspace-hub','work',[]), machine=formMachine(root,'one-machine'), child=formTree(machine,'child-from-host',host);
+    child.receiptCurrent=()=>true;child.branch='qa/one';child.parent='root';root.machines=[machine];
+    const form=phoneForm(root,machine,[machine],[]), posts=[];
+    Object.assign(form,{agentWorktree:child,directory:child.cwd,launcherData:[{name:'codex',agent:'codex'}],
+      agentLauncherOptions:['codex'],recentSetups:[],agentTabName:'',projectPlace:()=>true,openLinkedResource(){}});
+    form.projectCatalog.selectedWorktree=key=>key===child.key?child:undefined;
+    const repository=Object.assign(new Repository(),{owner:'work',async call(path,method,body,op,admit){
+      assert.equal(admit(),true); posts.push({path,method,body}); return {session:{id:'session-new'}};
+    }});
+    root.createAgent=(prompt,m,cwd,launcher,todo,admit,id,kind,model,effort,name)=>
+      repository.createAgent(prompt,m,cwd,launcher,'fixture',todo,admit,id,kind,model,effort,name);
+    root.saveView=async()=>{};
+    assert.equal(form.canStartAgent(),true);assert.deepEqual(posts,[]);
+    await form.createAgent();
+    assert.equal(form.startFailure??'','');assert.equal(posts.length,1,host);
+    assert.deepEqual(posts[0],{path:'/api/v1/sessions',method:'POST',body:{
+      machine_id:machine.id,cwd:child.cwd,launcher:'codex',prompt:'test',workspace_id:child.sourceId,host}});
+    assert.equal(form.showSheet,false);
   }
 });
 
