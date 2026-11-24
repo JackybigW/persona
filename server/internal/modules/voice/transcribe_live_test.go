@@ -45,6 +45,24 @@ func TestFirstCaptionAtSpeechOnsetBelongsToTheNewWindow(t *testing.T) {
 	}
 }
 
+func TestRollingCaptionKeepsTheFirstWordsOfItsFirstWindow(t *testing.T) {
+	j, s := trCaptionJob()
+	// The replacement hears the tail of the preceding window while its old peer still owns it.
+	s.window, s.feed = 3, trAt(15.9)
+	j.windows = []*trWin{{n: 2, from: trAt(10.1), to: trAt(16.5)}, {n: 3, from: trAt(16.5), to: -1}}
+	j.nextWin = 4
+	j.vad.spans = [][2]int64{{trAt(13.2), trAt(16)}, {trAt(17), trAt(19)}}
+	const item = "one-upstream-item"
+	j.caption(s, tevent{kind: tevCaption, item: item, text: "Finishing the earlier discussion."}, trAt(16.2), trAt(.3))
+	j.caption(s, tevent{kind: tevCaption, item: item, text: "Can we get the dashboard"}, trAt(17.1), trAt(1.2))
+	j.windows = j.windows[1:] // the old peer finished its window before the new sentence was complete
+	const whole = "Can we get the dashboard numbers before Friday?"
+	j.caption(s, tevent{kind: tevCaption, item: item, text: whole}, trAt(18.9), trAt(3))
+	if got := j.captionText(s, j.windows[0]); got != whole {
+		t.Fatalf("the replacement's first window got %q, want %q", got, whole)
+	}
+}
+
 // trFrameAt is one caption frame and where the session's audio was when it came, in recording seconds.
 type trFrameAt struct {
 	at    float64
