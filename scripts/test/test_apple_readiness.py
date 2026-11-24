@@ -21,6 +21,9 @@ PYTHON = sys.executable
 
 REGULAR_UDID = "44444444-4444-4444-4444-444444444444"
 REGULAR_SUITE = "AboutVersionRegularVisualTests"
+# A whole readiness fixture includes the observer's bounded final evidence phase after a
+# timeout; this is not the injected readiness/probe deadline or the production 900 s budget.
+FIXTURE_SECONDS = 90
 
 SCRIPT = ROOT / "scripts/ci/apple.sh"
 
@@ -396,7 +399,7 @@ TEST_SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manu
         # the observer's stop-aware final evidence collection to finish. Bound the whole
         # fixture separately; never change the production readiness budget for this test.
         result = subprocess.run(["bash", "-c", shell], cwd=ROOT, env=env,
-                                capture_output=True, text=True, timeout=90)
+                                capture_output=True, text=True, timeout=FIXTURE_SECONDS)
         calls = self.root / "xcode-calls.jsonl"
         return result, [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
 
