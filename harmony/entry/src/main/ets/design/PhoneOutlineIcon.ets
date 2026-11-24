@@ -10,6 +10,10 @@ interface GlyphDrawing {
 }
 
 const cube = 'M12 1.2 L21.5 6.6 L21.5 17.4 L12 22.8 L2.5 17.4 L2.5 6.6 Z M2.5 6.6 L12 12 L21.5 6.6 M12 12 L12 22.8';
+const sparkles =
+  'M11.2 8.02 Q11.93 15.42 19.33 16.15 Q11.93 16.88 11.2 24.28 Q10.47 16.88 3.07 16.15 Q10.47 15.42 11.2 8.02 Z ' +
+  'M4 4.87 Q4.28 8.32 7.73 8.6 Q4.28 8.88 4 12.33 Q3.72 8.88 0.27 8.6 Q3.72 8.32 4 4.87 Z ' +
+  'M9.25 0.47 Q9.42 2.53 11.48 2.7 Q9.42 2.87 9.25 4.93 Q9.08 2.87 7.02 2.7 Q9.08 2.53 9.25 0.47 Z';
 const drawings: GlyphDrawing[] = [
   {name:'dispatchToAgent',width:18,height:18,pen:2.1,path:'M2.1 3.8 V6.1 Q2.1 10.0 6.2 10.0 H15.4 M10.5 5.4 L15.4 10.0 L10.5 14.6'},
   {name:'beautifulSparkle',width:24,height:24,path:'M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z',pen:0,filled:true},
@@ -19,7 +23,7 @@ const drawings: GlyphDrawing[] = [
   {name:'laptop',width:36,height:22,path:'M4.7 17.8 V4.4 Q4.7 3 6.2 3 H29.8 Q31.3 3 31.3 4.4 V17.8 Z M2.5 19 H33.5',pen:2.2},
   {name:'server',width:29,height:22,path:'M3.5 2 H25.5 Q26.5 2 26.5 3 V19 Q26.5 20 25.5 20 H3.5 Q2.5 20 2.5 19 V3 Q2.5 2 3.5 2 Z M2.5 8 H26.5 M2.5 14 H26.5 M21.5 5 H23 M21.5 11 H23 M21.5 17 H23',pen:2},
   {name:'desktop',width:30,height:24,path:'M3 1.8 H27 Q28 1.8 28 3 V18 H2 V3 Q2 1.8 3 1.8 Z M2 15 H28 M15 18 V21.8 M10 22 H20',pen:2},
-  {name:'sparkles',width:20,height:22,path:'M12.4 4.5 Q13 10.7 18.7 12 Q13 13.3 12.4 20 Q11.7 13.3 6.1 12 Q11.7 10.7 12.4 4.5 Z M4.3 1 L5.1 4.3 L8.1 5.1 L5.1 6 L4.3 9.2 L3.4 6 L0.7 5.1 L3.4 4.3 Z',pen:0.4,filled:true},
+  {name:'sparkles',width:20,height:24.67,path:sparkles,pen:0.45,filled:true},
   {name:'inlinePickerCheck',width:15,height:14.67,pen:2.45,path:'M1.23 7.55 L5.6 13.43 L13.77 1.23'},
   {name:'decisionEnlarge',width:12.33,height:12.33,pen:1.7,path:'M4.8 .85 H.85 V4.8 M.85 .85 L4.95 4.95 M7.38 7.38 L11.48 11.48 M11.48 7.53 V11.48 H7.53'},
   {name:'decisionChevron',width:11.33,height:6.67,pen:1.85,path:'M.93 .93 L5.67 5.74 L10.4 .93'},

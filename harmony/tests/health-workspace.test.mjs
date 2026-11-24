@@ -38,6 +38,23 @@ test('health ring captions fit complete localized words and preserve narrow no-b
   assert.equal(healthGoalWidth('unavailable-font', 105, () => 0), 105);
 });
 
+test('Health inset rows keep separators inside their hit targets and reserve a date gap only for dated rows', () => {
+  const components = new URL('../entry/src/main/ets/components/', import.meta.url);
+  const history = readFileSync(new URL('HealthConversationHistory.ets', components), 'utf8');
+  const suggestions = readFileSync(new URL('HealthWorkspacePage.ets', components), 'utf8');
+  const face = history.slice(history.indexOf('@Builder face('), history.indexOf('@Builder bottomDivider('));
+  assert.match(face, /Row\(\{space:12\}\)/);
+  assert.match(face, /if \(activity\) \{\s*Blank\(\)\.width\(8\)[\s\S]*?Text\(activity\)/);
+  assert.match(history, /\.overlay\(this\.bottomDivider\(binding\),\{align:Alignment\.Bottom\}\)/);
+  assert.match(history, /\.height\('1vp'\)[^\n]+hitTestBehavior\(HitTestMode\.None\)/);
+  assert.doesNotMatch(history, /\.divider\(|px2vp\(1\)/);
+  assert.match(suggestions, /\.overlay\(this\.suggestionDivider\(key\),\{align:Alignment\.Bottom\}\)/);
+  const draw = readFileSync(new URL('../entry/src/main/ets/design/PhoneOutlineIcon.ets', import.meta.url), 'utf8');
+  const sparkle = draw.slice(draw.indexOf('const sparkles ='), draw.indexOf('const drawings:'));
+  assert.equal((sparkle.match(/'M/g) || []).length, 3);
+  assert.equal((sparkle.match(/ Z/g) || []).length, 3);
+});
+
 function clone(value) { return structuredClone(value); }
 
 function deferred() {
