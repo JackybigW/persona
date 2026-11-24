@@ -1,5 +1,12 @@
 # Lessons: Claude Code, Codex, and herdr
 
+## Persona's own agy hooks: report only, own one key, prove the pane (#13729)
+
+- agy's global `hooks.json` is shared: herdr, Moshi and Orca each own a top-level group. Write only the `persona` key through the ordered-object editor (`editSettings`), never rewrite the others, and treat a changed command (moved binary) as stale, not as foreign.
+- agy runs the hook with the terminal's environment, which has no `PERSONA_HOME`: a node with a non-default directory must put `--persona-home <dir>` in the command, or the hook dials the default node's socket.
+- The hook must print `{}` and exit fast on every path (no node, unknown pane, bad input), or agy waits on it. Subagent conversations inherit the pane's environment and report too, so the node still has to prove the conversation is not a subagent's (#13336) before it reads or resumes.
+- herdr's own report and Persona's can disagree for a moment after a new conversation; the node treats a disagreement as unknown instead of picking one.
+
 ## Visibility-only `TurnErrorCode` values must not trip `readinessBlocks` or `CutOff` on node `TurnError` (#13372)
 
 - `readinessBlocks` (`server/internal/assistant/readiness.go`) defaults every `StepProblem` code to `mode: "setup"` unless explicitly excluded. Any non-user-fix `TurnErrorCode` (such as `upstream_unavailable`, alongside `rate_limited`, `model_fallback_unavailable`, and `tool_search_unsupported`) must be excluded in `readinessBlocks` and paired with `test_assistant` and plain-language readiness strings, or an upstream outage locks every client's composer with "Connect a model first".
@@ -1647,3 +1654,32 @@ labels and other URI schemes survive; keep embedded-resource transport intact an
 A read-only session skips card creation, but must not skip evidence validation. Normalize model `blocked / user`
 results with no grounded question or authorization link before storing them and when displaying old records.
 Otherwise a guess appears as "Awaiting your reply" with nothing in the chat to answer.
+
+## A herdr pane's title is its terminal's, and agy sets none (#13639)
+
+herdr reports the title the program in a pane gives its terminal. agy gives none, so an agy pane's row kept the
+shell's (`user@host: /path`, a path on a primary screen) or nothing, and the apps showed herdr's tab name (`agent-2`),
+even after the node read the pane's conversation and merged its model and usage from the companion's row. When a
+herdr row's conversation comes from somewhere else, so does its title: pi and opencode take their runtime's, agy the
+companion's, else its own (`cache/conversation_metadata.json`), else the first message typed into it. Merging a
+runtime's row into a pane's, go through every field the runtime knows better, not only the ones a report named.
+
+## The companion's agy row can be a conversation a terminal agy has open (#13603)
+
+The Antigravity companion lists every recent agy conversation on disk, including ones an `agy` in a terminal is
+running. When the node had no pane row to merge it into (herdr-core terminals were not recognised as agy), a message to
+`agy-<conversation>`, card answers included, went to the companion, which ran a second agy on the same conversation: the
+terminal never saw it, and the companion's turn overwrote the stored steps from where it had last loaded them. The terminal agy holds an exclusive flock on `presence/<conversation>.lock` and leaves the file after agy exits; never
+probe it by taking even a shared `flock` (`LOCK_SH|LOCK_NB`), because a starting `agy` tries `LOCK_EX|LOCK_NB` once and
+runs its whole session without a lock if that fails (#14561). On Linux, read `/proc/locks` for the file's device and
+inode; where no lock table can be read, fall back to the presence file plus recent transcript writes by another process.
+Calls that drive the conversation go to the pane, or are refused (`agy_in_terminal`) while held.
+
+## First tool discovery can precede the session list (#14855)
+
+An assistant process can ask for MCP tools before its node publishes `sessions.changed`, even while the manager's
+`assistant.send` is still waiting. Resolve an unknown caller's space from the node's verified process launch directory,
+never a model argument or a claimed session's directory. An existing session row remains authoritative. Bind fallback
+evidence to its node machine and caller, and use one session snapshot for both a discovery list and its revision;
+otherwise a row arriving between those reads can leave an incomplete list cached as current. Test the order with real
+`Service.Start`, returning the requested prepare directory and delaying only the node reply and session publication.
