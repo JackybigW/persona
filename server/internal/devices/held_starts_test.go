@@ -125,6 +125,30 @@ func (h *heldStartTestHost) waitEvent(t *testing.T, match func(proto.HeldStart) 
 	}
 }
 
+func (h *heldStartTestHost) waitEventFrom(t *testing.T, cursor int, match func(proto.HeldStart) bool) proto.HeldStart {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		h.mu.Lock()
+		events := append([]proto.HeldStart(nil), h.events[cursor:]...)
+		h.mu.Unlock()
+		for _, ev := range events {
+			cursor++
+			if match(ev) {
+				return ev
+			}
+		}
+		select {
+		case <-h.eventCh:
+		case <-deadline:
+			h.mu.Lock()
+			seen := append([]proto.HeldStart(nil), h.events...)
+			h.mu.Unlock()
+			t.Fatalf("timed out waiting for held_start event after cursor %d; seen=%+v", cursor, seen)
+		}
+	}
+}
+
 func newHeldStartTestDevices(t *testing.T, store *heldMem, host *heldStartTestHost, now func() time.Time) (*Devices, *Machine) {
 	t.Helper()
 	d := New(Options{Hub: host, Store: store})
@@ -408,6 +432,15 @@ func TestHeldStartMidFlightDisconnectReconcilesWithoutDuplicate(t *testing.T) {
 			t.Fatalf("expected unclear, got %+v", unclear)
 		}
 		disconnect1()
+		workerStopped := func() bool {
+			d.heldStarts.mu.Lock()
+			defer d.heldStarts.mu.Unlock()
+			return !d.heldStarts.running["mac"]
+		}
+		eventually(t, 5*time.Second, "connection 1 held-start worker stopped", workerStopped)
+		host.mu.Lock()
+		connection2Events := len(host.events)
+		host.mu.Unlock()
 
 		// Connection 2 reconnects: start.status says pending first, then started -> reconciles without launching again.
 		var statusChecks atomic.Int32
@@ -424,8 +457,8 @@ func TestHeldStartMidFlightDisconnectReconcilesWithoutDuplicate(t *testing.T) {
 
 		// First check sees pending -> stays unclear, does not duplicate.
 		d.heldStartWake("mac")
-		host.waitEvent(t, func(e proto.HeldStart) bool { return e.OpID == opID && e.State == proto.HeldStartStarting })
-		host.waitEvent(t, func(e proto.HeldStart) bool {
+		host.waitEventFrom(t, connection2Events, func(e proto.HeldStart) bool { return e.OpID == opID && e.State == proto.HeldStartStarting })
+		host.waitEventFrom(t, connection2Events, func(e proto.HeldStart) bool {
 			return e.OpID == opID && e.State == proto.HeldStartFailed && e.Failure == db.HeldUnclear
 		})
 		if liveAttempts.Load() != 1 {
@@ -433,8 +466,11 @@ func TestHeldStartMidFlightDisconnectReconcilesWithoutDuplicate(t *testing.T) {
 		}
 
 		// Next tick/wake checks again -> sees started -> reconciles cleanly!
+		eventually(t, 5*time.Second, "pending status check and worker finished", func() bool {
+			return statusChecks.Load() == 1 && workerStopped()
+		})
 		d.heldStartWake("mac")
-		started := host.waitEvent(t, func(e proto.HeldStart) bool { return e.OpID == opID && e.State == proto.HeldStartStarted })
+		started := host.waitEventFrom(t, connection2Events, func(e proto.HeldStart) bool { return e.OpID == opID && e.State == proto.HeldStartStarted })
 		if started.SessionID != "sess-reconciled-1" {
 			t.Fatalf("reconciled event: %+v", started)
 		}
