@@ -76,6 +76,8 @@ func (s *Service) inboxSuggestionRoutes() {
 			apierr.Write(w, http.StatusForbidden, err)
 		case errors.Is(err, errMailReplyTargetChanged):
 			apierr.WriteBody(w, http.StatusConflict, map[string]any{"code": "mail_reply_target_changed", "error": i18n.T(l, "assistant-inbox.mail_target_changed"), "retryable": false, "delivered": "none", "item": it})
+		case errors.Is(err, errReplyPolicyBlocked):
+			apierr.WriteBody(w, http.StatusConflict, map[string]any{"code": assistantwire.CodeInboxReplyPolicyBlocked, "error": i18n.T(l, "assistant-inbox.reply_policy_blocked"), "retryable": false, "delivered": "none", "item": it})
 		case err != nil && s.writeInboxSendError(w, r, "suggestion", r.PathValue("id"), err, it):
 			// in doubt (delivered unknown), or why nothing was sent (#9125)
 		case err != nil:
@@ -200,10 +202,15 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		return InboxItem{}, errAnswerOnly
 	}
 	if g != nil && in.Action == suggestConfirm {
-		if err := replyPolicyActionGate(it, g, fullCfg.ReplyPolicy); err != nil {
-			out := it.listed()
-			b.mu.Unlock()
-			return out, err
+		// A changed reply recipient has a dedicated stale/mail-target error after unresolved durable outcomes are checked.
+		// The expanded compiled content version also names that target; do not mask the more specific result as a policy veto.
+		targetChanged := g.Kind == SuggestReply && g.SourceOf != "" && g.SourceOf != suggestionReplyTarget(it)
+		if !targetChanged {
+			if err := replyPolicyActionGate(it, g, fullCfg.ReplyPolicy); err != nil {
+				out := it.listed()
+				b.mu.Unlock()
+				return out, err
+			}
 		}
 	}
 	if g != nil && g.Kind == SuggestReply && in.Action == suggestConfirm && !g.Handback {

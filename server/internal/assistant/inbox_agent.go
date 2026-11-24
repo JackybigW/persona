@@ -217,6 +217,7 @@ func (s *Service) handPass(ctx context.Context) {
 		return
 	}
 	cfg := fullCfg.Agent
+	policy := compileReplyPolicy(fullCfg.ReplyPolicy)
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
 	b := &s.inbox
@@ -232,7 +233,8 @@ func (s *Service) handPass(ctx context.Context) {
 	}
 	now := time.Now()
 	s.sweepInboxAgents(ctx, cfg, now)
-	escalated := b.escalate(now.Add(-agentMaxAge(cfg)), now)
+	s.gateReplyPolicyQueue(ctx, policy, now.Add(-agentMaxAge(cfg)))
+	escalated := b.escalateWithPolicy(now.Add(-agentMaxAge(cfg)), now, policy)
 	linked := map[*InboxItem]bool{}
 	if tasks := s.activeTasks(ctx); len(tasks) > 0 { // which of the user's tasks a new one is about
 		for _, w := range escalated {
@@ -337,6 +339,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		return
 	}
 	replyPolicy := fullCfg.ReplyPolicy
+	policy := compileReplyPolicy(replyPolicy)
 	// Tests and internal callers may start a queue pass without a preceding handPass. Apply the same fresh visibility
 	// configuration as reply-policy admission, so a newly listed stored chat cannot start or keep an AI session.
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
@@ -366,6 +369,12 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 				continue
 			}
 			if replyPolicyQueuePending(it, replyPolicy) {
+				continue
+			}
+			if !replyPolicyAllowsQueueLocked(it, policy) {
+				if w := b.releaseInboxAgent(it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.reply_policy_blocked"), now, false); w != nil {
+					released = append(released, w)
+				}
 				continue
 			}
 			if it.Agent.startDue(now) {
@@ -411,6 +420,7 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 		delete(b.listMemo.kept, it.ID) // saved once the start returns: listed as running meanwhile (inbox_list_memo.go)
 		a := b.inboxAgentForIn(it, owner, linked[it.Agent.TodoID], larkDefault, loc, language)
 		a.ReplyPolicy = replyPolicyItemApplies(replyPolicy, it)
+		a.KnowledgeDir = s.kb.dir // the heading of what the knowledge base knows names where it is
 		turn := rand.Text()
 		it.Agent.ProcessingTurn = turn
 		jobs = append(jobs, job{it: it, chat: b.kbChatOf(it), prompt: func(kbc *prompts.KBContext, allowKBContext bool) string {
@@ -614,6 +624,7 @@ func (s *Service) startInboxAgentAuthorized(ctx context.Context, cfg InboxAgentC
 	if configErr != nil {
 		return "", "", errInboxStartAuthorization
 	}
+	policy := compileReplyPolicy(freshCfg.ReplyPolicy)
 	b := &s.inbox
 	b.mu.Lock()
 	a := it.Agent
@@ -621,7 +632,8 @@ func (s *Service) startInboxAgentAuthorized(ctx context.Context, cfg InboxAgentC
 	authorized := b.items[it.ID] == it && it.open() && a != nil && a.State == AgentRunning && a.SessionID == "" &&
 		a.ProcessingTurn == turn && replyPolicyContentVersion(it) == contentVersion && b.policyTwin(it) != TwinNever &&
 		!visibilityDenied && cfg.ReadProfile == freshCfg.Agent.ReadProfile &&
-		!replyPolicyQueueBlocked(it, freshCfg.ReplyPolicy) && !replyPolicyQueuePending(it, freshCfg.ReplyPolicy)
+		!replyPolicyQueueBlocked(it, freshCfg.ReplyPolicy) && !replyPolicyQueuePending(it, freshCfg.ReplyPolicy) &&
+		replyPolicyAllowsQueueLocked(it, policy)
 	b.mu.Unlock()
 	if visibilityDenied {
 		s.quarantineInboxVisibility(ctx, freshCfg.Visibility)
@@ -868,6 +880,12 @@ func (b *inboxBook) agentStarting() bool {
 		}
 	}
 	return false
+}
+
+// itemAgentStarting: item id's own agent is being started and does not know its conversation yet. Callers hold b.mu.
+func (b *inboxBook) itemAgentStarting(id string) bool {
+	it := b.items[id]
+	return it != nil && it.Agent != nil && it.Agent.State == AgentRunning && it.Agent.SessionID == ""
 }
 
 // messageCardOf is the card for an item whose draft is about a task; nil when it is about none. Under b.mu.

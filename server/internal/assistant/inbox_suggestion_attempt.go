@@ -28,18 +28,22 @@ const (
 // InboxSuggestionAttempt retains a confirmed reply's result independently of the current suggestion. The first
 // client ID and payload are authoritative for that version; listed copies omit those internal send bindings.
 type InboxSuggestionAttempt struct {
-	Version      int              `json:"version"`
-	Status       string           `json:"status"`
-	Retryable    bool             `json:"retryable"`
-	Code         string           `json:"code,omitempty"`
-	Text         string           `json:"text"`
-	At           time.Time        `json:"at"` // latest reservation or outcome, not the replacement suggestion's time
-	Conversation *SessionRef      `json:"conversation,omitempty"`
-	RetryAfter   int              `json:"retry_after,omitempty"`
-	ClientID     string           `json:"client_id,omitempty"`
-	Proposal     *InboxSuggestion `json:"proposal,omitempty"`
-	Target       string           `json:"target,omitempty"`
-	active       bool
+	Version        int              `json:"version"`
+	Status         string           `json:"status"`
+	Retryable      bool             `json:"retryable"`
+	Code           string           `json:"code,omitempty"`
+	Text           string           `json:"text"`
+	At             time.Time        `json:"at"` // latest reservation or outcome, not the replacement suggestion's time
+	Conversation   *SessionRef      `json:"conversation,omitempty"`
+	RetryAfter     int              `json:"retry_after,omitempty"`
+	ClientID       string           `json:"client_id,omitempty"`
+	Proposal       *InboxSuggestion `json:"proposal,omitempty"`
+	Target         string           `json:"target,omitempty"`
+	Category       string           `json:"category,omitempty"`
+	Route          string           `json:"route,omitempty"`
+	ContentVersion string           `json:"content_version,omitempty"`
+	PolicyRevision string           `json:"policy_revision,omitempty"`
+	active         bool
 }
 
 func listedSuggestionAttempts(attempts []*InboxSuggestionAttempt) []*InboxSuggestionAttempt {
@@ -53,6 +57,7 @@ func listedSuggestionAttempts(attempts []*InboxSuggestionAttempt) []*InboxSugges
 		}
 		c := *a
 		c.ClientID, c.Target, c.Proposal, c.active = "", "", nil, false
+		c.Category, c.Route, c.ContentVersion, c.PolicyRevision = "", "", "", ""
 		if c.Status == suggestionSending && !a.active {
 			c.Status, c.Retryable = suggestionUnknown, false
 		}
@@ -211,7 +216,11 @@ func sameReplySuggestionMode(a, b *InboxSuggestion, ignoreDraftingProvenance boo
 	if !slices.Equal(x.Changes, y.Changes) {
 		return false
 	}
+	if !sameReplyPolicyBinding(x.ReplyPolicy, y.ReplyPolicy) {
+		return false
+	}
 	x.Changes, y.Changes = nil, nil
+	x.ReplyPolicy, y.ReplyPolicy = nil, nil
 	x.Version, y.Version, x.At, y.At = 0, 0, time.Time{}, time.Time{}
 	return reflect.DeepEqual(x, y)
 }
@@ -346,6 +355,12 @@ func cloneReplyPolicyForSend(cfg *assistantwire.InboxReplyPolicyConfig) *assista
 	}
 	out := *cfg
 	out.Sources = slices.Clone(cfg.Sources)
+	if cfg.Categories != nil {
+		out.Categories = make(map[string]string, len(cfg.Categories))
+		for category, route := range cfg.Categories {
+			out.Categories[category] = route
+		}
+	}
 	if cfg.Routes != nil {
 		out.Routes = make(map[string]string, len(cfg.Routes))
 		for category, route := range cfg.Routes {
@@ -362,17 +377,28 @@ func suggestionSendOnly(ctx context.Context) bool {
 
 // confirmSuggestionReplyLocked starts with inbox.mu held and returns without it. Known-none retryable failures
 // retain one current action; uncertain sends remain visible but cannot be reissued with a new caller UUID.
-func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, in suggestionReq, replyPolicy *assistantwire.InboxReplyPolicyConfig) (InboxItem, error) {
+func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, in suggestionReq, policyInput any) (InboxItem, error) {
 	b := &s.inbox
+	var replyPolicy *assistantwire.InboxReplyPolicyConfig
+	switch value := policyInput.(type) {
+	case *assistantwire.InboxReplyPolicyConfig:
+		replyPolicy = value
+	case assistantwire.InboxReplyPolicyConfig:
+		replyPolicy = &value
+	}
+	policy := compileReplyPolicy(policyInput)
 	if g.ReplyPublicationFailed || g.ReplyPublicationPending {
 		out := it.listed()
 		b.mu.Unlock()
 		return out, errInboxNotPersisted
 	}
-	if err := replyPolicySendGate(it, g, replyPolicy); err != nil {
-		out := it.listed()
-		b.mu.Unlock()
-		return out, err
+	// Let the dedicated target check below report a changed recipient after unresolved durable outcomes take precedence.
+	if g.SourceOf == "" || g.SourceOf == suggestionReplyTarget(it) {
+		if err := replyPolicySendGate(it, g, replyPolicy); err != nil {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, err
+		}
 	}
 	a := suggestionAttempt(it, g.Version)
 	if in.Changes != nil {
@@ -477,6 +503,8 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 					return out, errMailReplyTargetChanged
 				case "suggestion_stale":
 					return out, errSuggestionStale
+				case assistantwire.CodeInboxReplyPolicyBlocked:
+					return out, errReplyPolicyBlocked
 				case assistantwire.CodeInboxCannotReply:
 					return out, errCannotReply
 				}
@@ -488,7 +516,112 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 			}
 			return out, unknownSuggestionReply()
 		}
-	} else {
+	}
+	var policySnap *InboxReplyPolicySnapshot
+	if policy.enabled {
+		// Gate 3a: verify the suggestion's reply-policy snapshot is present, fresh for the live content version
+		// and policy revision, and still resolves to owner_draft.
+		if err := verifyReplyPolicySuggestionLocked(it, g, a, policy); err != nil {
+			var snap *InboxReplyPolicySnapshot
+			if g.ReplyPolicy != nil {
+				snap = cloneReplyPolicySnapshot(g.ReplyPolicy)
+			}
+			return s.rejectReplyPolicySendLocked(ctx, it, g, a, in.ClientID, text, snap, replyPolicyContentVersion(it), policy.revision)
+		}
+		// Gate 3b: final-text veto. Classify the actual text to be sent (original or edited) outside the lock.
+		itemData := snapshotItemForReplyPolicyLocked(it)
+		expectedVersion := g.Version
+		expectedTarget := suggestionReplyTarget(it)
+		b.mu.Unlock()
+		finalSnap, vetoErr := s.gateReplyPolicySend(ctx, policy, itemData, text)
+		freshCfg, freshErr := s.inboxConfigFresh(ctx)
+		b.mu.Lock()
+		if freshErr != nil {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, errReplyPolicyDenied
+		}
+		livePolicy := compileReplyPolicy(freshCfg.ReplyPolicy)
+		if b.items[itemData.id] != it {
+			b.mu.Unlock()
+			return InboxItem{}, errNoInboxItem
+		}
+		if !it.open() {
+			b.mu.Unlock()
+			return InboxItem{}, errInboxItemDone
+		}
+		if inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility) {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, errCannotReply
+		}
+		g = currentSuggestion(it)
+		if g == nil || g.Version != expectedVersion || g.Kind != SuggestReply || g.Handback {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, errSuggestionStale
+		}
+		a = suggestionAttempt(it, expectedVersion)
+		if a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, unknownSuggestionReply()
+		}
+		if a != nil && a.Status == suggestionSent {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, errSuggestionStale
+		}
+		if a != nil && text != a.Text {
+			out := it.listed()
+			b.mu.Unlock()
+			return out, errSuggestionStale
+		}
+		if a != nil && a.Status == suggestionFailed && !a.Retryable {
+			out := it.listed()
+			code, retryAfter := a.Code, a.RetryAfter
+			b.mu.Unlock()
+			switch code {
+			case "mail_reply_target_changed":
+				return out, errMailReplyTargetChanged
+			case "suggestion_stale":
+				return out, errSuggestionStale
+			case assistantwire.CodeInboxReplyPolicyBlocked:
+				return out, errReplyPolicyBlocked
+			case assistantwire.CodeInboxCannotReply:
+				return out, errCannotReply
+			}
+			var data json.RawMessage
+			if retryAfter > 0 {
+				data, _ = json.Marshal(map[string]int{"retry_after": retryAfter})
+			}
+			return out, &rpc.Error{Code: code, Message: i18n.T("", "inbox-errors.send_failed"), Data: data}
+		}
+		if suggestionReplyTarget(it) != expectedTarget {
+			var targetErr error = errSuggestionStale
+			if it.Mail != nil || g.MailTarget != nil {
+				targetErr = errMailReplyTargetChanged
+			}
+			out := it.listed()
+			b.mu.Unlock()
+			if a != nil {
+				return s.finishSuggestionReply(ctx, it, a, targetErr)
+			}
+			return out, targetErr
+		}
+		if vetoErr != nil || !livePolicy.enabled || livePolicy.revision != policy.revision ||
+			replyPolicyContentVersion(it) != itemData.contentVersion ||
+			verifyReplyPolicySuggestionLocked(it, g, a, livePolicy) != nil ||
+			livePolicy.allowsOwnerDraft(finalSnap, itemData.contentVersion) != nil {
+			rev := policy.revision
+			if livePolicy.enabled {
+				rev = livePolicy.revision
+			}
+			return s.rejectReplyPolicySendLocked(ctx, it, g, a, in.ClientID, text, finalSnap, replyPolicyContentVersion(it), rev)
+		}
+		policySnap = finalSnap
+	}
+	if a == nil {
 		id := strings.ToLower(strings.TrimSpace(in.ClientID))
 		if !validClientID(id) {
 			id = namedClientID(fmt.Sprintf("suggestion\n%s\n%d", it.ID, g.Version))
@@ -496,6 +629,12 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		a = &InboxSuggestionAttempt{Version: g.Version, Text: text, ClientID: id, Proposal: copySuggestion(g),
 			Conversation: g.Conversation, Target: suggestionReplyTarget(it)}
 		keepSuggestionAttempt(it, a)
+	}
+	if policySnap != nil {
+		a.Category = policySnap.Category
+		a.Route = policySnap.Route
+		a.ContentVersion = policySnap.ContentVersion
+		a.PolicyRevision = policySnap.PolicyRevision
 	}
 	mail := it.Mail != nil
 	a.Status, a.Retryable, a.Code, a.RetryAfter, a.At, a.active = suggestionSending, false, "", 0, time.Now().UTC(), true
@@ -522,21 +661,26 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		s.saveInbox(context.WithoutCancel(ctx), []*InboxItem{it})
 		return out, unrecordedSuggestionReply()
 	}
-	// The save may have waited behind another write. Recheck the reservation, reply policy and visibility against one
-	// fresh configuration before any outward action; neither display-cache policy nor a pre-save snapshot is sufficient.
+	// The save may have waited behind another write. Recheck the reservation, both reply-policy schemas and visibility
+	// against one fresh configuration before any outward action; neither display-cache policy nor a pre-save snapshot is sufficient.
 	freshCfg, configErr := s.inboxConfigFresh(ctx)
 	if configErr != nil {
 		return s.finishSuggestionReply(ctx, it, a, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "inbox configuration unavailable"})
 	}
+	livePolicy := compileReplyPolicy(freshCfg.ReplyPolicy)
 	b.mu.Lock()
 	current := b.currentReplyAttempt(it, a) && replyPolicySendGate(it, g, freshCfg.ReplyPolicy) == nil &&
 		!inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility)
+	policyErr := verifyReplyPolicySendAttemptLocked(it, a, livePolicy)
 	b.mu.Unlock()
 	if !current {
 		return s.finishSuggestionReply(ctx, it, a, errSuggestionStale)
 	}
+	if policyErr != nil {
+		return s.finishSuggestionReply(ctx, it, a, errReplyPolicyBlocked)
+	}
 	sendCtx := context.WithValue(ctx, suggestionReplyOnly{}, a)
-	sendCtx = context.WithValue(sendCtx, suggestionReplyPolicyBeforeSend{}, cloneReplyPolicyForSend(replyPolicy))
+	sendCtx = context.WithValue(sendCtx, suggestionReplyPolicyBeforeSend{}, cloneReplyPolicyForSend(freshCfg.ReplyPolicy))
 	var err error
 	if target := a.Proposal.MailTarget; target != nil {
 		_, err = s.replyInboxCheckedDo(sendCtx, it.ID, a.Text, a.ClientID, false, false, &target.UID, &target.Version, a.Proposal.Changes...)
@@ -546,6 +690,55 @@ func (s *Service) confirmSuggestionReplyLocked(ctx context.Context, it *InboxIte
 		_, err = s.replyInboxDo(sendCtx, it.ID, a.Text, a.ClientID, false, false, a.Proposal.Changes...)
 	}
 	return s.finishSuggestionReply(ctx, it, a, err)
+}
+
+// rejectReplyPolicySendLocked records a non-retryable, known-none policy veto on the suggestion attempt with
+// zero sender calls. Called with b.mu held; returns without it.
+func (s *Service) rejectReplyPolicySendLocked(ctx context.Context, it *InboxItem, g *InboxSuggestion, a *InboxSuggestionAttempt,
+	clientID, text string, snap *InboxReplyPolicySnapshot, contentVersion, policyRevision string) (InboxItem, error) {
+	b := &s.inbox
+	now := time.Now().UTC()
+	if a == nil {
+		id := strings.ToLower(strings.TrimSpace(clientID))
+		if !validClientID(id) {
+			id = namedClientID(fmt.Sprintf("suggestion\n%s\n%d", it.ID, g.Version))
+		}
+		a = &InboxSuggestionAttempt{
+			Version:      g.Version,
+			Text:         text,
+			ClientID:     id,
+			Proposal:     copySuggestion(g),
+			Conversation: g.Conversation,
+			Target:       suggestionReplyTarget(it),
+		}
+		keepSuggestionAttempt(it, a)
+	}
+	if snap != nil {
+		a.Category = snap.Category
+		a.Route = snap.Route
+	} else {
+		a.Category = ""
+		a.Route = ""
+	}
+	a.ContentVersion = contentVersion
+	a.PolicyRevision = policyRevision
+	a.Status, a.Retryable, a.Code, a.RetryAfter, a.At, a.active = suggestionFailed, false, assistantwire.CodeInboxReplyPolicyBlocked, 0, now, false
+	hideReplyDraft(it)
+	b.settleReplyAliases(it, a)
+	reason := i18n.T(b.userLang(), "assistant-inbox.reply_policy_blocked")
+	if a.Conversation == nil {
+		if it.Agent != nil {
+			it.Agent.Wake = false
+		}
+		b.dropInboxWakes(it)
+		b.setHandling(it, HandlingFailed, reason, now)
+	}
+	b.chainAdd(it, InboxChainEntry{Kind: ChainFailed, At: now, Text: i18n.T(b.userLang(), "assistant-inbox_chain.failed"), Detail: reason})
+	b.touched(it.ID)
+	out := it.listed()
+	b.mu.Unlock()
+	s.saveInbox(context.WithoutCancel(ctx), []*InboxItem{it})
+	return out, errReplyPolicyBlocked
 }
 
 func (s *Service) finishSuggestionReply(ctx context.Context, it *InboxItem, a *InboxSuggestionAttempt, err error) (InboxItem, error) {
@@ -572,6 +765,8 @@ func (s *Service) finishSuggestionReply(ctx context.Context, it *InboxItem, a *I
 		a.Status, a.Code = suggestionFailed, "suggestion_stale"
 	case errors.Is(err, errMailReplyTargetChanged):
 		a.Status, a.Code = suggestionFailed, "mail_reply_target_changed"
+	case errors.Is(err, errReplyPolicyBlocked):
+		a.Status, a.Code = suggestionFailed, assistantwire.CodeInboxReplyPolicyBlocked
 	case errors.Is(err, errCannotReply):
 		a.Status = suggestionFailed
 		a.Code = assistantwire.CodeInboxCannotReply

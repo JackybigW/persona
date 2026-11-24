@@ -430,6 +430,7 @@ func (s *Service) draftReplyVersionMode(ctx context.Context, id, instruction str
 	if err := s.classifyInboxReplyPolicyForDraft(ctx, id, initialCfg.ReplyPolicy); err != nil {
 		return "", errReplyPolicyDenied
 	}
+	policy := compileReplyPolicy(initialCfg.ReplyPolicy)
 	b := &s.inbox
 	b.mu.Lock()
 	it, ok := b.items[id]
@@ -448,6 +449,8 @@ func (s *Service) draftReplyVersionMode(ctx context.Context, id, instruction str
 	it, ok = b.items[id]
 	var item prompts.InboxItem
 	var authorization onDemandDraftAuthorization
+	var policyItem replyPolicyItemData
+	var existingSnap *InboxReplyPolicySnapshot
 	if ok {
 		if expectedVersion > 0 {
 			g := currentSuggestion(it)
@@ -474,10 +477,19 @@ func (s *Service) draftReplyVersionMode(ctx context.Context, id, instruction str
 			}
 		}
 		item = b.promptItemIn(it, language)
+		if policy.enabled {
+			policyItem = snapshotItemForReplyPolicyLocked(it)
+			existingSnap = cloneReplyPolicySnapshot(it.ReplyPolicy)
+		}
 	}
 	b.mu.Unlock()
 	if !ok {
 		return "", errNoInboxItem
+	}
+	if policy.enabled {
+		if _, err := s.gateReplyPolicySuggestion(ctx, policy, policyItem, existingSnap, instruction); err != nil {
+			return "", errReplyPolicyBlocked
+		}
 	}
 	extContext, neverQuote := s.inboxExtensionContext(ctx)
 	// About me as the user last edited it in the app, else the config file's (notes), as the main chat has it.
@@ -506,6 +518,30 @@ func (s *Service) draftReplyVersionMode(ctx context.Context, id, instruction str
 					return "", errReplyPolicyDenied
 				}
 				authorization.textAuthorized = true
+			}
+			liveCfg, liveErr := s.inboxConfigFresh(cctx)
+			if liveErr != nil {
+				return "", errReplyPolicyDenied
+			}
+			if livePolicy := compileReplyPolicy(liveCfg.ReplyPolicy); livePolicy.enabled {
+				b.mu.Lock()
+				live := b.items[id]
+				if live == nil {
+					b.mu.Unlock()
+					return "", errNoInboxItem
+				}
+				if inboxVisibilityWithMembersExcludedLocked(b, live, liveCfg.Visibility) {
+					b.mu.Unlock()
+					return "", errCannotReply
+				}
+				liveCV := replyPolicyContentVersion(live)
+				b.mu.Unlock()
+				if !policy.enabled || livePolicy.revision != policy.revision || liveCV != policyItem.contentVersion {
+					return "", errReplyPolicyBlocked
+				}
+				if _, err := s.gateReplyPolicySend(ctx, livePolicy, policyItem, text); err != nil {
+					return "", errReplyPolicyBlocked
+				}
 			}
 			return s.finishOnDemandDraft(cctx, id, text, authorization, publishedVersion)
 		}
@@ -1065,12 +1101,19 @@ func (s *Service) replyInboxDoModeDirect(ctx context.Context, id, text, clientID
 			current = !configChanged && !freshApplies && !vetoApplies && (!beforePolicyRead || !replyPolicyItemApplies(beforePolicy, it)) &&
 				!inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility)
 		}
+		var policyErr error
+		if attempt != nil {
+			policyErr = verifyReplyPolicySendAttemptLocked(it, attempt, compileReplyPolicy(freshCfg.ReplyPolicy))
+		}
 		b.mu.Unlock()
 		if configChanged {
 			return InboxItem{}, &rpc.Error{Code: assistantwire.CodeInboxSendFailed, Message: "reply policy configuration changed"}
 		}
 		if !current {
 			return InboxItem{}, errSuggestionStale
+		}
+		if policyErr != nil {
+			return InboxItem{}, errReplyPolicyBlocked
 		}
 	}
 	if fromCard {

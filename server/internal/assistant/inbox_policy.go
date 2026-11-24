@@ -100,6 +100,21 @@ func (s *Service) inboxModelRefusal(ctx context.Context, machine, session, origi
 	if !s.isInboxModelCall(ctx, machine, session, originHint) {
 		return proto.ToolResult{}, false
 	}
+	// Every read profile only narrows the ordinary read-only set below. An intrinsically denied tool therefore needs no
+	// configuration RPC: refuse it directly, preserving that denial even while fresh configuration is unavailable.
+	if !inboxReadOnlyTools[name] && !inboxReadOnlyPhoneTools[name] {
+		known, readOnly := false, false
+		if s.ext != nil {
+			known, readOnly = s.ext.ToolAccess(name)
+		}
+		if !known || !readOnly {
+			if strings.TrimSpace(name) == "" {
+				name = "this tool"
+			}
+			return proto.TextResult("Inbox conversations cannot call "+name+" directly because it may send, interrupt, delegate, "+
+				"or change external state. Use inbox_suggest; the owner-confirmed action will run separately.", true), true
+		}
+	}
 	fullCfg, configErr := s.inboxConfigFresh(ctx)
 	if configErr != nil {
 		return proto.TextResult("Inbox read policy is temporarily unavailable; no source or other tool read was performed.", true), true

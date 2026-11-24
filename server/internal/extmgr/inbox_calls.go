@@ -286,7 +286,7 @@ func (h *Manager) inboxConfigView(ctx context.Context) assistantwire.InboxConfig
 	slices.Sort(out.Extensions)
 	if h.cfg != nil {
 		out.Agent = h.cfg.Inbox.Agent
-		out.ReplyPolicy = h.cfg.Inbox.ReplyPolicy
+		out.ReplyPolicy = cloneReplyPolicyConfig(h.cfg.Inbox.ReplyPolicy)
 		out.Visibility = h.cfg.Inbox.Visibility
 	}
 	out.LarkAccount = h.inboxLarkAccount(ctx)
@@ -294,6 +294,27 @@ func (h *Manager) inboxConfigView(ctx context.Context) assistantwire.InboxConfig
 		out.Translate = h.mailTargets(ctx)
 	}
 	return out
+}
+
+func cloneReplyPolicyConfig(in *assistantwire.InboxReplyPolicyConfig) *assistantwire.InboxReplyPolicyConfig {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Sources = slices.Clone(in.Sources)
+	if len(in.Categories) > 0 {
+		out.Categories = make(map[string]string, len(in.Categories))
+		for k, v := range in.Categories {
+			out.Categories[k] = v
+		}
+	}
+	if len(in.Routes) > 0 {
+		out.Routes = make(map[string]string, len(in.Routes))
+		for k, v := range in.Routes {
+			out.Routes[k] = v
+		}
+	}
+	return &out
 }
 
 // inboxMailFlags is which of the asked mails are still in their mailbox, read or not (at most

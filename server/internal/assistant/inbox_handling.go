@@ -75,6 +75,8 @@ type InboxSuggestion struct {
 	// row and is cleared only by a separate successful commit, so a restart in the publication gap fails closed.
 	OnDemand                bool `json:"on_demand,omitempty"`
 	ReplyPublicationPending bool `json:"reply_publication_pending,omitempty"`
+	// ReplyPolicy binds an accepted reply suggestion to the compiled upstream policy snapshot; persisted, not listed.
+	ReplyPolicy *InboxReplyPolicySnapshot `json:"reply_policy,omitempty"`
 }
 
 // InboxHandoff is one hand-off of the event to Persona's main conversation (POST /api/v1/inbox/{id}/handoff): that

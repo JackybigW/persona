@@ -173,6 +173,17 @@ const (
 	CodeInboxSendFailed = "inbox_send_failed"
 	// CodeInboxSendUnrecorded: the once-only send record (sent_messages) could not be written, so nothing was tried.
 	CodeInboxSendUnrecorded = "inbox_send_unrecorded"
+	// CodeInboxReplyPolicyBlocked: inbox.reply_policy vetoed sending this reply suggestion; nothing was sent.
+	CodeInboxReplyPolicyBlocked = "inbox_reply_policy_blocked"
+)
+
+// Reply policy routes (inbox.reply_policy, docs/assistant/inbox.md "Reply policy").
+// The classifier outputs only a category; the server maps that category to one of these routes.
+const (
+	ReplyRouteOwnerDraft = "owner_draft"
+	ReplyRouteBot        = "bot"
+	ReplyRouteOwnerOnly  = "owner_only"
+	ReplyRouteNoReply    = "no_reply"
 )
 
 // Rounds of InboxRound.Round.
@@ -426,11 +437,22 @@ type InboxAgentConfig struct {
 	Rules string `json:"rules,omitempty"`
 }
 
-// InboxReplyPolicyConfig is manager.json's inbox.reply_policy. It is nil or disabled by default, preserving the
-// existing Inbox behavior. Routes maps classifier categories to owner_draft, bot, owner_only or no_reply.
+// InboxReplyPolicyConfig is manager.json's opt-in inbox.reply_policy configuration.
+// Default is disabled (Enabled: false), preserving existing queue, suggestion, and confirmation behavior.
 type InboxReplyPolicyConfig struct {
-	Enabled                  bool              `json:"enabled"`
-	Revision                 string            `json:"revision"`
+	Enabled bool `json:"enabled,omitempty"`
+	// Revision identifies the policy revision. Combined with a canonical digest of the normalized policy so any
+	// policy change invalidates older snapshots.
+	Revision string `json:"revision,omitempty"`
+	// Categories maps classifier-produced category names to server routes (owner_draft, bot, owner_only, no_reply).
+	// When omitted while Enabled is true, the built-in default category table is used.
+	Categories map[string]string `json:"categories,omitempty"`
+	// Rules is optional extra classification guidance; it never grants or overrides server routes.
+	Rules string `json:"rules,omitempty"`
+	// TimeoutSeconds bounds each classification call (default 30 seconds).
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// The following fields retain the original Task 2 policy schema. They are interpreted separately from Categories,
+	// Rules and TimeoutSeconds, so a category can never be routed through the other schema by accident.
 	Sources                  []string          `json:"sources,omitempty"`
 	UnknownMode              string            `json:"unknown_mode,omitempty"`
 	RequireIndependentReview bool              `json:"require_independent_review,omitempty"`

@@ -194,6 +194,9 @@ type InboxItem struct {
 	// ChainSeq numbers the chain's entries; SuggestSeq is the last suggestion's version (a new one is the next).
 	ChainSeq   int `json:"chain_seq,omitempty"`
 	SuggestSeq int `json:"suggest_seq,omitempty"`
+	// ReplyPolicy is the latest server-side reply-policy classification for this item (inbox_reply_policy.go).
+	// Persisted, never listed.
+	ReplyPolicy *InboxReplyPolicySnapshot `json:"reply_policy,omitempty"`
 }
 
 type InboxLark struct {
@@ -271,6 +274,7 @@ func (it *InboxItem) listed() InboxItem {
 	c.ArrivedAt = time.Time{}
 	c.Meta, c.Group = nil, nil
 	c.ChainSeq, c.SuggestSeq = 0, 0
+	c.ReplyPolicy = nil
 	c.Status = it.status()
 	c.Now, c.TitleBy = it.nowKey(), ""
 	c.PreMergeTitle, c.PreMergeTitleBy, c.MergeTitle = "", "", ""
@@ -292,6 +296,7 @@ func (it *InboxItem) listed() InboxItem {
 		g.Owner, g.SourceOf, g.ReplyInstruction = nil, "", ""
 		g.ReplyPublicationFailed = false
 		g.OnDemand, g.ReplyPublicationPending = false, false
+		g.ReplyPolicy = nil
 		c.Suggestion = &g
 		if c.Handling == nil && g.Conversation == nil && it.Agent != nil { // an old draft: its conversation is done with this round
 			c.Handling = &InboxHandling{Owner: HandlingOwner, State: HandlingDone, MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}
