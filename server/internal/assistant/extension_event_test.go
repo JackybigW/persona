@@ -360,6 +360,7 @@ func TestExtensionEventRefusedForGoodDoesNotClogTheQueue(t *testing.T) {
 		if _, err := event(s, "example-monitor", fmt.Sprintf(`{"key":"k%d","title":"Event %d"}`, i, i)); err != nil {
 			t.Fatalf("event %d: %v", i, err)
 		}
+		// Each one is taken off by the drain that follows it: the next goes in once that has run, whatever the machine's speed.
+		waitFor(t, "the refused event to leave the queue", func() bool { return len(queueOf(s, "conv1")) == 0 && !drainingNow(s, "conv1") })
 	}
-	waitFor(t, "the refused events to leave the queue", func() bool { return len(queueOf(s, "conv1")) == 0 && !drainingNow(s, "conv1") })
 }
