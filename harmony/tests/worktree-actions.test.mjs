@@ -813,7 +813,7 @@ function nativeMethods(path, names, dependencies) {
   return new Function(...Object.keys(dependencies),'return '+stripTypeScriptTypes('class NativePage {'+methods.join('\n')+'}'))(...Object.values(dependencies));
 }
 
-const NativeProjects = nativeMethods('components/ProjectsPage.ets',['complete','editorDismissed'],{});
+const NativeProjects = nativeMethods('components/ProjectsPage.ets',['complete','editorDismissed','menuTarget'],{});
 const NativeRoute = nativeMethods('pages/Index.ets',['worktreeChanged','prepareAgent','selectedAgentTree','agentDraftKey',
   'agentMachines','machineKey','agentMachineOnline','chosenAgentMachine'],{ResourceRow,Wire,tr:key=>key});
 const nextFrame = () => new Promise(resolve=>setImmediate(resolve));
@@ -859,6 +859,63 @@ test('a direct host receipt presents New Agent only after the editor closes, bef
   const other=Object.assign(new ProjectWorktree(),preset,{cwd:'/another/checkout'});
   f.catalog.projects=[{trees:[other]}];assert.equal(f.route.selectedAgentTree(),undefined,'same id and different path cannot be substituted');
   f.owner.epoch++;f.catalog.projects=[];assert.equal(f.catalog.selectedWorktree(preset.key),undefined);
+});
+
+test('a confirmed create returns to its child when the workspace listing omits the branch and parent', async () => {
+  const f = await projectCreateUI();
+  await f.screen.complete();
+  f.screen.editorDismissed();
+  await nextFrame();
+  const receipt = f.route.selectedAgentTree();
+  assert.equal(f.route.showSheet, true);
+  const sparse = { machine_id: receipt.machine, source: receipt.source, source_id: receipt.sourceId, cwd: receipt.cwd };
+  f.catalog.ownerScope = f.root.scope();
+  f.root.directoryOwners = () => [f.owner];
+  f.root.directorySessions = [];
+  function publish(fields = {}) {
+    f.catalog.snapshots.set(f.owner.scope(), [f.catalog.fromHost(f.owner, {...sparse, ...fields})]);
+    f.catalog.syncRows(f.root);
+    return f.catalog.tree(receipt.key);
+  }
+  const listed = publish();
+  assert.equal(f.route.selectedAgentTree(), listed);
+  f.route.showSheet = false;
+  await f.finish();
+  assert.deepEqual(f.routes.at(-1), {name:'project_tree', key:receipt.key});
+  Object.assign(f.screen, {catalog:f.catalog, page:'project_tree', target:receipt.key});
+  assert.ok(listed && listed !== receipt, 'native detail and actions must resolve the catalog object');
+  assert.equal(f.catalog.selectedWorktree(receipt.key), listed);
+  assert.equal(f.screen.menuTarget(receipt.key), listed);
+  assert.equal(f.writes.length, 1);
+
+  const offline = publish({online:false});
+  assert.equal(f.catalog.selectedWorktree(receipt.key), offline);
+  assert.equal(offline.canStart, false);
+  assert.equal(offline.permits('rename'), false);
+  f.catalog.createdParents.set(f.owner.scope(), [{machine:receipt.machine, source:receipt.source, id:receipt.sourceId,
+    path:receipt.cwd, parent:receipt.parent}]);
+  assert.equal(publish().parent, receipt.parent);
+  for (const conflict of [{cwd:'/another/checkout'}, {branch:'another-branch'}, {branch:''},
+    {parent_source_id:'another-parent'}, {parent_source_id:''}]) {
+    publish(conflict);
+    assert.equal(f.catalog.selectedWorktree(receipt.key), undefined, JSON.stringify(conflict));
+    assert.equal(f.screen.menuTarget(receipt.key), undefined);
+  }
+  const agent = ResourceRow.from({session_id:'in-this-checkout', ...sparse, workspace_id:receipt.sourceId,
+    space_kind:receipt.source, branch:'other-branch'}, 'session');
+  agent.group=receipt.group; agent.manager=receipt.manager;
+  f.root.directorySessions=[agent];
+  publish();
+  assert.equal(f.catalog.selectedWorktree(receipt.key), undefined, 'a known conflicting branch stays authoritative');
+  agent.raw=JSON.stringify({...agent.data(),branch:receipt.branch});
+  publish({branch:''});
+  assert.equal(f.catalog.selectedWorktree(receipt.key), undefined, 'a session cannot replace an explicitly empty host branch');
+  const confirmed = publish({branch:receipt.branch, parent_source_id:receipt.parent});
+  assert.equal(f.catalog.selectedWorktree(receipt.key), confirmed);
+  publish({machine_id:'other-host'});
+  assert.equal(f.catalog.selectedWorktree(receipt.key), undefined);
+  publish(); f.owner.epoch++;
+  assert.equal(f.catalog.selectedWorktree(receipt.key), undefined);
 });
 
 test('cancel, uncertain creation, a different parent, offline machine, changed surface and retired owner cannot open a child form',async()=>{
