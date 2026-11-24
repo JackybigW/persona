@@ -4,6 +4,7 @@ import { PhoneStyle } from '../design/PhoneStyle';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
 import { clientLocale } from '../core/ClientLocale';
+import { healthGoalWidth } from '../core/HealthGoalLabel';
 import { healthIntakePageId } from '../core/WireCompatibility';
 import { ClientModel } from '../models/ClientModel';
 import { HealthIntakeModel, IntakePortion, intakeAmount } from '../models/HealthIntake';
@@ -51,6 +52,12 @@ export struct HealthToday {
   private unit(kind:string): string { return tr(kind==='water'?'intake_ml':'intake_g'); }
   private goal(kind:string,value:IntakePortion): string {
     return tr('intake_goal').replace('{goal}',this.words(value.goal)).replace('{unit}',this.unit(kind));
+  }
+  private goalWidth(label: string): number {
+    const ui = this.getUIContext();
+    const fontSize = Tokens.interfaceFontVp(12, this.env.fontScale);
+    return healthGoalWidth(label, this.metric(105, 135.3), (text: string): number =>
+      ui.px2vp(Math.ceil(ui.getMeasureUtils().measureText({ textContent: text, fontSize: fontSize }))));
   }
   private ratioLabel(kind:string,value:IntakePortion): string {
     return tr('intake_ratio').replace('{today}',this.words(value.today)).replace('{goal}',this.words(value.goal)).replace('{unit}',this.unit(kind));
@@ -122,7 +129,7 @@ export struct HealthToday {
         }
         Text(this.title(kind)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontWeight(600).fontColor(Colors.ink).maxLines(1)
         Text(this.goal(kind,value)).fontSize(12).maxFontScale(Tokens.interfaceScaleFor(12)).fontColor(Colors.secondary)
-          .width(this.metric(105,135.3)).textAlign(TextAlign.Center).margin({top:4})
+          .width(this.goalWidth(this.goal(kind,value))).textAlign(TextAlign.Start).margin({top:4})
       }.alignItems(HorizontalAlign.Center)
     }.padding(0).backgroundColor(Color.Transparent).buttonStyle(ButtonStyleMode.TEXTUAL)
       .accessibilityText(this.title(kind)).accessibilityDescription(this.ratioLabel(kind,value))

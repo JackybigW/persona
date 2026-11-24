@@ -20,8 +20,23 @@ registerHooks({
   }
 });
 
-const { HealthWorkspace, HealthMemoryFile } = await import('../entry/src/main/ets/models/HealthWorkspace.ets');
+const { HEALTH_SUGGESTIONS, HealthWorkspace, HealthMemoryFile } = await import('../entry/src/main/ets/models/HealthWorkspace.ets');
 const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
+const { healthGoalWidth } = await import('../entry/src/main/ets/core/HealthGoalLabel.ts');
+
+test('health ring captions fit complete localized words and preserve narrow no-break number grouping', () => {
+  const measure = text => Array.from(text).reduce((w, c) => w + (/\p{Script=Han}/u.test(c) ? 18 : c === ' ' ? 5 : 10), 0);
+  const chinese = '目标：2,000 毫升';
+  assert.equal(healthGoalWidth(chinese, measure(chinese) - 3, measure), measure('目标：2,000'));
+  const english = 'Goal: 2,000 ml';
+  assert.equal(healthGoalWidth(english, 200, measure), measure(english));
+  const japanese = '目標：2,000 ml';
+  assert.equal(healthGoalWidth(japanese, measure(japanese) - 1, measure), measure('目標：2,000'));
+  const grouped = 'Goal: 2\u202f000 ml';
+  assert.equal(healthGoalWidth(grouped, measure('2\u202f000 ml'), measure), measure('2\u202f000 ml'));
+  assert.equal(healthGoalWidth('unbrokenword', 25, measure), 25);
+  assert.equal(healthGoalWidth('unavailable-font', 105, () => 0), 105);
+});
 
 function clone(value) { return structuredClone(value); }
 
@@ -179,6 +194,32 @@ function pathMethod(env, method, prefix) {
   return env.shared.calls.filter((call) => call.method === method && call.path.startsWith(prefix));
 }
 
+test('the four iPhone Health suggestions retain distinct controls and send their displayed prompt to Health', async () => {
+  const english = ['How did I sleep this week?', 'How do my steps over the last 7 days compare with last week?',
+    'Log my weight today: 62.5 kg', 'Log my weight today: 62.5 kg'];
+  const questions = {
+    base: english, en_US: english,
+    zh_CN: ['这周我睡得怎么样？', '最近 7 天步数和上周比怎么样', '我的静息心率最近有变化吗', '帮我记一下今天体重 62.5 kg'],
+    ja_JP: ['今週の睡眠はどうでしたか？', '直近7日間の歩数は先週と比べてどうですか？', '今日の体重62.5kgを記録して', '今日の体重62.5kgを記録して']
+  };
+  assert.equal(new Set(HEALTH_SUGGESTIONS).size, 4);
+  for (const [locale, expected] of Object.entries(questions)) {
+    const file = new URL(`../entry/src/main/resources/${locale}/element/string.json`, import.meta.url);
+    const resources = new Map(JSON.parse(readFileSync(file, 'utf8')).string.map(v => [v.name, v.value]));
+    const displayed = HEALTH_SUGGESTIONS.map(id => resources.get(id));
+    assert.deepEqual(displayed, expected, locale);
+    const env = await opened();
+    for (const prompt of displayed) {
+      const row = await env.workspace.startConversation(prompt);
+      assert.equal(row.manager, 'health-owner');
+      assert.equal(row.data().space, 'health');
+    }
+    const sent = pathMethod(env, 'POST', '/api/v1/assistant/conversations');
+    assert.deepEqual(sent.map(call => call.body.prompt), expected, locale);
+    assert.ok(sent.every(call => call.body.space === 'health'));
+  }
+});
+
 test('Health resolves the roster default and keeps only health-space conversations from the health endpoint', async () => {
   const { workspace, root, rootState, shared, child } = await opened();
   assert.equal(root.profile.manager, 'work', 'opening Health does not change the selected manager');
@@ -194,6 +235,27 @@ test('Health resolves the roster default and keeps only health-space conversatio
   assert.ok(child().state.calls.some((call) => call.path === '/api/v1/assistant/memory?space=health'));
   assert.ok(child().state.calls.some((call) => call.path === '/api/v1/machines/health-machine/health/reports'));
   assert.equal(shared.calls.some((call) => call.path === '/api/v1/assistant'), false);
+});
+
+test('Health lists conversations by updated_at, newest first, and keeps Hub order for ties and unknown dates', async () => {
+  const conversations = [
+    chat('sleep', 'health', { updated_at: '2026-11-24T05:20:00Z' }),
+    chat('lipids', 'health', { updated_at: '2026-11-23T04:00:00Z' }),
+    chat('unknown'),
+    chat('steps', 'health', { updated_at: '2026-11-21T08:00:00Z' }),
+    chat('meal', 'health', { updated_at: '2026-11-24T13:45:00+08:00' }),
+    chat('same-instant', 'health', { updated_at: '2026-11-24T05:45:00Z' }),
+    chat('malformed', 'health', { updated_at: 'invalid', last_activity: '2030-01-01T00:00:00Z' }),
+    chat('before-epoch', 'health', { updated_at: '1969-04-01T09:10:00Z' }),
+    chat('unrelated', 'main', { updated_at: '2030-01-01T00:00:00Z' })
+  ];
+  const { workspace, child } = await opened({ conversations });
+  assert.deepEqual(workspace.conversations.map(row => row.id),
+    ['meal', 'same-instant', 'sleep', 'lipids', 'steps', 'before-epoch', 'unknown', 'malformed']);
+  child().state.conversations[3].updated_at = '2026-11-25T00:00:00Z';
+  await workspace.refresh();
+  assert.deepEqual(workspace.conversations.map(row => row.id),
+    ['steps', 'meal', 'same-instant', 'sleep', 'lipids', 'before-epoch', 'unknown', 'malformed']);
 });
 
 test('creating a Health chat uses the exact health space body and returns a default-manager route', async () => {

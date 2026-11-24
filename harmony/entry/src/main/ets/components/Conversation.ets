@@ -929,9 +929,9 @@ export struct Conversation {
     return this.model.decision.kind === 'question' ? Math.max(half, this.availableHeight - 72) : half;
   }
   @Local agentComposerHeight: number = 0;
-  @Local private assistantComposerHeight: number = 0;
+  @Local private assistantFooterHeight: number = 0;
   @Local private assistantDockVisible: boolean = false;
-  private mainDockHeaderEnd():number {
+  private mainDockSpace():number {
     const row=this.model.selected, env=this.environment, ui=this.getUIContext();
     if (!this.model.mainId || row.kind!=='conversation' || row.id!==this.model.mainId ||
       this.model.mainMachineId && row.machine!==this.model.mainMachineId ||
@@ -943,7 +943,13 @@ export struct Conversation {
     const safeHeaderTop=Math.max(Tokens.compactStatusInset,ui.px2vp(env.safeTopPx)+Tokens.gap);
     // AssistantTopBar reserves 70 points below the safe area. Ark navigation
     // already took most of this space before offering the conversation its pane.
-    return this.contentTop+Math.max(0,70-Math.max(0,paneTop-safeHeaderTop));
+    const header = Math.max(0,70-Math.max(0,paneTop-safeHeaderTop));
+    if (this.model.decision) {
+      const fallbackAction = this.showContextMenu && !this.composerAvailable() ? Tokens.touch + Tokens.gap : 0;
+      return this.availableHeight - header - Tokens.footer - fallbackAction;
+    }
+    if (this.assistantFooterHeight <= 0) return -1;
+    return this.availableHeight - header - Number(this.controlsPadding().bottom) - this.assistantFooterHeight - Tokens.gap;
   }
   @Local agentCountHeight: number = 0;
   private agentCardsRoom(): number {
@@ -2189,7 +2195,7 @@ export struct Conversation {
 
   @Builder taskDock(horizontalInset: number = 0) {
     if (this.model.selected.kind === 'conversation' && this.model.connected) {
-          AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), dockOnly: true, decisionPager:this.decisionPager, dockRoom:this.availableHeight, composerHeight:this.assistantComposerHeight, mainHeaderEnd:this.mainDockHeaderEnd(), onDockVisibility:(shown:boolean):void => { this.assistantDockVisible=shown; }, onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
+          AssistantCards({ model: this.model, feed: this.feed, active: this.active && this.model.connected, onOpenResource: (row: ResourceRow) => this.onOpenResource(row), dockOnly: true, decisionPager:this.decisionPager, dockRoom:this.availableHeight, composerHeight:this.assistantFooterHeight, mainDockSpace:this.mainDockSpace(), onDockVisibility:(shown:boolean):void => { this.assistantDockVisible=shown; }, onOpenCard: (itemId: string, kind: string) => this.onOpenCard(itemId, kind), onOpenSession: (row: ResourceRow) => this.onOpenResource(row),
             onOpenTodo: (row: ResourceRow) => this.onOpenResource(row), onOpenInbox: (row: ResourceRow) => this.onOpenResource(row), onLink: (address: string) => this.onLink(address) })
             .width('100%').padding({ left: horizontalInset, right: horizontalInset })
     }
@@ -2229,16 +2235,18 @@ export struct Conversation {
         .attributeModifier(ButtonStyles.quiet).width(Tokens.touch).height(Tokens.touch).padding(0).accessibilityText(tr('more')).onClick(() => this.openFallbackActions())
         .bindMenu(this.actionsVisible, this.actionsMenu, this.actionMenuOptions(this.actionsRequest)).id('chat.more.fallback')
       this.taskDock()
-      if (this.model.canCompose() && !this.model.decision) {
-        if (this.attachments.busy && !this.sending && (this.attachments.errorKey === 'chat_attachment_storage_unavailable' || this.model.error === 'cache_unavailable')) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('retry')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('retry', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('retry')).bindTips(tr('retry')).onClick(() => { this.attachmentKey = ''; this.syncAttachments(); })
-        Column() { this.composer() }.width('100%').onAreaChange((_before:Area,area:Area):void => {
-          if (this.model.selected.kind!=='conversation') return;
-          const h=Number(area.height);if (h>0 && Math.abs(h-this.assistantComposerHeight)>0.5) this.assistantComposerHeight=h;
-        })
-      } else if (!this.model.canSend() && !this.model.decision) {
-        if (this.model.canAttach()) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('attach_live')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('attach_live', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('attach_live')).bindTips(tr('attach_live')).onClick(() => this.model.attach())
-        Text(this.model.agentInputNotice() ? this.agentNotice() : tr('read_only')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).padding(Tokens.page)
-      }
+      Column({ space: Tokens.gap }) {
+        if (this.model.canCompose()) {
+          if (this.attachments.busy && !this.sending && (this.attachments.errorKey === 'chat_attachment_storage_unavailable' || this.model.error === 'cache_unavailable')) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('retry')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('retry', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('retry')).bindTips(tr('retry')).onClick(() => { this.attachmentKey = ''; this.syncAttachments(); })
+          this.composer()
+        } else if (!this.model.canSend()) {
+          if (this.model.canAttach()) Button({ type: ButtonType.Circle }) { SymbolGlyph(IconActions.symbol('attach_live')).fontSize(Tokens.symbolFont).fontColor([IconActions.color('attach_live', false)]) }.attributeModifier(ButtonStyles.icon).accessibilityText(tr('attach_live')).bindTips(tr('attach_live')).onClick(() => this.model.attach())
+          Text(this.model.agentInputNotice() ? this.agentNotice() : tr('read_only')).fontSize(Tokens.meta).maxFontScale(Tokens.interfaceScaleFor(Tokens.meta)).padding(Tokens.page)
+        }
+      }.width('100%').onAreaChange((_before:Area,area:Area):void => {
+        if (this.model.selected.kind!=='conversation') return;
+        const h=Number(area.height);if (h>0 && Math.abs(h-this.assistantFooterHeight)>0.5) this.assistantFooterHeight=h;
+      })
       }.width('100%').constraintSize({ maxWidth: Tokens.readingMax }).padding(this.controlsPadding()).onAreaChange((_before: Area, area: Area): void => {
         const height = Number(area.height);
         if (Number.isFinite(height) && height > 0 && Math.abs(height - this.controlsHeight) > 1) {

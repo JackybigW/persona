@@ -52,8 +52,7 @@ export struct AssistantCards {
   @Param decisionPager: DecisionPager | undefined = undefined;
   @Param dockRoom: number = 400;
   @Param composerHeight: number = 0;
-  @Param mainHeaderEnd:number = -1;
-  @Local private cardBottom:number = 0;
+  @Param mainDockSpace:number = -1;
   @Event onDockVisibility:(shown:boolean)=>void = (_shown:boolean)=>{};
   @Local private actionBarHeight: number = 28;
   @Local private measuredDockHeight: number = 0;
@@ -743,11 +742,11 @@ export struct AssistantCards {
     return points*Math.min(67/51,Math.max(1,this.environment.fontScale));
   }
   private measuredMainPlanRoom():number {
-    if (this.mainHeaderEnd<0 || this.cardBottom<=this.mainHeaderEnd || this.shownDecisions[0]?.kind!=='plan') return 0;
-    // The bottom of the visible plan already excludes the actual composer,
-    // action bar and their gaps. Reserve the outer pager inset, the list
-    // one-point line and gap, and 72 points of conversation above the pager.
-    const free=Math.max(44,this.cardBottom-this.mainHeaderEnd-Tokens.gap-(Tokens.gap+1));
+    if (this.mainDockSpace<0 || this.shownDecisions[0]?.kind!=='plan') return 0;
+    // The action strip sits below the card. Using its rendered bottom here made
+    // its line limit follow the preceding layout when the outer scroll viewport resized.
+    const below = this.actionBarHeight + Tokens.page + 2 * Tokens.fine;
+    const free = Math.max(44,this.mainDockSpace-below-Tokens.gap-(Tokens.gap+1));
     return Math.min(free,Math.max(this.dockRoom/2,free-72));
   }
   private dockHeightLimit():number {
@@ -840,8 +839,6 @@ export struct AssistantCards {
       .onAreaChange((_before:Area,area:Area):void => {
         const h=Number(area.height)+(this.decisionIds.length>1 ? this.pagerHeight+4 : 0);
         if (h>0 && Math.abs(this.measuredDockHeight-h)>0.5) this.measuredDockHeight=h;
-        const bottom=Number(area.globalPosition.y)+Number(area.height);
-        if (request.kind==='plan' && this.shownDecisions[0]?.id===request.id && Number.isFinite(bottom) && Math.abs(bottom-this.cardBottom)>0.5) this.cardBottom=bottom;
       }).parallelGesture(PanGesture({fingers:1,direction:PanDirection.Horizontal,distance:24}).onActionEnd((event:GestureEvent) => {
         if (Math.abs(event.offsetX)>66 && Math.abs(event.offsetX)>2*Math.abs(event.offsetY)) this.moveDecision(event.offsetX<0 ? 1 : -1);
       }))
@@ -860,7 +857,7 @@ export struct AssistantCards {
       .accessibilityText(tr('decision_to_decide')+' '+String(this.decisionIds.length)).onClick(() => this.toggleDecisions()).id('chat.decisions.toggle')
   }
   @Builder taskDock() {
-    Column({space:4}) {
+    Column({space:Tokens.fine}) {
       if (this.trayOpen) this.trayList()
       if (this.shownDecisions.length && this.decisionIds.length > 1) this.decisionNavigation()
       ForEach(this.shownDecisions,(request:Decision) => {
@@ -884,11 +881,11 @@ export struct AssistantCards {
           },(bucket:string) => bucket)
         }
       }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%').align(Alignment.Start)
-        .padding({left:4,right:4}).margin({top:this.shownDecisions.length ? 16 : 0})
+        .padding({left:4,right:4}).margin({top:this.shownDecisions.length ? Tokens.page : 0})
         .onAreaChange((_before:Area,area:Area):void => {
           const h=Number(area.height);if (h>0 && Math.abs(h-this.actionBarHeight)>0.5) this.actionBarHeight=h;
         })
-    }.width('100%').alignItems(HorizontalAlign.Start).padding({top:3,bottom:4})
+    }.width('100%').alignItems(HorizontalAlign.Start).padding({top:3,bottom:Tokens.fine})
   }
 
   private receiptTodo(item: Record<string, Object>): Record<string, Object> { return this.feed.todo(Wire.text(item, 'ref')); }

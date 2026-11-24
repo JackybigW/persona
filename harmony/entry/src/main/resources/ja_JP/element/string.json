@@ -2422,15 +2422,19 @@
     },
     {
       "name": "health_question_sleep",
-      "value": "睡眠を改善するには？"
+      "value": "今週の睡眠はどうでしたか？"
     },
     {
       "name": "health_question_steps",
-      "value": "毎日の歩数から何がわかりますか？"
+      "value": "直近7日間の歩数は先週と比べてどうですか？"
+    },
+    {
+      "name": "health_question_resting_heart_rate",
+      "value": "今日の体重62.5kgを記録して"
     },
     {
       "name": "health_log_weight",
-      "value": "体重を記録"
+      "value": "今日の体重62.5kgを記録して"
     },
     {
       "name": "health_log_water",
@@ -2494,7 +2498,7 @@
     },
     {
       "name": "health_try_asking",
-      "value": "質問してみましょう"
+      "value": "聞いてみる"
     },
     {
       "name": "health_upload_pdf",
@@ -2506,7 +2510,7 @@
     },
     {
       "name": "health_upload_report",
-      "value": "レポートをアップロード"
+      "value": "健康診断の結果をアップロード"
     },
     {
       "name": "knowledge_agent_prompt",
