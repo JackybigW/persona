@@ -14,7 +14,7 @@ import { MarkdownText } from './MarkdownText';
 import { Tokens } from '../design/Tokens';
 import { tr } from '../design/Strings';
 import { HealthToday } from './HealthToday';
-import { HealthConversationHistory } from './HealthConversationHistory';
+import { HealthConversationHistory, HealthRowDivider } from './HealthConversationHistory';
 import { PhoneDictationControl } from './PhoneDictationControl';
 import { PhoneStyle } from '../design/PhoneStyle';
 import { PhoneOutlineIcon } from '../design/PhoneOutlineIcon';
@@ -333,12 +333,18 @@ export struct HealthWorkspacePage {
           SymbolGlyph($r('sys.symbol.doc_plaintext')).fontSize(String(PhoneStyle.formSize(24,32,this.environment.fontScale))+'vp')
             .fontColor([this.reportTint()]).accessibilityLevel('no')
         } else {
-          PhoneOutlineIcon({name:'sparkles',iconScale:PhoneStyle.formSize(1,1.35,this.environment.fontScale),color:this.reportTint()})
+          PhoneOutlineIcon({name:'sparkles',iconScale:PhoneStyle.formSize(1,4/3,this.environment.fontScale),color:this.reportTint()})
         }
       }.width(PhoneStyle.formSize(24,32,this.environment.fontScale))
       Text(tr(key)).fontSize(17).maxFontScale(Tokens.interfaceScaleFor(17)).fontColor(upload ? this.reportTint() : Colors.ink)
         .layoutWeight(1).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis})
     }.width('100%').padding({left:20,right:20})
+  }
+
+  @Builder suggestionDivider(key: string) {
+    if (key !== HEALTH_SUGGESTIONS[HEALTH_SUGGESTIONS.length-1]) {
+      HealthRowDivider(36+PhoneStyle.formSize(24,32,this.environment.fontScale))
+    }
   }
 
   @Builder suggestions() {
@@ -349,6 +355,7 @@ export struct HealthWorkspacePage {
         Button({type:ButtonType.Normal}) { this.suggestionLabel('health_upload_report', true) }
           .width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.3,59.3,this.environment.fontScale)})
           .padding(0).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
+          .overlay(this.suggestionDivider('health_upload_report'),{align:Alignment.Bottom})
           .accessibilityText(tr('health_upload_report')).bindMenu(this.reportUploadMenu)
           .enabled(!this.pickerBusy && this.workspace.canUploadReports()).id('health.report.upload')
         if (this.workspace.error) Text(tr(this.workspace.error)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
@@ -360,10 +367,10 @@ export struct HealthWorkspacePage {
         if (this.pickerError) Text(tr(this.pickerError)).fontSize(15).maxFontScale(Tokens.interfaceScaleFor(15))
           .fontColor(Colors.danger).width('100%').padding({left:20,right:20})
         ForEach(HEALTH_SUGGESTIONS, (key: string) => {
-          Divider().strokeWidth('1px').color(Colors.divider).margin({left:36+PhoneStyle.formSize(24,32,this.environment.fontScale),right:20})
           Button({type:ButtonType.Normal}) { this.suggestionLabel(key, false) }
             .width('100%').constraintSize({minHeight:PhoneStyle.formSize(52.3,59.3,this.environment.fontScale)})
             .padding(0).buttonStyle(ButtonStyleMode.TEXTUAL).backgroundColor(Color.Transparent)
+            .overlay(this.suggestionDivider(key),{align:Alignment.Bottom})
             .accessibilityText(tr(key)).enabled(this.workspace.canStartConversation() && !this.pickerBusy)
             .onClick(() => this.send(tr(key))).id('health.suggestion.'+key)
         }, (key: string) => key)
