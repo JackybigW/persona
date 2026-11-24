@@ -174,10 +174,36 @@ What the user jots down in passing (the share sheet, the watch, Siri, the web; #
 
 ## API
 
+### Tell Health
+
+Tell Health (#14714) is for people who want to speak or send a sentence to Health from their phone or watch.
+`POST /api/v1/assistant/health/tell` stores `{client_id,text}` and immediately returns a receipt, before model work.
+A retry with the same client ID keeps the first sentence. The receipt means received; delivery and the answer follow.
+
+The first Tell Health message or strength workout report starts the local day's **training chat**. Later sentences,
+the strength workout report and its plan stay in that chat. Saying that strength training has started asks Health
+to review the last session and prepare a plan draft for confirmation. Only these two entry points select the
+training chat; an ordinary Health conversation does not become it. The target is always Health, even if extra
+request fields name a different space or chat. A gone or invalid chat is replaced. An offline computer waits in
+receipt order; the original sentence stays in storage until delivery is confirmed.
+
+The day uses the owner's time zone. Sentences use receipt time; reports use workout start time. A workout begun
+at 23:30 and reported at 00:40 continues the previous day's chat; a sentence received at 00:10 starts the new day.
+Only the latest day's chat pointer is retained; late older reports cannot take it over. Simultaneous first
+sentences and reports can start separate chats. Shortcuts actions and automation setup are client features.
+
+Replies use the Health space's fixed notification text, even when answered quickly. After 24 hours or five failed
+attempts, a fixed notification says delivery could not be confirmed; it includes no sentence content and the stored
+original is retained. An uncertain continuation is never resent into a new chat. Claude Code starts can reuse a
+reserved conversation ID after a restart; other launchers may choose their own IDs, so uncertain starts are abandoned
+to avoid duplicates. Tell Health remains available when the Health data module is absent or off, including the
+`health_tell` capability; the strength report and plan guidance require the module and an added strength item.
+
 For the exact protocol, see the "Assistant" table in `docs/protocol/protocol.md`.
 
 | Endpoint | How the Health space uses it |
 | --- | --- |
+| `POST /api/v1/assistant/health/tell` | `{client_id,text}` → stored receipt, then today's training chat. Full or watch answer role; Health only. See "Tell Health" and `docs/protocol/protocol.md` for states and limits. |
 | `POST /api/v1/assistant/conversations` | With `"space":"health"`, starts a new chat in the health directory (writing the health CLAUDE.md first). Combined with `"main":true` it returns 400 (the Health space has no main chat); an unknown `space` returns 400 |
 | `GET /api/v1/assistant?space=health` | Lists the Health space's chats; `cwd` is the health directory. Without `space` it lists only the assistant's own chats, and health chats no longer appear. `?archived=1` works the same; an unknown `space` returns 400 |
 | `GET /api/v1/assistant/memory?space=health` | The Health space's memory `{"files":[…],"dir"}` |
