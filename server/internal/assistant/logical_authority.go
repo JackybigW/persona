@@ -261,7 +261,6 @@ func (s *Service) logicalPublishInteraction(ctx context.Context, ix proto.Intera
 	s.fleet.mu.Unlock()
 	st := s.store().(logicalConversationStore)
 	cards, ok := s.store().(interface {
-		InteractionOutcome(context.Context, string) (string, *proto.Resolution, error)
 		InteractionRecord(context.Context, string) (*db.InteractionRecord, error)
 		InsertInteractionOccurrence(context.Context, proto.Interaction) error
 		FinishInteractionOccurrence(context.Context, proto.Interaction, string, *proto.Resolution) (bool, bool, error)
@@ -278,15 +277,13 @@ func (s *Service) logicalPublishInteraction(ctx context.Context, ix proto.Intera
 		if c.Switch != nil && c.Switch.Phase != "active" {
 			return logicalRefusal(ctx, "busy")
 		}
-		status, _, err := cards.InteractionOutcome(ctx, ix.ID)
-		if err != nil {
-			return err
-		}
-		fresh = status == ""
 		record, err := cards.InteractionRecord(ctx, ix.ID)
 		if err != nil {
 			return err
 		}
+		// A genuinely new occurrence replacing terminal history must announce;
+		// only a replay of the same pending occurrence is restart restoration.
+		fresh = record == nil || (record.Status != "pending" && !sameOccurrence(record.Interaction))
 		if record != nil && record.Status == "pending" && !sameOccurrence(record.Interaction) {
 			return fmt.Errorf("%w: %s", errInteractionIDReused, ix.ID)
 		}

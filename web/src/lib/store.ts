@@ -16,7 +16,7 @@ import { onRuntimeChanges, runtimeAgents, runtimeIdentity, runtimeRemoval, runti
 import { isHeldLevel } from "./attention";
 import { sameValue } from "./stable-lines";
 import { SESSIONS_LIST_CHANGES_FEATURE, SESSIONS_LIST_FEATURE, type ListCounts } from "./session-list";
-import { SESSIONS_HIERARCHY_FEATURE } from "./child-sessions";
+import { SESSIONS_CROSS_MACHINE_HIERARCHY_FEATURE, SESSIONS_HIERARCHY_FEATURE } from "./child-sessions";
 import { SESSIONS_SIDE_FOLD_FEATURE, setSideFold } from "./side-fold";
 import { applySessionDelta, SESSIONS_DELTA_FEATURE, sessionRefreshed, sessionSnapshot } from "./sessions-delta";
 import { dueMarks, heldRows, liveMarks, newMark, nextDue, seenCopy, settleMarks, unansweredMarks, unseen, type SeenMark, type SeenMarks } from "./seen-outbox";
@@ -530,14 +530,19 @@ async function lookUpCardSession(id: string, mid: string, sid: string) {
   }
 }
 
+// Re-insertion keeps these bounded Maps in oldest-to-newest eviction order.
+function rememberLatest<K, V>(entries: Map<K, V>, id: K, value: V, kept: number) {
+  entries.delete(id);
+  entries.set(id, value);
+  if (entries.size > kept) entries.delete(entries.keys().next().value!);
+}
+
 /** A clicked filtered row may not belong to the unfiltered first page. Keep a small hint until exact lookup finishes. */
 export function rememberSessionRow(row: Session) {
   if (row.deleted) { markConversationDeleted(row.machine_id, row.session_id); return; }
   if (!availableConversation(row)) return;
   const id = runtimeIdentity(row);
-  rowHints.delete(id);
-  rowHints.set(id, row);
-  if (rowHints.size > ROW_HINT_LIMIT) rowHints.delete(rowHints.keys().next().value!);
+  rememberLatest(rowHints, id, row, ROW_HINT_LIMIT);
   if (!state.features.includes(SESSIONS_LOOKUP_FEATURE) && typeof row.waiting !== "boolean") applyCompleteSessions([row]);
 }
 
@@ -838,7 +843,7 @@ export function connect() {
     }, 250);
   }
   directionTreeAwaitsHello(true); // its hello reads the direction tree: the screens wait for that read
-  const sock = new WebSocket(`${proto}//${location.host}${BASE}/api/v1/ws?${wsQuery(socketToken, cursor, [SESSIONS_LIST_FEATURE, SESSIONS_LIST_CHANGES_FEATURE, SESSIONS_DELTA_FEATURE, SESSION_LIVE_FEATURE, "extension_ui_stream_v1", "persona_contracts_v1", "approval_mirrors"])}`);
+  const sock = new WebSocket(`${proto}//${location.host}${BASE}/api/v1/ws?${wsQuery(socketToken, cursor, [SESSIONS_LIST_FEATURE, SESSIONS_LIST_CHANGES_FEATURE, SESSIONS_DELTA_FEATURE, SESSION_LIVE_FEATURE, ...CLIENT_FEATURES.slice(4, 7)])}`);
   ws = sock;
   restartNotice = false;
   // an attempt does not move offline back to connecting: the pill stays on one phase while the hub is down instead of
@@ -1039,6 +1044,7 @@ function onMessage(msg: Record<string, unknown>) {
       back();
       const summaryMode = state.features.includes(SESSIONS_LOOKUP_FEATURE);
       const rootsMode = state.features.includes(SESSIONS_HIERARCHY_FEATURE);
+      const crossMachineMode = rootsMode && state.features.includes(SESSIONS_CROSS_MACHINE_HIERARCHY_FEATURE);
       const agentsMode = supportsPagedAgents(state.features);
       const { loaded: agentsLoaded, loading: agentsLoading, error: agentsError } = runtimeAgents.getSnapshot();
       const usedAgentsList = agentsLoaded || agentsLoading || agentsError !== null;
@@ -1046,9 +1052,11 @@ function onMessage(msg: Record<string, unknown>) {
       runtimeSessions.setSummary(summaryMode);
       // a hub that folds child sessions (#5120): the Agents list and its counts leave them out, each parent counted once
       runtimeSessions.setRoots(rootsMode);
+      runtimeSessions.setCrossMachineHierarchy(crossMachineMode);
       if (agentsMode) {
         runtimeAgents.setSummary(summaryMode);
         runtimeAgents.setRoots(rootsMode);
+        runtimeAgents.setCrossMachineHierarchy(crossMachineMode);
       } else if (usedAgentsList) {
         runtimeAgents.reset();
       }
@@ -1127,8 +1135,9 @@ function onMessage(msg: Record<string, unknown>) {
     }
     case "interaction": {
       const ix = msg.interaction as Interaction;
-      const prev = state.interactions.find((i) => i.id === ix.id);
-      if (!endedOccurrence(ix)) {
+      const prev = interactionByID(ix.id);
+      if (prev && laterTime(prev.created_at, ix.created_at)) break;
+      if (!occurrenceCovered(endedHere, ix) && !occurrenceCovered(resolvedSeen, ix)) {
         changeInteraction(ix.id, ix);
         refreshCountsForCard(prev, ix);
       }
@@ -1136,9 +1145,9 @@ function onMessage(msg: Record<string, unknown>) {
     }
     case "interaction_resolved": {
       const id = msg.id as string;
-      const current = state.interactions.find((ix) => ix.id === id);
+      const current = interactionByID(id);
       const endedAt = typeof msg.created_at === "string" ? msg.created_at : undefined;
-      if (current && endedAt !== undefined && laterTime(current.created_at, endedAt)) break;
+      if (current && endedAt && laterTime(current.created_at, endedAt)) break;
       if (msg.answered_by === "assistant") answeredForUser(msg);
       changeInteraction(id, null);
       cardWithdrawn(id, endedAt);
@@ -1442,12 +1451,14 @@ export function setPushGrading(pushGrading: boolean) {
   if (state.pushGrading !== pushGrading) set({ pushGrading });
 }
 
+function interactionByID(id: string) {
+  return state.interactions.find((ix) => ix.id === id);
+}
+
 function changeInteraction(id: string, ix: Interaction | null) {
-  ixChanges.delete(id); // re-inserted: the oldest are dropped first
-  ixChanges.set(id, { rev: ++ixRev, ix });
-  if (ixChanges.size > IX_CHANGES_KEPT) ixChanges.delete(ixChanges.keys().next().value!);
+  rememberLatest(ixChanges, id, { rev: ++ixRev, ix }, IX_CHANGES_KEPT);
   // the hub sends every pending card again now and then: one that says what the page has already changes nothing
-  const old = ix && state.interactions.find((i) => i.id === id);
+  const old = ix && interactionByID(id);
   if (old && JSON.stringify(old) === JSON.stringify(ix)) return;
   const interactions = state.interactions.filter((i) => i.id !== id);
   if (ix) interactions.push(ix);
@@ -1458,7 +1469,10 @@ function changeInteraction(id: string, ix: Interaction | null) {
 
 /** The pending interactions from a snapshot asked for at revision `before`, with what changed since. */
 export function mergeInteractions(snapshot: Interaction[], before: number): Interaction[] {
-  const out = new Map(snapshot.filter((i) => !endedOccurrence(i)).map((i) => [i.id, i]));
+  const out = new Map(snapshot.filter((i) => !occurrenceCovered(endedHere, i) && !occurrenceCovered(resolvedSeen, i)).map((i) => {
+    const current = interactionByID(i.id);
+    return [i.id, current && laterTime(current.created_at, i.created_at) ? current : i];
+  }));
   for (const [id, c] of ixChanges) {
     if (c.rev <= before) continue;
     out.delete(id);
@@ -1481,21 +1495,12 @@ function laterTime(a: string | undefined, b: string | undefined): boolean {
 }
 
 function rememberOccurrence(markers: Map<string, string | undefined>, id: string, occurrence: string | undefined, kept: number) {
-  const previous = markers.get(id);
-  if (markers.has(id) && (previous === undefined || !laterTime(occurrence, previous))) return;
-  markers.delete(id);
-  markers.set(id, occurrence);
-  if (markers.size > kept) markers.delete(markers.keys().next().value!);
+  if (markers.has(id) && !laterTime(occurrence, markers.get(id))) return;
+  rememberLatest(markers, id, occurrence, kept);
 }
 
 function occurrenceCovered(markers: Map<string, string | undefined>, ix: Interaction): boolean {
-  if (!markers.has(ix.id)) return false;
-  const ended = markers.get(ix.id);
-  return ended === undefined || !laterTime(ix.created_at, ended);
-}
-
-function endedOccurrence(ix: Interaction): boolean {
-  return occurrenceCovered(endedHere, ix);
+  return markers.has(ix.id) && !laterTime(ix.created_at, markers.get(ix.id));
 }
 
 /**
@@ -1506,10 +1511,10 @@ function endedOccurrence(ix: Interaction): boolean {
 export function endInteraction(id: string, answer?: AnsweredCard, occurrence?: string) {
   occurrence = answer?.ix.created_at ?? occurrence;
   rememberOccurrence(endedHere, id, occurrence, ENDED_KEPT);
-  const current = state.interactions.find((ix) => ix.id === id);
-  const replaced = current !== undefined && laterTime(current.created_at, occurrence);
-  if (!replaced) changeInteraction(id, null);
-  if (!answer || replaced) return;
+  const current = interactionByID(id);
+  if (current && laterTime(current.created_at, occurrence)) return;
+  changeInteraction(id, null);
+  if (!answer) return;
   const card = { ...answer, at: answer.at ?? Date.now(), withdrawn: answer.withdrawn || answer.already === true || occurrenceCovered(resolvedSeen, answer.ix) };
   set({ answered: { ...state.answered, [id]: card } });
   setTimeout(() => dropAnswered(id, card), ANSWERED_MS);
@@ -1523,7 +1528,7 @@ const RESOLVED_KEPT = 200;
 export function cardWithdrawn(id: string, occurrence?: string) {
   rememberOccurrence(resolvedSeen, id, occurrence, RESOLVED_KEPT);
   const cur = state.answered[id];
-  if (!cur || cur.withdrawn || (occurrence !== undefined && laterTime(cur.ix.created_at, occurrence))) return;
+  if (!cur || cur.withdrawn || (occurrence && laterTime(cur.ix.created_at, occurrence))) return;
   set({ answered: { ...state.answered, [id]: { ...cur, withdrawn: true } } });
 }
 
@@ -1542,7 +1547,7 @@ export function dropAnswered(id: string, only?: AnsweredCard) {
  *  session history's to show. */
 function answeredForUser(msg: Record<string, unknown>) {
   const id = msg.id as string;
-  const ix = state.interactions.find((i) => i.id === id) ?? state.answered[id]?.ix;
+  const ix = interactionByID(id) ?? state.answered[id]?.ix;
   if (ix) keepDelegated(ix, msg);
 }
 
@@ -1554,7 +1559,7 @@ const DELEGATED_KEPT = 50;
  *  page's own answer lost, so its "Answered" card goes. */
 export function keepDelegated(ix: Interaction, r: Record<string, unknown>) {
   if (ix.kind !== "question") return;
-  const current = state.interactions.find((candidate) => candidate.id === ix.id);
+  const current = interactionByID(ix.id);
   if (!current || !laterTime(current.created_at, ix.created_at)) changeInteraction(ix.id, null);
   const answered = { ...state.answered };
   if (!state.answered[ix.id] || !laterTime(state.answered[ix.id].ix.created_at, ix.created_at)) delete answered[ix.id];

@@ -26,17 +26,17 @@ func (s *Service) hasPending(ctx context.Context, machine, session string) bool 
 	})
 }
 
-// pendingIDs are the cards waiting for an answer now (nil when the hub could not be asked).
-func (s *Service) pendingIDs(ctx context.Context) map[string]bool {
+// pendingIDs maps each waiting card's ID to its occurrence timestamp (nil when the hub could not be asked).
+func (s *Service) pendingIDs(ctx context.Context) map[string]time.Time {
 	var res struct {
 		Interactions []proto.Interaction `json:"interactions"`
 	}
 	if err := s.call(ctx, DeviceAll, DeviceInteractionsList, map[string]any{}, &res); err != nil {
 		return nil
 	}
-	out := make(map[string]bool, len(res.Interactions))
+	out := make(map[string]time.Time, len(res.Interactions))
 	for _, ix := range res.Interactions {
-		out[ix.ID] = true
+		out[ix.ID] = ix.CreatedAt
 	}
 	return out
 }
@@ -320,7 +320,10 @@ func (s *Service) finishChannelRun(r *channel.Run, res *channel.Result) (unrelat
 		prog.steps, prog.live, prog.dirty = nil, "", false
 		prog.from, prog.upTo = 0, 0
 		prog.open, prog.calls, prog.read, prog.edited, prog.subs, prog.subsMore = nil, 0, nil, nil, nil, 0
-		prog.items, prog.cot, prog.native = nil, cotProgress{}, nil
+		prog.items = nil
+		if n, ok := prog.sink.(interface{ NextTurn() }); ok {
+			n.NextTurn() // the sink's agent message of the turn goes with it
+		}
 	} else {
 		prog.finished = true
 		delete(c.live, r.ID)

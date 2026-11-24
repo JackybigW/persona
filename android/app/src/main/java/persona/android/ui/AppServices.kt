@@ -162,6 +162,10 @@ class AppServices @Inject constructor(
                         try { interactions.resolveOutcome(id, resolution, handoffCard) }
                         catch (cancelled: CancellationException) { throw cancelled }
                         catch (error: Exception) { feedback.failure(error, true); throw error }
+                    override suspend fun resolveOccurrence(interaction: Interaction, resolution: Resolution, handoffCard: Boolean) =
+                        try { interactions.resolveOccurrence(interaction, resolution, handoffCard) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (error: Exception) { feedback.failure(error, true); throw error }
                 }
                 // Its to-dos show from the last read until the hub answers (#4533), as the group's chat bindings' do.
                 // A new hub gets a new store, so todosReady starts false and a card does not call a task gone mid-switch.

@@ -102,6 +102,31 @@ func TestTypedAnswerResolvesTheCard(t *testing.T) {
 	}
 }
 
+func TestTypedAnswerUsesOnlyTheDisplayedOccurrence(t *testing.T) {
+	first := qCard("ix_occurrence", false, "first yes", "first no")
+	first.CreatedAt = time.Date(2026, 11, 24, 10, 0, 0, 123456789, time.UTC)
+	replacement := qCard("ix_occurrence", false, "replacement yes", "replacement no")
+	replacement.CreatedAt = first.CreatedAt.Add(time.Second)
+
+	s, _, _, _, resolves := textAnswerBot(t, nil, replacement)
+	seedCard(s, first)
+	if !s.botAnswerQuestion(context.Background(), "om_stale", "2", "oa_stale", "", "") {
+		t.Fatal("the typed answer was not consumed")
+	}
+	if len(*resolves) != 0 {
+		t.Fatalf("an answer constructed from the first question resolved its replacement: %+v", *resolves)
+	}
+
+	s, _, _, _, resolves = textAnswerBot(t, nil, first)
+	seedCard(s, first)
+	if !s.botAnswerQuestion(context.Background(), "om_current", "2", "oa_current", "", "") || len(*resolves) != 1 {
+		t.Fatalf("the current occurrence was not answered: %+v", *resolves)
+	}
+	if got := (*resolves)[0]["created_at"]; got != first.CreatedAt.Format(time.RFC3339Nano) {
+		t.Fatalf("typed resolve occurrence = %v, want %s", got, first.CreatedAt.Format(time.RFC3339Nano))
+	}
+}
+
 // Non-options/no-action/plan/form messages stay for the agent; over-elsewhere handled and swallowed; failed resolve keeps waiting.
 func TestTypedAnswerGuards(t *testing.T) {
 	free, plan := qCard("ix_q", false, "北京", "上海"), proto.Interaction{ID: "ix_plan", Kind: proto.IxPlan}

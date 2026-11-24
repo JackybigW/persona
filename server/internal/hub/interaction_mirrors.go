@@ -124,25 +124,32 @@ func (h *Hub) normalizeRecordedDisplayMirror(r *http.Request) {
 // authoritative operation through this path.
 func (h *Hub) normalizeDisplayMirror(r *http.Request) {
 	id := r.PathValue("id")
-	// Only the hub's current pending card may supply this internal constraint.
-	// Discard a client-provided value before selecting the authoritative target.
-	if r.Header == nil {
-		r.Header = make(http.Header)
+	// A current client supplies the occurrence it displayed. Preserve a stale or
+	// malformed value so it cannot be rebound to a same-ID replacement. Older
+	// clients omit it and retain the hub-observed rolling-upgrade behavior.
+	supplied := r.Header.Get(assistantwire.InteractionCreatedAtHeader)
+	matches := func(ix proto.Interaction) bool {
+		if supplied == "" {
+			return true
+		}
+		at, err := time.Parse(time.RFC3339Nano, supplied)
+		return err == nil && ix.CreatedAt.Equal(at)
 	}
-	r.Header.Del(assistantwire.InteractionCreatedAtHeader)
 	f := &h.reported
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	mirror, ok := f.interactions[id]
 	if ok && mirror.MirrorOf == "" {
-		r.Header.Set(assistantwire.InteractionCreatedAtHeader, mirror.CreatedAt.UTC().Format(time.RFC3339Nano))
+		if matches(mirror) {
+			r.Header.Set(assistantwire.InteractionCreatedAtHeader, mirror.CreatedAt.UTC().Format(time.RFC3339Nano))
+		}
 		return
 	}
 	if !ok {
 		return
 	}
 	origin, ok := f.interactions[mirror.MirrorOf]
-	if ok && validDisplayMirror(origin, mirror) {
+	if ok && matches(origin) && validDisplayMirror(origin, mirror) {
 		suffix := strings.TrimPrefix(r.URL.Path, displayMirrorAPIPrefix+id)
 		if suffix != r.URL.Path && suffix != "" {
 			setDisplayMirrorOrigin(r, origin.ID, suffix)

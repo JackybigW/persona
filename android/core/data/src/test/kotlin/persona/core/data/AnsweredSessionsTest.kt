@@ -213,6 +213,44 @@ class AnsweredSessionsTest {
         assertEquals(listOf(replacement), f.center.pending.value.filter { it.id == card.id })
     }
 
+    @Test fun aNewerLiveReplacementRetainsTheTerminalFenceAgainstAnOlderReplay() = runTest {
+        val f = fixture()
+        val first = card.copy(createdAt = "2026-11-06T08:00:00.000000001Z", summary = "first")
+        val replacement = card.copy(createdAt = "2026-11-06T08:00:00.000000002Z", summary = "replacement")
+        f.connection.events.emit(ServerEvent.decode("""{"type":"interaction_resolved","id":"ix1","created_at":"2026-11-06T08:00:00.000000001Z"}""")!!)
+        f.connection.events.emit(InteractionEvent(replacement))
+        f.connection.events.emit(InteractionEvent(first))
+        runCurrent()
+        assertEquals(listOf(replacement), f.center.pending.value.filter { it.id == card.id })
+    }
+
+    @Test fun anOlderLiveEventCannotReplaceAPendingReplacement() = runTest {
+        val f = fixture()
+        val first = card.copy(createdAt = "2026-11-06T08:00:00.000000001Z", summary = "first")
+        val replacement = card.copy(createdAt = "2026-11-06T08:00:00.000000002Z", summary = "replacement")
+        f.connection.events.emit(InteractionEvent(replacement))
+        f.connection.events.emit(InteractionEvent(first))
+        runCurrent()
+        assertEquals(listOf(replacement), f.center.pending.value.filter { it.id == card.id })
+        f.transport.pending = listOf(first)
+        f.center.refresh()
+        assertEquals(listOf(replacement), f.center.pending.value.filter { it.id == card.id })
+    }
+
+    @Test fun anOlderLiveEventCannotResurrectAResolvedReplacement() = runTest {
+        val f = fixture()
+        val first = card.copy(createdAt = "2026-11-06T08:00:00.000000001Z", summary = "first")
+        val replacement = card.copy(createdAt = "2026-11-06T08:00:00.000000002Z", summary = "replacement")
+        f.connection.events.emit(InteractionEvent(replacement))
+        f.connection.events.emit(ServerEvent.decode("""{"type":"interaction_resolved","id":"ix1","created_at":"2026-11-06T08:00:00.000000002Z"}""")!!)
+        f.connection.events.emit(InteractionEvent(first))
+        runCurrent()
+        assertEquals(emptyList<Interaction>(), f.center.pending.value.filter { it.id == card.id })
+        f.transport.pending = listOf(first)
+        f.center.refresh()
+        assertEquals(emptyList<Interaction>(), f.center.pending.value.filter { it.id == card.id })
+    }
+
     @Test fun theRepositoryViewShowsTheAnsweredListAndRefreshesTheHubs() = runTest {
         val f = fixture()
         val view = f.repository.showing(f.shown)

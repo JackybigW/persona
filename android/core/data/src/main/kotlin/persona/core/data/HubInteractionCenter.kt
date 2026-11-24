@@ -66,12 +66,18 @@ class HubInteractionCenter(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             connection.events.collect { event -> restored.await(); lock.withLock {
                 when (event) {
-                    is InteractionEvent -> if (event.interaction.id !in discarded && !endedOccurrence(event.interaction, endedHere)) {
-                        val previous = mutablePending.value.firstOrNull { it.id == event.interaction.id }
-                        // Looking is quiet. Its first handover is an arrival; any later edit of that copy is not.
-                        val announces = !event.interaction.isDelegating && (previous == null || previous.isDelegating)
-                        ended.remove(event.interaction.id); change(event.interaction.id, event.interaction)
-                        if (announces && !event.interaction.isDisplayMirror) mutableArrivals.tryEmit(event.interaction)
+                    is InteractionEvent -> {
+                        val incoming = event.interaction
+                        val previous = mutablePending.value.firstOrNull { it.id == incoming.id }
+                        val stale = previous != null && laterTime(previous.createdAt, incoming.createdAt)
+                        if (!stale && incoming.id !in discarded && !endedOccurrence(incoming, endedHere) && !endedOccurrence(incoming, ended)) {
+                            // Looking is quiet. A handover or a genuinely newer occurrence is an arrival; an edit or replay is not.
+                            val replacement = previous != null && laterTime(incoming.createdAt, previous.createdAt)
+                            val announces = !incoming.isDelegating && (previous == null || previous.isDelegating || replacement)
+                            // Keep an older terminal marker: it still fences a delayed old live event after this replacement.
+                            change(incoming.id, incoming)
+                            if (announces && !incoming.isDisplayMirror) mutableArrivals.tryEmit(incoming)
+                        }
                     }
                     is InteractionResolvedEvent -> {
                         val current = mutablePending.value.firstOrNull { it.id == event.id }
@@ -100,6 +106,10 @@ class HubInteractionCenter(
         val fetched = transport.interactions()
         lock.withLock {
             val merged = fetched.filterNot { endedOccurrence(it, ended) || it.id in discarded }.associateBy { it.id }.toMutableMap()
+            mutablePending.value.forEach { current ->
+                val snapshot = merged[current.id]
+                if (snapshot != null && laterTime(current.createdAt, snapshot.createdAt)) merged[current.id] = current
+            }
             changes.filterValues { it.first > before }.forEach { (id, change) ->
                 if (change.second == null) merged.remove(id) else merged[id] = change.second!!
             }
@@ -124,16 +134,22 @@ class HubInteractionCenter(
     override suspend fun resolveOutcome(id: String, resolution: Resolution): ResolveOutcome =
         resolveOutcome(id, resolution, handoffCard = false)
 
-    override suspend fun resolveOutcome(id: String, resolution: Resolution, handoffCard: Boolean): ResolveOutcome {
+    override suspend fun resolveOutcome(id: String, resolution: Resolution, handoffCard: Boolean): ResolveOutcome =
+        resolveOutcome(id, null, resolution, handoffCard)
+
+    override suspend fun resolveOccurrence(interaction: Interaction, resolution: Resolution, handoffCard: Boolean): ResolveOutcome =
+        resolveOutcome(interaction.id, interaction, resolution, handoffCard)
+
+    private suspend fun resolveOutcome(id: String, displayed: Interaction?, resolution: Resolution, handoffCard: Boolean): ResolveOutcome {
         restored.await()
-        // Whose card it is and the hub's state for them now, before an interaction_resolved can take the card away.
-        val card = pending.value.firstOrNull { it.id == id }
+        // A displayed card pins its exact occurrence; a direct ID-only caller keeps the legacy current-card path.
+        val card = displayed ?: pending.value.firstOrNull { it.id == id }
         val asked = card?.sessionKey
         val since = asked?.let { key -> sessions?.value?.firstOrNull { it.key == key }?.stateSince }
         val marked = handoffCard && resolution.allow == true && card?.isSecretHandoff == true
         val outcome = try {
-            // Every ordinary answer keeps the old overload: delegated transports must not bypass their existing path.
-            if (marked) transport.resolveOutcome(id, resolution, handoffCard = true)
+            // A displayed card pins its exact occurrence; a direct ID-only caller keeps the legacy transport path.
+            if (card != null) transport.resolveOccurrence(card, resolution, handoffCard = marked)
             else transport.resolveOutcome(id, resolution)
         } catch (gone: InteractionGoneException) {
             lock.withLock { end(id, here = true, occurrence = card?.createdAt) }

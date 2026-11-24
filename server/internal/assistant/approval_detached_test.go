@@ -1211,6 +1211,29 @@ func TestDetachedFingerprintCanonicalizesJSONKeyOrder(t *testing.T) {
 	}
 }
 
+func TestDetachedFingerprintCanonicalizesJSONBNumbers(t *testing.T) {
+	for _, tc := range []struct{ name, before, after string }{
+		{"exponent", `{"command":"pwd","x":1e2}`, `{"x":100,"command":"pwd"}`},
+		{"decimal scale", `{"command":"pwd","x":1.00}`, `{"x":1,"command":"pwd"}`},
+		{"nested signed zero", `{"command":"pwd","x":[-0.0,0.01]}`, `{"x":[0,1e-2],"command":"pwd"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			first := detachedTestCard("ix_jsonb_number")
+			first.ToolInput = json.RawMessage(tc.before)
+			second := first
+			second.ToolInput = json.RawMessage(tc.after)
+			a, err := detachedFingerprint(first)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := detachedFingerprint(second)
+			if err != nil || a != b {
+				t.Fatalf("a JSONB numeric round trip changed identity: err=%v\nfirst  %s\nsecond %s", err, a, b)
+			}
+		})
+	}
+}
+
 func TestPreCanonicalDetachedGrantRemainsConsumable(t *testing.T) {
 	ft := newFleetTest(t)
 	preparedTestConversation(ft)

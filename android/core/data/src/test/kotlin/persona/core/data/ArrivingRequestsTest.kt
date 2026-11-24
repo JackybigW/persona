@@ -106,6 +106,22 @@ class ArrivingRequestsTest {
         assertEquals(listOf("ix1"), arrived)
     }
 
+    @Test fun aSameIDReplacementArrivesOnceWithoutAnnouncingItsReplay() = runTest {
+        val first = card.copy(createdAt = "2026-11-06T08:00:00.000000001Z")
+        val replacement = card.copy(createdAt = "2026-11-06T08:00:00.000000002Z")
+        val connection = Connection()
+        val center = HubInteractionCenter(Transport(emptyList()), connection, backgroundScope)
+        val arrived = mutableListOf<String?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { center.arrivals.collect { arrived += it.createdAt } }
+        connection.events.emit(InteractionEvent(first))
+        connection.events.emit(InteractionEvent(first))
+        connection.events.emit(InteractionEvent(replacement))
+        connection.events.emit(InteractionEvent(replacement))
+        runCurrent()
+        assertEquals(listOf(first.createdAt, replacement.createdAt), arrived)
+        assertEquals(listOf(replacement), center.pending.value)
+    }
+
     private class Connection : HubConnection {
         override val state = MutableStateFlow(ConnectionState.WaitingForNetwork)
         override val events = MutableSharedFlow<ServerEvent>()

@@ -35,6 +35,8 @@ const (
 	cxSyncOut       = `{"timestamp":"2026-11-01T13:49:55.788Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_s1","output":"{\"answers\":{}}"}}`
 
 	cxEmpty = "• Done.\n\n› Ask Codex to do anything\n\n  gpt-6 low · /private/tmp/project\n"
+
+	cxTimestamplessAsk = `{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"AgentMessage","id":"call_without_timestamp","content":[],"phase":"final_answer","delivery":"async","questions":[{"title":"Which color?","options":["Red","Green"]}]}}}`
 )
 
 // cxToday moves the fixtures' timestamps (2026-11-01 13:40 on) to an hour ago, keeping their order: async questions
@@ -178,6 +180,48 @@ func TestCodexAnswerAsync(t *testing.T) {
 	})
 	if cards := n.codexCardsNow(context.Background(), ""); len(cards) != 0 {
 		t.Errorf("still listed: %+v", cards)
+	}
+}
+
+func TestCodexTimestamplessQuestionAnswersOriginalOccurrence(t *testing.T) {
+	n, f, path := codexNode(t, proto.StatusIdle, cxTimestamplessAsk)
+	f.setScreen(cxPane, cxEmpty)
+	sent := codexTUI(t, f, path)
+	card := onlyCard(t, n).ix
+	answers := map[string]string{"Which color?": "Green"}
+	if err := n.codexAnswerAt(context.Background(), cxID, card.ID, card.CreatedAt, proto.Resolution{Answers: answers}); err != nil {
+		t.Fatalf("the displayed occurrence could not be answered: %v (code %s)", err, refusalCode(err))
+	}
+	if len(*sent) != 1 {
+		t.Fatalf("answers typed = %q, want exactly one", *sent)
+	}
+}
+
+func TestCodexTimestamplessQuestionDoesNotReannounce(t *testing.T) {
+	n, _, _ := codexNode(t, proto.StatusIdle, cxTimestamplessAsk)
+	hub := newScriptHub(t, answerWith(proto.Resolution{}), notifyOK)
+	n.peer = hub.n.peer
+	n.syncCodexCards(context.Background())
+	waitFor(t, "the first timestamp-less Codex interaction list", func() bool {
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		return len(hub.codexLists) == 1
+	})
+	n.cx.mu.Lock()
+	first := n.cx.sentOccurrences
+	n.cx.mu.Unlock()
+	n.syncCodexCards(context.Background())
+	n.cx.mu.Lock()
+	second := n.cx.sentOccurrences
+	n.cx.mu.Unlock()
+	if second != first {
+		t.Fatalf("one open question changed occurrence between polls:\nfirst  %q\nsecond %q", first, second)
+	}
+	hub.mu.Lock()
+	lists := len(hub.codexLists)
+	hub.mu.Unlock()
+	if lists != 1 {
+		t.Fatalf("interaction lists after an unchanged poll = %d, want 1", lists)
 	}
 }
 

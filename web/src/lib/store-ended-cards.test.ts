@@ -140,6 +140,25 @@ describe("a card this page ended", () => {
     expect(getState().interactions).toEqual([replacement]);
   });
 
+  it("does not let a delayed older live event replace a newer pending occurrence", () => {
+    const s = online();
+    const replacement: Interaction = { ...card, created_at: "2026-01-02T03:04:05.000000002Z", summary: "replacement" };
+    s.push({ type: "interaction", interaction: replacement });
+    s.push({ type: "interaction", interaction: card });
+    expect(getState().interactions.filter((i) => i.id === card.id)).toEqual([replacement]);
+    expect(mergeInteractions([card], Number.MAX_SAFE_INTEGER)).toEqual([replacement]);
+  });
+
+  it("does not resurrect an older occurrence after its replacement resolved elsewhere", () => {
+    const s = online();
+    const replacement: Interaction = { ...card, created_at: "2026-01-02T03:04:05.000000002Z", summary: "replacement" };
+    s.push({ type: "interaction", interaction: replacement });
+    s.push({ type: "interaction_resolved", id: replacement.id, created_at: replacement.created_at });
+    s.push({ type: "interaction", interaction: card });
+    expect(getState().interactions.filter((i) => i.id === card.id)).toEqual([]);
+    expect(mergeInteractions([card], Number.MAX_SAFE_INTEGER)).toEqual([]);
+  });
+
   it("is forgotten with a new login", async () => {
     online();
     op.mockResolvedValue({ ok: true });

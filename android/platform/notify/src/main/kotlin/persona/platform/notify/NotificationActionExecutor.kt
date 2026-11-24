@@ -74,7 +74,7 @@ internal class NotificationActionExecutor(
         onProgress(PendingStatus.Sending)
         // Persistence and notification updates may cross the deadline; check at the transport boundary.
         if (NotificationPolicy.expired(ix, now())) return NotificationActionResult.Expired
-        try { center.resolve(id, resolution) }
+        try { center.resolveOccurrence(ix, resolution) }
         catch (_: InteractionGoneException) { return NotificationActionResult.Gone }
         return NotificationActionResult.Submitted
     }

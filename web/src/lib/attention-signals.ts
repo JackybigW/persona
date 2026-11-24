@@ -354,7 +354,7 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
   const latest = useRef(sessions);
   latest.current = sessions;
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
-  // the card ids seen pending (undefined before the first run), the card each "Needs you" notification is about, and the
+  // the card occurrence keys seen pending (undefined before the first run), the card each "Needs you" notification is about, and the
   // sessions whose "Needs you" came before any card (its first card is the same wait, CardEvent.follows)
   const cards = useRef<ReadonlyMap<string, number> | undefined>(undefined);
   const announced = useRef(new Map<string, string>());

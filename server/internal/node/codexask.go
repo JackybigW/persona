@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -76,6 +77,8 @@ type codexCards struct {
 	dismissed       map[string]dismissedCard           // card id → handed back to the computer from the phone
 	approvals       map[string]bool                    // session id → last screen scan saw a Codex approval dialog
 	created         map[string]codexApprovalOccurrence // approval card id → its first-seen occurrence while open
+	outsideAsks     map[string]string                  // session id → card id of the active clq_ card last listed to the hub
+	outsideAskCache map[string]outsideAskCacheEntry    // session id → stat-cached bounded read-only pending AskUserQuestion
 	pagerAt         map[string]time.Time               // pane → when its transcript pager was last closed to show a dialog
 	joins           map[string]codexJoinState          // session id → joining it on its app-server (codex_daemon.go)
 }
@@ -139,6 +142,7 @@ func (n *Node) syncCodexCards(ctx context.Context) {
 	var list []proto.Interaction
 	var ids []string
 	var occurrences []string
+	var outsideAsks map[string]string
 	for _, ix := range cards {
 		if n.sessionBlocked(ix.SessionID, ix.Cwd) {
 			continue // a blocked Agent folder (agentdirs.go): the card stays on the computer's own screen
@@ -154,6 +158,12 @@ func (n *Node) syncCodexCards(ctx context.Context) {
 		list = append(list, ix)
 		ids = append(ids, ix.ID)
 		occurrences = append(occurrences, ix.ID+"\x00"+ix.CreatedAt.UTC().Format(time.RFC3339Nano))
+		if strings.HasPrefix(ix.ID, outsideAskPrefix) {
+			if outsideAsks == nil {
+				outsideAsks = map[string]string{}
+			}
+			outsideAsks[ix.SessionID] = ix.ID
+		}
 	}
 	sort.Strings(ids)
 	sort.Strings(occurrences)
@@ -161,12 +171,52 @@ func (n *Node) syncCodexCards(ctx context.Context) {
 	changed := key != n.cx.sentOccurrences
 	n.cx.sent = strings.Join(ids, ",")
 	n.cx.sentOccurrences = key
+	outsideAskAdded := false
+	for sid := range outsideAsks {
+		if n.cx.outsideAsks[sid] == "" {
+			outsideAskAdded = true
+			break
+		}
+	}
+	outsideAskRemoved := false
+	for sid := range n.cx.outsideAsks {
+		if outsideAsks[sid] == "" {
+			outsideAskRemoved = true
+			break
+		}
+	}
+	outsideAskChanged := !maps.Equal(n.cx.outsideAsks, outsideAsks)
+	if outsideAskAdded && outsideAskRemoved {
+		// Keep removed sessions approvable until codex.interactions withdraws their cards below.
+		merged := maps.Clone(n.cx.outsideAsks)
+		maps.Copy(merged, outsideAsks)
+		n.cx.outsideAsks = merged
+	} else if !outsideAskRemoved {
+		n.cx.outsideAsks = outsideAsks
+	}
 	n.cx.mu.Unlock()
-	if changed && n.peer != nil {
+	if outsideAskAdded {
+		// Flush sessions.changed (Approve = true) onto the wire before codex.interactions so clients never see a new
+		// clq_ card before Approve = true has actually been written, even if pollAgents already updated lastList.
+		n.outsideListGen.Add(1)
+		n.flushOutsideSessions(ctx)
+	}
+	if changed && n.peer != nil && ctx.Err() == nil {
 		if list == nil {
 			list = []proto.Interaction{}
 		}
 		_ = n.peer.Notify("codex.interactions", map[string]any{"interactions": list})
+	}
+	if outsideAskRemoved {
+		// Clear removed sessions only after codex.interactions withdrew their cards, then flush Approve = false.
+		n.cx.mu.Lock()
+		n.cx.outsideAsks = outsideAsks
+		n.cx.mu.Unlock()
+		n.outsideListGen.Add(1)
+		n.flushOutsideSessions(ctx)
+	} else if outsideAskChanged && !outsideAskAdded {
+		n.outsideListGen.Add(1)
+		n.flushOutsideSessions(ctx)
 	}
 }
 
@@ -380,6 +430,24 @@ func (c *codexCards) hasApproval(id string) bool {
 	return c.approvals[id]
 }
 
+// hasOutsideAsk reports whether session currently has an active outside AskUserQuestion (clq_) card published to the
+// hub that has not been dismissed or held.
+func (c *codexCards) hasOutsideAsk(session string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	id := c.outsideAsks[session]
+	if id == "" {
+		return false
+	}
+	if _, gone := c.dismissed[id]; gone {
+		return false
+	}
+	if time.Now().Before(c.held[id]) {
+		return false
+	}
+	return true
+}
+
 func (t *codexTail) read() {
 	f, err := os.Open(t.path)
 	if err != nil {
@@ -442,7 +510,10 @@ func askCard(session string, a codexAgent, title string, ask transcript.CodexAsk
 		ix.Questions = append(ix.Questions, proto.Question{Question: q.Question, Header: q.Header, Options: options})
 	}
 	if ix.CreatedAt.IsZero() {
-		ix.CreatedAt = time.Now().UTC()
+		// A rollout line without a timestamp still needs one stable, nonzero
+		// occurrence on the wire. Wall-clock now would replace the same open
+		// question on every scan and reject an answer to the displayed card.
+		ix.CreatedAt = time.Unix(0, 0).UTC()
 	}
 	ix.ID = "cxq_" + shortHash(key)
 	return ix

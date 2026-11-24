@@ -10,8 +10,8 @@ import (
 
 	approvalops "github.com/nwverse/persona/server/internal/approval"
 	"github.com/nwverse/persona/server/internal/assistantwire"
+	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/channel"
-	"github.com/nwverse/persona/server/internal/feishubot"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -491,7 +491,7 @@ func TestFeishuStaleCallbackCannotActOnReplacement(t *testing.T) {
 				}
 				ft.s.fbot.cards[first.ID] = botCard{MessageID: messageID, Ix: ledger}
 				ft.s.fbot.mu.Unlock()
-				var a feishubot.CardAction
+				var a botcard.CardAction
 				a.Action.Value = map[string]any{"a": "ix", "id": first.ID, "created_at": first.CreatedAt.Format(time.RFC3339Nano)}
 				if action == "resolve" {
 					a.Action.Value["allow"] = "1"

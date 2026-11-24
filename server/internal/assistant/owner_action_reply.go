@@ -2,12 +2,14 @@ package assistant
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/botcard"
 	"github.com/nwverse/persona/server/internal/channel"
 	"github.com/nwverse/persona/server/internal/i18n"
+	"github.com/nwverse/persona/server/internal/larkhost"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -82,25 +84,35 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 	b.mu.Lock()
 	s.loadBotLocked(ctx)
 	id := ""
+	ambiguous := false
 	for candidate, ref := range b.st.Cards {
 		if ref == nil || !ref.OwnerProposal || ref.MessageID != msg.ParentID {
 			continue
 		}
 		if id != "" {
-			id = "" // ambiguous persisted mapping: never guess which operation was approved
+			id = ""
+			ambiguous = true // ambiguous persisted mapping: never guess which operation was approved
 			break
 		}
 		id = candidate
 	}
 	b.mu.Unlock()
-	if id == "" {
+	if id == "" && !ambiguous {
 		return false
 	}
 
 	fail := func(err error) {
-		s.logf("bots: exact owner approval %s: %v", id, err)
-		s.botNote(ctx, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answer_not_sent",
+		target := id
+		if target == "" {
+			target = "parent " + msg.ParentID
+		}
+		s.logf("bots: exact owner approval %s: %v", target, err)
+		s.chat().Note(ctx, larkhost.Target{}, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answer_not_sent",
 			i18n.Args{"error": clip(oneLine(err.Error()), 200)}))
+	}
+	if ambiguous {
+		fail(errOwnerActionProof)
+		return true
 	}
 	ix, pending := s.pendingIx(id)
 	b.mu.Lock()
@@ -119,7 +131,7 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 		}
 		if found && origin.Terminal && ref != nil && origin.MachineID == ref.MachineID && origin.SessionID == ref.SessionID &&
 			(ref.CreatedAt.IsZero() || origin.CreatedAt.Equal(ref.CreatedAt)) {
-			s.botNote(ctx, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answered_elsewhere"))
+			s.chat().Note(ctx, larkhost.Target{}, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answered_elsewhere"))
 		} else {
 			fail(errNotPending)
 		}
@@ -168,7 +180,11 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 		EventID:            "feishu:" + got.Proof.MessageID,
 	}, &interactionExpectation{occurrence: &ix})
 	if err != nil {
-		fail(err)
+		if errors.Is(err, errNotPending) {
+			s.chat().Note(ctx, larkhost.Target{}, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answered_elsewhere"))
+		} else {
+			fail(err)
+		}
 	}
 	return true
 }

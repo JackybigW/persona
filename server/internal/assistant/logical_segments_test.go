@@ -1371,8 +1371,8 @@ func TestLogicalNonResumableNewOccurrenceReplacesEndedRecord(t *testing.T) {
 	replacement := original
 	replacement.CreatedAt = created.Add(time.Second)
 	fresh, err := s.logicalPublishInteraction(ctx, replacement)
-	if err != nil || fresh {
-		t.Fatalf("new non-resumable occurrence publication: fresh=%v err=%v", fresh, err)
+	if err != nil || !fresh {
+		t.Fatalf("new non-resumable occurrence publication: fresh=%v err=%v; a replacement must announce, not restore", fresh, err)
 	}
 	record, err := d.InteractionRecord(ctx, original.ID)
 	if err != nil || record == nil || !record.Interaction.CreatedAt.Equal(replacement.CreatedAt) || record.Status != "pending" {

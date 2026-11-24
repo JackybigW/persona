@@ -150,6 +150,47 @@ func TestDisplayMirrorFromEarlierOccurrenceCannotResolveLaterCard(t *testing.T) 
 	}
 }
 
+func TestOriginalAnswerKeepsDisplayedOccurrenceAfterReplacement(t *testing.T) {
+	h := newTestHub(t)
+	first := proto.Interaction{ID: "ix_original_reused", SessionID: "side", Kind: proto.IxPermission,
+		CreatedAt: time.Unix(1000, 123456789).UTC(), ExpiresAt: time.Now().Add(time.Hour).UTC()}
+	reportInteraction(t, h, first)
+	second := first
+	second.CreatedAt = second.CreatedAt.Add(time.Second)
+	second.Summary = "replacement"
+	reportInteraction(t, h, second)
+
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/interactions/"+first.ID+"/resolve", strings.NewReader(`{"allow":true}`))
+	r.SetPathValue("id", first.ID)
+	r.Header.Set(assistantwire.InteractionCreatedAtHeader, first.CreatedAt.Format(time.RFC3339Nano))
+	h.normalizeDisplayMirror(r)
+	if got := r.Header.Get(assistantwire.InteractionCreatedAtHeader); got != first.CreatedAt.Format(time.RFC3339Nano) {
+		t.Fatalf("the displayed occurrence was rebound to the replacement: got %q, want %q", got, first.CreatedAt.Format(time.RFC3339Nano))
+	}
+}
+
+func TestDisplayMirrorNormalizationRefusesMismatchedClientOccurrence(t *testing.T) {
+	h := newTestHub(t)
+	origin := proto.Interaction{ID: "ix_mirror_client_occurrence", SessionID: "side", Kind: proto.IxPermission,
+		MirrorMain: true, CreatedAt: time.Unix(1000, 123456789).UTC(), ExpiresAt: time.Now().Add(time.Hour).UTC()}
+	mirror := origin
+	mirror.ID, mirror.MirrorOf, mirror.MirrorMain, mirror.SessionID = proto.ApprovalMirrorID(origin.ID, origin.CreatedAt), origin.ID, false, "main"
+	reportInteraction(t, h, origin)
+	reportInteraction(t, h, mirror)
+	for _, supplied := range []string{"client-forged", origin.CreatedAt.Add(time.Second).Format(time.RFC3339Nano)} {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/interactions/"+mirror.ID+"/resolve", strings.NewReader(`{"allow":true}`))
+		r.SetPathValue("id", mirror.ID)
+		r.Header.Set(assistantwire.InteractionCreatedAtHeader, supplied)
+		h.normalizeDisplayMirror(r)
+		if got := r.PathValue("id"); got != mirror.ID {
+			t.Fatalf("client occurrence %q normalized the mirror to %q", supplied, got)
+		}
+		if got := r.Header.Get(assistantwire.InteractionCreatedAtHeader); got != supplied {
+			t.Fatalf("client occurrence %q was rewritten as %q", supplied, got)
+		}
+	}
+}
+
 func TestDisplayMirrorNormalizationPinsTheOccurrenceForTheManagerClaim(t *testing.T) {
 	h := newTestHub(t)
 	first := proto.Interaction{ID: "ix_normalized_mirror", SessionID: "side", Kind: proto.IxPermission,
@@ -160,7 +201,7 @@ func TestDisplayMirrorNormalizationPinsTheOccurrenceForTheManagerClaim(t *testin
 	reportInteraction(t, h, firstMirror)
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/interactions/"+firstMirror.ID+"/resolve", strings.NewReader(`{"allow":true}`))
 	r.SetPathValue("id", firstMirror.ID)
-	r.Header.Set(assistantwire.InteractionCreatedAtHeader, "client-forged")
+	r.Header.Set(assistantwire.InteractionCreatedAtHeader, first.CreatedAt.Format(time.RFC3339Nano))
 	h.normalizeDisplayMirror(r)
 	if got := r.PathValue("id"); got != first.ID {
 		t.Fatalf("mirror normalized to %q, want %q", got, first.ID)

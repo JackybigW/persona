@@ -114,13 +114,16 @@ import Testing
             }
         }
         let api = hub.client, op = UUID()
+        let occurrence = "2026-11-24T01:02:03.123456789Z"
         var waits: [TimeInterval] = []
         let res = try await OpRetry.untilDelivered(wait: { s, _ in waits.append(s) }) {
-            try await api.resolve("ix1", Resolution(allow: true), opID: op)
+            try await api.resolve("ix1", Resolution(allow: true), opID: op, occurrence: occurrence)
         }
         #expect(res.ok == true)
-        let ids = hub.sent("POST", "/api/v1/interactions/ix1/resolve").map { $0.headers[OpRetry.header] }
+        let requests = hub.sent("POST", "/api/v1/interactions/ix1/resolve")
+        let ids = requests.map { $0.headers[OpRetry.header] }
         #expect(ids == Array(repeating: op.uuidString.lowercased(), count: 4))
+        #expect(requests.map { $0.headers["X-Persona-Interaction-Created-At"] } == Array(repeating: occurrence, count: 4))
         #expect(waits == [0.5, 1, 2])
     }
 

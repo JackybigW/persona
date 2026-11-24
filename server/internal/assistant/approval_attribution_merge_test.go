@@ -49,8 +49,8 @@ func TestGraceEndedReconnectCarriesWithdrawnReason(t *testing.T) {
 }
 
 // ownerActionAttributionStore keeps owner-action CAS and interaction history in
-// their existing test implementations. Explicit setting methods resolve the only
-// ambiguous selectors introduced by embedding both.
+// their existing test implementations. Explicit setting and placement methods
+// resolve the ambiguous selectors introduced by embedding both.
 type ownerActionAttributionStore struct {
 	*ownerActionTestStore
 	*fleetMem
@@ -62,6 +62,10 @@ func (st *ownerActionAttributionStore) Setting(ctx context.Context, key string, 
 
 func (st *ownerActionAttributionStore) PutSetting(ctx context.Context, key string, value any) error {
 	return st.ownerActionTestStore.PutSetting(ctx, key, value)
+}
+
+func (st *ownerActionAttributionStore) PutPlacement(ctx context.Context, p db.PlacementRow) error {
+	return st.ownerActionTestStore.PutPlacement(ctx, p)
 }
 
 func TestOwnerActionCompletionKeepsDeviceAttribution(t *testing.T) {

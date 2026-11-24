@@ -83,7 +83,8 @@ internal fun mergedSessions(stacks: GroupStacks): SessionsRepository = object : 
     override suspend fun setListFilter(filter: SessionListFilter) = stacks.forEach { stack ->
         if (!selected(stack)) return@forEach
         val machine = filter.machineId?.let { id -> if (stack.names.owns(id)) GroupKeys.raw(id) else id }
-        stack.repositories.sessions.setListFilter(filter.forHub(stack.namespace).copy(machineId = machine))
+        val parentMachine = filter.parentMachineId?.let { id -> if (stack.names.owns(id)) GroupKeys.raw(id) else id }
+        stack.repositories.sessions.setListFilter(filter.forHub(stack.namespace).copy(machineId = machine, parentMachineId = parentMachine))
     }
     override suspend fun loadMore() = stacks.forEach { if (selected(it)) it.repositories.sessions.loadMore() }
     override suspend fun loadPrevious() = stacks.forEach { if (selected(it)) it.repositories.sessions.loadPrevious() }
@@ -135,6 +136,10 @@ internal fun mergedInteractions(stacks: GroupStacks): InteractionCenter = object
         resolveOutcome(id, resolution, handoffCard = false)
     override suspend fun resolveOutcome(id: String, resolution: Resolution, handoffCard: Boolean) =
         stacks.use(GroupKeys.namespaceOf(id)) { it.repositories.interactions.resolveOutcome(GroupKeys.raw(id), resolution, handoffCard) }
+    override suspend fun resolveOccurrence(interaction: Interaction, resolution: Resolution, handoffCard: Boolean) =
+        stacks.use(GroupKeys.namespaceOf(interaction.id)) {
+            it.repositories.interactions.resolveOccurrence(it.names.rawInteraction(interaction), resolution, handoffCard)
+        }
     override suspend fun replyOwnerApproval(interaction: Interaction, phrase: String) =
         stacks.use(GroupKeys.namespaceOf(interaction.id)) {
             it.repositories.interactions.replyOwnerApproval(it.names.rawInteraction(interaction), phrase)
@@ -422,6 +427,7 @@ internal fun mergedAgentsState(list: List<GroupNames>, states: List<AgentsWiring
     fun operationsFor(machineId: String) = stateFor(machineId)?.operations?.operations ?: throw HubFailure(HubError.NoNetwork)
     val operations = object : AgentOperations {
         override val scope = scope
+        override fun scopeFor(key: SessionKey): String = stateFor(key.machineId)?.operations?.operations?.scope ?: scope
         private suspend fun read(pins: Boolean): AgentOperationPreferences = union(list.indices.map { index ->
             try {
                 val value = if (pins) operations(index).pins() else operations(index).mutes()
@@ -460,6 +466,13 @@ internal fun mergedAgentsState(list: List<GroupNames>, states: List<AgentsWiring
         override suspend fun interruptSession(key: SessionKey) = operationsFor(key.machineId).interruptSession(key)
         override suspend fun deleteSession(key: SessionKey) = operationsFor(key.machineId).deleteSession(key)
         override suspend fun forkSession(key: SessionKey) = operationsFor(key.machineId).forkSession(key)
+        override suspend fun codexTakeoverInfo(key: SessionKey) = operationsFor(key.machineId).codexTakeoverInfo(key)
+        override suspend fun codexTakeover(key: SessionKey, token: String, confirmStop: Boolean) =
+            operationsFor(key.machineId).codexTakeover(key, token, confirmStop)
+        override suspend fun startCodexContinuation(key: SessionKey, info: persona.core.contracts.CodexTakeoverInfo, operationId: String, todoId: String?) =
+            operationsFor(key.machineId).startCodexContinuation(key, info, operationId, todoId)
+        override suspend fun codexContinuationOperation(key: SessionKey, operationId: String) =
+            operationsFor(key.machineId).codexContinuationOperation(key, operationId)
     }
     val assistant = states[chosen].operations?.assistant ?: states.firstNotNullOfOrNull { it.operations?.assistant }
     val creations = states.map { it.creation }

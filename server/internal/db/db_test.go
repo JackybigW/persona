@@ -1417,6 +1417,21 @@ func TestFinishInteractionOccurrenceAcceptsJSONBRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSameJSONDocumentAcceptsJSONBNumericNormalization(t *testing.T) {
+	for _, tc := range []struct{ before, after string }{
+		{`{"x":1e2}`, `{"x":100}`},
+		{`{"x":1.00}`, `{"x":1}`},
+		{`{"x":[-0.0,0.01]}`, `{"x":[0,1e-2]}`},
+	} {
+		if !sameJSONDocument(json.RawMessage(tc.before), json.RawMessage(tc.after)) {
+			t.Errorf("JSONB-equivalent numbers did not match: %s versus %s", tc.before, tc.after)
+		}
+	}
+	if sameJSONDocument(json.RawMessage(`{"x":100}`), json.RawMessage(`{"x":101}`)) {
+		t.Fatal("different numeric values matched")
+	}
+}
+
 func TestFinishInteractionOccurrencePreservesANewerOccurrence(t *testing.T) {
 	d, ctx := open(t), context.Background()
 	at := time.Unix(1200, 0).UTC()

@@ -110,9 +110,10 @@ type FleetInteraction struct {
 	Interaction proto.Interaction `json:"interaction"`
 }
 
-// InteractionCreatedAtHeader carries the hub-observed occurrence on a relayed
-// interaction action. It is internal transport metadata, not an owner-supplied
-// authorization field; older hubs and managers simply omit or ignore it.
+// InteractionCreatedAtHeader carries the exact displayed occurrence on an
+// interaction action. Current clients supply it on the initial request; the hub
+// preserves that fence and the manager rechecks it under the answer claim lock.
+// It is occurrence metadata, never authorization; older peers omit or ignore it.
 const InteractionCreatedAtHeader = "X-Persona-Interaction-Created-At"
 
 // FleetResolved is EventFleetResolved's params; AnsweredBy says the assistant answered it, Reason why and Answers

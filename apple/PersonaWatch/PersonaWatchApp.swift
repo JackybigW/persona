@@ -340,7 +340,7 @@ final class WatchModel {
         // To the hub of the interaction's own group.
         guard canAnswer(ix), let api = api(ix.group) else { return }
         do {
-            _ = try await api.resolve(ix.id, r)
+            _ = try await api.resolve(ix.id, r, occurrence: ix.createdAtWire)
             interactions.removeAll { $0.uid == ix.uid }
             forgetSeen(ix.uid)
             WKInterfaceDevice.current().play(.success)

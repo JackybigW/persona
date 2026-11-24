@@ -1,12 +1,9 @@
 package db
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -247,29 +244,16 @@ func sameInteractionOccurrence(a, b proto.Interaction) bool {
 	return true
 }
 
-// sameJSONDocument compares JSON values without making PostgreSQL JSONB's key
-// ordering part of an occurrence's identity. Invalid documents retain the old
-// exact-byte fallback and therefore fail closed.
+// sameJSONDocument compares JSON values using PostgreSQL JSONB's value
+// semantics: object order, whitespace and equivalent numeric spellings are not
+// identity. Invalid documents retain the exact-byte fallback and fail closed.
 func sameJSONDocument(a, b json.RawMessage) bool {
-	decode := func(raw json.RawMessage) (any, bool) {
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.UseNumber()
-		var value any
-		if err := dec.Decode(&value); err != nil {
-			return nil, false
-		}
-		var extra any
-		if err := dec.Decode(&extra); err != io.EOF {
-			return nil, false
-		}
-		return value, true
-	}
-	av, aok := decode(a)
-	bv, bok := decode(b)
-	if !aok || !bok {
+	av, aerr := proto.CanonicalJSON(a)
+	bv, berr := proto.CanonicalJSON(b)
+	if aerr != nil || berr != nil {
 		return string(a) == string(b)
 	}
-	return reflect.DeepEqual(av, bv)
+	return string(av) == string(bv)
 }
 
 // LateAnswer records on expired card id an answer that came after it expired (proto.Resolution.Late): answers (by

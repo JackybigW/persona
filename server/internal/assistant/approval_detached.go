@@ -130,20 +130,7 @@ func canonicalDetachedInput(raw json.RawMessage) (json.RawMessage, error) {
 		// live detachable requests still require non-empty input at ingress.
 		return json.RawMessage("null"), nil
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var value any
-	if err := dec.Decode(&value); err != nil {
-		return nil, fmt.Errorf("decode the exact tool input: %w", err)
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		if err == nil {
-			err = errors.New("multiple JSON values")
-		}
-		return nil, fmt.Errorf("decode the complete tool input: %w", err)
-	}
-	canonical, err := json.Marshal(value)
+	canonical, err := proto.CanonicalJSON(raw)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize the exact tool input: %w", err)
 	}

@@ -684,6 +684,10 @@ func (c *channelsBook) noteEndedLocked(a *channel.Ask) {
 	if c.lastEnded == nil {
 		c.lastEnded = map[string]endedAsk{}
 	}
+	if previous, ok := c.lastEnded[a.Channel]; ok && previous.ask != nil &&
+		!a.CreatedAt.IsZero() && !previous.ask.CreatedAt.IsZero() && a.CreatedAt.Before(previous.ask.CreatedAt) {
+		return // a delayed terminal event must not replace a newer occurrence's late-answer marker
+	}
 	c.lastEnded[a.Channel] = endedAsk{ask: a, at: c.clock()}
 }
 
@@ -728,10 +732,11 @@ func (s *Service) channelAnswerAsk(ctx context.Context, id string, m channel.Mes
 	c.mu.Lock()
 	n := len(c.st.Asks)
 	c.st.Asks = slices.DeleteFunc(c.st.Asks, func(a *channel.Ask) bool {
-		if pending[a.ID] {
-			return false
+		at, ok := pending[a.ID]
+		if ok && (a.CreatedAt.IsZero() || a.CreatedAt.Equal(at)) {
+			return false // a timestamp-less persisted ask retains its legacy ID-only cleanup
 		}
-		c.noteEndedLocked(a) // its interaction.ended was missed
+		c.noteEndedLocked(a) // its interaction.ended was missed, or this ID now names a different occurrence
 		return true
 	})
 	var a *channel.Ask
@@ -772,11 +777,18 @@ func (s *Service) channelAnswerAsk(ctx context.Context, id string, m channel.Mes
 		reply(channel.QuestionText(l, a, a.Step)) // a question answered, the next one asked
 		return true
 	}
-	ok, err := s.resolveInteraction(ctx, id, a.ID, r, action)
+	var expected *time.Time
+	if !a.CreatedAt.IsZero() {
+		expected = &a.CreatedAt
+	}
+	ok, err := s.resolveInteractionAt(ctx, id, a.ID, r, action, expected)
+	sameOccurrence := func(x *channel.Ask) bool {
+		return x.ID == a.ID && x.CreatedAt.Equal(a.CreatedAt)
+	}
 	c.mu.Lock()
 	if err == nil {
-		c.st.Asks = slices.DeleteFunc(c.st.Asks, func(x *channel.Ask) bool { return x.ID == a.ID })
-		if e, ok := c.lastEnded[id]; ok && e.ask.ID == a.ID {
+		c.st.Asks = slices.DeleteFunc(c.st.Asks, func(x *channel.Ask) bool { return sameOccurrence(x) })
+		if e, ok := c.lastEnded[id]; ok && e.ask.ID == a.ID && e.ask.CreatedAt.Equal(a.CreatedAt) {
 			delete(c.lastEnded, id) // answered here: interaction.ended came before the resolve returned
 		}
 	} else {
@@ -788,7 +800,7 @@ func (s *Service) channelAnswerAsk(ctx context.Context, id string, m channel.Mes
 	left := 0
 	for _, x := range c.st.Asks {
 		// On a failed resolve this ask is still in the list and is the one the note is about: it is not "more".
-		if x.Channel == id && x.ID != a.ID {
+		if x.Channel == id && !sameOccurrence(x) {
 			left++
 		}
 	}

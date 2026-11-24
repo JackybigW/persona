@@ -76,8 +76,9 @@ func (s *Service) botAnswerQuestion(ctx context.Context, messageID, text, action
 	}
 	l := s.botLang(ctx)
 	var got struct {
-		OK     bool   `json:"ok"`
-		Status string `json:"status"`
+		OK          bool              `json:"ok"`
+		Status      string            `json:"status"`
+		Interaction proto.Interaction `json:"interaction"`
 	}
 	if err := s.appCall(ctx, AppInteractions, InteractionsGet, map[string]any{"interaction_id": ix.ID}, &got); err != nil {
 		s.logf("bots: typed answer %s: %v", ix.ID, err)
@@ -91,18 +92,29 @@ func (s *Service) botAnswerQuestion(ctx context.Context, messageID, text, action
 		s.botNote(ctx, messageID, endedText(l, got.Status, "assistant-channels_plugin.answered_elsewhere"))
 		return true
 	}
+	if differentBotCardOccurrence(ix, got.Interaction) {
+		// The words were constructed from this occurrence's question. Never submit
+		// them to a same-ID replacement or remove that replacement's ledger entry.
+		s.botNote(ctx, messageID, i18n.T(l, "assistant-channels_plugin.answered_elsewhere"))
+		return true
+	}
 	r := proto.Resolution{Answers: map[string]string{ix.Questions[0].Question: answer}}
 	// Close the card optimistically, as a press does; put it back when the answer could not be handed over and the card
-	// still waits (botRestoreCard).
-	b.mu.Lock()
-	cur, had := b.cards[ix.ID]
-	s.keepBotCardLocked(ix.ID, nil)
-	b.mu.Unlock()
-	switch ok, err := s.resolveInteraction(ctx, channel.Feishu, ix.ID, r, action); {
+	// still waits (botRestoreCard). The occurrence check makes removal a compare-and-swap against a new announcement.
+	current, had, same := s.takeBotCardOccurrence(ix.ID, ix)
+	if !same {
+		s.botNote(ctx, messageID, i18n.T(l, "assistant-channels_plugin.answered_elsewhere"))
+		return true
+	}
+	var expected *time.Time
+	if !ix.CreatedAt.IsZero() {
+		expected = &ix.CreatedAt
+	}
+	switch ok, err := s.resolveInteractionAt(ctx, channel.Feishu, ix.ID, r, action, expected); {
 	case err != nil:
 		s.logf("bots: typed answer %s: %v", ix.ID, err)
 		if had {
-			s.botRestoreCard(ctx, ix.ID, cur)
+			s.botRestoreCard(ctx, ix.ID, current)
 		}
 		s.botNote(ctx, messageID, i18n.T(l, "assistant-channels_plugin.answer_not_sent",
 			i18n.Args{"error": clip(oneLine(err.Error()), 200)}))
