@@ -1239,26 +1239,40 @@ func TestBoundTurnBetweenTheLookAndTheRead(t *testing.T) {
 // hub link: from an empty conversation (base 0) the link subscribes from 0, and a turn that ended before that
 // subscription got to the hub is in what the hub sends back on it (its last exchanges, #6068).
 func TestBoundTurnEndsBeforeTheLinkSubscribes(t *testing.T) {
+	setVar(t, &lookEvery, time.Hour) // leave scheduled polling out of the case
 	hub := agentHub(t)
 	hub.manual = true
-	hub.subDelay = 2 * time.Second
+	accept := make(chan struct{})
+	release := sync.OnceFunc(func() { close(accept) })
+	defer release()
+	hub.subReady = accept
+	var unanswered atomic.Value
+	hub.onPageSent = func(session string, page []proto.Item) {
+		if session == "a1" && len(page) == 1 && page[0].Role == "user" {
+			unanswered.Store(page[0].ClientMsgID)
+		}
+	}
 	up := boundUpstream(t, false)
 	pl := testPlugin(t, liveProvider(up), hub.server(t))
 	a := dialApp(t, pl, boundStart("a1", nil))
 	a.until(ofType("ready"))
 	a.send(map[string]any{"type": "text", "text": "跑一下全部测试"})
 	m := hub.waitSent(1)
-	looks := hub.lookCount()
-	for deadline := time.Now().Add(5 * time.Second); hub.lookCount() < looks+2; {
-		if time.Now().After(deadline) {
-			t.Fatal("the run was never looked at")
-		}
-		time.Sleep(20 * time.Millisecond)
+	waitFor(t, "the run's page with its unanswered message", func() bool { return unanswered.Load() == m.ID })
+	waitFor(t, "the pending subscription", func() bool { n, _ := hub.subscribes("a1"); return n > 0 })
+	if n, sub := hub.subscribes("a1"); n != 1 || sub["since_seq"] != float64(0) {
+		t.Fatalf("subscribed %d times, from %v; want the empty conversation's base", n, sub["since_seq"])
 	}
 	hub.status("a1", "working")
 	hub.add("a1", proto.Item{Role: "assistant", Kind: proto.KindText, Text: "测试在后台跑了，单元测试都过了。"})
 	hub.edit("a1", func(s *fakeSession) { s.background = 1 })
 	hub.end("a1")
+	release()
+	waitFor(t, "the link to receive the backlog through the turn end", func() bool {
+		pl.link.mu.Lock()
+		defer pl.link.mu.Unlock()
+		return pl.link.since[linkKey{"m", "a1"}] == 3 // user message, answer and turn_duration
+	})
 	if states := a.runStates(m.ID, runHeld); slices.Contains(states, runDone) {
 		t.Fatalf("run states %v", states)
 	}
