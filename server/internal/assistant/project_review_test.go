@@ -186,7 +186,7 @@ func TestProjectReviewManagerRestart(t *testing.T) {
 func reviewNewTask(t *testing.T, s *Service, project, id string, agent SessionRef) Todo {
 	t.Helper()
 	ctx := context.Background()
-	task, err := s.createTaskTodoAs(ctx, id, id, "", "main", "plan-test", project, "")
+	task, err := s.createTaskTodoAs(ctx, id, id, "", "main", "plan-test", project, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
