@@ -83,3 +83,61 @@ func TestHealthTellStore(t *testing.T) {
 		t.Fatalf("terminal rows pending: %+v", rows)
 	}
 }
+
+func TestHealthTellContinuationReservation(t *testing.T) {
+	d, ctx := open(t), context.Background()
+	first, _, err := d.InsertHealthTell(ctx, HealthTell{ID: "tell_target", ClientID: "target-client", Text: "private sentence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, destination := range []struct{ machine, session string }{{"computer", "original"}, {"other", "replacement"}} {
+		got, err := d.ReserveHealthTellTarget(ctx, first.ID, destination.machine, destination.session)
+		if err != nil || got.MachineID != "computer" || got.SessionID != "original" || !got.UpdatedAt.Equal(first.UpdatedAt) {
+			t.Fatalf("target reservation: %+v %v", got, err)
+		}
+	}
+	if changed, err := d.SetHealthTellResult(ctx, first.ID, "received", "", "", "reply lost", true); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	got, err := d.ReserveHealthTellTarget(ctx, first.ID, "other", "replacement")
+	if err != nil || got.MachineID != "computer" || got.SessionID != "original" || got.Attempts != 1 || got.Text != "private sentence" {
+		t.Fatalf("failed attempt lost target: %+v %v", got, err)
+	}
+	// A definite refusal switches to a reserved start in one write; it can never reselect the old target.
+	sid, err := d.ReserveHealthTellSession(ctx, first.ID, "new-chat")
+	if err != nil || sid != "new-chat" {
+		t.Fatal(sid, err)
+	}
+	got, err = d.ReserveHealthTellTarget(ctx, first.ID, "other", "replacement")
+	if err != nil || got.MachineID != "" || got.SessionID != "" || got.NewSessionID != "new-chat" {
+		t.Fatalf("new start retained continuation: %+v %v", got, err)
+	}
+	if changed, err := d.SetHealthTellResult(ctx, first.ID, "received", "computer", "original", "start refused", true); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	got, err = d.ReserveHealthTellTarget(ctx, first.ID, "other", "replacement")
+	if err != nil || got.SessionID != "" || got.MachineID != "" || got.NewSessionID != "new-chat" || got.Attempts != 2 {
+		t.Fatalf("stale result restored target: %+v %v", got, err)
+	}
+	if changed, err := d.SetHealthTellResult(ctx, first.ID, "delivered", "computer", "new-chat", "", false); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	got, err = d.ReserveHealthTellTarget(ctx, first.ID, "other", "replacement")
+	if err != nil || got.Status != "delivered" || got.SessionID != "new-chat" || got.MachineID != "computer" || got.Text != "" {
+		t.Fatalf("terminal reservation changed: %+v %v", got, err)
+	}
+	second, _, err := d.InsertHealthTell(ctx, HealthTell{ID: "tell_failed_target", ClientID: "failed-target-client", Text: "retained"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = d.ReserveHealthTellTarget(ctx, second.ID, "computer", "uncertain"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = d.SetHealthTellResult(ctx, second.ID, "failed", "", "", "exhausted", true); err != nil {
+		t.Fatal(err)
+	}
+	got, err = d.ReserveHealthTellTarget(ctx, second.ID, "other", "replacement")
+	if err != nil || got.Status != "failed" || got.SessionID != "uncertain" || got.MachineID != "computer" || got.Text != "retained" {
+		t.Fatalf("terminal failure lost evidence: %+v %v", got, err)
+	}
+}

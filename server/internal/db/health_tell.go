@@ -58,9 +58,20 @@ func (d *DB) HealthTellsPending(ctx context.Context, limit int) ([]HealthTell, e
 	return out, rows.Err()
 }
 
-// ReserveHealthTellSession retains the first reserved id across restarts.
+// ReserveHealthTellTarget pins a validated continuation before dispatch, including across manager restarts.
+func (d *DB) ReserveHealthTellTarget(ctx context.Context, id, machine, session string) (HealthTell, error) {
+	_, err := d.pool.Exec(ctx, `UPDATE health_tells SET machine_id = $2, session_id = $3
+		WHERE id = $1 AND machine_id = '' AND session_id = '' AND new_session_id = '' AND status = 'received'`, id, machine, session)
+	if err != nil {
+		return HealthTell{}, err
+	}
+	return scanHealthTell(d.pool.QueryRow(ctx, `SELECT `+healthTellColumns+` FROM health_tells WHERE id = $1`, id))
+}
+
+// ReserveHealthTellSession retains the first reserved id across restarts. A definite continuation refusal may
+// switch to a new start; reserving it atomically clears the old target so a restart cannot return to that path.
 func (d *DB) ReserveHealthTellSession(ctx context.Context, id, sid string) (string, error) {
-	_, err := d.pool.Exec(ctx, `UPDATE health_tells SET new_session_id = $2, updated_at = now()
+	_, err := d.pool.Exec(ctx, `UPDATE health_tells SET new_session_id = $2, machine_id = '', session_id = '', updated_at = now()
 		WHERE id = $1 AND new_session_id = '' AND status = 'received'`, id, sid)
 	if err != nil {
 		return "", err
@@ -70,9 +81,12 @@ func (d *DB) ReserveHealthTellSession(ctx context.Context, id, sid string) (stri
 	return got, err
 }
 
-// SetHealthTellResult changes only pending rows; failure retains the original text for recovery.
+// SetHealthTellResult changes only pending rows; failure retains the original text and pinned destination for
+// recovery. Only confirmed delivery replaces the target with the acknowledged conversation.
 func (d *DB) SetHealthTellResult(ctx context.Context, id, status, machine, session, errText string, tried bool) (bool, error) {
-	tag, err := d.pool.Exec(ctx, `UPDATE health_tells SET status = $2, machine_id = $3, session_id = $4,
+	tag, err := d.pool.Exec(ctx, `UPDATE health_tells SET status = $2,
+		machine_id = CASE WHEN $2 = 'delivered' THEN $3 ELSE machine_id END,
+		session_id = CASE WHEN $2 = 'delivered' THEN $4 ELSE session_id END,
 		error = $5, attempts = attempts + CASE WHEN $6 THEN 1 ELSE 0 END,
 		text = CASE WHEN $2 = 'delivered' THEN '' ELSE text END, updated_at = now()
 		WHERE id = $1 AND status = 'received'`, id, status, machine, session, errText, tried)

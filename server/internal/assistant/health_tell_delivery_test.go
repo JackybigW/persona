@@ -241,6 +241,7 @@ func TestHealthTellFailurePushFixedText(t *testing.T) {
 				st.rows[0].CreatedAt = time.Now().Add(-25 * time.Hour)
 			case "attempts":
 				st.rows[0].Attempts = 4
+				st.rows[0].UpdatedAt = time.Now().Add(-healthTellRetryInterval)
 				f.failAssistant = errors.New("definite refusal")
 			case "unknown-start":
 				s.healthMod = nil
@@ -273,6 +274,7 @@ func TestHealthTellUncertainContinuationNeverStartsAnotherChat(t *testing.T) {
 	b := tellHealth(t, s, "uncertain-next", "second")
 	f.failSendOnce = map[string]error{"server/" + st.row(t, a.ID).SessionID: errors.New("send in doubt")}
 	for range 5 {
+		ageHealthTellAttempt(st, b.ID)
 		s.healthTellRound(t.Context(), st)
 	}
 	if got := st.row(t, b.ID); got.Status != "failed" || got.Attempts != 5 || len(f.sends) != 1 {

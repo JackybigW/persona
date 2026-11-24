@@ -20,6 +20,7 @@ import (
 type healthTellStore interface {
 	InsertHealthTell(context.Context, db.HealthTell) (db.HealthTell, bool, error)
 	HealthTellsPending(context.Context, int) ([]db.HealthTell, error)
+	ReserveHealthTellTarget(context.Context, string, string, string) (db.HealthTell, error)
 	ReserveHealthTellSession(context.Context, string, string) (string, error)
 	SetHealthTellResult(context.Context, string, string, string, string, string, bool) (bool, error)
 }
@@ -99,6 +100,9 @@ func (s *Service) trainingChat(ctx context.Context, day string) (SessionRef, boo
 	if !ok || v.Day != day || v.MachineID != s.settings(ctx).MachineID || v.SessionID == "" {
 		return SessionRef{}, false
 	}
+	if err := s.conversationAvailable(ctx, v.MachineID, v.SessionID); err != nil {
+		return SessionRef{}, false
+	}
 	_, ok = s.taskSourceCwd(ctx, Task{Space: SpaceHealth, MachineID: v.MachineID, SessionID: v.SessionID})
 	return SessionRef{MachineID: v.MachineID, SessionID: v.SessionID}, ok
 }
@@ -129,13 +133,15 @@ func (s *Service) keepTrainingChat(ctx context.Context, day string, ref SessionR
 	}
 }
 
+const healthTellRetryInterval = 30 * time.Second
+
 // A single worker preserves sentence order, including while the computer is offline or a send is uncertain.
 func (s *Service) healthTellLoop(ctx context.Context) {
 	st, ok := s.store().(healthTellStore)
 	if !ok {
 		return
 	}
-	tick := time.NewTicker(30 * time.Second)
+	tick := time.NewTicker(healthTellRetryInterval)
 	defer tick.Stop()
 	for {
 		if ctx.Err() != nil {
@@ -154,13 +160,25 @@ func (s *Service) healthTellLoop(ctx context.Context) {
 }
 
 func (s *Service) healthTellRound(ctx context.Context, st healthTellStore) bool {
+	newFailure := false
+	defer func() {
+		if newFailure {
+			lang := s.lang(ctx)
+			s.push(ctx, Notification{Title: i18n.T(lang, "push.health_title"), Body: i18n.T(lang, "push.health_tell_unconfirmed"), Track: SpaceHealth})
+		}
+	}()
 	rows, err := st.HealthTellsPending(ctx, 32)
 	if err != nil {
 		s.logf("health tell: pending: %v", err)
 		return false
 	}
 	for _, r := range rows {
-		if ctx.Err() != nil || !s.deliverHealthTell(ctx, st, r) {
+		if ctx.Err() != nil {
+			return false
+		}
+		advance, failed := s.deliverHealthTell(ctx, st, r)
+		newFailure = newFailure || failed
+		if !advance {
 			return false
 		}
 	}
@@ -171,23 +189,41 @@ func healthTellOffline(err error) bool {
 	return errors.Is(err, apierr.ErrOffline) || errors.Is(err, ErrNoDevice)
 }
 
-// deliverHealthTell returns false while this sentence must hold later ones back.
-func (s *Service) deliverHealthTell(ctx context.Context, st healthTellStore, r db.HealthTell) bool {
+// deliverHealthTell reports whether later sentences may proceed and whether this row newly failed.
+func (s *Service) deliverHealthTell(ctx context.Context, st healthTellStore, r db.HealthTell) (advance, newFailure bool) {
 	if time.Since(r.CreatedAt) > 24*time.Hour {
 		return s.healthTellResult(ctx, st, r, assistantwire.HealthTellFailed, SessionRef{}, "expired", false)
 	}
 	if r.Attempts >= 5 {
 		return s.healthTellResult(ctx, st, r, assistantwire.HealthTellFailed, SessionRef{}, "attempts exhausted", false)
 	}
+	if r.Attempts > 0 && time.Since(r.UpdatedAt) < healthTellRetryInterval {
+		return false, false
+	}
 	machine := s.settings(ctx).MachineID
+	if r.NewSessionID == "" && r.SessionID != "" {
+		machine = r.MachineID
+	}
 	m, ok := s.device(ctx, machine)
 	if machine == "" || !ok || !m.Online {
-		return false
+		return false, false
 	}
 	day := r.CreatedAt.In(s.location(ctx)).Format("2006-01-02")
 	// Once reserved, always retry that start, even if its pointer was saved before the process stopped.
 	if r.NewSessionID == "" {
-		if ref, ok := s.trainingChat(ctx, day); ok {
+		ref := SessionRef{MachineID: r.MachineID, SessionID: r.SessionID}
+		if ref.SessionID == "" {
+			if candidate, ok := s.trainingChat(ctx, day); ok {
+				pinned, err := st.ReserveHealthTellTarget(ctx, r.ID, candidate.MachineID, candidate.SessionID)
+				if err != nil {
+					s.logf("health tell %s: reserve target: %v", r.ID, err)
+					return false, false
+				}
+				r = pinned
+				ref = SessionRef{MachineID: r.MachineID, SessionID: r.SessionID}
+			}
+		}
+		if ref.SessionID != "" {
 			s.UserSpoke(ctx, ref)
 			params, err := s.SendParams(ctx, SendParams{MachineID: ref.MachineID, SessionID: ref.SessionID,
 				Params: map[string]any{"session_id": ref.SessionID, "text": r.Text, "client_msg_id": "health-tell:" + r.ID}})
@@ -198,22 +234,30 @@ func (s *Service) deliverHealthTell(ctx context.Context, st healthTellStore, r d
 				return s.healthTellDelivered(ctx, st, r, ref)
 			}
 			if healthTellOffline(err) {
-				return false
+				return false, false
 			}
-			if !taskSourceDefinitelyUnsent(err, ref.SessionID) {
+			if !taskSourceDefinitelyUnsent(err, ref.SessionID) && convCode(err) != "conversation_deleted" {
 				return s.healthTellAttempt(ctx, st, r, err, false)
 			}
+		}
+	}
+	// A pinned continuation may belong to a former assistant computer. Only a definite refusal reaches here.
+	if current := s.settings(ctx).MachineID; current != machine {
+		machine = current
+		m, ok = s.device(ctx, machine)
+		if machine == "" || !ok || !m.Online {
+			return false, false
 		}
 	}
 	sid, err := st.ReserveHealthTellSession(ctx, r.ID, newGuestSessionID())
 	if err != nil {
 		s.logf("health tell %s: reserve: %v", r.ID, err)
-		return false
+		return false, false
 	}
 	sess, err := s.startUserSignedIn(ctx, StartParams{Text: r.Text, Space: SpaceHealth, MachineID: machine, NewSessionID: sid, Origin: OriginUser})
 	if err != nil {
 		if healthTellOffline(err) {
-			return false
+			return false, false
 		}
 		binding, bindErr := s.resolveModel(ctx, "assistant")
 		claude := bindErr == nil && s.launcherAgent(ctx, machine, strings.TrimPrefix(binding.Provider, "launcher.")) == "claude"
@@ -224,34 +268,29 @@ func (s *Service) deliverHealthTell(ctx context.Context, st healthTellStore, r d
 	return s.healthTellDelivered(ctx, st, r, ref)
 }
 
-func (s *Service) healthTellDelivered(ctx context.Context, st healthTellStore, r db.HealthTell, ref SessionRef) bool {
+func (s *Service) healthTellDelivered(ctx context.Context, st healthTellStore, r db.HealthTell, ref SessionRef) (advance, newFailure bool) {
 	s.noteReportTurn(ref.SessionID)
 	return s.healthTellResult(ctx, st, r, assistantwire.HealthTellDelivered, ref, "", false)
 }
 
-func (s *Service) healthTellAttempt(ctx context.Context, st healthTellStore, r db.HealthTell, err error, unknownStart bool) bool {
+func (s *Service) healthTellAttempt(ctx context.Context, st healthTellStore, r db.HealthTell, err error, unknownStart bool) (advance, newFailure bool) {
 	status := assistantwire.HealthTellReceived
 	if unknownStart || r.Attempts+1 >= 5 {
 		status = assistantwire.HealthTellFailed
 	}
-	return s.healthTellResult(ctx, st, r, status, SessionRef{}, err.Error(), true)
+	return s.healthTellResult(ctx, st, r, status, SessionRef{MachineID: r.MachineID, SessionID: r.SessionID}, err.Error(), true)
 }
 
-func (s *Service) healthTellResult(ctx context.Context, st healthTellStore, r db.HealthTell, status string, ref SessionRef, reason string, tried bool) bool {
+func (s *Service) healthTellResult(ctx context.Context, st healthTellStore, r db.HealthTell, status string, ref SessionRef, reason string, tried bool) (advance, newFailure bool) {
 	changed, err := st.SetHealthTellResult(ctx, r.ID, status, ref.MachineID, ref.SessionID, reason, tried)
 	if err != nil {
 		s.logf("health tell %s: record result: %v", r.ID, err)
-		return false
+		return false, false
 	}
-	if changed {
-		if status == assistantwire.HealthTellFailed {
-			lang := s.lang(ctx)
-			s.push(ctx, Notification{Title: i18n.T(lang, "push.health_title"), Body: i18n.T(lang, "push.health_tell_unconfirmed"), Track: SpaceHealth})
-		} else if status == assistantwire.HealthTellDelivered {
-			s.logf("health tell %s delivered after %s", r.ID, time.Since(r.CreatedAt))
-		}
+	if changed && status == assistantwire.HealthTellDelivered {
+		s.logf("health tell %s delivered after %s", r.ID, time.Since(r.CreatedAt))
 	}
-	return status != assistantwire.HealthTellReceived
+	return status != assistantwire.HealthTellReceived, changed && status == assistantwire.HealthTellFailed
 }
 
 // startUserSignedIn is a background handoff of the user's words, sharing Start's protection and naming.

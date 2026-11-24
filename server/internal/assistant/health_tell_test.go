@@ -17,9 +17,11 @@ import (
 
 type healthTellMemStore struct {
 	memStore
-	mu   sync.Mutex
-	rows []db.HealthTell
-	fail bool
+	mu             sync.Mutex
+	rows           []db.HealthTell
+	fail           bool
+	resultFailures int
+	targetFailure  bool
 }
 
 func (st *healthTellMemStore) InsertHealthTell(_ context.Context, r db.HealthTell) (db.HealthTell, bool, error) {
@@ -54,6 +56,23 @@ func (st *healthTellMemStore) HealthTellsPending(_ context.Context, limit int) (
 	})
 	return out[:min(len(out), limit)], nil
 }
+func (st *healthTellMemStore) ReserveHealthTellTarget(_ context.Context, id, machine, session string) (db.HealthTell, error) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.targetFailure {
+		return db.HealthTell{}, errors.New("synthetic target write failure")
+	}
+	for i := range st.rows {
+		r := &st.rows[i]
+		if r.ID == id {
+			if r.MachineID == "" && r.SessionID == "" && r.NewSessionID == "" && r.Status == assistantwire.HealthTellReceived {
+				r.MachineID, r.SessionID = machine, session
+			}
+			return *r, nil
+		}
+	}
+	return db.HealthTell{}, errors.New("missing row")
+}
 func (st *healthTellMemStore) ReserveHealthTellSession(_ context.Context, id, sid string) (string, error) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
@@ -62,6 +81,7 @@ func (st *healthTellMemStore) ReserveHealthTellSession(_ context.Context, id, si
 		if r.ID == id {
 			if r.NewSessionID == "" && r.Status == assistantwire.HealthTellReceived {
 				r.NewSessionID = sid
+				r.MachineID, r.SessionID, r.UpdatedAt = "", "", time.Now()
 			}
 			return r.NewSessionID, nil
 		}
@@ -71,15 +91,20 @@ func (st *healthTellMemStore) ReserveHealthTellSession(_ context.Context, id, si
 func (st *healthTellMemStore) SetHealthTellResult(_ context.Context, id, status, machine, session, errText string, tried bool) (bool, error) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	if st.resultFailures > 0 {
+		st.resultFailures--
+		return false, errors.New("synthetic result write failure")
+	}
 	for i := range st.rows {
 		r := &st.rows[i]
 		if r.ID == id && r.Status == assistantwire.HealthTellReceived {
-			r.Status, r.MachineID, r.SessionID, r.Error = status, machine, session, errText
+			r.Status, r.Error, r.UpdatedAt = status, errText, time.Now()
 			if tried {
 				r.Attempts++
 			}
 			if status == assistantwire.HealthTellDelivered {
 				r.Text = ""
+				r.MachineID, r.SessionID = machine, session
 			}
 			return true, nil
 		}

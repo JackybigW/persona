@@ -107,6 +107,26 @@ func TestStrengthReportStartsTrainingChat(t *testing.T) {
 	}
 }
 
+func TestStrengthReportReplacesDeletedTrainingChat(t *testing.T) {
+	s, f, d, task, workout := trainingReportFixture(t)
+	day := workout.Start.In(s.location(t.Context())).Format("2006-01-02")
+	putTrainingReportChat(t, s, f, day, "deleted-training-report")
+	if w := serve(s, "DELETE", "/api/v1/assistant/conversations/deleted-training-report", `{"machine_id":"server"}`); w.Code != 200 {
+		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	sess, err := s.runTask(task, time.Now(), time.Now(), true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept healthTrainingChat
+	if ok, err := d.Setting(t.Context(), trainingChatKey, &kept); err != nil || !ok || kept.SessionID != sess.SessionID || kept.SessionID == "deleted-training-report" || kept.Day != day {
+		t.Fatalf("deleted report chat was not replaced: %+v %v", kept, err)
+	}
+	if p := f.lastSend(t); p["session_id"] != nil {
+		t.Fatalf("report continued deleted chat: %v", p)
+	}
+}
+
 func TestNonStrengthReportUnchanged(t *testing.T) {
 	for _, absent := range []bool{false, true} {
 		t.Run(map[bool]string{false: "running", true: "strength-without-module"}[absent], func(t *testing.T) {

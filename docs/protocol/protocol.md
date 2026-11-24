@@ -2753,19 +2753,30 @@ Unknown fields are ignored. `space`, `main`, `session_id`, `machine_id`, `source
 select a target or change the receipt day. Messages go only to the canonical Health conversation directory on the
 current assistant computer. The first Tell Health message or successfully assembled strength workout report for
 a local day starts that day's training chat; later messages and strength reports continue it. A missing or invalid
-chat is replaced; an offline computer waits, preserving sentence order without counting attempts.
+or deleted chat is replaced; an offline computer waits, preserving sentence order without counting attempts.
 
-The worker runs on receipt and every 30 seconds. Continuing a chat uses a stable `health-tell:<id>` once-only key;
-new starts reserve a session ID before dispatch so Claude Code can acknowledge an existing start after a restart.
-An uncertain continuation never falls back to a new chat. Other launchers may choose their own IDs: an uncertain
-start is abandoned rather than repeated. Delivery expires after 24 hours or five failed attempts. Abandonment sends
-one fixed Health notification saying delivery could not be confirmed, without the original text. Responses use
+Before a continuation is dispatched, its machine and session are saved on the received row. A retry uses only that
+target and the same once-only key, without reselecting the training-chat pointer. Only a definite pre-delivery
+refusal, including `conversation_deleted`, allows a new start; reserving the start clears the old continuation
+target atomically. The hub lookup has no current-connection list-readiness marker. Before a sentence is bound,
+a transient session lookup failure can therefore replace the training pointer and split the day's training across
+chats. An already-bound continuation is not redirected by that lookup failure or a manager restart.
+
+The worker runs on receipt and every 30 seconds. Failed attempts for the same row are at least 30 seconds apart;
+new receipts cannot accelerate retries, and later rows keep waiting in order. Continuing a chat uses a stable
+`health-tell:<id>` once-only key; new starts reserve a session ID before dispatch so Claude Code can acknowledge an
+existing start after a restart.
+Other launchers may choose their own IDs: a reported uncertain start is abandoned rather than repeated, but a manager
+restart after a new chat starts and before delivery is recorded can repeat the sentence once. Delivery expires after
+24 hours or five failed attempts. Each worker round sends at most one fixed Health notification for newly abandoned
+rows, saying delivery could not be confirmed without including original text. Responses use
 the existing fixed Health title/body and respect notification settings; even a quick response qualifies for a
 completion notification. Receipt latency and delivery latency are logged separately without sentence content.
 
 The receipt's day uses the manager's receipt time in the owner's time zone. A strength report uses the workout's
-start day: a 23:30 workout reported at 00:40 continues the previous day's chat; a new sentence at 00:10 starts the
-new day's chat. Only the latest day's pointer is retained; an older late report cannot replace it. Simultaneous
+start day: a 23:30 workout reported at 00:40 continues the previous day's chat unless a sentence after midnight has
+already opened the new day's chat. A new sentence at 00:10 starts the new day; when it has done so, the late previous-day
+report opens a separate chat. Only the latest day's pointer is retained; an older late report cannot replace it. Simultaneous
 first messages and reports can start separate chats. Tell Health and its capability stay available without the
 Health data module; strength report assembly and its training-chat selection require that module.
 
