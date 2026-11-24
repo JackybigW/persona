@@ -117,6 +117,18 @@ func (p *projectReview) record(ctx context.Context, b projectReviewBinding, kind
 	return err
 }
 
+// projectReviewFeishuInput queues the owner's message in the paired Feishu chat (ref "feishu:<message id>", sent to
+// target), which the lark module checked is the owner's, in a bound chat, handed over by the paired bot itself. It is
+// a review signal only (no project): the chat's target may discuss any. A message to the review session itself is not
+// its input.
+func (s *Service) projectReviewFeishuInput(ctx context.Context, ref string, target SessionRef) error {
+	p := s.projectReview
+	if p == nil || !p.FeishuOwnerInputs || !projectReviewRef.MatchString(ref) || target == p.Target {
+		return nil
+	}
+	return p.record(ctx, projectReviewBinding{}, "owner_input", ref, "", time.Time{})
+}
+
 func (s *Service) projectReviewOwnerInput(ctx context.Context, in assistantwire.ProjectReviewOwnerInput) error {
 	p := s.projectReview
 	if p == nil || !p.AppInputs || in.SessionRef == p.Target || in.MessageID == "" {

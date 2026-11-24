@@ -330,7 +330,7 @@ func TestProjectReviewPairedFeishuOwnerInput(t *testing.T) {
 	s.projectReview.FeishuOwnerInputs = true
 	status := FeishuStatus{Enabled: true, Ready: true, Owner: "ou_paired", Chats: []string{"oc_bound"}}
 	f.answerApp(AppFeishu, FeishuStatusGet, func(json.RawMessage) (any, error) { return status, nil })
-	s.rememberBotThread("bot-review", botTarget{Kind: targetAgent, MachineID: reviewTarget.MachineID, SessionID: reviewTarget.SessionID}, "Review")
+	s.larkModule().RememberThread("bot-review", botTarget{Kind: targetAgent, MachineID: reviewTarget.MachineID, SessionID: reviewTarget.SessionID}, "Review")
 	for _, tc := range []struct{ id, sender, senderType, chat, parent, from string }{
 		{"om_owner", "ou_paired", "user", "oc_bound", "", ""},
 		{"om_owner", "ou_paired", "user", "oc_bound", "", ""},
@@ -340,14 +340,17 @@ func TestProjectReviewPairedFeishuOwnerInput(t *testing.T) {
 		{"om_elsewhere", "ou_paired", "user", "oc_bound", "", FeishuFromElsewhere},
 		{"om_self", "ou_paired", "user", "oc_bound", "bot-review", ""},
 	} {
-		// Suppress unrelated bot replies in this test. The production input path still sees the redelivery.
-		if _, err := s.claimBotMessage(tc.id); err != nil {
-			t.Fatal(err)
-		}
 		raw := json.RawMessage(fmt.Sprintf(`{"sender":{"sender_type":%q,"sender_id":{"open_id":%q}},"message":{"message_id":%q,"chat_id":%q,"parent_id":%q,"chat_type":"p2p","message_type":"text","content":"private original"}}`,
 			tc.senderType, tc.sender, tc.id, tc.chat, tc.parent))
 		if err := s.FeishuMessage(ctx, FeishuMessage{Event: raw, From: tc.from}); err != nil {
 			t.Fatal(err)
+		}
+		// The chat handles each message as it always does (the duplicate is a real redelivery, taken once).
+		wait, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := s.larkModule().Wait(wait)
+		cancel()
+		if err != nil {
+			t.Fatalf("the chat did not handle %s: %v", tc.id, err)
 		}
 	}
 	target, _ := json.Marshal(reviewTarget)
