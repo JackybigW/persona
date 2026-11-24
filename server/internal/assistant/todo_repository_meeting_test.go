@@ -16,7 +16,6 @@ import (
 )
 
 func TestMeetingRepositoryReadsDoNotImportLegacyLinks(t *testing.T) {
-	needsRecordingModule(t)
 	for _, entry := range []string{"todo_get", "todo_repositories_get", "agent"} {
 		for _, populated := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/populated=%t", entry, populated), func(t *testing.T) {
