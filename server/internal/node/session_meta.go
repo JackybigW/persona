@@ -606,13 +606,17 @@ const codexStaleWorking = 30 * time.Second
 // turn complete and nothing has been written for a while. herdr has said so for hours-old turns (2026-10-30: a turn
 // finished two days earlier showed "working for 45 hours" for eight minutes, the rollout untouched).
 func (n *Node) codexTurnOver(id string, now time.Time) bool {
+	return n.codexTurnOverIn(id, now, nil)
+}
+
+func (n *Node) codexTurnOverIn(id string, now time.Time, pass *codexListPass) bool {
 	// Paginated history can contain only older completed turns while a continuation runs. The live owner's
 	// cached observation wins even when this node joined after turn/started and has not observed a turn ID.
 	if _, thread, err := n.codexOwner(id); err == nil &&
 		(thread.status == proto.StatusWorking || thread.status == proto.StatusBlocked) {
 		return false
 	}
-	p := n.transcriptPath(id)
+	p := n.transcriptPathIn(id, pass)
 	if p == "" {
 		return false
 	}
@@ -666,18 +670,30 @@ func lastUsed(m quickMeta, st os.FileInfo) time.Time {
 	return st.ModTime().UTC()
 }
 
-// untitled gives sessions without an AI title (headless ones) their first message as title: what the user wrote,
-// not the context blocks it starts with (the main conversation's, a Feishu /agent request's), or the title of the
-// block it is made of only ("continue the old main chat"). Stripped first, clipped after.
+// untitled gives sessions without an AI title (headless ones) their first message as title (promptTitle).
 func untitled(s *proto.Session, m quickMeta) {
-	if first := transcript.Title(m.first); s.Title == "" && first != "" {
-		r := []rune(snippet(first))
-		if len(r) > 40 {
-			r = append(r[:40], '…')
-		}
-		s.Title = string(r)
+	if s.Title != "" {
+		return
+	}
+	if title := promptTitle(m.first); title != "" {
+		s.Title = title
 		if m.titleSource == "prompt" {
 			s.TitleSource = proto.TitleSourcePrompt
 		}
 	}
+}
+
+// promptTitle is a first message as a row's title: what the user wrote, not the context blocks it starts with (the
+// main conversation's, a Feishu /agent request's), or the title of the block it is made of only ("continue the old main
+// chat"). Stripped first, clipped after. An agy pane's row falls back to it too (agytitle.go).
+func promptTitle(first string) string {
+	first = transcript.Title(first)
+	if first == "" {
+		return ""
+	}
+	r := []rune(snippet(first))
+	if len(r) > 40 {
+		r = append(r[:40], '…')
+	}
+	return string(r)
 }

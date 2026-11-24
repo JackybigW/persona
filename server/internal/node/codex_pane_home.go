@@ -18,6 +18,11 @@ func (n *Node) codexPaneOwner(a host.Agent, reported, bound string) (home string
 		return n.codexHome(), true
 	}
 	if kind := host.ParsePane(a.PaneID).Kind; kind != host.Herdr && kind != host.HerdrCore {
+		if reported == "" && bound != "" {
+			if s, ok := n.codexSource(bound); ok && s.home != "" {
+				return s.home, true
+			}
+		}
 		return n.codexPaneHome(a.PaneID), true
 	}
 	r.mu.Lock()

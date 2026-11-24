@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -18,10 +19,16 @@ const (
 	codexHomeListWait = 300 * time.Millisecond
 )
 
-type codexHomeScan struct {
+type codexHomeRun struct {
 	done    chan struct{}
 	started time.Time
-	fresh   time.Time
+	ok      bool
+}
+
+type codexHomeScan struct {
+	run   *codexHomeRun
+	fresh time.Time
+	ok    bool
 }
 
 type codexHomeIndex struct {
@@ -32,19 +39,40 @@ type codexHomeIndex struct {
 // indexCodexHome registers both the rollouts and the App's sidebar threads (including
 // threads without a rollout). Neither file source can hold up a different home.
 func (n *Node) indexCodexHome(home string, deadline time.Time) bool {
-	return n.codices.index.available(home, deadline, func() time.Duration {
-		if st, err := os.Stat(home); err != nil || !st.IsDir() {
-			return time.Minute
+	return n.codices.index.available(home, deadline, func() (time.Duration, bool) {
+		st, err := os.Stat(home)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// Not created yet (e.g. before first Codex use): recheck quickly so new history appears promptly.
+				return time.Second, true
+			}
+			// Propagate permission, mount, or I/O failures as unavailable instead of caching a fresh empty scan.
+			return time.Second, false
+		}
+		if !st.IsDir() {
+			return time.Second, false
 		}
 		n.registerRollouts(home)
 		n.registerCodexAppThreads(home, nil)
-		return time.Second
+		// Warm session_index.jsonl inside the bounded worker so a stalled title read cannot stall session lists.
+		threadTitle(home, "")
+		return time.Second, true
 	})
+}
+
+// codexHomeOf returns the registered home for id, falling back to the node's default Codex home.
+func (n *Node) codexHomeOf(id string) string {
+	if src, ok := n.codexSource(id); ok && src.home != "" {
+		return src.home
+	}
+	return n.codexHome()
 }
 
 // A live pane is decorated before the history rows, sometimes between host refreshes.
 // Do not re-enter a filesystem scan the index has already timed out or another reader holds.
-func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
+// Downstream reads in the list pass still use nonblocking TryLock so a mutex acquired after
+// this check can never stall the list across homes.
+func (n *Node) liveCodexHomeReady(id string, deadline time.Time, pass *codexListPass) bool {
 	src, ok := n.codexSource(id)
 	if !ok {
 		// A pane can already have its own transcript before its home is in
@@ -55,8 +83,12 @@ func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
 		n.mu.Unlock()
 		return path != ""
 	}
+	if pass.homeUnavailable(src.home) {
+		return false
+	}
 	c := rolloutCacheFor(src.home)
 	if !c.mu.TryLock() {
+		pass.markHomeUnavailable(src.home)
 		return false
 	}
 	fresh := src.path != "" && time.Since(c.at) < rolloutScanInterval
@@ -65,6 +97,7 @@ func (n *Node) liveCodexHomeReady(id string, deadline time.Time) bool {
 		return true // the pane lookup just read this home; unrelated history work cannot take its slot
 	}
 	if !n.indexCodexHome(src.home, deadline) || !c.mu.TryLock() {
+		pass.markHomeUnavailable(src.home)
 		return false
 	}
 	c.mu.Unlock()
@@ -91,7 +124,7 @@ func (n *Node) firstMessageRollouts(home string, deadline time.Time) []codexRoll
 	// Reusing an older, incomplete list could turn two candidate threads into one.
 	i := &n.codices.index
 	i.mu.Lock()
-	if s := i.homes[home]; s != nil && s.done == nil {
+	if s := i.homes[home]; s != nil && s.run == nil {
 		s.fresh = time.Time{}
 	}
 	i.mu.Unlock()
@@ -107,7 +140,7 @@ func (n *Node) firstMessageRollouts(home string, deadline time.Time) []codexRoll
 
 // available waits only for the first short look. Once a scan overruns its budget,
 // later lists pass it immediately. A completed scan is used by the next list.
-func (i *codexHomeIndex) available(home string, deadline time.Time, scan func() time.Duration) bool {
+func (i *codexHomeIndex) available(home string, deadline time.Time, scan func() (time.Duration, bool)) bool {
 	i.mu.Lock()
 	if i.homes == nil {
 		i.homes = make(map[string]*codexHomeScan)
@@ -119,30 +152,39 @@ func (i *codexHomeIndex) available(home string, deadline time.Time, scan func() 
 	}
 	now := time.Now()
 	if now.Before(s.fresh) {
+		ok := s.ok
 		i.mu.Unlock()
-		return true
+		return ok
 	}
-	if s.done == nil {
+	if s.run == nil {
 		select {
 		case codexHomeScanSlots <- struct{}{}:
 		default:
 			i.mu.Unlock()
 			return false
 		}
-		s.done, s.started = make(chan struct{}), now
+		run := &codexHomeRun{done: make(chan struct{}), started: now}
+		s.run = run
 		go func() {
 			defer func() { <-codexHomeScanSlots }()
-			freshFor := scan()
+			freshFor, ok := scan()
+			run.ok = ok
 			i.mu.Lock()
 			s.fresh = time.Now().Add(freshFor)
-			close(s.done)
-			s.done = nil
+			s.ok = ok
+			if s.run == run {
+				s.run = nil
+			}
+			close(run.done)
 			i.mu.Unlock()
 		}()
 	}
-	done, started := s.done, s.started
+	run := s.run
 	i.mu.Unlock()
-	return waitCodexScan(done, started, deadline)
+	if !waitCodexScan(run.done, run.started, deadline) {
+		return false
+	}
+	return run.ok
 }
 
 func waitCodexScan(done <-chan struct{}, started, deadline time.Time) bool {
