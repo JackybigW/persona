@@ -80,6 +80,12 @@ import SwiftUI
         }
     }
 
+    /// Only the default manager's currently paired scope may seed the items projection.
+    var currentIntakeItems: [String]? {
+        guard let scope = intakeScope, isCurrent(scope) else { return nil }
+        return intake?.items
+    }
+
     private func isCurrent(_ api: APIClient) -> Bool {
         api.sameSettingsScope(as: deps.api()?.manager(nil)) && api.sameSettingsScope(as: intakeScope)
     }
@@ -358,8 +364,9 @@ struct HealthView: View {
                                         revision: model.healthIntakeRevision, retry: page.intakeRefresh,
                                         supported: model.hubFeatures.contains(HealthIntake.feature),
                                         itemsSupported: model.hubFeatures.contains(HealthItems.feature), itemsRetry: items.refresh)) {
-            async let selection: Void = items.load(features: model.hubFeatures, available: Self.availableItems)
+            async let selection: Void = items.load(features: model.hubFeatures, available: Self.availableItems, intakeItems: page.currentIntakeItems)
             await page.load(machine: machine.id, features: model.hubFeatures, isDemo: model.isDemo)
+            items.useIntakeItems(page.currentIntakeItems)
             await selection
             #if DEBUG
             if !openedItemsExample, UserDefaults.standard.bool(forKey: "showHealthItemsEditor"), items.state != nil {
@@ -368,9 +375,11 @@ struct HealthView: View {
             }
             #endif
         }
+        .onChange(of: page.intake?.items) { _, _ in items.useIntakeItems(page.currentIntakeItems) }
         .refreshable {
-            await items.load(features: model.hubFeatures, available: Self.availableItems)
+            await items.load(features: model.hubFeatures, available: Self.availableItems, intakeItems: page.currentIntakeItems)
             await page.load(machine: machine.id, features: model.hubFeatures, isDemo: model.isDemo)
+            items.useIntakeItems(page.currentIntakeItems)
         }
         #if os(iOS)
         // Load outside the conditional List row: a hidden empty section has no row to run its task.

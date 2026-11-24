@@ -292,6 +292,7 @@ showGitReload
 showHandOffNewAgent
 showHealthActivityExample
 showHealthHomeTrendsExample
+showHealthItemsEditor
 showHealthTrends
 showHerdrStart
 showHomeState

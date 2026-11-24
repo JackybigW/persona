@@ -21,18 +21,22 @@ import PersonaWire
     @ObservationIgnored private let deps: Deps
     @ObservationIgnored private var scope: APIClient?
     @ObservationIgnored private var available: [String] = []
+    /// Input from this scope's existing intake reading, not a separate persisted cache.
+    @ObservationIgnored private var intakeItems: [String]?
+    private static let legacyItems = ["water", "protein", "activity", "trends"]
     @ObservationIgnored private var baseline: HealthItems?
     @ObservationIgnored private var reads = 0
     @ObservationIgnored private var pendingRead = false
 
     init(deps: Deps = .live) { self.deps = deps }
 
-    func load(features: Set<String>, available: [String]) async {
+    func load(features: Set<String>, available: [String], intakeItems: [String]? = nil) async {
         let api = deps.api()?.manager(nil)
         if !scopeMatches(api) {
             reads += 1
             scope = api
             state = nil
+            self.intakeItems = nil
             editing = false
             busy = false
             error = nil
@@ -40,6 +44,7 @@ import PersonaWire
             wantsProtein = false
         }
         self.available = available
+        if let intakeItems { self.intakeItems = intakeItems }
         supported = features.contains(HealthItems.feature)
         project()
         guard supported else {
@@ -75,8 +80,16 @@ import PersonaWire
         supported && scopeMatches(api) && api.sameSettingsScope(as: deps.api()?.manager(nil))
     }
 
+    /// Intake can finish while the items request is pending or failed. Its list is useful only before the first
+    /// successful items response; saved state, including an empty list, always wins.
+    func useIntakeItems(_ items: [String]?) {
+        guard let scope, current(scope), state == nil else { return }
+        intakeItems = items
+        project()
+    }
+
     private func project() {
-        let ids = supported ? (state?.items ?? []) : ["water", "protein", "activity", "trends"]
+        let ids = scope == nil ? [] : (supported ? (state?.items ?? intakeItems ?? Self.legacyItems) : Self.legacyItems)
         todayKinds = ids.compactMap(HealthIntake.Kind.init(rawValue:))
         var result: [SectionID] = []
         for id in ids where available.contains(id) {
@@ -97,7 +110,11 @@ import PersonaWire
         error = nil
         editing = true
     }
-    func closeEditor() { guard !busy else { return }; editing = false }
+    func closeEditor() {
+        guard !busy else { return }
+        editing = false
+        error = nil
+    }
     func setAdded(_ id: String, _ added: Bool) {
         guard !busy, editOrder.contains(id) else { return }
         if added { selected.insert(id) } else { selected.remove(id) }

@@ -69,6 +69,88 @@ import PersonaWire
         #expect(page.sections == [.today, .activity, .trends])
     }
 
+    @Test(arguments: [false, true]) func aPendingOrFailedFirstReadKeepsTheLocalProjection(hasIntake: Bool) async throws {
+        let hub = FakeHub(), page = page(hub)
+        let started = AsyncStream<Void>.makeStream()
+        var release: CheckedContinuation<Void, Never>?
+        hub.onAsync("GET", path) { _ in
+            started.continuation.yield()
+            started.continuation.finish()
+            await withCheckedContinuation { release = $0 }
+            throw APIError(status: 503, message: "Sample items unavailable")
+        }
+        let local = hasIntake ? ["protein"] : nil
+        let read = Task { await page.load(features: [HealthItems.feature], available: available, intakeItems: local) }
+        for await _ in started.stream { break }
+        let expected: [HealthItemsModel.SectionID] = hasIntake ? [.today] : [.today, .activity, .trends]
+        #expect(page.sections == expected && !page.question && page.state == nil)
+        #expect(page.todayKinds == (hasIntake ? [.protein] : [.water, .protein]))
+        page.useIntakeItems(["protein"])
+        #expect(page.sections == [.today] && page.todayKinds == [.protein] && !page.question)
+        page.useIntakeItems(local)
+        release?.resume()
+        await read.value
+        #expect(page.sections == expected && !page.question && page.error != nil)
+        hub.onAsync("GET", path) { _ in try JSON.encoder.encode(value(["trends", "water"], revision: 1, saved: true)) }
+        await page.load(features: [HealthItems.feature], available: available, intakeItems: local)
+        #expect(page.sections == [.trends, .today] && page.todayKinds == [.water] && !page.question)
+    }
+
+    @Test func intakeAfterAFailedItemsReadUpdatesOnlyItsOwnScope() async throws {
+        let first = FakeHub(), second = FakeHub(url: "https://second.invalid")
+        var active: APIClient? = first.client
+        let page = HealthItemsModel(deps: .init(api: { active }, report: { _ in }, toast: { _ in }, open: { _ in }))
+        first.on("GET", path) { _ in throw APIError(status: 503, message: "Sample unavailable") }
+        await page.load(features: [HealthItems.feature], available: available)
+        page.useIntakeItems(["protein"])
+        #expect(page.sections == [.today] && page.todayKinds == [.protein] && !page.question)
+        active = second.client
+        page.useIntakeItems(["water"])
+        #expect(page.todayKinds == [.protein], "a response from an old scope cannot replace its projection")
+        second.on("GET", path) { _ in throw APIError(status: 503, message: "Sample unavailable") }
+        await page.load(features: [HealthItems.feature], available: available)
+        #expect(page.sections == [.today, .activity, .trends], "another hub cannot inherit the first intake list")
+        try route(second, value([], revision: 2, saved: true))
+        await page.load(features: [HealthItems.feature], available: available)
+        page.useIntakeItems(["protein"])
+        #expect(page.sections.isEmpty && page.todayKinds.isEmpty && !page.question, "saved empty state wins")
+    }
+
+    @Test func closingTheEditorClearsItsSaveError() async throws {
+        let hub = FakeHub(), page = page(hub)
+        try route(hub, value(available, revision: 1, saved: true))
+        await page.load(features: [HealthItems.feature], available: available)
+        page.beginEditing()
+        page.setAdded("water", false)
+        hub.on("PUT", path) { _ in throw URLError(.notConnectedToInternet) }
+        await page.saveEditor()
+        #expect(page.error != nil && page.editing)
+        page.closeEditor()
+        #expect(page.error == nil && !page.editing)
+    }
+
+    @Test func aReadDuringEditingKeepsTheOpeningRevisionAndConflictsOnlyOnce() async throws {
+        let hub = FakeHub(), page = page(hub)
+        try route(hub, value(available, revision: 1, saved: true))
+        await page.load(features: [HealthItems.feature], available: available)
+        page.beginEditing()
+        page.setAdded("water", false)
+        let newer = value(["water", "trends"], revision: 2, saved: true)
+        try route(hub, newer)
+        await page.load(features: [HealthItems.feature], available: available)
+        #expect(page.state == newer && !page.selected.contains("water"))
+        let details = try JSON.decoder.decode(JSONValue.self, from: JSON.encoder.encode(newer))
+        hub.on("PUT", path) { req in
+            let body = try JSON.decoder.decode(JSONValue.self, from: req.body!)
+            #expect(body["revision"]?.int == 1)
+            #expect(body["items"]?.array?.contains(.string("water")) == false)
+            throw APIError(status: 409, message: "Conflict", details: details)
+        }
+        await page.saveEditor()
+        #expect(page.state == newer && page.selected == ["water", "trends"] && page.error != nil)
+        #expect(hub.sent("PUT", path).count == 1)
+    }
+
     @Test func removingTheHubClearsItsProjectionBeforeAnotherRead() async throws {
         let hub = FakeHub()
         var active: APIClient? = hub.client
