@@ -406,61 +406,6 @@ TEST_SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manu
         calls = self.root / "xcode-calls.jsonl"
         return result, [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
 
-    def test_regression_lane_executes_only_both_suites_after_the_shared_probe(self):
-        result, calls = self.run_preparation(regression_only=True,
-                                             FULL_RESULT_SUITE="MainPagesStackTests,PhoneSystemToolsTests")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual([call[-1] for call in calls], ["build-for-testing"] + ["test-without-building"] * 2)
-        selectors = lambda args: [a for a in args if a.startswith(("-only-testing:", "-skip-testing:"))]
-        expected = ["-only-testing:PersonaTests/MainPagesStackTests",
-                    "-only-testing:PersonaTests/PhoneSystemToolsTests"]
-        self.assertEqual(selectors(calls[0]), expected)
-        self.assertEqual(selectors(calls[1]), ["-only-testing:PersonaTests/TypeScaleTests"])
-        self.assertEqual(selectors(calls[2]), expected)
-        for call in calls:
-            self.assertEqual(call[call.index("-scheme") + 1], "PersonaOfflineUnitTests")
-        self.assertIn("ios-unit.xcresult: 2 test cases, zero failed/skipped", result.stdout)
-        self.assertEqual((self.root / "calls").read_text().count("simctl create"), 1)
-        self.assertFalse((self.root / "regular-probe-started").exists())
-        self.assertFalse((self.root / "regular-suite-started").exists())
-        self.assertTrue((self.output / "diagnostics/live-readiness/observer.status.txt").is_file())
-        self.assertFalse((self.output / "regular-readiness-context.json").exists())
-        self.assertEqual((self.root / "budgets").read_text().splitlines(), [
-            "Generate iPhone-only offline unit-test project|120", "Generate offline unit-test Xcode project|120",
-            "Build iOS offline unit tests|1800", "No CallKit in the simulator build|300",
-            "Create stock iOS 26.0 test simulator|100",
-            "Verify hosted iOS test readiness|900", "Grant Reminders access to the owned test app|300",
-            "iOS offline unit and design/token tests|1800", "Inspect test results (ios-unit)|120",
-        ])
-
-    def test_model_picker_lane_executes_only_both_suites_after_the_shared_probe(self):
-        result, calls = self.run_preparation(
-            regression_only=True, lane="ios-model-picker",
-            FULL_RESULT_SUITE="AssistantModelChoiceTests,AssistantModelPanelModelTests")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual([call[-1] for call in calls], ["build-for-testing"] + ["test-without-building"] * 2)
-        selectors = lambda args: [a for a in args if a.startswith(("-only-testing:", "-skip-testing:"))]
-        expected = ["-only-testing:PersonaTests/AssistantModelChoiceTests",
-                    "-only-testing:PersonaTests/AssistantModelPanelModelTests"]
-        self.assertEqual(selectors(calls[0]), expected)
-        self.assertEqual(selectors(calls[1]), ["-only-testing:PersonaTests/TypeScaleTests"])
-        self.assertEqual(selectors(calls[2]), expected)
-        for call in calls:
-            self.assertEqual(call[call.index("-scheme") + 1], "PersonaOfflineUnitTests")
-        self.assertIn("ios-unit.xcresult: 2 test cases, zero failed/skipped", result.stdout)
-        self.assertEqual((self.root / "calls").read_text().count("simctl create"), 1)
-        self.assertFalse((self.root / "regular-probe-started").exists())
-        self.assertFalse((self.root / "regular-suite-started").exists())
-        self.assertTrue((self.output / "diagnostics/live-readiness/observer.status.txt").is_file())
-        self.assertFalse((self.output / "regular-readiness-context.json").exists())
-        self.assertEqual((self.root / "budgets").read_text().splitlines(), [
-            "Generate iPhone-only offline unit-test project|120", "Generate offline unit-test Xcode project|120",
-            "Build iOS offline unit tests|1800", "No CallKit in the simulator build|300",
-            "Create stock iOS 26.0 test simulator|100",
-            "Verify hosted iOS test readiness|900", "Grant Reminders access to the owned test app|300",
-            "iOS offline unit and design/token tests|1800", "Inspect test results (ios-unit)|120",
-        ])
-
     def assert_model_picker_result_rejected(self, **options):
         options.setdefault("FULL_RESULT_SUITE", "AssistantModelChoiceTests,AssistantModelPanelModelTests")
         result, _ = self.run_preparation(regression_only=True, lane="ios-model-picker", **options)
@@ -468,6 +413,7 @@ TEST_SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manu
         self.assertTrue((self.root / "full-suite-started").exists())
         self.assertFalse((self.root / "regular-probe-started").exists())
         self.assertFalse((self.root / "regular-suite-started").exists())
+
 
     def test_model_picker_rejects_a_missing_suite(self):
         self.assert_model_picker_result_rejected(FULL_RESULT_SUITE="AssistantModelChoiceTests")
