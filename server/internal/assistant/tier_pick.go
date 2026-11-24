@@ -257,6 +257,7 @@ func modelRoutingOf(pick tierPick, machine string) db.ModelRoutingRow {
 }
 
 // recordModelRouting writes one decision to model_routing, on its own time: a dispatch never fails for its record.
+// For an active dispatch it also trials every inactive profile within the same budget (#14702).
 func (s *Service) recordModelRouting(ctx context.Context, row db.ModelRoutingRow) {
 	st := s.store()
 	if st == nil {
@@ -266,5 +267,8 @@ func (s *Service) recordModelRouting(ctx context.Context, row db.ModelRoutingRow
 	defer cancel()
 	if err := st.PutModelRouting(write, row); err != nil {
 		s.logf("model routing %s/%s: %v", row.ProfileID, row.Tier, err)
+	}
+	if row.Active {
+		s.recordTrialRoutings(write, row)
 	}
 }
