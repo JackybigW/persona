@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nwverse/persona/server/internal/host"
+	"github.com/nwverse/persona/server/internal/orcart"
 	"github.com/nwverse/persona/server/internal/orcart/orcarttest"
 )
 
@@ -348,6 +349,41 @@ func TestOrcaWorktreeDirectoryWorkspaceByItsID(t *testing.T) {
 	_, err := request(t, w.n, "worktree.create", map[string]any{"workspace_id": "repo1::" + child, "branch": "feat-e",
 		"path": filepath.Join(w.dir, "feat-e")})
 	wantDirectoryWorkspace(t, err, w.repo)
+}
+
+// A real worktree whose path holds "::workspace:" in an earlier folder is still a real worktree: its id is
+// "<repo id>::<path>", with no "::workspace:<uuid>" after the path Orca returned, and it is the task's (#13391 review).
+func TestOrcaWorktreeWithWorkspaceInItsPathIsARealWorktree(t *testing.T) {
+	w := orcaWorktreeNode(t)
+	w.dir = mkdir(t, filepath.Join(w.home, "a::workspace:b", "proj"))
+	res, err := w.create(t, "feat-q")
+	if err != nil {
+		t.Fatalf("a real worktree was refused: %v", err)
+	}
+	dest := filepath.Join(w.dir, "feat-q")
+	if res["workspace_id"] != "repo1::"+dest || res["path"] != dest || res["branch"] != "feat-q" {
+		t.Errorf("create = %v", res)
+	}
+}
+
+// Only Orca's own shape counts: "::workspace:" after the returned path but without a UUID after it is no
+// directory-level workspace, and neither is a workspace marker after some other path.
+func TestOrcaDirectoryWorkspaceIDShape(t *testing.T) {
+	const id = "eec1dd91-0000-4000-8000-000000000001"
+	for _, c := range []struct {
+		id, path string
+		want     bool
+	}{
+		{"repo1::/r/proj::workspace:" + id, "/r/proj", true},
+		{"repo1::/r/a::workspace:b/proj", "/r/a::workspace:b/proj", false},
+		{"repo1::/r/proj::workspace:not-a-uuid", "/r/proj", false},
+		{"repo1::/r/other::workspace:" + id, "/r/proj", false},
+		{"::/r/proj::workspace:" + id, "/r/proj", false},
+	} {
+		if got := orcaDirectoryWorkspace(&orcart.CreatedWorktree{ID: c.id, Path: c.path}, "/src"); got != c.want {
+			t.Errorf("orcaDirectoryWorkspace(%q, %q) = %v, want %v", c.id, c.path, got, c.want)
+		}
+	}
 }
 
 // The path alone tells too: the source's own checkout back, spelled through a link (a home that is a link has two

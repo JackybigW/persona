@@ -146,13 +146,35 @@ func (h *orcaHost) createWorktree(ctx context.Context, space, branch, path, pare
 // orcaDirectoryWorkspace: Orca's answer to worktree.create is a directory-level workspace, not a new checkout. Orca
 // answers ok with one when the repository's checkout is itself open as an Orca worktree (#13363): its id is
 // "<repo id>::<path>::workspace:<uuid>", its path that existing checkout's, its branch and head empty. Either sign
-// is enough: the id, or the source's own checkout back as the path (a new worktree is never there), spelled through
-// a link or not.
+// is enough: the id in that shape around the path Orca returned (a real worktree's id is "<repo id>::<path>", and its
+// path may hold "::workspace:" itself), or the source's own checkout back as the path (a new worktree is never there),
+// spelled through a link or not.
 func orcaDirectoryWorkspace(wt *orcart.CreatedWorktree, source string) bool {
-	if strings.Contains(wt.ID, "::workspace:") {
+	if wt.Path == "" {
+		return false
+	}
+	marker := "::" + wt.Path + "::workspace:"
+	if i := strings.LastIndex(wt.ID, marker); i > 0 && isUUID(wt.ID[i+len(marker):]) {
 		return true
 	}
-	return wt.Path != "" && source != "" && (filepath.Clean(wt.Path) == filepath.Clean(source) || sameFile(wt.Path, source))
+	return source != "" && (filepath.Clean(wt.Path) == filepath.Clean(source) || sameFile(wt.Path, source))
+}
+
+// isUUID: s is a UUID's text form, 8-4-4-4-12 hex digits.
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else if !strings.ContainsRune("0123456789abcdefABCDEF", c) {
+			return false
+		}
+	}
+	return true
 }
 
 // branchCheckedOutAt is the worktree of dir's repository that has branch checked out, "" when none does.
