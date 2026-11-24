@@ -392,8 +392,11 @@ TEST_SIGNING=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manu
         if "TEST_STEP_TIMEOUT" not in options:
             env["TEST_STEP_TIMEOUT"] = "10"
         env.setdefault("FULL_RESULT_SUITE", "TypeScaleTests,IconVocabularyTests,TokenRatchetTests,StyleSpecTests")
+        # The injected readiness/probe deadline stays short, but a timed-out result can leave
+        # the observer's stop-aware final evidence collection to finish. Bound the whole
+        # fixture separately; never change the production readiness budget for this test.
         result = subprocess.run(["bash", "-c", shell], cwd=ROOT, env=env,
-                                capture_output=True, text=True, timeout=25)
+                                capture_output=True, text=True, timeout=90)
         calls = self.root / "xcode-calls.jsonl"
         return result, [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
 
