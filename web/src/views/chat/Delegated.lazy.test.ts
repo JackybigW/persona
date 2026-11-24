@@ -14,6 +14,9 @@ describe("the delegated-answer card", () => {
     const interactions = read("./Interactions.tsx");
     expect(interactions).not.toMatch(/^import[^;]*from\s+["']\.\/Delegated["']/m);
     expect(interactions).toMatch(/lazyPage\(\(\) => import\("\.\/Delegated"\)\.then\(\(m\) => m\.DelegatedCard\)\)/);
+    // Every one is drawn inside DelegatedCardFrame, which keeps a failed load in its slot (Interactions.lazy-delegated.test.tsx).
+    expect(interactions).toContain("delegated.map((d) => <DelegatedCardFrame key={d.ix.id} d={d} />)");
+    expect(interactions.match(/<DelegatedCard\b/g)).toHaveLength(1);
   });
 
   it("keeps in the startup catalog the chat-delegate words first-screen code reads, and only those", () => {

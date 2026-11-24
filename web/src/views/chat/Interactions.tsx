@@ -572,8 +572,7 @@ export function PermissionCardLoading({ ix }: { ix: Interaction }) {
 
 /** A repeated cached import failure gets one full reload per card and tab session. The marker survives that reload;
  *  if the chunk is still unavailable, the card keeps its local Retry instead of entering a reload loop. */
-function reloadPermissionChunk(id: string) {
-  const key = `permission-chunk-reload:${id}`;
+function reloadCardChunk(key: string) {
   try {
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
@@ -596,7 +595,7 @@ export class PermissionCardFrame extends Component<{ ix: Interaction; children?:
   componentDidCatch(error: unknown, info: ErrorInfo) {
     const chunk = isChunkError(error);
     reportBoundary(error, "permission_card", chunk, info.componentStack);
-    if (chunk && this.failures++) reloadPermissionChunk(this.props.ix.id);
+    if (chunk && this.failures++) reloadCardChunk(`permission-chunk-reload:${this.props.ix.id}`);
   }
 
   render() {
@@ -611,6 +610,34 @@ export class PermissionCardFrame extends Component<{ ix: Interaction; children?:
       );
     }
     return <Suspense fallback={<PermissionCardLoading ix={ix} />}>{children ?? <PermissionCard ix={ix} />}</Suspense>;
+  }
+}
+
+/** The same for a card the assistant answered for the user: its chunk loads with the first such answer, and a failed
+ *  load keeps a Retry in its slot instead of taking the chat (and the cards beside it) down to the page boundary. */
+export class DelegatedCardFrame extends Component<{ d: DelegatedAnswer; children?: ReactNode }, { error: unknown }> {
+  state = { error: null as unknown };
+  failures = 0;
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    const chunk = isChunkError(error);
+    reportBoundary(error, "delegated_card", chunk, info.componentStack);
+    if (chunk && this.failures++) reloadCardChunk(`delegated-chunk-reload:${this.props.d.ix.id}`);
+  }
+
+  render() {
+    const { d, children } = this.props;
+    if (this.state.error) {
+      return (
+        <ErrorNotice role="alert" message={t("chat-fulltext.failed")}
+          actions={<Button size="sm" onClick={() => this.setState({ error: null })}>{t("app.retry")}</Button>} />
+      );
+    }
+    return <Suspense fallback={null}>{children ?? <DelegatedCard d={d} />}</Suspense>;
   }
 }
 
@@ -1515,7 +1542,7 @@ export function PendingCards({ interactions, answered, delegated = [], offerNext
   if (!count && !answered.length && !delegated.length) return null;
   const shown = showsAnswered({ narrow, keyboard, open, short });
   const done = shown
-    ? [...delegated.map((d) => <Suspense key={d.ix.id} fallback={null}><DelegatedCard d={d} /></Suspense>), ...(answered.length ? [<AnsweredSummary key="answered" answered={answered} />] : [])]
+    ? [...delegated.map((d) => <DelegatedCardFrame key={d.ix.id} d={d} />), ...(answered.length ? [<AnsweredSummary key="answered" answered={answered} />] : [])]
     : [];
   // the cut-off count only while all the cards are opened: a stack folded to its first says where it stands instead (the
   // position chip). Each card has its own keyed provider, so a card moving up to first as the one above it goes keeps
