@@ -1,0 +1,1680 @@
+{
+  "scope": "Three ordinary appearances, a separate existing-conversation gesture check, and reversible synthetic intake records.",
+  "history": {
+    "light": {
+      "今天吃了什么": {
+        "nativeKeySHA256": "defbff84940c06cfd95089ebcd0f6b318218278c4c8410acd10f3eb493fb26ee",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              2059,
+              1158,
+              2270
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "15 分钟前",
+            "pngSHA256": "d2c0d291a0f91acce78c2db1f7394613648ceb302b23e2db5561761858b38eab",
+            "axSHA256": "dab31cb127a8aaed03b2ccfd6d3f632065b9f5de47c6465c3ca6cd6674ac9ac9"
+          },
+          {
+            "boundsPx": [
+              48,
+              1552,
+              1158,
+              1763
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "15 分钟前",
+            "pngSHA256": "93d5481e252848ce49d14f43c2de692434bf298f2ec054e323a050012e327474",
+            "axSHA256": "a13dccb7deb7be78fa1e23936d219e7df6103fa61b0f8e51726ad0e62ce45671"
+          },
+          {
+            "boundsPx": [
+              48,
+              1001,
+              1158,
+              1212
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "15 分钟前",
+            "pngSHA256": "4ac130239656cdbdb8fc673275ce9296df69c3c6a8b6b2b80f060746db31e981",
+            "axSHA256": "43a7614982556393b2c5d8385703f42688af90cb7cccb342d8c3476f7cdec23e"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              609.7,
+              386.0,
+              680.0
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              609.7,
+              386.0,
+              680.0
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "4d86a12f35d954990a03ca30b0b9cf9fc2b20a06518847e08a1cb6c2ed962b75"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              609.7,
+              386.0,
+              680.0
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              609.7,
+              386.0,
+              680.0
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "923bf0e569d8c2e79434b145be524a71f29eed1b6283b1a1edd813196e213b07"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "这周的睡眠": {
+        "nativeKeySHA256": "48b1148ec38b0082039ee4b24ce30d92d39806f4e468cef3e3e16373c1361617",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1763,
+              1158,
+              1974
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "40 分钟前",
+            "pngSHA256": "93d5481e252848ce49d14f43c2de692434bf298f2ec054e323a050012e327474",
+            "axSHA256": "a13dccb7deb7be78fa1e23936d219e7df6103fa61b0f8e51726ad0e62ce45671"
+          },
+          {
+            "boundsPx": [
+              48,
+              1212,
+              1158,
+              1423
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "40 分钟前",
+            "pngSHA256": "4ac130239656cdbdb8fc673275ce9296df69c3c6a8b6b2b80f060746db31e981",
+            "axSHA256": "43a7614982556393b2c5d8385703f42688af90cb7cccb342d8c3476f7cdec23e"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              680.0,
+              386.0,
+              750.3
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              680.0,
+              386.0,
+              750.3
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "4d86a12f35d954990a03ca30b0b9cf9fc2b20a06518847e08a1cb6c2ed962b75"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              680.0,
+              386.0,
+              750.3
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              680.0,
+              386.0,
+              750.3
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "923bf0e569d8c2e79434b145be524a71f29eed1b6283b1a1edd813196e213b07"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "体检报告：血脂": {
+        "nativeKeySHA256": "b1782bdcc0a8816431add8ba0cd046b6d303d330f3f15e9945140704abb3dd5c",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1974,
+              1158,
+              2185
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "originalPreview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "actualRelativeTime": "昨天",
+            "pngSHA256": "93d5481e252848ce49d14f43c2de692434bf298f2ec054e323a050012e327474",
+            "axSHA256": "a13dccb7deb7be78fa1e23936d219e7df6103fa61b0f8e51726ad0e62ce45671"
+          },
+          {
+            "boundsPx": [
+              48,
+              1423,
+              1158,
+              1634
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "originalPreview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "actualRelativeTime": "昨天",
+            "pngSHA256": "4ac130239656cdbdb8fc673275ce9296df69c3c6a8b6b2b80f060746db31e981",
+            "axSHA256": "43a7614982556393b2c5d8385703f42688af90cb7cccb342d8c3476f7cdec23e"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              750.3,
+              386.0,
+              820.5999999999999
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              750.3,
+              386.0,
+              771.7
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "4d86a12f35d954990a03ca30b0b9cf9fc2b20a06518847e08a1cb6c2ed962b75"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              69.3,
+              386.0,
+              139.6
+            ],
+            "heightPt": 70.3,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              116.0,
+              386.0,
+              139.6
+            ],
+            "pngSHA256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+            "axSHA256": "ea808e7b4904804998847e3c410c59ba4e65fd7e2f38c140b3f60d3d4c5e4883"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              750.3,
+              386.0,
+              820.5999999999999
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              750.3,
+              386.0,
+              771.7
+            ],
+            "pngSHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "axSHA256": "923bf0e569d8c2e79434b145be524a71f29eed1b6283b1a1edd813196e213b07"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": false,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "步数目标": {
+        "nativeKeySHA256": "dc6053105424ac7fa1b8c8149aada24f34242380fbca267d7233d9680ddb77aa",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1634,
+              1158,
+              1845
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "originalPreview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "actualRelativeTime": "星期六",
+            "pngSHA256": "4ac130239656cdbdb8fc673275ce9296df69c3c6a8b6b2b80f060746db31e981",
+            "axSHA256": "43a7614982556393b2c5d8385703f42688af90cb7cccb342d8c3476f7cdec23e"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              139.7,
+              386.0,
+              210.0
+            ],
+            "heightPt": 70.30000000000001,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              139.7,
+              386.0,
+              210.0
+            ],
+            "pngSHA256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+            "axSHA256": "ea808e7b4904804998847e3c410c59ba4e65fd7e2f38c140b3f60d3d4c5e4883"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      }
+    },
+    "dark": {
+      "这周的睡眠": {
+        "nativeKeySHA256": "48b1148ec38b0082039ee4b24ce30d92d39806f4e468cef3e3e16373c1361617",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1923,
+              1158,
+              2134
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "41 分钟前",
+            "pngSHA256": "e4773d53cdf2a11439993012b629253d5e2e8568655740bbac361b37d0a7eb31",
+            "axSHA256": "c58fe07abcdf440e93d623694d0d7343952b842379f4dd04ff78a849bc6e2ecb"
+          },
+          {
+            "boundsPx": [
+              48,
+              1397,
+              1158,
+              1608
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "41 分钟前",
+            "pngSHA256": "eb5c967ba1e55e08604889c9508205091c81af910016fb552b0850a9d6588cdb",
+            "axSHA256": "5fb3a91920297b2567515b436dd9746fb3efb40c5bda3efee9269fcbd98187fd"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              698.3,
+              386.0,
+              768.5999999999999
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              698.3,
+              386.0,
+              768.5999999999999
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "581e646400130c54f85aaa6546f1c40e3d211e722b524adb93808ffd131e6b9b"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              698.3,
+              386.0,
+              768.5999999999999
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              698.3,
+              386.0,
+              768.5999999999999
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "c652872bff12c77ce2629208d892e44b85e6feaae18e88a2e541e40fe638ee42"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "今天吃了什么": {
+        "nativeKeySHA256": "defbff84940c06cfd95089ebcd0f6b318218278c4c8410acd10f3eb493fb26ee",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1712,
+              1158,
+              1923
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "16 分钟前",
+            "pngSHA256": "e4773d53cdf2a11439993012b629253d5e2e8568655740bbac361b37d0a7eb31",
+            "axSHA256": "c58fe07abcdf440e93d623694d0d7343952b842379f4dd04ff78a849bc6e2ecb"
+          },
+          {
+            "boundsPx": [
+              48,
+              1186,
+              1158,
+              1397
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "16 分钟前",
+            "pngSHA256": "eb5c967ba1e55e08604889c9508205091c81af910016fb552b0850a9d6588cdb",
+            "axSHA256": "5fb3a91920297b2567515b436dd9746fb3efb40c5bda3efee9269fcbd98187fd"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              628.0,
+              386.0,
+              698.3
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              628.0,
+              386.0,
+              698.3
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "581e646400130c54f85aaa6546f1c40e3d211e722b524adb93808ffd131e6b9b"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              628.0,
+              386.0,
+              698.3
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              628.0,
+              386.0,
+              698.3
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "c652872bff12c77ce2629208d892e44b85e6feaae18e88a2e541e40fe638ee42"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "体检报告：血脂": {
+        "nativeKeySHA256": "b1782bdcc0a8816431add8ba0cd046b6d303d330f3f15e9945140704abb3dd5c",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1608,
+              1158,
+              1819
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "originalPreview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "actualRelativeTime": "昨天",
+            "pngSHA256": "eb5c967ba1e55e08604889c9508205091c81af910016fb552b0850a9d6588cdb",
+            "axSHA256": "5fb3a91920297b2567515b436dd9746fb3efb40c5bda3efee9269fcbd98187fd"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              768.7,
+              386.0,
+              839.0
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              768.7,
+              386.0,
+              771.7
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "581e646400130c54f85aaa6546f1c40e3d211e722b524adb93808ffd131e6b9b"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              87.0,
+              386.0,
+              157.3
+            ],
+            "heightPt": 70.30000000000001,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              116.0,
+              386.0,
+              157.3
+            ],
+            "pngSHA256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+            "axSHA256": "19b6362a03b9615eb43d1d14a004c3ab65fc1d75c40edf2b0168c51ba0adc12e"
+          },
+          {
+            "boundsPt": [
+              16.0,
+              768.7,
+              386.0,
+              839.0
+            ],
+            "heightPt": 70.29999999999995,
+            "widthPt": 370.0,
+            "fullyVisible": false,
+            "actualVisibleStripPt": [
+              16.0,
+              768.7,
+              386.0,
+              771.7
+            ],
+            "pngSHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "axSHA256": "c652872bff12c77ce2629208d892e44b85e6feaae18e88a2e541e40fe638ee42"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": false,
+        "maximumHeightDifferenceVp": 0.033
+      },
+      "步数目标": {
+        "nativeKeySHA256": "dc6053105424ac7fa1b8c8149aada24f34242380fbca267d7233d9680ddb77aa",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1819,
+              1158,
+              2030
+            ],
+            "heightVp": 70.33333333333333,
+            "widthVp": 370.0,
+            "preview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "originalPreview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "actualRelativeTime": "星期六",
+            "pngSHA256": "eb5c967ba1e55e08604889c9508205091c81af910016fb552b0850a9d6588cdb",
+            "axSHA256": "5fb3a91920297b2567515b436dd9746fb3efb40c5bda3efee9269fcbd98187fd"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              157.3,
+              386.0,
+              227.60000000000002
+            ],
+            "heightPt": 70.30000000000001,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              157.3,
+              386.0,
+              227.60000000000002
+            ],
+            "pngSHA256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+            "axSHA256": "19b6362a03b9615eb43d1d14a004c3ab65fc1d75c40edf2b0168c51ba0adc12e"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.033
+      }
+    },
+    "large": {
+      "这周的睡眠": {
+        "nativeKeySHA256": "48b1148ec38b0082039ee4b24ce30d92d39806f4e468cef3e3e16373c1361617",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1740,
+              1158,
+              1995
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "42 分钟前",
+            "pngSHA256": "3c536934c1de1c0579660317d0a8c006e249d7196a3556bd64d6e9a7a9abc681",
+            "axSHA256": "4b12d5ca78025d2b6c5bb41bee5b18668737226c142bc2e595a6328a44e2eca5"
+          },
+          {
+            "boundsPx": [
+              48,
+              1254,
+              1158,
+              1509
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "originalPreview": "这周平均每晚睡 6 小时 42 分，比上周少 18 分钟。",
+            "actualRelativeTime": "42 分钟前",
+            "pngSHA256": "951bc78d6e164b43a986a2b3f0de55fa765fe98aa109862a6e6d87cd886ca87c",
+            "axSHA256": "522d0d1bdd03f28a342d01185ca735be22a8b7fad91249201223577277c36c9f"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              377.0,
+              386.0,
+              462.0
+            ],
+            "heightPt": 85.0,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              377.0,
+              386.0,
+              462.0
+            ],
+            "pngSHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+            "axSHA256": "6b28f12327085df7c2997167ac4e36deb055a723c9d515c22bd670c7d64bd4eb"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.0
+      },
+      "体检报告：血脂": {
+        "nativeKeySHA256": "b1782bdcc0a8816431add8ba0cd046b6d303d330f3f15e9945140704abb3dd5c",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1995,
+              1158,
+              2250
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "originalPreview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "actualRelativeTime": "昨天",
+            "pngSHA256": "3c536934c1de1c0579660317d0a8c006e249d7196a3556bd64d6e9a7a9abc681",
+            "axSHA256": "4b12d5ca78025d2b6c5bb41bee5b18668737226c142bc2e595a6328a44e2eca5"
+          },
+          {
+            "boundsPx": [
+              48,
+              1509,
+              1158,
+              1764
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "originalPreview": "LDL 3.6 mmol/L，略高于参考范围，建议三个月后复查。",
+            "actualRelativeTime": "昨天",
+            "pngSHA256": "951bc78d6e164b43a986a2b3f0de55fa765fe98aa109862a6e6d87cd886ca87c",
+            "axSHA256": "522d0d1bdd03f28a342d01185ca735be22a8b7fad91249201223577277c36c9f"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              462.0,
+              386.0,
+              547.0
+            ],
+            "heightPt": 85.0,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              462.0,
+              386.0,
+              547.0
+            ],
+            "pngSHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+            "axSHA256": "6b28f12327085df7c2997167ac4e36deb055a723c9d515c22bd670c7d64bd4eb"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.0
+      },
+      "今天吃了什么": {
+        "nativeKeySHA256": "defbff84940c06cfd95089ebcd0f6b318218278c4c8410acd10f3eb493fb26ee",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1485,
+              1158,
+              1740
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "17 分钟前",
+            "pngSHA256": "3c536934c1de1c0579660317d0a8c006e249d7196a3556bd64d6e9a7a9abc681",
+            "axSHA256": "4b12d5ca78025d2b6c5bb41bee5b18668737226c142bc2e595a6328a44e2eca5"
+          },
+          {
+            "boundsPx": [
+              48,
+              999,
+              1158,
+              1254
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "originalPreview": "今天吃了 1,830 kcal，还能吃 420 kcal。",
+            "actualRelativeTime": "17 分钟前",
+            "pngSHA256": "951bc78d6e164b43a986a2b3f0de55fa765fe98aa109862a6e6d87cd886ca87c",
+            "axSHA256": "522d0d1bdd03f28a342d01185ca735be22a8b7fad91249201223577277c36c9f"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              292.0,
+              386.0,
+              377.0
+            ],
+            "heightPt": 85.0,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              292.0,
+              386.0,
+              377.0
+            ],
+            "pngSHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+            "axSHA256": "6b28f12327085df7c2997167ac4e36deb055a723c9d515c22bd670c7d64bd4eb"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.0
+      },
+      "步数目标": {
+        "nativeKeySHA256": "dc6053105424ac7fa1b8c8149aada24f34242380fbca267d7233d9680ddb77aa",
+        "harmonyRows": [
+          {
+            "boundsPx": [
+              48,
+              1764,
+              1158,
+              2019
+            ],
+            "heightVp": 85.0,
+            "widthVp": 370.0,
+            "preview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "originalPreview": "最近 7 天平均 7,860 步，离每天 8,000 步差一点。",
+            "actualRelativeTime": "星期六",
+            "pngSHA256": "951bc78d6e164b43a986a2b3f0de55fa765fe98aa109862a6e6d87cd886ca87c",
+            "axSHA256": "522d0d1bdd03f28a342d01185ca735be22a8b7fad91249201223577277c36c9f"
+          }
+        ],
+        "iPhoneRows": [
+          {
+            "boundsPt": [
+              16.0,
+              547.0,
+              386.0,
+              632.0
+            ],
+            "heightPt": 85.0,
+            "widthPt": 370.0,
+            "fullyVisible": true,
+            "actualVisibleStripPt": [
+              16.0,
+              547.0,
+              386.0,
+              632.0
+            ],
+            "pngSHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+            "axSHA256": "6b28f12327085df7c2997167ac4e36deb055a723c9d515c22bd670c7d64bd4eb"
+          }
+        ],
+        "iPhoneEntireRowPaintedInAtLeastOneFrame": true,
+        "maximumHeightDifferenceVp": 0.0
+      }
+    }
+  },
+  "historyActions": {
+    "targetTitle": "体检报告：血脂",
+    "targetSessionSHA256": "b1782bdcc0a8816431add8ba0cd046b6d303d330f3f15e9945140704abb3dd5c",
+    "targetOpens": 1,
+    "nativeItemGETs": 1,
+    "visibleNativeMessages": 1,
+    "selectedGesture": "full-swipe",
+    "shortSwipeRevealedAndReversedWrites": 0,
+    "nativeArchivePOSTs": 1,
+    "messageWrites": 0,
+    "sessionCreates": 0,
+    "remaining": [
+      {
+        "title": "这周的睡眠",
+        "sessionKeySHA256": "48b1148ec38b0082039ee4b24ce30d92d39806f4e468cef3e3e16373c1361617",
+        "source": {
+          "file": "originals/direct-06-remaining-0.png",
+          "originalPNGSHA256": "0813243c429c7cca4799587b0f78af2dcb3f2c3560d4e69ce91998eedd29a402",
+          "originalNativeTreeSHA256": "f9820085b766a2c91e7dd8c17460b260149839fb31ec44e2dcf8d9a80bfc9d98",
+          "pixels": [
+            1206,
+            2622
+          ]
+        }
+      },
+      {
+        "title": "步数目标",
+        "sessionKeySHA256": "dc6053105424ac7fa1b8c8149aada24f34242380fbca267d7233d9680ddb77aa",
+        "source": {
+          "file": "originals/direct-06-remaining-0.png",
+          "originalPNGSHA256": "0813243c429c7cca4799587b0f78af2dcb3f2c3560d4e69ce91998eedd29a402",
+          "originalNativeTreeSHA256": "f9820085b766a2c91e7dd8c17460b260149839fb31ec44e2dcf8d9a80bfc9d98",
+          "pixels": [
+            1206,
+            2622
+          ]
+        }
+      },
+      {
+        "title": "今天吃了什么",
+        "sessionKeySHA256": "defbff84940c06cfd95089ebcd0f6b318218278c4c8410acd10f3eb493fb26ee",
+        "source": {
+          "file": "originals/direct-06-remaining-0.png",
+          "originalPNGSHA256": "0813243c429c7cca4799587b0f78af2dcb3f2c3560d4e69ce91998eedd29a402",
+          "originalNativeTreeSHA256": "f9820085b766a2c91e7dd8c17460b260149839fb31ec44e2dcf8d9a80bfc9d98",
+          "pixels": [
+            1206,
+            2622
+          ]
+        }
+      }
+    ],
+    "officialVisibleRosterResponseSHA256": "06f08c8fa0bc90692be55d13641de7e19e19b1d965918d2a780daf9bffc10769",
+    "officialIncludingArchivedResponseSHA256": "4333abccca9aace9da6d79ff4222aa3aca12400ed196c2e07ef4cf20819a513d",
+    "archiveFlagTrue": true,
+    "otherThreeUnchanged": true,
+    "screenReaderServiceGestureExercised": false,
+    "boards": {
+      "history-open": {
+        "file": "history-open.png",
+        "sha256": "a6431b50ee5c55fa2eefe96721316aa550b807b6daaff048b055f0309883fa4f",
+        "sourceFrames": [
+          {
+            "originalPNGSHA256": "02d57b5c7464247ecae74949d824b2df987dcec5ecbc97cd80c039a9a3681983",
+            "originalNativeTreeSHA256": "998839a6cd32ff74adf222dd225f7af82efe82cff418284eed477b3738274b36"
+          },
+          {
+            "originalPNGSHA256": "0fa331a75dd1818a96c948b865349f58c701d53c0817023d14e5c443aa4b6bd7",
+            "originalNativeTreeSHA256": "86f26cc66ca66787f90859cae45fa99604f9469885882287de552e428b6c5a84"
+          },
+          {
+            "originalPNGSHA256": "3081369bbad7e3c78b6d299bfd9d8cfd83a54c96b4d6c670ea0117b3a251327a",
+            "originalNativeTreeSHA256": "0d45d353421217e0947a3d6efe047da1934e0766c78b2e79bdf9f847874a657f"
+          }
+        ]
+      },
+      "history-short-swipe": {
+        "file": "history-short-swipe.png",
+        "sha256": "f2158444ea09e98bf96802a8b30945ad9ca5a265c50f9b2fac637596c2c082fa",
+        "sourceFrames": [
+          {
+            "originalPNGSHA256": "76142561a15d5f28bd8a46cb63825a38a63016552786d4eb6be43c950c6831d3",
+            "originalNativeTreeSHA256": "052e8b18a7642b247495bc6826f1a51a0a7387ccb49a6bde24e2e31562964d8a"
+          },
+          {
+            "originalPNGSHA256": "3081369bbad7e3c78b6d299bfd9d8cfd83a54c96b4d6c670ea0117b3a251327a",
+            "originalNativeTreeSHA256": "0d45d353421217e0947a3d6efe047da1934e0766c78b2e79bdf9f847874a657f"
+          },
+          {
+            "originalPNGSHA256": "8af8387101d116f3f759084911ff8b4be983002658d3d21b6b45cc2c8886d166",
+            "originalNativeTreeSHA256": "d7eaa334aeb07e00683423150f70e46d721835f5ab43896aa912e95b9124ca9d"
+          }
+        ]
+      },
+      "history-direct-archive": {
+        "file": "history-direct-archive.png",
+        "sha256": "5b242ba8a10db7dbe45fc5198f5f499d89ae0e5712b5acc9d8d337b7f0140a97",
+        "sourceFrames": [
+          {
+            "originalPNGSHA256": "3081369bbad7e3c78b6d299bfd9d8cfd83a54c96b4d6c670ea0117b3a251327a",
+            "originalNativeTreeSHA256": "0d45d353421217e0947a3d6efe047da1934e0766c78b2e79bdf9f847874a657f"
+          },
+          {
+            "originalPNGSHA256": "452de4cfd1d88d7cc819176912987580443f7a0c0a4ceefc7cb5e8dc25cc9440",
+            "originalNativeTreeSHA256": "f9820085b766a2c91e7dd8c17460b260149839fb31ec44e2dcf8d9a80bfc9d98"
+          },
+          {
+            "originalPNGSHA256": "0813243c429c7cca4799587b0f78af2dcb3f2c3560d4e69ce91998eedd29a402",
+            "originalNativeTreeSHA256": "f9820085b766a2c91e7dd8c17460b260149839fb31ec44e2dcf8d9a80bfc9d98"
+          }
+        ]
+      }
+    },
+    "nativeReceiptSHA256": "10c9b0f08399079cd8a933cb6c32010de50440d49cf0a1ff4ac58f966f2ac2a0"
+  },
+  "intake": {
+    "initial": {
+      "water": {
+        "today": 750,
+        "goal": 2000
+      },
+      "protein": {
+        "today": 36,
+        "goal": 60
+      }
+    },
+    "states": {
+      "cup-recorded": {
+        "server": {
+          "water": {
+            "today": 1000,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 90.0,
+                "observedDeltaOf720": 90,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "8c384885b9f436e45f3b5dcadeb878c14ce4cb9ec94642be5b8c970f56dd343e",
+                "visibleNumber": "1,000",
+                "screenReader": "1,000 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "e0fb40a1d360c075f2d83c976fe0374b526413d01b2970feca153cd35cd5aa7c",
+            "nativeTreeSHA256": "869ca8622b747b59b78ac8b7d2cc6230d6a271095f985584417ae403b2ff7306"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 90.0,
+                "observedDeltaOf720": 90,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "8c384885b9f436e45f3b5dcadeb878c14ce4cb9ec94642be5b8c970f56dd343e",
+                "visibleNumber": "1,000",
+                "screenReader": "1,000 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "e0fb40a1d360c075f2d83c976fe0374b526413d01b2970feca153cd35cd5aa7c",
+            "nativeTreeSHA256": "869ca8622b747b59b78ac8b7d2cc6230d6a271095f985584417ae403b2ff7306"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-cup-recorded.png",
+            "originalPNGSHA256": "e0fb40a1d360c075f2d83c976fe0374b526413d01b2970feca153cd35cd5aa7c",
+            "originalNativeTreeSHA256": "869ca8622b747b59b78ac8b7d2cc6230d6a271095f985584417ae403b2ff7306",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "334ec2e324ab16abb242454f001b94aea977795c371ef7a316524fc843205d3b",
+        "firstMatchingFrameAfterNativeGETMs": [
+          2384.87,
+          4071.93
+        ]
+      },
+      "cup-undone": {
+        "server": {
+          "water": {
+            "today": 750,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "665ef0b437cfd5caafe0902236e90382d38fa15d43afd9c491232d6ad3ba9f4e",
+            "nativeTreeSHA256": "9dfb561aec151a58c991ad284c1da11dbf5713a4dd4660c2f25675cbda057724"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "665ef0b437cfd5caafe0902236e90382d38fa15d43afd9c491232d6ad3ba9f4e",
+            "nativeTreeSHA256": "9dfb561aec151a58c991ad284c1da11dbf5713a4dd4660c2f25675cbda057724"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-cup-undone.png",
+            "originalPNGSHA256": "665ef0b437cfd5caafe0902236e90382d38fa15d43afd9c491232d6ad3ba9f4e",
+            "originalNativeTreeSHA256": "9dfb561aec151a58c991ad284c1da11dbf5713a4dd4660c2f25675cbda057724",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "7b1c92cc5d886813229cde2d5f8642f7305492bd8acdf690f8a1c2b926751e58",
+        "firstMatchingFrameAfterNativeGETMs": [
+          1648.75,
+          3382.35
+        ]
+      },
+      "protein-recorded": {
+        "server": {
+          "water": {
+            "today": 750,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36.5,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 6.0,
+                "observedDeltaOf720": 5,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "ccac5fd11ddbca9ee90e7af7427d8c99259b9a6278837478eed81cfd6b567d95",
+                "visibleNumber": "36.5",
+                "screenReader": "36.5 / 60 克"
+              }
+            },
+            "pngSHA256": "858b6db5883c71e82624e6dcff646498701a36af5b404ef6426ccd835ba5110d",
+            "nativeTreeSHA256": "3edecc79f49bc6a788cec9e196ad5718ba75c9d3d1889256c675e72307ba872f"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 6.0,
+                "observedDeltaOf720": 5,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "ccac5fd11ddbca9ee90e7af7427d8c99259b9a6278837478eed81cfd6b567d95",
+                "visibleNumber": "36.5",
+                "screenReader": "36.5 / 60 克"
+              }
+            },
+            "pngSHA256": "858b6db5883c71e82624e6dcff646498701a36af5b404ef6426ccd835ba5110d",
+            "nativeTreeSHA256": "3edecc79f49bc6a788cec9e196ad5718ba75c9d3d1889256c675e72307ba872f"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-protein-recorded.png",
+            "originalPNGSHA256": "858b6db5883c71e82624e6dcff646498701a36af5b404ef6426ccd835ba5110d",
+            "originalNativeTreeSHA256": "3edecc79f49bc6a788cec9e196ad5718ba75c9d3d1889256c675e72307ba872f",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "e7aa0d620977bbd636e9a90c3426f985ed7d2de22d88c9ae3ffe34a34509ebcd",
+        "firstMatchingFrameAfterNativeGETMs": [
+          3119.37,
+          4878.25
+        ]
+      },
+      "protein-undone": {
+        "server": {
+          "water": {
+            "today": 750,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "nativeTreeSHA256": "82719eb47bc21379d30e125879ace96a0cedce83690b38862b4574205ea18f3d"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "nativeTreeSHA256": "82719eb47bc21379d30e125879ace96a0cedce83690b38862b4574205ea18f3d"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-protein-undone.png",
+            "originalPNGSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "originalNativeTreeSHA256": "82719eb47bc21379d30e125879ace96a0cedce83690b38862b4574205ea18f3d",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "63120ce4b475283956ad44a2289ee8ddfd52cd4f88076b86a4ee194f3de8ce52",
+        "firstMatchingFrameAfterNativeGETMs": [
+          1588.22,
+          3291.73
+        ]
+      },
+      "retry-single-record": {
+        "server": {
+          "water": {
+            "today": 873.4,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 44.42,
+                "observedDeltaOf720": 45,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "8015957e8c605acc059489cd75fb7efa1c2455965b11cefd3eb6047563fc328d",
+                "visibleNumber": "873.4",
+                "screenReader": "873.4 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "77f0e7a73c6d590b7ea207222014d02cea29fa0564f97f90697f0ce940d40f6d",
+            "nativeTreeSHA256": "1fe34d6a333553734254d07e199757fa44fba7fdf4f9e9c92b507a7c9afe5518"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 44.42,
+                "observedDeltaOf720": 45,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "8015957e8c605acc059489cd75fb7efa1c2455965b11cefd3eb6047563fc328d",
+                "visibleNumber": "873.4",
+                "screenReader": "873.4 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "77f0e7a73c6d590b7ea207222014d02cea29fa0564f97f90697f0ce940d40f6d",
+            "nativeTreeSHA256": "1fe34d6a333553734254d07e199757fa44fba7fdf4f9e9c92b507a7c9afe5518"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-retry-single-record.png",
+            "originalPNGSHA256": "77f0e7a73c6d590b7ea207222014d02cea29fa0564f97f90697f0ce940d40f6d",
+            "originalNativeTreeSHA256": "1fe34d6a333553734254d07e199757fa44fba7fdf4f9e9c92b507a7c9afe5518",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "a689493462c43b88c874795e43c4953142a6148e4f0c44ffea5de7fdd15d37c7",
+        "firstMatchingFrameAfterNativeGETMs": [
+          2393.6,
+          4094.38
+        ]
+      },
+      "recovered-water-undone": {
+        "server": {
+          "water": {
+            "today": 750,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "nativeTreeSHA256": "fd9f9b64f2b8c32c7b82c88f02122bc657647edb6797efbec8d2ad3b63b4e2b4"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "nativeTreeSHA256": "fd9f9b64f2b8c32c7b82c88f02122bc657647edb6797efbec8d2ad3b63b4e2b4"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-protein-undone.png",
+            "originalPNGSHA256": "8c4dc5f313df52c64726dffd134135836e9196004a295778f9f7eba699ac49fd",
+            "originalNativeTreeSHA256": "fd9f9b64f2b8c32c7b82c88f02122bc657647edb6797efbec8d2ad3b63b4e2b4",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "791a6ed7670a5ac5a2231508ace49fad7a7bbc612905bacdd64eeb52e5438f69",
+        "firstMatchingFrameAfterNativeGETMs": [
+          1692.87,
+          3403.04
+        ]
+      },
+      "permission-reloaded": {
+        "server": {
+          "water": {
+            "today": 750,
+            "goal": 2000
+          },
+          "protein": {
+            "today": 36,
+            "goal": 60
+          }
+        },
+        "visibleSamples": [
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "ce7ab676b02332aed4fee92dde0431198a2e124d49969054e3dcc2e0bc8200b1",
+            "nativeTreeSHA256": "e3962c50f2e343ffaef957bc3a2c8b3e6b82e0e4f191966f55266c570c296302"
+          },
+          {
+            "pixels": {
+              "water": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  192,
+                  693,
+                  507,
+                  1008
+                ],
+                "angularRGBSHA256": "eba9eb2c85b3f27ecb638e8bc12e1ffc7f311e31b9ff2e83b85377c274dd01e6",
+                "visibleNumber": "750",
+                "screenReader": "750 / 2,000 毫升"
+              },
+              "protein": {
+                "expectedDeltaOf720": 0.0,
+                "observedDeltaOf720": 0,
+                "progressBoundsPx": [
+                  699,
+                  693,
+                  1014,
+                  1008
+                ],
+                "angularRGBSHA256": "a9a277476605a07f87a9fdfa64784a861a08ab9bcfc222dce9f67c733e82f759",
+                "visibleNumber": "36",
+                "screenReader": "36 / 60 克"
+              }
+            },
+            "pngSHA256": "ce7ab676b02332aed4fee92dde0431198a2e124d49969054e3dcc2e0bc8200b1",
+            "nativeTreeSHA256": "e3962c50f2e343ffaef957bc3a2c8b3e6b82e0e4f191966f55266c570c296302"
+          }
+        ],
+        "source": {
+          "nativeFrame": {
+            "file": "originals/intake-permission-reloaded.png",
+            "originalPNGSHA256": "ce7ab676b02332aed4fee92dde0431198a2e124d49969054e3dcc2e0bc8200b1",
+            "originalNativeTreeSHA256": "e3962c50f2e343ffaef957bc3a2c8b3e6b82e0e4f191966f55266c570c296302",
+            "pixels": [
+              1206,
+              2622
+            ]
+          },
+          "cropPx": [
+            172,
+            683,
+            1034,
+            1114
+          ]
+        },
+        "nativeWindowSHA256": "e36dd3cb80bbb8f412fc81479824fbad766048b1d786e7e5257ae9080528059b",
+        "firstMatchingFrameAfterNativeGETMs": [
+          1688.23,
+          3410.41
+        ]
+      }
+    },
+    "initialSource": {
+      "nativeFrame": {
+        "file": "originals/intake-initial.png",
+        "originalPNGSHA256": "49a5f16d27b85f0631f0a95dd148e74c0fa6347270e6c8195139a8c742b677e5",
+        "originalNativeTreeSHA256": "97d18a2fdee2dcb523c4dcfbad54af8eac345e16c0290be315a83a65a2f426c5",
+        "pixels": [
+          1206,
+          2622
+        ]
+      },
+      "cropPx": [
+        172,
+        683,
+        1034,
+        1114
+      ]
+    },
+    "source": "a4aa58a91eaf7f8ddbab13a63c0d8feff909587b",
+    "board": {
+      "file": "intake-readback.png",
+      "sha256": "a763f85f739bb0e3821f2359a4c10e9a4d9635614028ca5fe6f1ea4611de53b8"
+    },
+    "successfulEntries": 3,
+    "allThreeUndone": true,
+    "actualNativeMutationAttempts": 8,
+    "finalExistingTotalsRestored": true,
+    "nativeReceiptSHA256": "034d7dccaf6173cd4b5e8bb0b7b1dc38bdaf6f283141326ad29b88ea1df52969",
+    "angularSampling": "Changes relative to the initial 720-point native circular RGB profile, at 91% of the real Progress radius. The two rounded arc caps are present in every frame."
+  },
+  "physicalArtworkFile": {
+    "file": "artwork-measurements.json",
+    "sha256": "05aa1964bac8f0eb360834443f8660642465c0a87ac3a4a23b36a8d617b98c14",
+    "geometryGates": {
+      "light": true,
+      "dark": true,
+      "large": true
+    }
+  }
+}
