@@ -928,6 +928,7 @@ web_plan() {
 # under --each many listed paths share one (spec/fixtures/*). runtime_named's lines are read once per run too.
 READER_CACHE=()
 RUNTIME_NAMED=""; RUNTIME_NAMED_READ=0
+SUITE_CACHE=(); SUITE_IS_SUITE=()
 readers_of() {
   local _i=0
   while [ "$_i" -lt "${#READER_CACHE[@]}" ]; do
@@ -1194,7 +1195,31 @@ script_test_add() {
   # Already added: every file of a large diff adds the same few suites again, and the grep below is a process each.
   arr_has "$1" "${SCRIPT_TESTS[@]:-}" && return 0
   [ -f "$1" ] || return 0
-  if ! grep -q unittest "$1"; then
+  # A path's suites are reset between --each probes, but its unittest
+  # classification is not. --each is a read-only plan, so retain that observation
+  # rather than spawning grep hundreds of times for the same tracked files.
+  if [ "$EACH" -eq 1 ]; then
+    local _i=0
+    while [ "$_i" -lt "${#SUITE_CACHE[@]}" ]; do
+      if [ "${SUITE_CACHE[$_i]}" = "$1" ]; then
+        if [ "${SUITE_IS_SUITE[$_i]}" -eq 1 ]; then
+          SCRIPT_TESTS+=("$1")
+        else
+          arr_has "SKIP  $1 (not a unittest suite)" "${INFO[@]:-}" || INFO+=("SKIP  $1 (not a unittest suite)")
+        fi
+        return 0
+      fi
+      _i=$((_i + 1))
+    done
+    local _is_suite=0
+    if grep -q unittest "$1"; then _is_suite=1; fi
+    SUITE_CACHE+=("$1")
+    SUITE_IS_SUITE+=("$_is_suite")
+    if [ "$_is_suite" -eq 0 ]; then
+      arr_has "SKIP  $1 (not a unittest suite)" "${INFO[@]:-}" || INFO+=("SKIP  $1 (not a unittest suite)")
+      return 0
+    fi
+  elif ! grep -q unittest "$1"; then
     arr_has "SKIP  $1 (not a unittest suite)" "${INFO[@]:-}" || INFO+=("SKIP  $1 (not a unittest suite)")
     return 0
   fi
@@ -1216,7 +1241,7 @@ script_test_add() {
 # scripts/ci/affected_drift.py works the same suites out on its own and compares (#11026).
 script_importers() {
   local _dir _mod _t
-  _dir=$(dirname "$1"); _mod=$(basename "$1" .py)
+  _dir=${1%/*}; _mod=${1##*/}; _mod=${_mod%.py}
   case "$_mod" in ""|*[!A-Za-z0-9_]*) return 0 ;; esac  # android-shards.py cannot be imported by name
   search "the scripts suites that import $1" "$WORK/importers-grep.txt" \
     -lE "^[[:space:]]*(from[[:space:]]+$_mod[[:space:]]+import|import[[:space:]]+([A-Za-z0-9_]+[[:space:]]*,[[:space:]]*)*$_mod([[:space:],]|\$))" \
@@ -1224,7 +1249,7 @@ script_importers() {
   while IFS= read -r _t; do
     case "${_t##*/}" in test_*.py) ;; *) continue ;; esac
     [ "$_t" != "$1" ] || continue
-    if [ "$(dirname "$_t")" = "$_dir" ] || grep -qF "$_dir" "$_t" || grep -qE "/[[:space:]]*\"${_dir##*/}\"" "$_t"; then
+    if [ "${_t%/*}" = "$_dir" ] || grep -qF "$_dir" "$_t" || grep -qE "/[[:space:]]*\"${_dir##*/}\"" "$_t"; then
       printf '%s\n' "$_t"
     fi
   done < "$WORK/importers-grep.txt"
@@ -1240,7 +1265,7 @@ else
     case "$f" in
       scripts/*/test_*.py) script_test_add "$f" ;;
       scripts/*.py|scripts/*.sh)
-        _name=$(basename "$f"); _name=${_name%.*}
+        _name=${f##*/}; _name=${_name%.*}
         _name=$(printf '%s' "$_name" | tr '-' '_')
         for _t in scripts/*/"test_$_name.py"; do script_test_add "$_t"; done
         case "$f" in *.sh) for _t in scripts/*/"test_${_name}_sh.py"; do script_test_add "$_t"; done ;; esac ;;
