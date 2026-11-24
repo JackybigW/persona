@@ -353,14 +353,14 @@ export function projectDirectory(catalog: ResourceRow[], sessions: ResourceRow[]
 }
 
 /** Prune a fresh projection, preserving every ancestor of an admitted session or a matching registered workspace. */
-export function trimAgentProjects(projects: PersonaProject[], includeEmpty: boolean, search: string): PersonaProject[] {
+export function trimAgentProjects(projects: PersonaProject[], includeEmpty: boolean, search: string, createdKey: string = ''): PersonaProject[] {
   const query=search.trim().toLocaleLowerCase();
   return projects.filter((project:PersonaProject) => {
     const trees = new Map<string,ProjectWorktree>(), keep = new Set<string>();
     for (const tree of project.trees) trees.set(tree.key,tree);
     for (const tree of project.trees) {
       const matches = !query || (tree.title + ' ' + tree.cwd).toLocaleLowerCase().includes(query);
-      if (!tree.agents.length && !(includeEmpty && tree.pickerWorkspace && matches)) continue;
+      if (!tree.agents.length && !(includeEmpty && (tree.pickerWorkspace || tree.key === createdKey) && matches)) continue;
       let current: ProjectWorktree | undefined = tree;
       while (current && !keep.has(current.key)) { keep.add(current.key); current=trees.get(current.parentKey); }
     }
@@ -459,7 +459,8 @@ export class ProjectCatalog {
       return Wire.text(data,'space_kind') === 'paseo' && pinned.has(JSON.stringify([row.group,row.manager,row.machine,Wire.text(data,'workspace_id')]));
     });
     const projected = projectDirectory(rows,visible,model.directoryMachines);
-    return trimAgentProjects(projected,includeEmpty,query);
+    const created = this.createdSelection, key = this.agentBrowser.selectedTree;
+    return trimAgentProjects(projected,includeEmpty,query,created?.key === key && this.selectedWorktree(key) ? key : '');
   }
 
   syncRows(model: ClientModel): void {

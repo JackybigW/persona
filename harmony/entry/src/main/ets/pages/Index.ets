@@ -1994,7 +1994,7 @@ struct Index {
   @Builder agentsList() {
     AgentListPage({ projectCatalog:this.projectCatalog,
       onRepositoryOpen:(kind:string,key:string) => this.openAgentRepositoryRoute(kind,key),
-      onRepositoryChanged:(tree:ProjectWorktree,change:WorktreeChange) => { this.worktreeChanged(tree,change,():boolean => this.agentWorkspace.groupingMode === 'repo' && (this.wide() || !this.stack.size())).catch((err:Error) => this.model.reportError(err)); },
+      onRepositoryChanged:(tree:ProjectWorktree,change:WorktreeChange) => { this.worktreeChanged(tree,change,'agent_repositories',():boolean => this.model.section === 1 && this.agentWorkspace.groupingMode === 'repo' && (this.wide() || !this.stack.size())).catch((err:Error) => this.model.reportError(err)); },
       onOpenTodo:(row:ResourceRow) => this.openLinkedResource(row), onSearchMode:(editing:boolean)=>{this.agentSearching=editing;}, compactRoot:!this.wide() && !this.rail(), model: this.model, workspace: this.agentWorkspace, retainWorkspace: true, active: this.model.section === 1, selectedRow: this.detailModel.selected, selectionVisible: this.chatSelectionShown('session'), rail: this.rail(), readingDetail: this.readingAgentDetail(),
       onOpen: (row: ResourceRow) => this.openRow(row), onVisible: (row: ResourceRow, ratio: number) => {
         this.rowVisibility.set(this.model.scope() + row.key(), ratio); if (row.key() === this.detailModel.selected.key()) this.visibilityEpoch++;
@@ -2115,13 +2115,14 @@ struct Index {
     SettingsDirectory({model:this.model,ownerName: this.model.profile.name || tr('persona'), avatar: this.look.avatarUri,
       label: (key: string): string => this.settingsLabel(key), onOpen: (key: string) => this.openSettings(key)})
   }
-  private async worktreeChanged(tree: ProjectWorktree, change: WorktreeChange, atOrigin: () => boolean = () => true): Promise<void> {
+  private async worktreeChanged(tree: ProjectWorktree, change: WorktreeChange, origin: string, atOrigin: () => boolean): Promise<void> {
     const root = this.model, scope = root.scope(), epoch = root.connectionGeneration(), stack = this.stack;
     const names = stack.getAllPathName(), intent = this.navigationIntent, section = this.model.section;
     const source = new ResourceRow(); source.group = tree.group; source.manager = tree.manager;
     const owner = root.directoryOwnerFor(source), ownerEpoch = owner?.connectionGeneration(), ownerScope = owner?.scope();
     const live = (): boolean => root.owns(epoch, scope) && this.model === root;
-    const stay = (): boolean => live() && this.stack === stack && this.navigationIntent === intent && this.model.section === section && (section === 4 || section === 1);
+    const stay = (): boolean => live() && this.stack === stack && this.navigationIntent === intent && this.model.section === section && atOrigin();
+    const fromDetail = origin === 'project_tree', browser = origin === 'agent_repositories' ? this.projectCatalog.agentBrowser : this.projectCatalog.browser;
     const created = change.created;
     if (created) {
       if (!created.receiptCurrent?.()) return;
@@ -2131,15 +2132,15 @@ struct Index {
         const known = this.projectCatalog.tree(created.key);
         return !!machine && this.agentMachineOnline(machine) && (!known || known.canStart && known.matchesCreated(created));
       };
-      if (owner && available() && atOrigin() && stay() && !this.showSheet) {
+      if (owner && available() && stay() && !this.showSheet) {
         this.projectCatalog.selectCreated(created);
-        const browser = section === 4 ? this.projectCatalog.browser : this.projectCatalog.agentBrowser;
         browser.selectedTree = created.key; browser.selectedSession = '';
-        this.pushPlace('project_tree',created.key);
+        if (fromDetail) this.pushPlace('project_tree',created.key);
         const childIntent = this.navigationIntent;
         const stillSelected = (): boolean => live() && created.receiptCurrent?.() === true && available() && !!this.projectCatalog.selectedWorktree(created.key) && this.stack === stack &&
           this.navigationIntent === childIntent && this.model.section === section &&
-          this.stack.getAllPathName().slice(-1)[0] === 'project_tree' && this.stack.getParamByIndex(this.stack.size()-1) === created.key;
+          (fromDetail ? this.stack.getAllPathName().slice(-1)[0] === 'project_tree' && this.stack.getParamByIndex(this.stack.size()-1) === created.key :
+            atOrigin() && browser.selectedTree === created.key);
         void this.prepareAgent(undefined,created,false,stillSelected);
       }
     }
@@ -2156,9 +2157,12 @@ struct Index {
     }
     this.projectCatalog.notice = tr(change.action === 'create' ? 'tree_created' : change.action === 'rename' ? 'tree_renamed' : change.branchRetained ? 'tree_cleaned_branch' : 'tree_cleaned');
     await this.projectCatalog.refresh(root);
-    if (change.action === 'create' && !created && change.id !== tree.sourceId && change.parent === tree.sourceId && owner?.connected && ownerEpoch !== undefined && ownerScope !== undefined && owner.owns(ownerEpoch,ownerScope) && stay() && atOrigin()) {
+    if (change.action === 'create' && !created && change.id !== tree.sourceId && change.parent === tree.sourceId && owner?.connected && ownerEpoch !== undefined && ownerScope !== undefined && owner.owns(ownerEpoch,ownerScope) && stay()) {
       const key = JSON.stringify([tree.group, tree.manager, tree.machine, tree.source, change.id]), actual = this.projectCatalog.tree(key);
-      if (actual && actual.cwd === change.path && actual.branch === change.branch) this.pushPlace('project_tree',key);
+      if (actual && actual.cwd === change.path && actual.branch === change.branch) {
+        browser.selectedTree = actual.key; browser.selectedSession = '';
+        if (fromDetail) this.pushPlace('project_tree',key);
+      }
     }
   }
   // Selection marks the detail open beside the repository column. A stack navigation has no adjacent detail.
@@ -2180,7 +2184,7 @@ struct Index {
           onTree: (key: string) => this.pushPlace('project_tree', key),
           onSession: (row: ResourceRow) => this.openLinkedResource(row),
           onStart: (tree: ProjectWorktree) => this.prepareAgent(undefined, tree),
-          onChanged: (tree: ProjectWorktree, change: WorktreeChange) => { this.worktreeChanged(tree, change, (): boolean => name === 'projects' ? this.projectPlace() && (this.wide() || !this.stack.size()) :
+          onChanged: (tree: ProjectWorktree, change: WorktreeChange) => { this.worktreeChanged(tree, change, name, (): boolean => name === 'projects' ? this.projectPlace() && (this.wide() || !this.stack.size()) :
             this.phoneTop === name && this.phoneParam === param).catch((err: Error) => this.model.reportError(err)); },
           onRefresh: () => this.projectCatalog.refresh(this.model) })
   }

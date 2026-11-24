@@ -16,7 +16,7 @@ registerHooks({
     return { format: 'module', source: stripTypeScriptTypes(source), shortCircuit: true };
   }
 });
-const { ProjectAgent, ProjectCatalog, ProjectBrowserState, projectDirectory } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
+const { ProjectAgent, ProjectCatalog, ProjectWorktree, ProjectBrowserState, projectDirectory } = await import('../entry/src/main/ets/models/ProjectCatalog.ets');
 const { projectOutline, projectHosts, projectSearchAgents, worktreeSpaceCards } = await import('../entry/src/main/ets/models/ProjectOutline.ets');
 const { ResourceRow } = await import('../entry/src/main/ets/models/Wire.ets');
 const { SessionSpace, sessionSpace, worktreeForSessionSpace } = await import('../entry/src/main/ets/models/SessionSpace.ets');
@@ -798,6 +798,25 @@ test('Agents uses only its admitted inventory and exposes registered workspaces 
     .filter(l=>l.kind==='session').map(l=>l.agent.row.key()),[active.key()]);
   assert.deepEqual(catalog.projects.flatMap(p=>p.trees.map(t=>t.key)),canonical);
   model.scope=()=>'switched';assert.deepEqual(visible('',true,()=>true,[]),[]);
+});
+
+test('the newly selected empty terminal checkout appears on its original repository list only when the live owner and filters admit it',()=>{
+  const parent=workspace('parent',{source:'herdr',title:'login-form'});
+  const child=workspace('w3',{source:'herdr',title:'qa/mini-login-form',branch:'qa/mini-login-form',
+    cwd:'/checkouts/qa-mini-login-form',parent_source_id:'parent'});
+  const raw=[parent,child], catalog=new ProjectCatalog(), model={scope:()=>'home',directoryMachines:[machine]};
+  catalog.ownerScope='home';catalog.snapshots.set('home',raw);catalog.projects=projectDirectory(raw,[],[machine]);
+  const tree=catalog.projects.flatMap(p=>p.trees).find(t=>t.sourceId==='w3');
+  let live=true;
+  const receipt=Object.assign(new ProjectWorktree(),tree,{receiptCurrent:()=>live});
+  const listed=(query,empty,admit=()=>true)=>catalog.agentDirectory(model,[],empty,query,admit).flatMap(p=>p.trees.map(t=>t.sourceId));
+  assert.deepEqual(listed('login-form',true),[]);
+  catalog.selectCreated(receipt);catalog.agentBrowser.selectedTree=tree.key;
+  assert.deepEqual(listed('login-form',true).sort(),['parent','w3']);
+  assert.deepEqual(listed('no match',true),[]);assert.deepEqual(listed('login-form',false),[]);
+  assert.deepEqual(listed('',true,()=>false),[]);
+  live=false;assert.deepEqual(listed('login-form',true),[]);
+  live=true;tree.cwd='/different checkout';assert.deepEqual(listed('login-form',true),[]);
 });
 
 test('Agents repository routes stay on the owning stack and refuse stale targets', () => {
