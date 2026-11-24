@@ -153,6 +153,10 @@ const readChatKey = "read_chat"
 // readRun: the run answers a "/read" in a group.
 func readRun(ext map[string]string) bool { return ext[readChatKey] != "" }
 
+// readDirectKey is set on a /read's run asked with the read_group_direct switch on: its answer goes straight into the
+// group. Without it the answer is held for the owner (Host.HoldRead, the core's feishu_read_held.go, #14437).
+const readDirectKey = "read_direct"
+
 // cloneExt is a copy of a run's channel values.
 func cloneExt(m map[string]string) map[string]string {
 	if m == nil {

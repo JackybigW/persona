@@ -131,6 +131,9 @@ type Host interface {
 	ProcessPanel(l i18n.Lang, c *botcard.Card, steps []string)
 	MissingPiecesNote(l i18n.Lang, missing []int) string
 	AnswerCards(l i18n.Lang, name func(*url.URL) string, answer string, quiet bool, steps []string, foot string) (cards []*botcard.Card, fallbacks []string)
+	// HoldRead sends a /read's answer to the owner's private chat, to post into the group only on the owner's press
+	// (#14437).
+	HoldRead(ctx context.Context, r *channel.Run, cards []*botcard.Card, fallbacks, keys []string, quiet bool) error
 
 	// The channels' runs, under their lock.
 	Now() time.Time

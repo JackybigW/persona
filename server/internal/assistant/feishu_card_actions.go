@@ -41,6 +41,8 @@ func (s *Service) botCardAction(ctx context.Context, a *botcard.CardAction, acti
 		return nil
 	case "ix":
 		return s.answerFromCard(ctx, a, action)
+	case "rd": // a /read's answer held for the owner: post it into the group, or not (feishu_read_held.go)
+		return s.readHeldAction(ctx, a)
 	case "accept":
 		// The hub checked the owner pressed it; marking a task verified approves nothing.
 		var result acceptResult

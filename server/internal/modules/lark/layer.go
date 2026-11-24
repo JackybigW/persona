@@ -55,6 +55,11 @@ type Host interface {
 	// MissingPiecesNote says which pieces of an answer did not get to Feishu (1-based) and where the whole is.
 	MissingPiecesNote(l i18n.Lang, missing []int) string
 	AnswerCards(l i18n.Lang, name func(*url.URL) string, answer string, quiet bool, steps []string, foot string) (cards []*botcard.Card, fallbacks []string)
+	// HoldRead sends a /read's answer to the owner's private chat instead of the group, to post there only when the
+	// owner presses its button (#14437): cards as they would go into the group, each with its fallback and key; quiet
+	// says the run said nothing (its card says only how it ended), so there is nothing to post. An unreachable error
+	// means nothing got out, and the answer is tried again later.
+	HoldRead(ctx context.Context, r *channel.Run, cards []*botcard.Card, fallbacks, keys []string, quiet bool) error
 
 	// The channels' runs, under their lock.
 	Now() time.Time

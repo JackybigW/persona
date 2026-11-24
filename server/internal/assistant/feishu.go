@@ -153,6 +153,8 @@ type feishuBook struct {
 	// lookupWait is how long the topic of a message just sent waits between two reads of it (0: topicLookupWait;
 	// tests change it).
 	lookupWait time.Duration
+	// read are the /read answers held for the owner (feishu_read_held.go).
+	read readHeldBook
 }
 
 // feishuRecalledKeep is how long a recall is remembered: a message waits at most feishuTurnWait for the one before

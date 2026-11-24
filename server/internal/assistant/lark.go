@@ -177,8 +177,12 @@ func (h larkHost) RememberRun(messageID string, r *channel.Run) {
 	h.s.rememberBotThread(messageID, botTargetOf(r), r.Label)
 }
 
-func (h larkHost) Unreachable(err error) bool { return unreachable(err) }
-func (h larkHost) Offline(err error) bool     { return errors.Is(err, bus.ErrOffline) }
+// Unreachable: nothing went out and the call is tried again later; a /read answer that could not be kept for the
+// owner (errHeldStore) is too.
+func (h larkHost) Unreachable(err error) bool {
+	return unreachable(err) || errors.Is(err, errHeldStore)
+}
+func (h larkHost) Offline(err error) bool { return errors.Is(err, bus.ErrOffline) }
 
 func (h larkHost) StepParts(l i18n.Lang, it proto.Item) (string, string) { return botStepParts(l, it) }
 
@@ -201,6 +205,10 @@ func (h larkHost) AnswerCards(l i18n.Lang, name func(*url.URL) string, answer st
 		cards[i], fallbacks[i] = ac.card, ac.fallback
 	}
 	return cards, fallbacks
+}
+
+func (h larkHost) HoldRead(ctx context.Context, r *channel.Run, cards []*botcard.Card, fallbacks, keys []string, quiet bool) error {
+	return h.s.holdRead(ctx, r, cards, fallbacks, keys, quiet)
 }
 
 func (h larkHost) Now() time.Time                           { return h.s.chansNow() }

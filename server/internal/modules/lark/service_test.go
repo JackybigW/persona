@@ -210,6 +210,18 @@ type Service struct {
 	lists   map[string][]time.Duration
 	ctx     context.Context
 	logs    []string
+	// held are the /read answers the turn handed over to hold for the owner (HoldRead), and heldErr what it answers.
+	held    []heldRead
+	heldErr error
+}
+
+// heldRead is one HoldRead call: the cards as JSON, their fallbacks and keys.
+type heldRead struct {
+	run       string
+	cards     []string
+	fallbacks []string
+	keys      []string
+	quiet     bool
 }
 
 func newTestService(t testing.TB, f Hub) *Service {
@@ -640,6 +652,18 @@ func (s *Service) AnswerCards(l i18n.Lang, _ func(*url.URL) string, answer strin
 	}
 	s.ProcessPanel(l, c, steps)
 	return []*botcard.Card{c.Note(foot)}, []string{answer}
+}
+
+// HoldRead keeps what the turn handed over, as the core would before posting it to the owner's private chat.
+func (s *Service) HoldRead(_ context.Context, r *channel.Run, cards []*botcard.Card, fallbacks, keys []string, quiet bool) error {
+	h := heldRead{run: r.ID, fallbacks: slices.Clone(fallbacks), keys: slices.Clone(keys), quiet: quiet}
+	for _, c := range cards {
+		h.cards = append(h.cards, c.JSON())
+	}
+	s.chans.mu.Lock()
+	defer s.chans.mu.Unlock()
+	s.held = append(s.held, h)
+	return s.heldErr
 }
 
 func (s *Service) Now() time.Time {
