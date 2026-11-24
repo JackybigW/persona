@@ -15,6 +15,7 @@ import (
 	"github.com/nwverse/persona/server/internal/db"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
+	"github.com/nwverse/persona/server/internal/rpc"
 )
 
 type healthTellStore interface {
@@ -236,7 +237,9 @@ func (s *Service) deliverHealthTell(ctx context.Context, st healthTellStore, r d
 			if healthTellOffline(err) {
 				return false, false
 			}
-			if !taskSourceDefinitelyUnsent(err, ref.SessionID) && convCode(err) != "conversation_deleted" {
+			var refusal *rpc.Error
+			deleted := errors.As(err, &refusal) && refusal.Code == "conversation_deleted"
+			if !taskSourceDefinitelyUnsent(err, ref.SessionID) && !deleted {
 				return s.healthTellAttempt(ctx, st, r, err, false)
 			}
 		}
