@@ -200,6 +200,7 @@ data = {
     "todos": m.sorted_todos(),
     "runs": m.RUNS,
     "memory": m.MEMORY,
+    "health_items": health_intake_mock.health_items_snapshot(),
     "health_intake": health_intake_mock.health_intake_snapshot(),
     "health_intake_ui": {f"{locale}.{version}.{page}": health_intake_ui.answer({
         "context": {"locale": locale, "ui_version": version},

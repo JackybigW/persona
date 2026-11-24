@@ -567,6 +567,7 @@ struct WatchRootView: View {
                     case "complication": PetComplicationPreview()
                     case "allday-complication": AllDayComplicationPreview()
                     case "record-complication": MeetingRecordingComplicationPreview()
+                    case "intake-complication": WatchIntakePreview()
                     default: WatchPetView()
                     }
                 }
@@ -576,6 +577,7 @@ struct WatchRootView: View {
                     case "allday": allDay.pageRequested = true
                     case "allday-complication": openedPetPage = "allday-complication"
                     case "record-complication": openedPetPage = "record-complication"
+                    case "intake-complication": openedPetPage = "intake-complication"
                     default: break
                     }
                 }

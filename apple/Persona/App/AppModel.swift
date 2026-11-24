@@ -3354,7 +3354,7 @@ final class AppModel {
             // The direction tree changed (#4352): read it again. Its answer is the default manager's alone, so another
             // manager's page keeps what GET leaders gave it (docs/assistant/managers.md "Clients").
             if isHub, let hubAPI = api, assistantShows(nil) { Task { await refreshDirectionTree(hubAPI) } }
-        case .healthIntake:
+        case .healthIntake, .healthItems:
             if isHub { healthIntakeRevision += 1 }
             #if os(iOS)
             if isHub { HomeWidgetData.shared.intakeChanged() }
@@ -3519,6 +3519,7 @@ final class AppModel {
         case .look: "look"
         case .managers: "managers"
         case .directions: "directions"
+        case .healthItems: "health_items"
         case .healthIntake: "health_intake"
         case .assistantFeed: "assistant_feed"
         case .assistantView: "assistant_view"

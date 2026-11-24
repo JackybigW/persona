@@ -9,6 +9,10 @@ import uuid
 
 HUB = None
 
+HEALTH_ITEMS_ENABLED = True
+HEALTH_ITEMS = ["water", "protein", "activity", "trends"]
+HEALTH_ITEMS_REVISION = 0
+HEALTH_ITEMS_SAVED = False
 HEALTH_INTAKE_ENABLED = True
 HEALTH_INTAKE_LOCK = threading.RLock()
 HEALTH_WATER_EXTENSION_MODE = "pending"
@@ -18,8 +22,12 @@ HEALTH_INTAKE_SETTINGS = {}
 
 def health_intake_reset():
     """Restore the seeded records, settings and initial migration state together."""
-    global HEALTH_WATER_EXTENSION_PENDING
+    global HEALTH_WATER_EXTENSION_PENDING, HEALTH_ITEMS, HEALTH_ITEMS_REVISION, HEALTH_ITEMS_SAVED
     with HEALTH_INTAKE_LOCK:
+        mode = os.environ.get("MOCK_HEALTH_ITEMS", "existing")
+        HEALTH_ITEMS = ["activity", "trends"] if mode == "new" else ["protein"] if mode == "protein" else ["water", "protein", "activity", "trends"]
+        HEALTH_ITEMS_REVISION = 0
+        HEALTH_ITEMS_SAVED = mode == "protein"
         HEALTH_INTAKE_ENTRIES.clear()
         HEALTH_INTAKE_ENTRIES.update(health_intake_seed())
         HEALTH_WATER_EXTENSION_PENDING = HEALTH_WATER_EXTENSION_MODE == "pending"
@@ -61,6 +69,8 @@ def health_intake_snapshot(days=7):
                            for d in [today - timedelta(days=i) for i in reversed(range(days))]]}
         if HEALTH_WATER_EXTENSION_PENDING:
             result["water_extension"] = "pending"
+        if HEALTH_ITEMS_ENABLED:
+            result["items"] = list(HEALTH_ITEMS)
         return result
 
 
@@ -161,19 +171,64 @@ def health_intake_route(h, method, path, query, body=b""):
     return True
 
 
+def health_items_snapshot():
+    return {"catalog": [{"id": item, "source": "persona" if item in ("water", "protein") else "apple_health"}
+                        for item in ("water", "protein", "activity", "trends")],
+            "items": list(HEALTH_ITEMS), "revision": HEALTH_ITEMS_REVISION, "saved": HEALTH_ITEMS_SAVED}
+
+
+def health_items_route(h, req):
+    global HEALTH_ITEMS, HEALTH_ITEMS_REVISION, HEALTH_ITEMS_SAVED
+    with HEALTH_INTAKE_LOCK:
+        if req.path == "/mock/health-items":
+            if req.query.get("reset") == ["1"]: health_intake_reset()
+            if "items" in req.query:
+                HEALTH_ITEMS = [item for item in req.query["items"][0].split(",") if item]
+                HEALTH_ITEMS_REVISION += 1
+            if "saved" in req.query: HEALTH_ITEMS_SAVED = req.query["saved"] == ["1"]
+            h.send_json(health_items_snapshot())
+            return
+        if not HEALTH_ITEMS_ENABLED:
+            h.send_json({"error": "Health items unavailable"}, 404)
+            return
+        if req.method == "PUT":
+            try:
+                value = req.json()
+                items, revision = value["items"], value["revision"]
+                if set(value) != {"items", "revision"} or type(revision) is not int or revision < 0:
+                    raise ValueError("Invalid revision or fields")
+                if not isinstance(items, list) or any(item not in ("water", "protein", "activity", "trends") for item in items) or len(set(items)) != len(items):
+                    raise ValueError("Invalid health items")
+            except (ValueError, TypeError, KeyError):
+                h.send_json({"error": "Invalid health items"}, 400)
+                return
+            if revision != HEALTH_ITEMS_REVISION:
+                h.send_json(health_items_snapshot(), 409)
+                return
+            HEALTH_ITEMS, HEALTH_ITEMS_REVISION, HEALTH_ITEMS_SAVED = items, revision + 1, True
+            HUB.broadcast({"type": "health_items", "revision": HEALTH_ITEMS_REVISION})
+        h.send_json(health_items_snapshot())
+
+
 def route(h, req):
     return health_intake_route(h, req.method, req.path, req.query, req.body)
 
 
 def register(d):
-    global HUB, HEALTH_INTAKE_ENABLED, HEALTH_WATER_EXTENSION_MODE
+    global HUB, HEALTH_INTAKE_ENABLED, HEALTH_WATER_EXTENSION_MODE, HEALTH_ITEMS_ENABLED
     HUB = d.hub
     HEALTH_INTAKE_ENABLED = os.environ.get("MOCK_HEALTH_INTAKE") != "off"
     HEALTH_WATER_EXTENSION_MODE = os.environ.get("MOCK_WATER_EXTENSION", "pending")
+    HEALTH_ITEMS_ENABLED = os.environ.get("MOCK_HEALTH_ITEMS") != "off"
     health_intake_reset()
     d.help("MOCK_HEALTH_INTAKE=off  omit Health intake and refuse its routes (#13176)")
     d.help("MOCK_WATER_EXTENSION=none|migrated  omit the water migration card; default pending (#13636)")
     d.on_reset(health_intake_reset)
+    d.help("MOCK_HEALTH_ITEMS=existing|new|protein|off  Health home selection (#14715)")
+    d.feature("health_items", when=lambda: HEALTH_ITEMS_ENABLED)
+    for method in ("GET", "PUT"):
+        d.route(method, "/api/v1/assistant/health/items", health_items_route)
+        d.route(method, "/mock/health-items", health_items_route)
     d.feature("health_intake", when=lambda: HEALTH_INTAKE_ENABLED)
     for method in ("GET", "POST", "DELETE"):
         d.route(method, r"/api/v1/assistant/health/intake(?:/.*)?", route)

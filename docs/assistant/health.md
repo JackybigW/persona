@@ -36,7 +36,22 @@ list and delete remain available. Without the module, the chat has no intake-ite
 Water reminders stop while water is absent. GET intake includes the ordered `items` so watch
 complications and Log Water can ask the owner to add Water in Health. Intake HTTP writes and
 imports still accept absent items for older clients; Apple Health sync follows all records
-and undo markers regardless of the list. This server change does not add client screens.
+and undo markers regardless of the list.
+
+On iPhone and iPad (#14715), the home follows this ordered list only when hello advertises
+`health_items`; older hubs keep the existing home. Water and protein share Today: the section
+occupies the earlier item's position, and its columns follow their order in the list. iPad omits
+Activity rings; Vision Pro draws only Today. Other home sections stay in place. **Edit** opens
+the existing grouped sheet with switches and native move handles. Saving replaces visible slots
+while retaining hidden and unrecognized IDs in their relative order. A 409 adopts the returned
+state and explains that another device changed it; other failures keep the draft. Removing an
+item keeps records, and adding it back restores their display.
+
+Before the first save, an owner with neither intake item sees one question for Water and Protein.
+**Add** saves the selected items; **Not Now** saves the current list. Either accepted save stops
+asking, including after relaunch. Complications, intake widgets and Log Water read `items` from
+intake: absent water/protein asks to add it in Health, and Log Water refuses before writing.
+A missing field from an older hub keeps both items available.
 
 ## Why split it out
 

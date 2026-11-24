@@ -46,6 +46,10 @@ and waits for any available Home Screen snapshot to be written. It adds no App S
 slots are full. Make a shortcut containing Log Water, then say that shortcut's name to Siri or select it for the
 Action button (`docs/apple/siri.md`).
 
+When intake includes `items`, Log Water first checks that `water` is added (#14715). If it is
+absent, the action says **First add Water in Health** and sends no write. A missing `items`
+field keeps the older hub's behavior. Removing Water never deletes its records.
+
 ## Extension actions (#1147)
 
 `apple/Shared/RunExtensionActionIntent.swift` adds **Run Extension Action** to the containing Apple apps, including watchOS 10; Apple Vision Pro's `PersonaShortcuts` offers its localized Siri phrase. On the iPhone it is an action in the Shortcuts app without a phrase: Apple allows ten App Shortcuts, and Call Persona took its place (#9290, `docs/apple/siri.md`). Dynamic entity ids encode hub group, extension and action together. Execution uses `APIClient` with the exact selected group's App Group credential; missing groups never use the default hub. The watch's separate container contains only credentials already issued to the watch.

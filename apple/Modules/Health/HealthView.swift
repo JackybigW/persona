@@ -247,6 +247,8 @@ struct HealthView: View {
         var revision: Int
         var retry: Int
         var supported: Bool
+        var itemsSupported: Bool
+        var itemsRetry: Int
     }
     @Environment(AppModel.self) private var model
     /// A conversation is being started (the Persona page shows it coming).
@@ -261,6 +263,10 @@ struct HealthView: View {
     /// Starts a health conversation with the message (`AssistantView.start(…, space:)`).
     var send: (String, [ImagePayload]) -> Void
     @State private var page = HealthModel()
+    @State private var items = HealthItemsModel()
+    #if DEBUG
+    @State private var openedItemsExample = false
+    #endif
     @State private var intakeDetail: HealthIntakeSheet.Route?
     #if os(iOS)
     #if DEBUG
@@ -317,7 +323,19 @@ struct HealthView: View {
         .background(Theme.groupedPage)
         .keepsHeightUnderUndockedKeyboard() // the composer stays at the bottom under a floating keyboard (#2565)
         .pageTitle(String(localized: "Health"))
+        .toolbar {
+            if items.supported {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { items.beginEditing() } label: { Text("Edit").lineLimit(1) }
+                        .disabled(items.state == nil || items.busy)
+                        .accessibilityIdentifier("health-items-edit")
+                }
+            }
+        }
         .fileUploadPicker(isPresented: $showReports) { uploadReports($0) }
+        .sheet(isPresented: Binding(get: { items.editing }, set: { if !$0 { items.closeEditor() } })) {
+            HealthItemsEditor(page: items)
+        }
         .sheet(item: $intakeDetail) { HealthIntakeSheet(kind: $0.kind) }
         #if DEBUG
         // `-showReportUpload <name>[,<name>…]`: made-up reports uploaded as if picked, to check the whole way without the
@@ -338,15 +356,47 @@ struct HealthView: View {
         #endif
         .tabActiveTask(id: IntakeRefresh(group: model.hubGroup, hellos: model.hubHellos,
                                         revision: model.healthIntakeRevision, retry: page.intakeRefresh,
-                                        supported: model.hubFeatures.contains(HealthIntake.feature))) {
+                                        supported: model.hubFeatures.contains(HealthIntake.feature),
+                                        itemsSupported: model.hubFeatures.contains(HealthItems.feature), itemsRetry: items.refresh)) {
+            async let selection: Void = items.load(features: model.hubFeatures, available: Self.availableItems)
+            await page.load(machine: machine.id, features: model.hubFeatures, isDemo: model.isDemo)
+            await selection
+            #if DEBUG
+            if !openedItemsExample, UserDefaults.standard.bool(forKey: "showHealthItemsEditor"), items.state != nil {
+                openedItemsExample = true
+                items.beginEditing()
+            }
+            #endif
+        }
+        .refreshable {
+            await items.load(features: model.hubFeatures, available: Self.availableItems)
             await page.load(machine: machine.id, features: model.hubFeatures, isDemo: model.isDemo)
         }
-        .refreshable { await page.load(machine: machine.id, features: model.hubFeatures, isDemo: model.isDemo) }
         #if os(iOS)
         // Load outside the conditional List row: a hidden empty section has no row to run its task.
         .tabActiveTask(id: trends.range) { await trends.load() }
         #endif
     }
+
+    private static var availableItems: [String] {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone ? ["water", "protein", "activity", "trends"] : ["water", "protein", "trends"]
+        #else
+        ["water", "protein"]
+        #endif
+    }
+
+    #if os(iOS)
+    @ViewBuilder private var activitySection: some View {
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            #if DEBUG
+            HealthActivitySection(model: HealthHomeSamples.activityModel())
+            #else
+            HealthActivitySection()
+            #endif
+        }
+    }
+    #endif
 
     private func sections(_ list: [Session]) -> some View {
         ScrollViewReader { proxy in
@@ -356,24 +406,48 @@ struct HealthView: View {
                     Section { HealthWaterMigrationCard(page: page) }
                 }
                 #endif
-                Section {
-                    HealthTodaySection(page: page) { intakeDetail = .init(kind: $0) }
+                if items.supported {
+                    if items.question { Section { HealthItemsQuestion(page: items) } }
+                    if !items.question, let error = items.error { Section { LoadProblem(text: error) } }
+                    ForEach(items.sections) { section in
+                        switch section {
+                        case .today:
+                            Section {
+                                HealthTodaySection(page: page, kinds: items.todayKinds) { intakeDetail = .init(kind: $0) }
+                                #if os(iOS)
+                                HealthIntakeSyncLink()
+                                #endif
+                            } header: { Text("Today") }
+                        case .activity:
+                            #if os(iOS)
+                            activitySection
+                            #endif
+                        case .trends:
+                            #if os(iOS)
+                            if trends.hasData { HealthTrendsSection(model: trends, automaticallyLoads: false) }
+                            #endif
+                        }
+                    }
+                } else {
+                    Section {
+                        HealthTodaySection(page: page) { intakeDetail = .init(kind: $0) }
+                        #if os(iOS)
+                        HealthIntakeSyncLink()
+                        #endif
+                    } header: { Text("Today") }
                     #if os(iOS)
-                    HealthIntakeSyncLink()
-                    #endif
-                } header: { Text("Today") }
-                #if os(iOS)
-                if UIDevice.current.userInterfaceIdiom == .phone {
-                    #if DEBUG
-                    HealthActivitySection(model: HealthHomeSamples.activityModel())
-                    #else
-                    HealthActivitySection()
+                    if UIDevice.current.userInterfaceIdiom == .phone {
+                        #if DEBUG
+                        HealthActivitySection(model: HealthHomeSamples.activityModel())
+                        #else
+                        HealthActivitySection()
+                        #endif
+                    }
+                    if trends.hasData {
+                        HealthTrendsSection(model: trends, automaticallyLoads: false)
+                    }
                     #endif
                 }
-                if trends.hasData {
-                    HealthTrendsSection(model: trends, automaticallyLoads: false)
-                }
-                #endif
                 // Where the data comes from, named first (App Review 2.5.1, #13118): HealthKit is Apple Health, with its
                 // icon; on an iPhone or iPad it opens This iPhone, where the access is turned on.
                 Section {

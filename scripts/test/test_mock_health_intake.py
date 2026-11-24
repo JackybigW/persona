@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import unittest
 import uuid
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mock"))
@@ -38,6 +39,35 @@ class HealthIntakeMockTests(unittest.TestCase):
                                               {"space": ["health"]} if query is None else query,
                                               json.dumps(body).encode() if body is not None else b""))
         return handler
+
+    def test_health_items_save_conflict_and_intake_share_the_selection(self):
+        def request(method, value=None):
+            handler = Handler()
+            req = SimpleNamespace(method=method, path="/api/v1/assistant/health/items", query={}, json=lambda: value)
+            intake.health_items_route(handler, req)
+            return handler
+        intake.HEALTH_ITEMS_ENABLED = True
+        first = request("GET")
+        self.assertFalse(first.result["saved"])
+        self.assertEqual(first.result["revision"], 0)
+        self.assertEqual([v["id"] for v in first.result["catalog"]], ["water", "protein", "activity", "trends"])
+        saved = request("PUT", {"items": ["protein"], "revision": 0})
+        self.assertEqual(saved.status, 200)
+        self.assertTrue(saved.result["saved"])
+        self.assertEqual(saved.result["revision"], 1)
+        self.assertEqual(self.events, [{"type": "health_items", "revision": 1}])
+        self.assertEqual(self.request().result["items"], ["protein"])
+        conflict = request("PUT", {"items": ["water"], "revision": 0})
+        self.assertEqual(conflict.status, 409)
+        self.assertEqual(conflict.result, saved.result)
+        self.assertEqual(len(self.events), 1)
+        for value in [{"items": None, "revision": 1}, {"items": ["future"], "revision": 1},
+                      {"items": ["water", "water"], "revision": 1}, {"items": [], "revision": True}]:
+            self.assertEqual(request("PUT", value).status, 400)
+        intake.HEALTH_ITEMS_ENABLED = False
+        self.assertNotIn("items", self.request().result)
+        self.assertEqual(request("GET").status, 404)
+        intake.HEALTH_ITEMS_ENABLED = True
 
     def test_snapshot_has_goals_records_and_zero_filled_days(self):
         response = self.request(query={"space": ["health"], "days": ["30"]})
