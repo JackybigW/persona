@@ -1,0 +1,594 @@
+{
+  "schema": "health-home-review-1",
+  "sourceCommit": "27c104f228817da2fb64afbaaaed7d28d1be3ef8",
+  "iPhoneSourceCommit": "698a1f789dff5e22a7930169483b3716fbfada21",
+  "installedHarmonyVisualHapSHA256": "a3795b7b9520b3a6b3eaa3e4792cabf6f2239d0e4c012a2a477d747aab177d59",
+  "installedIPhoneExecutables": {
+    "Persona": "b3546cf5188d958f11daea19695b4c3f921b103ef0a8f1e2848519acad43ad54",
+    "Persona.debug.dylib": "950d523f3c9f1981bb47979c691c70a4291f7234f27fa184576b1876b4f25d69"
+  },
+  "physicalPixels": [
+    1206,
+    2622
+  ],
+  "logicalSize": [
+    402,
+    874
+  ],
+  "pixelRatio": 3,
+  "appearances": [
+    "light",
+    "dark",
+    "large"
+  ],
+  "nativeReceiptSHA256": {
+    "harmony": "4da3cd19e7e012fbb2498a6fd6e1f84b99f3e94e202e3a85dc0e7acd110855a3",
+    "iPhone": "bacadf1d4bce845cd719b8a0ec0c0d79640d170023c2de719f54e9c16cf7eeb6",
+    "perControlComparison": "d09f1911aa1b40727041a6ff9998f62aabd19916429cdcfd9e53ec4978610f73",
+    "menu": "65c63da7cf2f5f5e97ede9c03cc3de8d0c230d2608b9eb696fecbb9f40530d12",
+    "glyphs": "61ec2aac5de3709c604fbc1b72ecfd9044e2265bb9570576e247bddfc9b6062f"
+  },
+  "dataScope": {
+    "isolatedSyntheticFixture": true,
+    "historyTitles": [
+      "今天吃了什么",
+      "体检报告：血脂",
+      "步数目标",
+      "这周的睡眠"
+    ],
+    "harmonyHealthMutations": 0,
+    "harmonyTotalHTTPMutationsInThisNavigationRun": 0,
+    "iPhoneNewSessionMessageDecisionOrFileUploadOperations": 0,
+    "iPhoneOtherObservedRouteCounts": {
+      "seed synthetic recording": 1,
+      "assistant warm": 3,
+      "device preference": 14,
+      "other background sync": 3
+    },
+    "actualDocumentOrPhotoChosen": false
+  },
+  "measurementScope": "Both homes were entered through the ordinary drawer. The report row used its separately scrolled, visible frame. Apple Health sync/permissions and fitness rows are iPhone platform content.",
+  "frames": {
+    "light": {
+      "iphone": {
+        "home": {
+          "file": "originals/iphone-light-home.png",
+          "originalPNG_SHA256": "4a5b0ff63b46f055abd4958d0f1fa9f5e4fe97f15a30428998073a761b64770b",
+          "originalAX_SHA256": "e6f69efe660782e32bb9645c25505f21685ced36d8af87a09f857f1b7de27352",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/iphone-light-report.png",
+          "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+          "originalAX_SHA256": "4d86a12f35d954990a03ca30b0b9cf9fc2b20a06518847e08a1cb6c2ed962b75",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/iphone-light-report.png",
+            "originalPNG_SHA256": "4ae4f5829770db2acb81994331db03dfb73a31bf7664886f971da9728898f030",
+            "originalAX_SHA256": "923bf0e569d8c2e79434b145be524a71f29eed1b6283b1a1edd813196e213b07",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  609.7,
+                  370.0,
+                  70.3
+                ]
+              },
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  750.3,
+                  370.0,
+                  70.3
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  680.0,
+                  370.0,
+                  70.3
+                ]
+              }
+            ]
+          },
+          {
+            "file": "originals/iphone-light-history-2.png",
+            "originalPNG_SHA256": "68f0ee3d2c22a8a37eae97dea6691f63f54fe0258a62e945032799fb17673d50",
+            "originalAX_SHA256": "ea808e7b4904804998847e3c410c59ba4e65fd7e2f38c140b3f60d3d4c5e4883",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  139.7,
+                  370.0,
+                  70.3
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      },
+      "harmony": {
+        "home": {
+          "file": "originals/harmony-light-home.png",
+          "originalPNG_SHA256": "d6d3218e0429d6fe6989d8695bf26e1166e7e61689b9cb6ff636c5146a784c4a",
+          "originalAX_SHA256": "954b8097900fdb9da58a55ff0e6ff0be07d0e1f3cd5ea0069a7b46a466e79232",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/harmony-light-report.png",
+          "originalPNG_SHA256": "1667417f9ec6614ba11fa7204d61b5d1841f781a0c99cfc11024e2a9b2a9264e",
+          "originalAX_SHA256": "954b8097900fdb9da58a55ff0e6ff0be07d0e1f3cd5ea0069a7b46a466e79232",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report-menu": {
+          "file": "originals/harmony-light-report-menu.png",
+          "originalPNG_SHA256": "1f0992f405e330df47c7004bfadda085849c49df320cd5f57020abac4ba97c86",
+          "originalAX_SHA256": "bf106e49f7e0e5c8401f3b8c41631f9634e31cd8c15a2fad95e8d12bcfc743dc",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/harmony-light-history-1.png",
+            "originalPNG_SHA256": "78a72e026214558d6c2cf043220d6781f900d0a2c1d606af7cda8832155d9bf4",
+            "originalAX_SHA256": "0efa7d1100b63009cf5fedda8b6101e43c51493b97a1a95d1c67b065709f2009",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  700.0,
+                  286.0,
+                  48.0
+                ]
+              },
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  570.67,
+                  286.0,
+                  56.67
+                ]
+              },
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  635.33,
+                  286.0,
+                  56.67
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  506.0,
+                  286.0,
+                  56.67
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      }
+    },
+    "dark": {
+      "iphone": {
+        "home": {
+          "file": "originals/iphone-dark-home.png",
+          "originalPNG_SHA256": "d03b2d948136004e13cfd8b8bbc8d8ffcee5e42108efcb0f32a978aeb16ee2bc",
+          "originalAX_SHA256": "ea10498cb8d4ea284b1ae031c5b035b45ab1cf81b17c0bbbe67034d31524c75f",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/iphone-dark-report.png",
+          "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+          "originalAX_SHA256": "581e646400130c54f85aaa6546f1c40e3d211e722b524adb93808ffd131e6b9b",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/iphone-dark-report.png",
+            "originalPNG_SHA256": "01531229ce6df99550f49c41669b19aad1e9c810c9c6971e3ff764ec7a44e595",
+            "originalAX_SHA256": "c652872bff12c77ce2629208d892e44b85e6feaae18e88a2e541e40fe638ee42",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  628.0,
+                  370.0,
+                  70.3
+                ]
+              },
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  768.7,
+                  370.0,
+                  70.3
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  698.3,
+                  370.0,
+                  70.3
+                ]
+              }
+            ]
+          },
+          {
+            "file": "originals/iphone-dark-history-2.png",
+            "originalPNG_SHA256": "6f7b417da70b769ffbeab90085705e1f28418814f19a3c4e2e5463766a2bf203",
+            "originalAX_SHA256": "19b6362a03b9615eb43d1d14a004c3ab65fc1d75c40edf2b0168c51ba0adc12e",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  157.3,
+                  370.0,
+                  70.3
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      },
+      "harmony": {
+        "home": {
+          "file": "originals/harmony-dark-home.png",
+          "originalPNG_SHA256": "f0852dfe5aa81ec2894251b715fc6498cc24fb6b41a427f55f91b22c5929beb0",
+          "originalAX_SHA256": "66d5833206ae57529027758e8eed3194fec6c61ffbdb46b6a9329add29864a9b",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/harmony-dark-report.png",
+          "originalPNG_SHA256": "8f8a89027e17618e3b6975ea259784fede76183798882409f60ec3c9a1749db3",
+          "originalAX_SHA256": "66d5833206ae57529027758e8eed3194fec6c61ffbdb46b6a9329add29864a9b",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report-menu": {
+          "file": "originals/harmony-dark-report-menu.png",
+          "originalPNG_SHA256": "7dea89394607e04cff02879312e667231e039d1e555cf3423831333b66e536ed",
+          "originalAX_SHA256": "47c5653f21b3ec39949e99e851bb4536475d9e6ff737b4ab88fb30087004a35b",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/harmony-dark-history-1.png",
+            "originalPNG_SHA256": "2adadfcec4e941bf65330228c5cc3803b447a1847fa57b61b991283f897bc872",
+            "originalAX_SHA256": "e46208065198ec16732ea456de76593a4d517ba615c78aad5d258d5210d75200",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  686.0,
+                  286.0,
+                  48.0
+                ]
+              },
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  556.67,
+                  286.0,
+                  56.67
+                ]
+              },
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  621.33,
+                  286.0,
+                  56.67
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  492.0,
+                  286.0,
+                  56.67
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      }
+    },
+    "large": {
+      "iphone": {
+        "home": {
+          "file": "originals/iphone-large-home.png",
+          "originalPNG_SHA256": "2cf94d94ad25851b07888f73021680f58c52eb7f71cda7668a56978944747f71",
+          "originalAX_SHA256": "66913a58e427f66e4e12bcc2b42717468a898fd0b1a37bef3a164760acb2fdef",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/iphone-large-report.png",
+          "originalPNG_SHA256": "d3b8c6972be5456eba6155e1a6830315ad1174e84af92838f3a0047b04e77b5f",
+          "originalAX_SHA256": "8362d4cabf39f9e32653f8d757364e4dacaf6ae70cd9ee2853dbd96012e3b86a",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/iphone-large-history-1.png",
+            "originalPNG_SHA256": "8c948cb4c5f6ee890264e70e2fef01dd00ff4c8f1f9fee3ab915b0b6f1d5a5c4",
+            "originalAX_SHA256": "6b28f12327085df7c2997167ac4e36deb055a723c9d515c22bd670c7d64bd4eb",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  292.0,
+                  370.0,
+                  85.0
+                ]
+              },
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  462.0,
+                  370.0,
+                  85.0
+                ]
+              },
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  547.0,
+                  370.0,
+                  85.0
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  16.0,
+                  377.0,
+                  370.0,
+                  85.0
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      },
+      "harmony": {
+        "home": {
+          "file": "originals/harmony-large-home.png",
+          "originalPNG_SHA256": "361bf7ac5827a6e72216189d61cdb009ecf581820ad4c24bfa7356ae8b77e46a",
+          "originalAX_SHA256": "d103cabff3c1db6f66d146189a92d76dc423c15da2ee959bedc1147e113c250d",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report": {
+          "file": "originals/harmony-large-report.png",
+          "originalPNG_SHA256": "d44a73705b8d9843cf48160f4b961ad8441294cacc02719be516fd6252b02f9e",
+          "originalAX_SHA256": "7162a86a7d36bce23d0243a250070c68570d863fbc15512d6af6a758047ee0ae",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "report-menu": {
+          "file": "originals/harmony-large-report-menu.png",
+          "originalPNG_SHA256": "53ad13a51e741708558934d66755001e34d9c03476562fa3ffafb011ea6c4375",
+          "originalAX_SHA256": "ba67b5666777cb7b9647bd01d8964a5c86e28110b9e2ea5eddda63ad546bf6c2",
+          "pixels": [
+            1206,
+            2622
+          ]
+        },
+        "history": [
+          {
+            "file": "originals/harmony-large-history-1.png",
+            "originalPNG_SHA256": "32b38f382f82af0d3128b7a9c46786a536ead85a4e5874321288f302504b96d8",
+            "originalAX_SHA256": "82118ea23f38ba28d9c8bdccd2674f903d6b3f99b0bdc8baa102c94df4c84480",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "体检报告：血脂",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  393.0,
+                  286.0,
+                  189.0
+                ]
+              },
+              {
+                "title": "这周的睡眠",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  196.0,
+                  286.0,
+                  189.0
+                ]
+              }
+            ]
+          },
+          {
+            "file": "originals/harmony-large-history-2.png",
+            "originalPNG_SHA256": "ac3ff57668e6e76ecc1b4fcc9e75837892feccbc58fa2e6b6e3ae5849da62ea1",
+            "originalAX_SHA256": "26ccedb030d423cce7468b80c0e4610a2d3a3b58e7f28ca762377d24501f1713",
+            "pixels": [
+              1206,
+              2622
+            ],
+            "visibleHistoryRows": [
+              {
+                "title": "今天吃了什么",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  394.33,
+                  286.0,
+                  189.0
+                ]
+              },
+              {
+                "title": "步数目标",
+                "nativeRole": "Button",
+                "bounds": [
+                  30.0,
+                  197.33,
+                  286.0,
+                  189.0
+                ]
+              }
+            ]
+          }
+        ],
+        "sameFourTitles": true
+      }
+    }
+  },
+  "pairedHomes": {
+    "light": {
+      "file": "home-light.png",
+      "sha256": "1d57c296ddac0f910de71009feb3217418769751f0ea1dcddb765478e7a9638e",
+      "harmonyPNG": "d6d3218e0429d6fe6989d8695bf26e1166e7e61689b9cb6ff636c5146a784c4a",
+      "iPhonePNG": "4a5b0ff63b46f055abd4958d0f1fa9f5e4fe97f15a30428998073a761b64770b"
+    },
+    "dark": {
+      "file": "home-dark.png",
+      "sha256": "9d30a302df7c7a736e55daaf1c02f16ee28e8c3a61ec3ef102a4fb84be6dc586",
+      "harmonyPNG": "f0852dfe5aa81ec2894251b715fc6498cc24fb6b41a427f55f91b22c5929beb0",
+      "iPhonePNG": "d03b2d948136004e13cfd8b8bbc8d8ffcee5e42108efcb0f32a978aeb16ee2bc"
+    },
+    "large": {
+      "file": "home-large.png",
+      "sha256": "9caa6ef70bd367d09e3930a0cd7d4b5c70045213bd4003b8ec6bf948cbc02a90",
+      "harmonyPNG": "361bf7ac5827a6e72216189d61cdb009ecf581820ad4c24bfa7356ae8b77e46a",
+      "iPhonePNG": "2cf94d94ad25851b07888f73021680f58c52eb7f71cda7668a56978944747f71"
+    }
+  },
+  "reports": {
+    "file": "report-entry.png",
+    "sha256": "38dc742785960ad593aa2eb0d87f14f310a838a1b769e456443cae3599dcd19f",
+    "independentlyAnchoredToEachActualVisibleRow": true
+  },
+  "publicControlExtracts": {
+    "file": "controls.json",
+    "sha256": "81a08c9322230bd16ff3b51fa087abec151463dc640668c00c9ac74803032090"
+  },
+  "nativeFrameObservations": 24,
+  "uniqueOriginalPNGs": 22
+}
