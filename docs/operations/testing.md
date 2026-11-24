@@ -203,6 +203,19 @@ runtime or the 900-second deadlines. The iPad observer starts with deterministic
 then replaces them atomically as bounded collection completes. Its separate process group gets a short bounded stop drain;
 if collection still cannot finish, the group is reaped without leaking its detached collectors. Probe and result-inspection
 deadline regressions require status and evidence to exist and every recorded watcher PID to be gone.
+The ordinary `AboutVersionRegularVisualTests` invocation has its own observation-only `live-regular-visual/` directory
+and `regular-visual-context.json`, recorded immediately before its unchanged `xcodebuild`. Its scoped stream therefore
+does not inherit the preceding readiness invocation's horizon. A 15-second sampler records only PID, parent PID, state
+and process name for the owned Persona host and a debugserver validated under it or its owned launchd_sim. A debugger
+first seen before the host remains associated with this invocation, including when absent from a later sample; matching
+`ps -M` output is bounded. One read-only `launchctl print system` after 60 seconds projects only the synthetic bundle
+ID and its allowlisted `state`, `pid`, `runs` and `last exit code` fields; raw arguments, programs, paths, environment
+and arbitrary values are never exported. The visual command tees its actual stdout/stderr to `ios-about-regular.log`
+without losing its exit status. Once that invocation has started, failure diagnostics require the log, publish an
+unavailable status and fail closed if it cannot be included rather than treating the allowlist entry as evidence.
+launch verdict; an absent process or event, a shutdown and a terminal `-308` do not establish a root cause. The whole
+observer remains inside the visual test's existing 600-second step and does not boot, shut down or otherwise manage a
+simulator. The ordinary build remains 1800 seconds and each readiness probe remains 900 seconds.
 A maintainer-approved `gh run rerun --failed` runs the original commit; it cannot acquire diagnostic code added by a later commit.
 
 Deliberate boundaries: web `compatibility.live.test.ts` needs an isolated live hub/token and explicitly skips its one probe without them.
