@@ -270,13 +270,13 @@ func (s *Service) replyInboxCheckedDoMode(ctx context.Context, id, text, clientI
 }
 
 func (s *Service) replyInboxCheckedDoModeRole(ctx context.Context, id, text, clientID string, fromCard, file, followDirect, full bool, uid *uint32, version *string, changes ...DocChange) (InboxItem, error) {
-	if uid == nil && version == nil {
-		return s.replyInboxDoModeVersionRole(ctx, id, text, clientID, fromCard, file, followDirect, 0, full, changes...)
-	}
-	// Reroute an AI-mirror confirmation before taking the collection mutex: its durable-attempt send reacquires the
-	// same mutex for the frozen MailTarget. Genuine direct checked sends remain serialized with collection below.
-	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, 0, full, uid, version, changes); rerouted {
+	// Reroute an AI mirror before taking the collection mutex: its durable-attempt send reacquires the same mutex for the
+	// frozen MailTarget. Genuine direct checked sends remain serialized with collection below.
+	if out, rerouted, err := s.routeLegacyReplyConfirmation(ctx, id, text, clientID, fromCard, followDirect, full, uid, version, 0, changes); rerouted {
 		return out, err
+	}
+	if uid == nil && version == nil {
+		return s.replyInboxDoModeDirect(ctx, id, text, clientID, fromCard, file, followDirect, 0, changes...)
 	}
 	// Collection and checked sends must not change the target between validation and sending.
 	b := &s.inbox
@@ -295,7 +295,7 @@ func (s *Service) replyInboxCheckedDoModeRole(ctx context.Context, id, text, cli
 	if target == nil || uid != nil && *uid != target.UID || version != nil && *version != target.Version {
 		return InboxItem{}, errMailReplyTargetChanged
 	}
-	return s.replyInboxDoModeDirect(ctx, id, text, clientID, fromCard, file, followDirect, changes...)
+	return s.replyInboxDoModeDirect(ctx, id, text, clientID, fromCard, file, followDirect, 0, changes...)
 }
 
 // inboxList is every open item and the newest of the recently done ones (inbox_list_done.go), newest first;

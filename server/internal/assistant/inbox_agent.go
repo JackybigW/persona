@@ -78,6 +78,8 @@ var inboxAgentStartBackoff = []time.Duration{time.Minute, 5 * time.Minute}
 
 // errNoInboxMachine is the definite "no computer can run the inbox agent" refusal before any node call.
 var errNoInboxMachine = errors.New("no machine for the inbox agent")
+
+// errInboxStartAuthorization means the final fence stopped a start before any outward session was created.
 var errInboxStartAuthorization = errors.New("inbox agent start authorization changed")
 
 // InboxAgent is the AI twin's work on one item.
@@ -219,7 +221,11 @@ func (s *Service) handPass(ctx context.Context) {
 	cfg := fullCfg.Agent
 	policy := compileReplyPolicy(fullCfg.ReplyPolicy)
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
-	s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
+	if legacyReplyPolicyConfig(fullCfg.ReplyPolicy) {
+		// The legacy pass classifies every actionable row before passHook. The compiled schema keeps upstream's narrower
+		// queue pass below; running both would classify a failed snapshot twice before the queue gate can release it.
+		s.classifyInboxReplyPolicies(ctx, fullCfg.ReplyPolicy)
+	}
 	b := &s.inbox
 	s.forwardInboxToTodos(ctx)
 	s.linkInboxTaskURLs(ctx)
@@ -481,6 +487,8 @@ func (s *Service) startInboxAgents(ctx context.Context, cfg InboxAgentConfig) {
 				// An earlier start in this same batch may have changed a later item's category or policy. Release its
 				// reservation without Start instead of sending the stale prompt to a new conversation.
 				releaseWrite = b.releaseInboxAgent(j.it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.never"), time.Now().UTC(), false)
+			case !replyPolicyAllowsQueueLocked(j.it, compileReplyPolicy(jobCfg.ReplyPolicy)):
+				releaseWrite = b.releaseInboxAgent(j.it, HandlingDone, i18n.T(b.userLang(), "assistant-inbox_agent.reply_policy_blocked"), time.Now().UTC(), false)
 			case replyPolicyQueuePending(j.it, jobCfg.ReplyPolicy):
 				pending = true
 			default:

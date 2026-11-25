@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/connector"
@@ -115,23 +114,8 @@ func (b *inboxBook) applyConnector(id, name string, things []connector.InboxThin
 				prev := seenOf(open)
 				b.roundWrite(open)
 				open.Count += moveCount(t)
-				// A survivor's connector refresh describes only its own thread. Retain every merged member's current text:
-				// replacing Context with the survivor-only payload would erase authorization evidence that is still present.
-				memberContexts := make([]string, 0, len(open.MergedFrom))
-				for _, ref := range open.MergedFrom {
-					if member := b.items[ref.ID]; member != nil && member.MergedInto == open.ID && member.Context != "" {
-						memberContexts = append(memberContexts, member.Context)
-					}
-				}
 				fillConnectorItem(open, t)
-				for _, context := range memberContexts {
-					if strings.Contains(open.Context, context) {
-						continue
-					}
-					combined := open.Context + "\n\n" + context
-					open.Context = clipRunesTo(combined, mergeCtxMax)
-					open.ReplyContextTruncated = open.ReplyContextTruncated || open.Context != combined
-				}
+				b.replaceContextKeepingMergedMembers(open, open.Context)
 				b.noteReceived(open, prev, nil)
 				if t.Tier != "" {
 					b.noteTriaged(open)

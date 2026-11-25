@@ -12,9 +12,9 @@ import (
 	"github.com/nwverse/persona/server/internal/prompts"
 )
 
-func TestInboxReplyPolicyOldTurnCannotPublishAfterNewContentClassification(t *testing.T) {
+func TestInboxReplyPolicyOldTurnCannotPublishAfterNewContentClassificationLegacySchema(t *testing.T) {
 	h, _, it := handledHub(t)
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = legacyReplyPolicyTestConfig() })
 	h.in.model = fakeModel(t, `{"category":"ordinary_coordination"}`)
 	h.inbox.mu.Lock()
 	oldTurn := it.Agent.ProcessingTurn
@@ -34,7 +34,7 @@ func TestInboxReplyPolicyOldTurnCannotPublishAfterNewContentClassification(t *te
 	var suggestErr error
 	h.inbox.passHook = func() {
 		h.inbox.passHook = nil
-		if !replyPolicyClassificationCurrent(it, replyPolicyTestConfig()) {
+		if !replyPolicyClassificationCurrent(it, legacyReplyPolicyTestConfig()) {
 			t.Errorf("test did not reach the post-classification / pre-delivery window: %+v", it)
 			return
 		}
@@ -50,9 +50,9 @@ func TestInboxReplyPolicyOldTurnCannotPublishAfterNewContentClassification(t *te
 	}
 }
 
-func TestInboxReplyPolicyInstructedReplacementClassifiesGeneratedText(t *testing.T) {
+func TestInboxReplyPolicyInstructedReplacementClassifiesGeneratedTextLegacySchema(t *testing.T) {
 	h, _, it := handledHub(t)
-	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = legacyReplyPolicyTestConfig() })
 	it.Context = "Synthetic original conversation before an instructed replacement"
 	it.ReplyCategory, it.ReplyMode = "ordinary_coordination", "owner_draft"
 	it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
@@ -84,10 +84,10 @@ func TestInboxReplyPolicyInstructedReplacementClassifiesGeneratedText(t *testing
 	}
 }
 
-func TestInboxReplyPolicyRemergeUndoPreUpgradeSurvivorKeepsMemberScope(t *testing.T) {
+func TestInboxReplyPolicyRemergeUndoPreUpgradeSurvivorKeepsMemberScopeLegacySchema(t *testing.T) {
 	h, lark, old := handledHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) {
-		c.ReplyPolicy = replyPolicyTestConfig()
+		c.ReplyPolicy = legacyReplyPolicyTestConfig()
 		c.ReplyPolicy.Sources = []string{"mail"}
 	})
 	member := actionItem("mail:pre-upgrade-nested-member", old.UpdatedAt.Add(-2*time.Second))
@@ -149,5 +149,127 @@ func TestInboxReplyPolicyCollectionFollowMergedAppliesBothMembersNewestFirst(t *
 	}
 	if !strings.HasPrefix(survivor.Context, "Restricted newest member update") {
 		t.Fatalf("older member was applied last, leaving the wrong survivor context order: %q", survivor.Context)
+	}
+}
+
+func TestInboxReplyPolicyOldTurnCannotPublishAfterNewContentClassification(t *testing.T) {
+	h, _, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	h.in.model = fakeModel(t, `{"category":"ordinary_coordination"}`)
+	h.inbox.mu.Lock()
+	oldTurn := it.Agent.ProcessingTurn
+	if oldTurn == "" {
+		oldTurn = "synthetic-old-processing-turn"
+		it.Agent.ProcessingTurn = oldTurn
+	}
+	// This is the collection state at handPass: new content and target are present, the note still awaits delivery,
+	// and the processing token has not rotated yet. passHook runs before the queue gate upstream, so this fixture
+	// explicitly performs that classification before entering the post-classification / pre-delivery window.
+	it.Last = "new-classified-content"
+	it.Context = "Synthetic newer coordination content"
+	it.Lark.ReplyTo = "synthetic-new-target"
+	{
+		replyPolicyTestSetCategory(it, "")
+		replyPolicyTestSetRoute(it, "")
+		replyPolicyTestSetContentVersion(it, "")
+		replyPolicyTestSetPolicyRevision(it, "")
+	}
+	it.Agent.Pending = []inboxNote{{Name: prompts.NoteNewMessages, Text: it.Context}}
+	it.Agent.Wake = true
+	h.inbox.mu.Unlock()
+	var suggestErr error
+	h.inbox.passHook = func() {
+		h.inbox.passHook = nil
+		h.classifyInboxReplyPolicies(context.Background(), replyPolicyTestConfig())
+		if !replyPolicyClassificationCurrent(it, replyPolicyTestConfig()) {
+			t.Errorf("test did not reach the post-classification / pre-delivery window: %+v", it)
+			return
+		}
+		_, _, suggestErr = h.suggest(context.Background(), "s1", suggestIn{Kind: SuggestReply,
+			Text: "Old turn text that predates the classified content", ProcessingTurn: oldTurn})
+	}
+	h.handPass(context.Background())
+	if !errors.Is(suggestErr, errStaleInboxTurn) {
+		t.Fatalf("old processing turn error = %v, want stale after new content was classified", suggestErr)
+	}
+	if g := currentSuggestion(it); g != nil {
+		t.Fatalf("old processing turn published against the new target/classification: %+v", g)
+	}
+}
+
+func TestInboxReplyPolicyInstructedReplacementClassifiesGeneratedText(t *testing.T) {
+	h, _, it := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = replyPolicyTestConfig() })
+	it.Context = "Synthetic original conversation before an instructed replacement"
+	{
+		replyPolicyTestSetCategory(it, "ordinary_coordination")
+		replyPolicyTestSetRoute(it, "owner_draft")
+	}
+	{
+		replyPolicyTestSetContentVersion(it, replyPolicyContentVersion(it))
+		replyPolicyTestSetPolicyRevision(it, "test-v1")
+	}
+	if _, err := suggestOrdinaryReplyForFixture(t, h, `{"kind":"reply","text":"Original ordinary draft"}`); err != nil {
+		t.Fatal(err)
+	}
+	instruction := "Synthetic owner instruction to rewrite the reply"
+	if _, err := h.actOnSuggestion(context.Background(), it.ID, suggestionReq{Version: 1, Action: suggestInstruct, Text: &instruction}, true); err != nil {
+		t.Fatal(err)
+	}
+	toldConv(t, h, instruction)
+	generated := "Synthetic generated approval for the restricted permission request"
+	calls := replyPolicyDraftSequenceModel(t, h, nil, `{"category":"approval_permission"}`)
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"`+generated+`"}`); !replyPolicyDenied(err) {
+		t.Fatalf("restricted instructed replacement error = %v, want generated-text policy denial", err)
+	}
+	if g := currentSuggestion(it); g != nil {
+		t.Fatalf("restricted instructed replacement was published with the old item classification: %+v", g)
+	}
+	got := calls()
+	if len(got) != 1 || got[0].System != replyPolicyTestClassifierSystem(h, replyPolicyTestConfig()) {
+		t.Fatalf("instructed replacement did not run generated-text classification: %+v", got)
+	} else {
+		for _, marker := range []string{generated, instruction, "Synthetic original conversation"} {
+			if !strings.Contains(got[0].User, marker) {
+				t.Fatalf("replacement classifier input lacks %q: %+v", marker, got[0])
+			}
+		}
+	}
+}
+
+func TestInboxReplyPolicyRemergeUndoPreUpgradeSurvivorKeepsMemberScope(t *testing.T) {
+	h, lark, old := handledHub(t)
+	h.setConfig(func(c *assistantwire.InboxConfig) {
+		c.ReplyPolicy = replyPolicyTestConfig()
+		c.ReplyPolicy.Sources = []string{"mail"}
+	})
+	member := actionItem("mail:pre-upgrade-nested-member", old.UpdatedAt.Add(-2*time.Second))
+	member.Source = "mail"
+	member.Context = "Synthetic restricted member text retained by the pre-upgrade survivor"
+	member.MergedInto = old.ID
+	old.MergedFrom = []InboxMergeRef{{ID: member.ID, Source: member.Source}}
+	old.ReplyContentSources = nil
+	old.Context += "\n\n" + member.Context
+	newer := actionItem("lark:newer-remerge-survivor", old.UpdatedAt.Add(time.Second))
+	newer.Source = "lark"
+	newer.Context = "Synthetic newer survivor"
+	h.inbox.mu.Lock()
+	h.inbox.items[member.ID] = member
+	h.inbox.items[newer.ID] = newer
+	survivor, _ := h.inbox.merge([]*InboxItem{old, newer}, time.Now())
+	if survivor != newer {
+		h.inbox.mu.Unlock()
+		t.Fatalf("remerge survivor = %+v, want newer row", survivor)
+	}
+	h.inbox.unmerge(newer, time.Now())
+	h.inbox.mu.Unlock()
+	if !strings.Contains(old.Context, member.Context) || old.MergedInto != "" {
+		t.Fatalf("test did not restore the pre-upgrade survivor with retained member text: %+v", old)
+	}
+	if _, err := suggestTool(t, h, `{"kind":"reply","text":"Post-remerge-undo draft"}`); !replyPolicyDenied(err) {
+		t.Fatalf("remerge/undo dropped the pre-upgrade survivor's member source: %v", err)
+	}
+	if len(lark.got) != 0 {
+		t.Fatalf("remerge/undo source loss reached sender: %+v", lark.got)
 	}
 }

@@ -195,8 +195,9 @@ type InboxItem struct {
 	ChainSeq   int `json:"chain_seq,omitempty"`
 	SuggestSeq int `json:"suggest_seq,omitempty"`
 	// ReplyPolicy is the latest server-side reply-policy classification for this item (inbox_reply_policy.go).
-	// Persisted, never listed.
-	ReplyPolicy *InboxReplyPolicySnapshot `json:"reply_policy,omitempty"`
+	// Persisted, never listed. MailBodyTruncated distinguishes a clipped body from formatted headers.
+	ReplyPolicy       *InboxReplyPolicySnapshot `json:"reply_policy,omitempty"`
+	MailBodyTruncated *bool                     `json:"mail_body_truncated,omitempty"`
 }
 
 type InboxLark struct {
@@ -275,6 +276,8 @@ func (it *InboxItem) listed() InboxItem {
 	c.Meta, c.Group = nil, nil
 	c.ChainSeq, c.SuggestSeq = 0, 0
 	c.ReplyPolicy = nil
+	c.ReplyContentSources, c.ReplyContextTruncated, c.MailBodyTruncated = nil, false, nil
+	c.ReplyInstruction, c.RejectedReplyDraft, c.RejectedReplyDrafts = nil, "", nil
 	c.Status = it.status()
 	c.Now, c.TitleBy = it.nowKey(), ""
 	c.PreMergeTitle, c.PreMergeTitleBy, c.MergeTitle = "", "", ""
@@ -297,6 +300,8 @@ func (it *InboxItem) listed() InboxItem {
 		g.ReplyPublicationFailed = false
 		g.OnDemand, g.ReplyPublicationPending = false, false
 		g.ReplyPolicy = nil
+		g.OnDemand, g.ReplyPublicationPending, g.ReplyPublicationFailed = false, false, false
+		g.ReplyInstruction = ""
 		c.Suggestion = &g
 		if c.Handling == nil && g.Conversation == nil && it.Agent != nil { // an old draft: its conversation is done with this round
 			c.Handling = &InboxHandling{Owner: HandlingOwner, State: HandlingDone, MachineID: it.Agent.MachineID, SessionID: it.Agent.SessionID}

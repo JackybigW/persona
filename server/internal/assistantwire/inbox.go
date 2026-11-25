@@ -451,12 +451,14 @@ type InboxReplyPolicyConfig struct {
 	Rules string `json:"rules,omitempty"`
 	// TimeoutSeconds bounds each classification call (default 30 seconds).
 	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
-	// The following fields retain the original Task 2 policy schema. They are interpreted separately from Categories,
-	// Rules and TimeoutSeconds, so a category can never be routed through the other schema by accident.
-	Sources                  []string          `json:"sources,omitempty"`
-	UnknownMode              string            `json:"unknown_mode,omitempty"`
-	RequireIndependentReview bool              `json:"require_independent_review,omitempty"`
-	Routes                   map[string]string `json:"routes,omitempty"`
+	// Sources limits either policy schema to these sources; an empty list applies it to every source.
+	Sources []string `json:"sources,omitempty"`
+	// RequireIndependentReview requires a second classifier to confirm an owner-draft category.
+	RequireIndependentReview bool `json:"require_independent_review,omitempty"`
+	// UnknownMode and Routes retain the original Task 2 schema. Their presence selects legacy routing; Categories,
+	// Rules and TimeoutSeconds belong to the compiled schema and are never interpreted through legacy forced routes.
+	UnknownMode string            `json:"unknown_mode,omitempty"`
+	Routes      map[string]string `json:"routes,omitempty"`
 }
 
 // InboxRepoMutes is MethodInboxRepoMutes's params.

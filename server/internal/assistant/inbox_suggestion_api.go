@@ -29,12 +29,12 @@ type suggestionReq struct {
 	Version int     `json:"version"`
 	Action  string  `json:"action"`
 	Text    *string `json:"text"`
+	// Changes is the exact document-move selection a legacy mirror confirmation made. Nil preserves the card's stored
+	// selection; a non-nil empty slice explicitly deselects every stored move.
+	Changes *[]DocChange `json:"changes,omitempty"`
 	// Due is a to-do suggestion's due time as the user left it (a day or a moment, "" none); absent keeps the suggestion's.
 	Due      *string `json:"due"`
 	ClientID string  `json:"client_id"`
-	// Changes is the explicit selection made by an old-client /reply confirmation. Nil means the normal suggestion API,
-	// which confirms the card's stored moves; a non-nil empty slice means the owner deselected every move.
-	Changes *[]DocChange `json:"-"`
 }
 
 var (
@@ -92,21 +92,19 @@ func (s *Service) inboxSuggestionRoutes() {
 // instruction at version 0 is also accepted when no suggestion is current. full is false for an answer-only device
 // (the watch): it may only confirm a reply or a conclusion, as text.
 func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionReq, full bool) (InboxItem, error) {
-	fullCfg := s.inboxConfig(ctx)
+	inboxCfg := s.inboxConfig(ctx)
+	var preVeto *InboxReplyPolicySnapshot
 	var vetoErr error
 	if in.Action == suggestConfirm {
 		b := &s.inbox
 		b.mu.Lock()
 		it := b.items[id]
-		var sources []string
-		sourceKnown := false
-		policyConfirm := false
+		policyConfirm, policyReply, edited := false, false, false
+		var itemData replyPolicyItemData
 		if it != nil {
 			g := currentSuggestion(it)
 			if g != nil && g.Kind == SuggestReply && !g.Handback && g.Version == in.Version {
 				if a := suggestionAttempt(it, g.Version); a != nil && (a.Status == suggestionSending || a.Status == suggestionUnknown) {
-					// The durable physical outcome outranks any later policy/configuration failure. Reporting "none" here
-					// would invite the owner to repeat a send whose first result is still unresolved.
 					out := it.listed()
 					b.mu.Unlock()
 					return out, unknownSuggestionReply()
@@ -117,53 +115,142 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 					return out, errInboxNotPersisted
 				}
 			}
-			sources, sourceKnown = replyPolicySourceSet(it), true
-			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent)
+			policyReply = g != nil && g.Kind == SuggestReply && !g.Handback && g.Version == in.Version
+			policyConfirm = g != nil && (g.Kind == SuggestReply || g.Kind == SuggestAgent) && g.Version == in.Version
+			if policyConfirm && in.Text != nil {
+				proposed := strings.TrimSpace(*in.Text)
+				edited = proposed != "" && proposed != g.Text
+				if edited {
+					itemData = snapshotItemForReplyPolicyLocked(it)
+					instruction := it.ReplyInstruction
+					if instruction == nil {
+						instruction = chainReplyInstruction(it.Chain)
+					}
+					itemData = replyPolicyItemWithInstruction(itemData, instruction)
+				}
+			}
 		}
 		b.mu.Unlock()
 		if policyConfirm {
-			// The veto itself needs fresh authorization: a disabled display cache must not skip classification of an edited
-			// handback. A second fresh read after its model calls closes a policy change before any card or handoff is consumed.
+			// Reply and Agent confirmations use fresh authorization. The edit veto runs before consuming any card or
+			// reserving a send, and a second fresh read closes a policy transition during its model call.
 			vetoCfg, err := s.inboxConfigFresh(ctx)
 			if err != nil {
-				return InboxItem{}, errReplyPolicyDenied
+				return InboxItem{}, errReplyPolicyBlocked
 			}
 			b.mu.Lock()
-			it = b.items[id]
-			visibilityDenied := it != nil && inboxVisibilityWithMembersExcludedLocked(b, it, vetoCfg.Visibility)
+			live := b.items[id]
+			visibilityDenied := live != nil && inboxVisibilityWithMembersExcludedLocked(b, live, vetoCfg.Visibility)
 			var visibilityItem InboxItem
 			if visibilityDenied {
-				visibilityItem = it.listed()
+				visibilityItem = live.listed()
 			}
 			b.mu.Unlock()
 			if visibilityDenied {
 				return visibilityItem, errCannotReply
 			}
-			vetoErr = s.vetoEditedReply(ctx, id, in, vetoCfg.ReplyPolicy)
-			freshCfg, err := s.inboxConfigFresh(ctx)
-			if err != nil {
-				return InboxItem{}, errReplyPolicyDenied
+			if legacyReplyPolicyConfig(vetoCfg.ReplyPolicy) {
+				vetoErr = s.vetoEditedReply(ctx, id, in, vetoCfg.ReplyPolicy)
+				freshCfg, err := s.inboxConfigFresh(ctx)
+				if err != nil {
+					return InboxItem{}, errReplyPolicyDenied
+				}
+				b.mu.Lock()
+				live = b.items[id]
+				vetoApplies := live != nil && replyPolicyItemApplies(vetoCfg.ReplyPolicy, live)
+				freshApplies := live != nil && replyPolicyItemApplies(freshCfg.ReplyPolicy, live)
+				configChanged := live != nil && freshApplies &&
+					(!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy))
+				visibilityDenied = live != nil && inboxVisibilityWithMembersExcludedLocked(b, live, freshCfg.Visibility)
+				if visibilityDenied {
+					visibilityItem = live.listed()
+				}
+				b.mu.Unlock()
+				if visibilityDenied {
+					return visibilityItem, errCannotReply
+				}
+				if vetoErr != nil {
+					return InboxItem{}, vetoErr
+				}
+				if configChanged {
+					return InboxItem{}, errReplyPolicyDenied
+				}
+				// Agent starts and handbacks must be denied before their cards are consumed.
+				b.mu.Lock()
+				live = b.items[id]
+				g := currentSuggestion(live)
+				denied := live != nil && g != nil && g.Version == in.Version &&
+					(g.Kind == SuggestAgent || g.Kind == SuggestReply && g.Handback) &&
+					replyPolicyActionGate(live, g, freshCfg.ReplyPolicy) != nil
+				b.mu.Unlock()
+				if denied {
+					return InboxItem{}, errReplyPolicyDenied
+				}
+				inboxCfg = freshCfg
+			} else {
+				vetoPolicy := compileReplyPolicy(vetoCfg.ReplyPolicy)
+				b.mu.Lock()
+				vetoApplies := vetoPolicy.appliesToItem(b.items[id])
+				b.mu.Unlock()
+				if edited && vetoApplies {
+					preVeto, vetoErr = s.gateReplyPolicySend(ctx, vetoPolicy, itemData, strings.TrimSpace(*in.Text))
+				}
+				freshCfg, err := s.inboxConfigFresh(ctx)
+				if err != nil {
+					return InboxItem{}, errReplyPolicyBlocked
+				}
+				freshPolicy := compileReplyPolicy(freshCfg.ReplyPolicy)
+				b.mu.Lock()
+				live = b.items[id]
+				configChanged := live != nil && replyPolicyItemApplies(freshCfg.ReplyPolicy, live) &&
+					(!replyPolicyItemApplies(vetoCfg.ReplyPolicy, live) || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy))
+				visibilityDenied = live != nil && inboxVisibilityWithMembersExcludedLocked(b, live, freshCfg.Visibility)
+				if visibilityDenied {
+					visibilityItem = live.listed()
+				}
+				b.mu.Unlock()
+				if visibilityDenied {
+					return visibilityItem, errCannotReply
+				}
+				// A stable reply veto uses the existing failed-attempt path so the exact edited text and proposal remain durable.
+				// The classifier has already run before any state was consumed. Agent vetoes and policy transitions still return
+				// immediately, preserving their no-reservation guarantee.
+				recordVeto := vetoErr != nil && policyReply && !configChanged && freshPolicy.enabled &&
+					reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)
+				if (vetoErr != nil || configChanged) && !recordVeto {
+					return InboxItem{}, errReplyPolicyBlocked
+				}
+				if vetoErr == nil {
+					// Agent starts and handbacks otherwise consume their card before their final authorization runs. Check those
+					// paths before any state transition. Ordinary replies keep the durable failed-attempt path below.
+					b.mu.Lock()
+					live = b.items[id]
+					g := currentSuggestion(live)
+					denied := live != nil && g != nil && g.Version == in.Version &&
+						(g.Kind == SuggestAgent || g.Kind == SuggestReply && g.Handback) &&
+						verifyReplyPolicySuggestionLocked(live, g, nil, freshPolicy) != nil
+					b.mu.Unlock()
+					if denied {
+						return InboxItem{}, errReplyPolicyBlocked
+					}
+				}
+				inboxCfg = freshCfg
 			}
-			vetoApplies := sourceKnown && replyPolicySourcesApply(vetoCfg.ReplyPolicy, sources)
-			freshApplies := sourceKnown && replyPolicySourcesApply(freshCfg.ReplyPolicy, sources)
-			if freshApplies && (!vetoApplies || !reflect.DeepEqual(vetoCfg.ReplyPolicy, freshCfg.ReplyPolicy)) {
-				return InboxItem{}, errReplyPolicyDenied
-			}
-			fullCfg = freshCfg
 		} else if it != nil {
-			// To-do and conclusion confirmations also authorize against fresh visibility. A display-cache outage cannot
-			// turn a newly excluded suggestion into a completed action.
+			// Local to-do/conclusion operations need fresh configuration only when a visibility boundary is configured.
+			// With no such boundary, retain upstream's behavior during a reply-policy configuration outage.
 			freshCfg, err := s.inboxConfigFresh(ctx)
 			if err != nil {
-				return InboxItem{}, errCannotReply
+				if inboxCfg.Visibility != nil {
+					return InboxItem{}, errCannotReply
+				}
+			} else {
+				inboxCfg = freshCfg
 			}
-			fullCfg = freshCfg
 		}
 	}
-	if vetoErr != nil {
-		return InboxItem{}, vetoErr
-	}
-	enabled := fullCfg.Agent.Enabled
+	enabled := inboxCfg.Agent.Enabled
+	policy := compileReplyPolicy(inboxCfg.ReplyPolicy)
 	b := &s.inbox
 	b.mu.Lock()
 	it := b.items[id]
@@ -185,7 +272,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		b.mu.Unlock()
 		return out, errSuggestionStale
 	}
-	if inboxVisibilityWithMembersExcludedLocked(b, it, fullCfg.Visibility) && in.Action != suggestReject {
+	if inboxVisibilityWithMembersExcludedLocked(b, it, inboxCfg.Visibility) && in.Action != suggestReject {
 		out := it.listed()
 		b.mu.Unlock()
 		return out, errCannotReply
@@ -205,8 +292,8 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		// A changed reply recipient has a dedicated stale/mail-target error after unresolved durable outcomes are checked.
 		// The expanded compiled content version also names that target; do not mask the more specific result as a policy veto.
 		targetChanged := g.Kind == SuggestReply && g.SourceOf != "" && g.SourceOf != suggestionReplyTarget(it)
-		if !targetChanged {
-			if err := replyPolicyActionGate(it, g, fullCfg.ReplyPolicy); err != nil {
+		if !targetChanged && legacyReplyPolicyConfig(inboxCfg.ReplyPolicy) {
+			if err := replyPolicyActionGate(it, g, inboxCfg.ReplyPolicy); err != nil {
 				out := it.listed()
 				b.mu.Unlock()
 				return out, err
@@ -214,7 +301,7 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 		}
 	}
 	if g != nil && g.Kind == SuggestReply && in.Action == suggestConfirm && !g.Handback {
-		return s.confirmSuggestionReplyLocked(ctx, it, g, in, fullCfg.ReplyPolicy)
+		return s.confirmSuggestionReplyLocked(ctx, it, g, in, inboxCfg.ReplyPolicy, policy, preVeto, vetoErr)
 	}
 	if g != nil && g.Conversation != nil {
 		resetInboxFollowChecks(it)
@@ -229,8 +316,11 @@ func (s *Service) actOnSuggestion(ctx context.Context, id string, in suggestionR
 	l := b.userLang()
 	edited := g != nil && text != g.Text
 	// The suggestion is taken now, under the lock: a second confirmation of it (another device, a retry) is stale.
+	if g != nil && g.OnDemand && (in.Action == suggestReject || in.Action == suggestInstruct) {
+		rememberRejectedReplyDraft(it, g.Text)
+	}
 	it.Suggestion = nil
-	if in.Action == suggestConfirm {
+	if in.Action == suggestConfirm || in.Action == suggestReject {
 		it.ReplyInstruction = nil
 	}
 	if it.Agent.State == AgentDrafted {
@@ -311,6 +401,19 @@ func confirmedEntry(l i18n.Lang, text string, edited bool, now time.Time) InboxC
 	return InboxChainEntry{Kind: ChainConfirmed, At: now.UTC(), Text: i18n.T(l, key), Detail: text, Edited: edited}
 }
 
+func rememberRejectedReplyDraft(it *InboxItem, text string) {
+	if it == nil || text == "" {
+		return
+	}
+	it.RejectedReplyDraft = text
+	for _, old := range it.RejectedReplyDrafts {
+		if old == text {
+			return
+		}
+	}
+	it.RejectedReplyDrafts = append(it.RejectedReplyDrafts, text)
+}
+
 func rejectedEntry(l i18n.Lang, text string, now time.Time) InboxChainEntry {
 	return InboxChainEntry{Kind: ChainRejected, At: now.UTC(), Text: i18n.T(l, "assistant-inbox_chain.rejected"), Detail: clip(text, 600)}
 }
@@ -364,31 +467,40 @@ func (s *Service) confirmAgent(ctx context.Context, it *InboxItem, g *InboxSugge
 	b.mu.Lock()
 	self := it.Agent.SessionID
 	b.mu.Unlock()
+	hubMachine := s.settings(ctx).MachineID
 	machine := g.MachineID
 	if machine == "" {
-		machine = s.settings(ctx).MachineID
+		machine = hubMachine
 	}
 	cwd := g.Cwd
 	if cwd == "" {
 		cwd = "~"
 	}
 	args, _ := json.Marshal(map[string]string{"machine": machine, "cwd": cwd, "prompt": text})
-	// Query without refreshing the display cache: Agent.Enabled must still be sampled at its legacy post-start point.
+	// Settings resolution can block. Reauthorize the live item and exact suggestion immediately before agent_start.
 	freshCfg, err := s.queryInboxConfig(ctx)
-	if err == nil {
+	if err != nil {
+		err = errReplyPolicyBlocked
+	} else {
 		b.mu.Lock()
-		if inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility) {
+		var legacyErr error
+		if legacyReplyPolicyConfig(freshCfg.ReplyPolicy) {
+			legacyErr = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		}
+		switch {
+		case inboxVisibilityWithMembersExcludedLocked(b, it, freshCfg.Visibility):
 			err = errCannotReply
-		} else {
-			err = replyPolicyActionGate(it, g, freshCfg.ReplyPolicy)
+		case legacyErr != nil:
+			err = legacyErr
+		case verifyReplyPolicySuggestionLocked(it, g, nil, compileReplyPolicy(freshCfg.ReplyPolicy)) != nil:
+			err = errReplyPolicyBlocked
 		}
 		b.mu.Unlock()
 	}
 	res := ""
 	if err == nil {
-		res, err = s.runTool(ownerConfirmed(ctx), s.settings(ctx).MachineID, self, "agent_start", args)
+		res, err = s.runTool(ownerConfirmed(ctx), hubMachine, self, "agent_start", args)
 	}
-	// Preserve the legacy sampling point: a disable that lands while startup is pending is observed after it returns.
 	enabled := s.inboxConfig(ctx).Agent.Enabled
 	now := time.Now()
 	b.mu.Lock()

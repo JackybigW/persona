@@ -411,6 +411,7 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 	s.quarantineInboxVisibility(ctx, fullCfg.Visibility)
 	enabled := fullCfg.Agent.Enabled
 	replyPolicy := fullCfg.ReplyPolicy
+	policy := compileReplyPolicy(fullCfg.ReplyPolicy)
 	owner, language := inboxPromptOwner(hello), answerLanguage(hello.Locale)
 	b.mu.Lock()
 	if cur := b.items[it.ID]; cur != it {
@@ -451,7 +452,8 @@ func (s *Service) deliverNotes(ctx context.Context, it *InboxItem) {
 		b.mu.Unlock()
 		return
 	}
-	if replyPolicyItemApplies(replyPolicy, it) && (replyPolicyQueueBlocked(it, replyPolicy) || replyPolicyQueuePending(it, replyPolicy)) {
+	if replyPolicyItemApplies(replyPolicy, it) && (replyPolicyQueueBlocked(it, replyPolicy) || replyPolicyQueuePending(it, replyPolicy)) ||
+		!replyPolicyAllowsQueueLocked(it, policy) {
 		// Work-bearing turns require the same current owner-draft authorization as a new queue start. A terminal closed
 		// notice performs no work and remains deliverable so the existing processing session can shut down cleanly.
 		terminalOnly := !it.open()

@@ -186,6 +186,32 @@ func (b *inboxBook) liftMerged(sv *InboxItem) bool {
 	return changed
 }
 
+// replaceContextKeepingMergedMembers installs a survivor-only refresh without discarding text that still belongs to
+// its members. Member evidence goes first so clipping cannot silently remove it; any clipping remains fail closed.
+// Under b.mu.
+func (b *inboxBook) replaceContextKeepingMergedMembers(it *InboxItem, context string) {
+	if len(it.MergedFrom) == 0 {
+		it.Context = context
+		return
+	}
+	members := make([]string, 0, len(it.MergedFrom))
+	for _, ref := range it.MergedFrom {
+		member := b.items[ref.ID]
+		if member == nil || member.MergedInto != it.ID || member.Context == "" || strings.Contains(context, member.Context) {
+			continue
+		}
+		members = append(members, member.Context)
+	}
+	if len(members) == 0 {
+		it.Context = context
+		return
+	}
+	combined := strings.Join(members, "\n\n") + "\n\n" + context
+	it.Context = clipRunesTo(combined, mergeCtxMax)
+	it.ReplyContextTruncated = it.ReplyContextTruncated || it.Context != combined
+	resetReplyPolicyClassification(it)
+}
+
 // unmerge gives the members of survivor sv their rows back. Under b.mu. It returns the rows that changed.
 func (b *inboxBook) unmerge(sv *InboxItem, now time.Time) []*InboxItem {
 	out := []*InboxItem{sv}

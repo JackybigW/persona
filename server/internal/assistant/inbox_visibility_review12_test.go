@@ -190,7 +190,7 @@ func TestInboxVisibilityReview12DraftPublicationPolicyFreshVisibility(t *testing
 				it.Lark.IsGroup = false
 				visibility = visibilityTestConfig()
 			}
-			policy := replyPolicyTestConfig()
+			policy := legacyReplyPolicyTestConfig()
 			const text = "SYNTHETIC-POLICY-DRAFT"
 			authorization := review12DraftAuthorization(it, text, policy, true)
 			h.in.mu.Lock()
@@ -229,8 +229,14 @@ func TestInboxVisibilityReview12TodoAndConclusionConfirmationFreshConfig(t *test
 					h.inbox.cfgAt = time.Now()
 					h.inbox.cfgMu.Unlock()
 				case "configuration failure":
+					// A known, non-excluding visibility boundary still needs its fresh read. Keep that full configuration in
+					// the display cache so denial here proves the outage is fatal, not that the cached rule already excluded it.
+					h.setConfig(func(c *assistantwire.InboxConfig) {
+						c.Visibility = &assistantwire.InboxVisibilityConfig{Sources: []string{"lark"}, Chats: []string{"another-private"}}
+					})
+					cached := h.inboxConfig(context.Background())
 					h.inbox.cfgMu.Lock()
-					h.inbox.cfg = assistantwire.InboxConfig{}
+					h.inbox.cfg = cached
 					h.inbox.cfgAt = time.Now()
 					h.inbox.cfgMu.Unlock()
 					h.in.mu.Lock()

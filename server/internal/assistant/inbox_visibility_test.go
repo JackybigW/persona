@@ -534,7 +534,7 @@ func TestInboxVisibilityReplyClassifierVetoBeforeModel(t *testing.T) {
 			h := newInboxHub(t)
 			model, calls := captureModel(t, `{"category":"ordinary_coordination"}`)
 			h.in.setModel(model)
-			policy := replyPolicyTestConfig()
+			policy := legacyReplyPolicyTestConfig()
 			h.setConfig(func(c *assistantwire.InboxConfig) {
 				c.ReplyPolicy = policy
 				if !persistent {

@@ -154,7 +154,8 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	replyPolicy := cfg.ReplyPolicy
 	visibility := cfg.Visibility
 	var policy replyPolicySpec
-	if in.Kind == SuggestReply && !in.Handback {
+	policyAuthorization := in.Kind == SuggestReply || in.Kind == SuggestAgent
+	if policyAuthorization {
 		policy = compileReplyPolicy(replyPolicy)
 	}
 	b.mu.Lock()
@@ -195,7 +196,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 	if waitedForAssociation && err == nil {
 		// The first fresh read can predate a 15-second association wait. Reread after the wait, without holding the
 		// inbox lock across the RPC, then re-resolve the item before authorizing publication.
-		itemID := it.ID
+		itemID, waitingFrom := it.ID, from
 		b.mu.Unlock()
 		cfg, freshErr := s.inboxConfigFresh(ctx)
 		b.mu.Lock()
@@ -204,18 +205,20 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			return "", nil, nil, false, errReplyPolicyDenied
 		}
 		associated, associatedFrom, _, associationErr := lookup()
+		sameFrom := waitingFrom == nil && associatedFrom == nil ||
+			waitingFrom != nil && associatedFrom != nil && *waitingFrom == *associatedFrom
 		if associationErr != nil {
 			b.mu.Unlock()
 			return "", nil, nil, false, associationErr
 		}
-		if associated == nil || associated != it || associated.ID != itemID {
+		if associated == nil || associated != it || associated.ID != itemID || b.items[itemID] != associated || !sameFrom {
 			b.mu.Unlock()
 			return "", nil, nil, false, errNotProcessing
 		}
 		it, from = associated, associatedFrom
 		replyPolicy = cfg.ReplyPolicy
 		visibility = cfg.Visibility
-		if in.Kind == SuggestReply && !in.Handback {
+		if policyAuthorization {
 			policy = compileReplyPolicy(replyPolicy)
 		} else {
 			policy = replyPolicySpec{}
@@ -237,7 +240,8 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		b.mu.Unlock()
 		return "", nil, nil, false, errCannotReply
 	}
-	if from == nil && (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
+	if from == nil && (in.Kind == SuggestReply || in.Kind == SuggestAgent) && it.Agent != nil &&
+		(replyPolicyItemApplies(replyPolicy, it) || policy.appliesToItem(it)) {
 		for _, note := range it.Agent.Pending {
 			if note.Name == prompts.NoteNewMessages {
 				// Collection has newer content that this turn has not seen. Classification may already have advanced while
@@ -256,7 +260,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		return "", nil, nil, false, errReportedFiled
 	}
 	instructionID := ""
-	if (in.Kind == SuggestReply || in.Kind == SuggestAgent) && replyPolicyItemApplies(replyPolicy, it) {
+	if (in.Kind == SuggestReply || in.Kind == SuggestAgent) && legacyReplyPolicyConfig(replyPolicy) && replyPolicyItemApplies(replyPolicy, it) {
 		if instruction, needsClassification := replyInstructionForSuggestion(it, in.Text, replyPolicy); instruction != nil {
 			instructionID = instruction.ID
 			if needsClassification {
@@ -296,9 +300,11 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			}
 		}
 	}
-	if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
-		b.mu.Unlock()
-		return it.ID, nil, nil, false, err
+	if legacyReplyPolicyConfig(replyPolicy) {
+		if err := replyPolicySuggestionGate(it, in.Kind, replyPolicy); err != nil {
+			b.mu.Unlock()
+			return it.ID, nil, nil, false, err
+		}
 	}
 	for _, ch := range in.Changes {
 		if it.Doc == nil || !docOffers(*it.Doc, ch) {
@@ -307,16 +313,26 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		}
 	}
 	var policySnap *InboxReplyPolicySnapshot
-	if policy.enabled && in.Kind == SuggestReply && !in.Handback && it.open() {
+	if policy.appliesToItem(it) && (in.Kind == SuggestReply || in.Kind == SuggestAgent) && it.open() {
+		instruction, needsInstructionReview := replyInstructionForSuggestion(it, in.Text, policy)
+		if instruction != nil {
+			instructionID = instruction.ID
+		}
+		// Every policy-applicable reply, Agent instruction, and handback needs a snapshot bound to its exact text.
+		// An active rewrite adds its instruction to the classifier input; it never substitutes for that snapshot.
 		itemData := snapshotItemForReplyPolicyLocked(it)
+		classifierItem := itemData
+		if needsInstructionReview {
+			classifierItem = replyPolicyItemWithInstruction(classifierItem, instruction)
+		}
 		existingSnap := cloneReplyPolicySnapshot(it.ReplyPolicy)
 		b.mu.Unlock()
-		snap, gateErr := s.gateReplyPolicySuggestion(ctx, policy, itemData, existingSnap, in.Text)
+		snap, gateErr := s.gateReplyPolicySuggestion(ctx, policy, classifierItem, existingSnap, in.Text)
 		freshCfg, freshErr := s.inboxConfigFresh(ctx)
 		b.mu.Lock()
 		if freshErr != nil {
 			b.mu.Unlock()
-			return "", nil, nil, false, errReplyPolicyDenied
+			return "", nil, nil, false, errReplyPolicyBlocked
 		}
 		livePolicy := compileReplyPolicy(freshCfg.ReplyPolicy)
 		if gateErr != nil {
@@ -336,7 +352,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 			return "", nil, nil, false, errCannotReply
 		}
 		visibility = freshCfg.Visibility
-		if !livePolicy.enabled || livePolicy.revision != policy.revision || replyPolicyContentVersion(it) != itemData.contentVersion ||
+		if !livePolicy.appliesToItem(it) || livePolicy.revision != policy.revision || replyPolicyContentVersion(it) != itemData.contentVersion ||
 			livePolicy.allowsOwnerDraft(snap, itemData.contentVersion) != nil {
 			b.mu.Unlock()
 			return "", nil, nil, false, replyPolicySuggestionErr(snap, errReplyPolicyStaleSnapshot)
@@ -411,7 +427,7 @@ func (s *Service) suggestFrom(ctx context.Context, sessionID string, in suggestI
 		}
 		g := &InboxSuggestion{Version: it.SuggestSeq + 1, Kind: in.Kind, Text: in.Text, Note: clip(strings.TrimSpace(in.Note), 600),
 			Handback: in.Handback, Due: in.Due, Changes: in.Changes, At: now, Cwd: strings.TrimSpace(in.Cwd), Conversation: from,
-			ReplyPolicy: cloneReplyPolicySnapshot(policySnap)}
+			ReplyPolicy: cloneReplyPolicySnapshot(policySnap), ReplyInstruction: instructionID}
 		if policySnap != nil {
 			it.ReplyPolicy = cloneReplyPolicySnapshot(policySnap)
 		}

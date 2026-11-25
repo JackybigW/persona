@@ -66,8 +66,8 @@ const (
 // inboxConfigFor is how long the hub's inbox settings are taken as they were read.
 const inboxConfigFor = 5 * time.Second
 
-// queryInboxConfig distinguishes a valid legacy object (including {}) from an absent response. appCall intentionally
-// accepts empty responses for other methods, but an authorization configuration must be an actual JSON object.
+// queryInboxConfig distinguishes a valid configuration object (including {}) from an absent response. appCall accepts
+// empty responses for other methods, but an authorization configuration must be an actual JSON object.
 func (s *Service) queryInboxConfig(ctx context.Context) (assistantwire.InboxConfig, error) {
 	params, _ := json.Marshal(map[string]any{})
 	p := AppCall{AppID: AppInbox, Method: assistantwire.InboxConfigMethod, Params: params}
