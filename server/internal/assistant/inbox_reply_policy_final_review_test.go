@@ -295,6 +295,7 @@ func TestInboxReplyPolicyCheckedMailMirrorDoesNotDeadlock(t *testing.T) {
 }
 
 func TestInboxReplyPolicyWorkbenchOldCardCannotConfirmReplacement(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	c := &recoveryReplier{}
 	h, _, it := handledHub(t)
 	h.in.mu.Lock()

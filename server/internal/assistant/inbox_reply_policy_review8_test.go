@@ -278,7 +278,8 @@ func TestInboxReplyPolicyFailedPublicationMarkerSurvivesConcurrentMetadataReload
 	}
 }
 
-func TestInboxReplyPolicyUnversionedWorkbenchRedraftFailsClosed(t *testing.T) {
+func TestInboxReplyPolicyUnversionedWorkbenchRedraftFailsClosedLegacySchema(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	c := &recoveryReplier{}
 	h, _, it := handledHub(t)
 	h.in.mu.Lock()
@@ -492,6 +493,7 @@ func replyPolicyReview8OrdinaryItem(h *inboxHub, it *InboxItem) {
 }
 
 func TestInboxReplyPolicyWorkbenchDraftCardBindsGeneratedTextAndVersion(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	h, lark, it := handledHub(t)
 	replyPolicyReview8OrdinaryItem(h, it)
 	_ = replyPolicyEnableWorkbench(h)
@@ -649,6 +651,39 @@ func TestInboxReplyPolicyFailedPublicationMarkerSurvivesConcurrentMetadataReload
 	}
 }
 
+func TestInboxReplyPolicyUnversionedWorkbenchRedraftFailsClosed(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
+	c := &recoveryReplier{}
+	h, _, it := handledHub(t)
+	h.in.mu.Lock()
+	h.in.conns[0] = c
+	h.in.mu.Unlock()
+	replyPolicyReview8OrdinaryItem(h, it)
+	updated := replyPolicyEnableWorkbench(h)
+	const oldText = "Old unversioned Workbench draft"
+	finalReviewInstallMirror(h, it, oldText)
+	value := replyPolicyWorkbenchActionValue(t, h.draftCard(context.Background(), *it, oldText, nil, "").JSON(), "redraft")
+	delete(value, "version")
+	const current = "Current replacement that an old card must not supersede"
+	finalReviewInstallMirror(h, it, current)
+	calls := replyPolicyDraftSequenceModel(t, h, nil, "Forbidden generation from an unversioned card", `{"category":"ordinary_coordination"}`)
+	replyPolicyReview8WorkbenchAction(h, value, map[string]any{"text": oldText, "instruction": "Synthetic old-card redraft"}, "synthetic-unversioned-redraft")
+	select {
+	case <-updated:
+	case <-time.After(3 * time.Second):
+		t.Fatal("unversioned Workbench redraft did not finish")
+	}
+	if got := len(calls()); got != 0 {
+		t.Fatalf("unversioned Workbench redraft bypassed the current suggestion version: model calls=%d", got)
+	}
+	if g := currentSuggestion(it); g == nil || g.Version != 2 || g.Text != current {
+		t.Fatalf("unversioned Workbench redraft superseded the current suggestion: %+v", g)
+	}
+	if len(c.calls()) != 0 {
+		t.Fatalf("unversioned Workbench redraft reached the physical sender: %+v", c.calls())
+	}
+}
+
 func replyPolicyReview8NonLark(t *testing.T) (*inboxHub, *replyPolicyReview8Connector, *InboxItem) {
 	t.Helper()
 	h, _, it := handledHub(t)
@@ -762,6 +797,7 @@ func TestInboxReplyPolicyOmittedSourcesNonLarkCoverAllStages(t *testing.T) {
 }
 
 func TestInboxReplyPolicyWorkbenchPublishedCardSend(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	c := &recoveryReplier{}
 	h, _, it := handledHub(t)
 	h.in.mu.Lock()

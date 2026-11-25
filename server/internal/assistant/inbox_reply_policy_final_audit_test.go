@@ -513,6 +513,7 @@ func TestInboxReplyPolicyUnknownAttemptOutranksPolicyFailure(t *testing.T) {
 }
 
 func TestInboxReplyPolicyWorkbenchStaleRedraftRejected(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	c := &recoveryReplier{}
 	h, _, it := handledHub(t)
 	h.in.mu.Lock()
@@ -702,6 +703,7 @@ func TestInboxReplyPolicyFailedDraftReplacementIsFreshAuthorization(t *testing.T
 }
 
 func TestInboxReplyPolicyWorkbenchRenderedCardSend(t *testing.T) {
+	needsLarkLayer(t) // the integrated Workbench renderer and actions are the lark module's
 	c := &recoveryReplier{}
 	h, _, it := handledHub(t)
 	h.in.mu.Lock()
