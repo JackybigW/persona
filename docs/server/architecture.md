@@ -494,7 +494,8 @@ func Write(w http.ResponseWriter, f fail.Fail) {
 
 A programmer error is a defect (`defect.Raise`), never a returned failure, and only listed sites recover one, through
 `defect.Catch` (`server/internal/archguard/testdata/catch_sites.txt`), and every production call of `recover()` is
-listed too (`server/internal/archguard/testdata/recover_sites.txt`; "Validated and sealed" below). A stored row that fails to restore is skipped and logged with its code, never rebuilt half-valid.
+listed too (`server/internal/archguard/testdata/recover_sites.txt`; "Validated and sealed" below). A stored row that
+fails to restore is skipped and logged with its code, never rebuilt half-valid.
 
 ### Data objects and adapters
 
