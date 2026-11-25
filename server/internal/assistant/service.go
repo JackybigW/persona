@@ -482,7 +482,9 @@ func New(o Options) *Service {
 	s.scheduleRoutes()
 	s.scheduleGrantRoutes()
 	s.placeRoutes()
-	saved.Register(saved.Host{Store: func() any { return s.store() }, Event: s.event, Handle: s.handle, Full: fullRole, BodyErr: writeBodyErr})
+	reg := s.newRegistry() // the typed seam the modules register through (seam_ports.go)
+	defer reg.Seal()       // New returns it sealed: registering later is a defect
+	reg.Register(saved.NewModule(func() any { return s.store() }, s.event))
 	s.resourceRoutes()
 	s.repositoryRoutes()
 	s.repoMirrorRoutes()
