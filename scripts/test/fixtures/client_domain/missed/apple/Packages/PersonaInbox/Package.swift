@@ -13,6 +13,7 @@ let coreSettings: [SwiftSetting] = [
         "-warnings-as-errors",
         "-Xfrontend", "-disable-implicit-concurrency-module-import",
         "-Xfrontend", "-disable-implicit-string-processing-module-import",
+        "-Xfrontend", "-reflection-metadata-for-debugger-only",
     ]),
 ]
 

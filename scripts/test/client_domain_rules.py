@@ -51,13 +51,15 @@ RULES = {
         "only looks like one",
         _SWIFT_GOOD + "Package.swift"),
     "swift-manifest": (
-        "a Domain target is a functional core: it links only the kit, and the compiler settings stop Foundation, "
-        "concurrency and dropped results from reaching it",
+        "a Domain target is a functional core: it links only the kit, the compiler settings stop Foundation, "
+        "concurrency and dropped results from reaching it, and without runtime reflection metadata no "
+        "String(describing:), interpolation, dump or Mirror outside the target prints a value's fields",
         "depend only on PersonaDomainKit, and pass the core settings: "
         ".swiftLanguageMode(.v6), .defaultIsolation(nil), the upcoming features InternalImportsByDefault, "
         "MemberImportVisibility and ExistentialAny, and .unsafeFlags([\"-warnings-as-errors\", \"-Xfrontend\", "
         "\"-disable-implicit-concurrency-module-import\", \"-Xfrontend\", "
-        "\"-disable-implicit-string-processing-module-import\"])",
+        "\"-disable-implicit-string-processing-module-import\", \"-Xfrontend\", "
+        "\"-reflection-metadata-for-debugger-only\"])",
         _SWIFT_GOOD + "Package.swift"),
     "swift-context": (
         "one core is one bounded context: a core that uses another context's core, or an adapter another context's "
@@ -131,16 +133,24 @@ RULES = {
         "a stored public property, or a setter, is a getter or setter on the value's state",
         "make it `private let`, and add the behaviour the caller needs (a predicate, a transition, accept)",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (needsOwner)"),
+    "swift-primitive-field": (
+        "from the inside out, a String or Int beside a value's other fields is a concept without a type, which every "
+        "rule inside the value decides on; only a single-field value object wraps a primitive",
+        "give the field a value type of its own, a single-field struct over the primitive made through a static parse, "
+        "and write every stored property's type",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Item, ItemID)"),
     "swift-primitive-api": (
         "a String or Int in the public API is a concept without a type, and every caller decides on it",
         "take and return value types; raw input enters only through a static parse, and a Bool only as a computed "
         "predicate or a function's result",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (ItemID.parse)"),
     "swift-accessor": (
-        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters",
+        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters, "
+        "and so does a static or free function that only returns an input's field",
         "replace it with the behaviour the caller needs: a Bool predicate, a transition returning Self or Outcome, or "
-        "accept(_ v: inout some XVisitor); `id` stays when it returns the target's own <Name>ID type",
-        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (needsOwner)"),
+        "accept(_ v: inout some XVisitor); a domain service computes from what its inputs tell it; `id` stays when it "
+        "returns the target's own <Name>ID type",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (needsOwner, nextWake)"),
     "swift-generic": (
         "a generic domain type carries a caller's object inside the core, where the core can neither check nor own it",
         "use a concrete value type, or the kit's Slot for the caller's place",
@@ -150,10 +160,12 @@ RULES = {
         "keep evolve internal and expose decide",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (snoozed)"),
     "swift-factory": (
-        "values are built only through constructors named for how they are built, with at most four inputs",
-        "construct through a static parse (raw input), new (domain values) or restore (stored state) on a private "
-        "init, with a staged builder (newBuilder, restoreBuilder) above four inputs; only a closed set (a struct over "
-        "its private enum) names a factory for one of its cases",
+        "values are built only through constructors named for how they are built, with at most four inputs, and a "
+        "construction that can fail says why in an Outcome, never as nil",
+        "construct through a static parse (raw input) or new (domain values) returning the type or an Outcome of it, "
+        "or restore (stored state) returning an Outcome, on a private init, with a staged builder (newBuilder, "
+        "restoreBuilder) above four inputs; only a closed set (a struct whose one stored property is its private "
+        "enum) names a factory for one of its cases",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Item.new, Wake.at)"),
     "swift-spi-import": (
         "the boundary conversions are for adapters only, and only the kit's adapter reads the clock",
@@ -243,6 +255,12 @@ RULES = {
         "a public constructor builds a value without the checks of parse, new or restore",
         "declare `private constructor` and construct through companion parse, new or restore",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemId)"),
+    "kotlin-value-class": (
+        "a value class's generated toString prints its wrapped value, a second way out beside wire(), and an override "
+        "of it is a getter",
+        "write a class with a private constructor and a private val, with equals and hashCode where identity matters; "
+        "its toString is Any's, which prints no field",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemId)"),
     "kotlin-data-class": (
         "a data class exposes its state through componentN, copy and toString, around its constructors",
         "write a class with a private constructor and private vals, with equals and hashCode where identity matters",
@@ -252,16 +270,24 @@ RULES = {
         "make it a class with a private constructor, companion values and accept(visitor); a sealed type or enum "
         "class stays internal or private inside it",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (Urgency)"),
+    "kotlin-primitive-field": (
+        "from the inside out, a String or Int beside a value's other fields is a concept without a type, which every "
+        "rule inside the value decides on; only a single-field value object wraps a primitive",
+        "give the field a value type of its own, a class over the primitive made through companion parse, and write "
+        "every stored property's type",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (Item, ItemId)"),
     "kotlin-primitive-api": (
         "a String or Int in the public API is a concept without a type, and every caller decides on it",
         "take and return value types; raw input enters only through companion parse, and a Boolean only as a "
         "computed predicate or a function's result",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemId.parse)"),
     "kotlin-accessor": (
-        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters",
+        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters, "
+        "and so does a companion or top-level function that only returns an input's field",
         "replace it with the behaviour the caller needs: a computed Boolean, a transition returning the class or its "
-        "Outcome, or accept(visitor); id() stays when it returns the module's own <Name>Id class",
-        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (needsOwner)"),
+        "Outcome, or accept(visitor); a domain service computes from what its inputs tell it; id() stays when it "
+        "returns the module's own <Name>Id class",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (needsOwner, nextWake)"),
     "kotlin-import": (
         "a core computes only from its arguments, so it uses no platform, library or adapter API",
         "import only persona.core.domainkit (not its adapt package) and its own package, by import or full name; "
@@ -294,10 +320,12 @@ RULES = {
         "implement the visitor in persona.core.<ctx>.adapt (or a test) and call the behaviour the app needs",
         _KOTLIN_GOOD + "src/main/kotlin/persona/core/planted/adapt/ItemWire.kt"),
     "kotlin-factory": (
-        "values are built only through constructors named for how they are built, with at most four inputs",
-        "name a companion factory parse, new, restore, newBuilder or restoreBuilder, and use a staged builder above "
-        "four inputs; only a closed set (a class over its private enum class or internal sealed type) names a factory "
-        "for one of its cases",
+        "values are built only through constructors named for how they are built, with at most four inputs, and a "
+        "construction that can fail says why in an Outcome, never as null",
+        "name a companion factory parse or new returning the class or an Outcome of it, restore returning an Outcome, "
+        "or newBuilder or restoreBuilder returning the first stage, and use a staged builder above four inputs; only "
+        "a closed set (a class whose one field is its private enum class or internal sealed type) names a factory for "
+        "one of its cases",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (Item.new)"),
 }
 
@@ -501,13 +529,46 @@ def _ident(value):
     return bool(value) and (value[0].isalpha() or value[0] == "_")
 
 
+def _field_read(body, inputs, receiver, fields, implicit_return=False):
+    """For a body that only hands state out as it is, (the expression, the last name it reads); else None.
+
+    That is a member chain rooted at a parameter or the receiver (`item.wakes`, `this.wakes`, `self.wakes`), or in a
+    member a stored field read through the implicit receiver (`wakes`, `state.kind`), as an expression body, a
+    one-statement `{ return ... }` block or, with implicit_return (Swift), a one-expression block. body: ("expr" or
+    "block", token values); inputs: the parameters' names; receiver: "this" or "self" in a member, None outside one;
+    fields: the names of the stored fields the module declares."""
+    if body is None:
+        return None
+    kind, toks = body[0], list(body[1])
+    while toks and toks[-1] == ";":
+        toks.pop()
+    if kind == "block" and toks[:1] == ["return"]:
+        toks = toks[1:]
+    elif kind == "block" and not implicit_return:
+        return None
+    while len(toks) > 2 and toks[0] == "(" and toks[-1] == ")":
+        toks = toks[1:-1]
+    names, seps = toks[0::2], toks[1::2]
+    if not toks or len(toks) % 2 == 0 or not all(_ident(n) for n in names) or any(s not in (".", "?.") for s in seps):
+        return None
+    root = names[0]
+    if root in inputs or (receiver is not None and root == receiver):
+        if len(names) < 2:
+            return None  # the input itself, not its state
+    elif receiver is None or root not in fields:
+        return None
+    return "".join(toks), names[-1]
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Kotlin declarations
 
 
 class KtDecl:
     """A Kotlin declaration the rules read: a class, interface or object with its members, a function, a property or a
-    secondary constructor. Function and accessor bodies are skipped: what they declare is not API."""
+    secondary constructor. What function and accessor bodies declare is not API, so they are skipped; a function's
+    body and a property's getter are kept as token values, for the rule that a body returning an input's field is a
+    getter."""
 
     def __init__(self, kind, name, line, mods, annos, parent):
         self.kind, self.name, self.line, self.mods, self.annos, self.parent = kind, name, line, mods, annos, parent
@@ -515,6 +576,7 @@ class KtDecl:
         self.ctor = None  # a class's primary constructor: None without one, else its visibility ("" for the default)
         self.getter = self.initializer = self.generic = False
         self.init_first = ""  # a property initializer's first token
+        self.body = None  # a function's body or a property's getter: ("expr", [token values]) or ("block", [...])
 
     @property
     def public(self):
@@ -796,8 +858,9 @@ class _KtParser:
             i += 1
         return i
 
-    def signature(self, i):
-        """The receiver and name before a function's ( or a property's : =: (index at the stop, receiver, name)."""
+    def signature(self, i, prop=False):
+        """The receiver and name before a function's ( or a property's : =: (index at the stop, receiver, name). A
+        property's getter may follow its name on the same line (`val empty get() = ...`)."""
         begin, depth = i, 0
         while i < self.n:
             value = self.v(i)
@@ -806,7 +869,8 @@ class _KtParser:
             elif value == ">":
                 depth -= 1
             elif depth == 0 and (value in ("(", ":", "=", "{", ";", "}") or value == "by"
-                                 or (i > begin and self.new_line(i))):
+                                 or (i > begin and self.new_line(i))
+                                 or (prop and i > begin and value in ("get", "set") and self.v(i + 1) in ("(", "="))):
                 break
             i += 1
         parts = [tok.v for tok in self.t[begin:i]]
@@ -836,17 +900,25 @@ class _KtParser:
             i, decl.type = self.type_until(i + 1, ("{", "=", "where"))
         if self.v(i) == "where":
             i = self.skip_expression(i + 1, stops=("{", "="))
+        return self.body(decl, i)
+
+    def body(self, decl, i):
+        """Past a body at i (`{ ... }` or `= ...`), kept on decl; i itself when there is none."""
         if self.v(i) == "{":
-            i = self.skip_brackets(i)
-        elif self.v(i) == "=":
-            i = self.skip_expression(i + 1)
+            end = self.skip_brackets(i)
+            decl.body = ("block", [tok.v for tok in self.t[i + 1:end - 1]])
+            return end
+        if self.v(i) == "=":
+            end = self.skip_expression(i + 1, accessors=decl.kind in ("val", "var"))
+            decl.body = ("expr", [tok.v for tok in self.t[i + 1:end]])
+            return end
         return i
 
     def prop(self, owner, k, keyword, mods, annos):
         i = k + 1
         if self.v(i) == "<":
             i = self.skip_angles(i)
-        i, receiver, name = self.signature(i)
+        i, receiver, name = self.signature(i, prop=True)
         decl = KtDecl(keyword, name, self.t[k].line, mods, annos, owner)
         decl.receiver = receiver
         owner.children.append(decl)
@@ -864,14 +936,16 @@ class _KtParser:
                                                         or self.new_line(j + 1))
             if not accessor:
                 break
-            if self.v(j) == "get":
-                decl.getter = True
+            getter = self.v(j) == "get"
+            decl.getter = decl.getter or getter
             i = j + 1
             if self.v(i) == "(":
                 i = self.skip_brackets(i)
             if self.v(i) == ":":
                 i, _ = self.type_until(i + 1, ("{", "="))
-            if self.v(i) == "{":
+            if getter:
+                i = self.body(decl, i)
+            elif self.v(i) == "{":
                 i = self.skip_brackets(i)
             elif self.v(i) == "=":
                 i = self.skip_expression(i + 1, accessors=True)
@@ -933,18 +1007,53 @@ def _kt_path(decl):
     return names[::-1]
 
 
-def _returns_own(type_tokens, owner):
-    """Whether a result is its owner's own type or an Outcome of it, not nullable (absence is not a transition)."""
-    if owner is None or not type_tokens or type_tokens[-1] == "?":
+def _builds(type_tokens, owner):
+    """Whether a result is its owner's own type or an Outcome of it, nullable or not."""
+    if owner is None or not type_tokens:
         return False
     root = _type_root(type_tokens)
     return root == owner or (root == "Outcome" and _first_type_argument(type_tokens) == owner)
 
 
+def _returns_own(type_tokens, owner):
+    """Whether a result is its owner's own type or an Outcome of it, not nullable (absence is not a transition)."""
+    return _builds(type_tokens, owner) and type_tokens[-1] != "?"
+
+
+def _kt_stored(klass):
+    """A class's stored state: each primary-constructor parameter and each property of its body that has a backing
+    field (an initializer, or no getter of its own), as (name, type tokens, line)."""
+    out = [(p.name, p.type, p.line) for p in klass.params]
+    out += [(c.name, c.type, c.line) for c in klass.children if c.kind in ("val", "var") and c.receiver is None
+            and (c.initializer or not c.getter) and "abstract" not in c.mods]
+    return out
+
+
+def _kt_field_names(root):
+    """The names of the fields a file's classes store: constructor properties and body properties with a backing
+    field."""
+    names = set()
+    for decl in root.walk():
+        if decl.kind == "class":
+            names.update(p.name for p in decl.params if p.binding)
+            names.update(name for name, _, _ in _kt_stored(decl)[len(decl.params):])
+    return names
+
+
+def kotlin_fields(texts):
+    """The names of the fields a module's classes store, for the rule that a body returning one is a getter."""
+    names = set()
+    for text in texts:
+        names.update(_kt_field_names(parse_kotlin(strip(text, "kotlin"))[2]))
+    return names
+
+
 def _kt_closed_set(klass):
-    """Whether a class is a closed set: its private constructor takes one value of a private or internal enum class or
-    sealed type declared inside it (`Urgency private constructor(private val urgency: Case)`)."""
-    if klass is None or klass.kind != "class" or klass.ctor != "private" or len(klass.params) != 1:
+    """Whether a class is a closed set: its only state is one value of a private or internal enum class or sealed
+    type declared inside it, which its private constructor takes (`Urgency private constructor(private val urgency:
+    Case)`)."""
+    if klass is None or klass.kind != "class" or klass.ctor != "private" or len(klass.params) != 1 \
+            or len(_kt_stored(klass)) != 1:
         return False
     case = _type_root(klass.params[0].type)
     return any(child.kind in ("class", "interface") and child.name == case and child.mods & {"enum", "sealed"}
@@ -978,10 +1087,10 @@ def kotlin_declared(texts):
     return names
 
 
-def kotlin_source_findings(path, text, module, ctx=None, declared=None):
+def kotlin_source_findings(path, text, module, ctx=None, declared=None, fields=None):
     """Findings for one Kotlin source file of a domain module (module "domain") or of the kit (module "kit"). ctx: the
-    module's context (by default the one its package names); declared: the classes the module declares (by default
-    this file's)."""
+    module's context (by default the one its package names); declared: the classes the module declares, and fields
+    the names of the fields they store (kotlin_declared, kotlin_fields; by default this file's)."""
     stripped = strip(text, "kotlin")
     package, imports, root = parse_kotlin(stripped)
     if ctx is None:
@@ -989,6 +1098,8 @@ def kotlin_source_findings(path, text, module, ctx=None, declared=None):
         ctx = m.group(1) if m else None
     if declared is None:
         declared = {d.name for d in root.walk() if d.kind in ("class", "interface", "object") and d.name}
+    if fields is None:
+        fields = _kt_field_names(root)
     found = []
     add = lambda line, rule, what: found.append(Finding(path, line, rule, what))  # noqa: E731
     toks = tokens(stripped)
@@ -999,7 +1110,7 @@ def kotlin_source_findings(path, text, module, ctx=None, declared=None):
             add(line, rule, f"imports {name}" + (f", {whose}" if whose else ""))
     _kotlin_token_rules(toks, module, ctx, add)
     for decl in root.walk():
-        _kotlin_decl_rules(decl, add, module, declared)
+        _kotlin_decl_rules(decl, add, module, declared, fields)
     return sorted(set(found))
 
 
@@ -1093,7 +1204,7 @@ def _kotlin_token_rules(toks, module, ctx, add):
                 add(tok.line, rule, f"names {name} by its full name" + (f", {whose}" if whose else ""))
 
 
-def _kotlin_decl_rules(decl, add, module, declared):
+def _kotlin_decl_rules(decl, add, module, declared, fields):
     public = decl.public
     kit = module == "kit"
     path = _kt_path(decl)
@@ -1105,6 +1216,17 @@ def _kotlin_decl_rules(decl, add, module, declared):
         label = decl.name or "an object"
         if "data" in decl.mods and decl.kind == "class":
             add(decl.line, "kotlin-data-class", f"{label} is a data class")
+        if decl.kind == "class" and decl.mods & {"value", "inline"}:
+            add(decl.line, "kotlin-value-class", f"{label} is a value class")
+        stored = _kt_stored(decl) if decl.kind == "class" and "annotation" not in decl.mods else []
+        if len(stored) > 1:  # the one wrapped field of a single-field value object is the exception
+            for name, typed, line in stored:
+                if not typed:
+                    add(line, "kotlin-primitive-field", f"{label}.{name} has no declared type, one of {len(stored)} "
+                                                        "fields")
+                elif set(typed) & KOTLIN_PRIMITIVES:
+                    add(line, "kotlin-primitive-field",
+                        f"{label}.{name} is {' '.join(typed)}, one of {len(stored)} fields")
         if public and ("sealed" in decl.mods or "enum" in decl.mods or (decl.kind == "object" and "data" in decl.mods)):
             shape = ("an enum class" if "enum" in decl.mods else "a data object" if "data" in decl.mods
                      else "a sealed type")
@@ -1181,11 +1303,8 @@ def _kotlin_decl_rules(decl, add, module, declared):
             add(decl.line, "kotlin-public-evolve", f"{label} is public")
         if len(decl.params) > MAX_PARAMS:
             add(decl.line, "kotlin-factory", f"{label} takes {len(decl.params)} parameters")
-        if companion and _returns_own(decl.type, owner) and name not in FACTORY_NAMES:
-            if not _kt_closed_set(decl.parent.parent) or BANNED_FACTORY.match(name):
-                add(decl.line, "kotlin-factory",
-                    f"{label} builds a {owner} under a name other than parse, new, restore, newBuilder or "
-                    "restoreBuilder")
+        if companion:
+            _kotlin_factory_rules(decl, add, owner, label, declared)
         if not identity:
             parse = name == "parse" and companion
             loose = [p.name for p in decl.params if set(p.type) & KOTLIN_PRIMITIVES] if not parse else []
@@ -1194,6 +1313,7 @@ def _kotlin_decl_rules(decl, add, module, declared):
                 add(decl.line, "kotlin-primitive-api", f"{label} takes {', '.join(loose)} as a primitive")
             if result and decl.type != ["Boolean"]:
                 add(decl.line, "kotlin-primitive-api", f"{label} returns {' '.join(decl.type)}")
+        handed_out = False
         if (method or not decl.params) and not identity and not excepted("kotlin-accessor", key):
             root = _type_root(decl.type or [])
             told = decl.type is None or decl.type in (["Boolean"], ["Unit"]) or _returns_own(decl.type, owner)
@@ -1204,6 +1324,12 @@ def _kotlin_decl_rules(decl, add, module, declared):
                             and root in declared and root.endswith(("Step", "Builder")))
             if not told:
                 add(decl.line, "kotlin-accessor", f"{label} hands out {' '.join(decl.type)}")
+                handed_out = True
+        # Whatever it returns and wherever it is declared, a body that only returns an input's field is a getter.
+        read = None if identity or handed_out or name in ("id", "wire") else _field_read(
+            decl.body, {p.name for p in decl.params}, "this" if method else None, fields)
+        if read and (decl.type != ["Boolean"] or read[1] in fields):
+            add(decl.line, "kotlin-accessor", f"{label} hands state out, returning {read[0]}")
         return
     # A val or var: the stored or computed value of a class, a companion value, or a package-level value.
     typed = decl.type or []
@@ -1212,9 +1338,34 @@ def _kotlin_decl_rules(decl, add, module, declared):
         _type_root(typed) == owner or (not typed and decl.initializer and decl.init_first == owner))
     if set(typed) & KOTLIN_PRIMITIVES and not computed_bool:
         add(decl.line, "kotlin-primitive-api", f"{label} is public and has the type {' '.join(typed)}")
+    read = _field_read(decl.body, set(), "this" if method else None, fields) if computed_bool else None
+    if read and read[1] in fields:
+        add(decl.line, "kotlin-accessor", f"{label} hands state out, returning {read[0]}")
     if not computed_bool and not companion_value:
         what = "a package-level value" if decl.parent.kind == "file" else "state visible outside the module"
         add(decl.line, "kotlin-accessor", f"{label} is {what}; a public val is a computed Boolean")
+
+
+def _kotlin_factory_rules(decl, add, owner, label, declared):
+    """A companion function's name and result: a factory is named for how it builds, and returns what that name
+    promises, never null."""
+    name, typed = decl.name, decl.type or []
+    shown = " ".join(typed) or "Unit"
+    root = _type_root(typed)
+    stage = len(typed) == 1 and root in declared and root.endswith(("Step", "Builder"))
+    builds = _builds(typed, owner)
+    if builds and name not in FACTORY_NAMES and (not _kt_closed_set(decl.parent.parent) or BANNED_FACTORY.match(name)):
+        add(decl.line, "kotlin-factory",
+            f"{label} builds a {owner} under a name other than parse, new, restore, newBuilder or restoreBuilder")
+    if builds and "?" in typed:
+        add(decl.line, "kotlin-factory", f"{label} returns {shown}, which may be null")
+    if name == "restore" and not (root == "Outcome" and _first_type_argument(typed) == owner):
+        add(decl.line, "kotlin-factory", f"{label} returns {shown}, not an Outcome of {owner}")
+    elif name in ("parse", "new") and not builds and not (name == "new" and (owner or "").endswith("Builder")
+                                                           and stage):
+        add(decl.line, "kotlin-factory", f"{label} returns {shown}, not a {owner} or an Outcome of it")
+    elif name in ("newBuilder", "restoreBuilder") and not stage:
+        add(decl.line, "kotlin-factory", f"{label} returns {shown}, not the first …Step or …Builder of {owner}")
 
 
 def kotlin_build_findings(path, text, kit):
@@ -1463,7 +1614,8 @@ _SWIFT_SETTINGS = (
     (".enableUpcomingFeature(\"ExistentialAny\")", "the upcoming feature ExistentialAny"),
 )
 _SWIFT_FLAGS = (("-warnings-as-errors",), ("-Xfrontend", "-disable-implicit-concurrency-module-import"),
-                ("-Xfrontend", "-disable-implicit-string-processing-module-import"))
+                ("-Xfrontend", "-disable-implicit-string-processing-module-import"),
+                ("-Xfrontend", "-reflection-metadata-for-debugger-only"))
 
 
 def swift_manifest_findings(target):
@@ -1580,6 +1732,7 @@ def _swift_modifiers(toks, i):
                 j -= 1
             j -= 1
             if j >= 1 and toks[j - 1].v == "@":
+                mods.add("@" + toks[j].v)
                 j -= 2
             else:
                 break
@@ -1593,7 +1746,8 @@ def _swift_modifiers(toks, i):
 
 class _SwiftScope(namedtuple("_SwiftScope", "kind name public exposed")):
     """A brace scope: its kind (a type kind, "code" or "file"), the type it declares or extends, whether its members
-    default to public (a public extension), and whether anything in it can be public API (no enclosing internal type)."""
+    default to public (a public extension), and whether anything in it can be public API (no enclosing internal
+    type)."""
 
 
 def _swift_scopes(toks):
@@ -1692,8 +1846,206 @@ def _swift_spi_target(toks, i):
     return group, keyword, name
 
 
-def swift_source_findings(path, text, target):
-    """Findings for one Swift source file of a Domain target or of the kit."""
+def _swift_close(toks, i, open_char, close_char):
+    """From the opening bracket at i, the index of its closing partner (or the end)."""
+    depth = 0
+    while i < len(toks):
+        depth += toks[i].v == open_char
+        depth -= toks[i].v == close_char
+        if depth == 0:
+            return i
+        i += 1
+    return i
+
+
+SwiftStored = namedtuple("SwiftStored", "name type line")  # type: its tokens, or None when not written
+
+
+def _swift_struct_state(toks, scopes):
+    """For each struct, keyed by its scopes from the file down: its stored instance properties ([SwiftStored]; every
+    name of `let a: A, b: B`) and the private enums it declares."""
+    stored, enums = {}, {}
+    n = len(toks)
+    for i, tok in enumerate(toks):
+        stack = scopes[i]
+        if stack[-1].kind != "struct" or tok.v not in ("let", "var", "enum"):
+            continue
+        key = tuple((s.kind, s.name) for s in stack[1:])
+        stored.setdefault(key, [])
+        mods = _swift_modifiers(toks, i)
+        if tok.v == "enum":
+            if i + 1 < n and _ident(toks[i + 1].v) and mods & {"private", "fileprivate"}:
+                enums.setdefault(key, set()).add(toks[i + 1].v)
+            continue
+        if mods & {"static", "class"}:
+            continue
+        j = i + 1
+        while j < n and _ident(toks[j].v):
+            name, line = toks[j].v, toks[j].line
+            j += 1
+            typed, depth = None, 0
+            if j < n and toks[j].v == ":":
+                j += 1
+                begin = j
+                while j < n and not (depth == 0 and (toks[j].v in (",", "=", "{", ";", "}")
+                                                     or (j > begin and toks[j].first))):
+                    depth += toks[j].v in ("<", "[", "(")
+                    depth -= toks[j].v in (">", "]", ")")
+                    j += 1
+                typed = [t.v for t in toks[begin:j]]
+            if j < n and toks[j].v == "=":
+                j += 1
+                begin = j
+                while j < n and not (depth == 0 and (toks[j].v in (",", ";", "}") or (j > begin and toks[j].first))):
+                    depth += toks[j].v in ("(", "[", "{")
+                    depth -= toks[j].v in (")", "]", "}")
+                    j += 1
+            if j < n and toks[j].v == "{" and not toks[j].first:
+                if j + 1 < n and toks[j + 1].v in ("didSet", "willSet"):
+                    stored[key].append(SwiftStored(name, typed, line))
+                break  # accessors or observers end the declaration
+            stored[key].append(SwiftStored(name, typed, line))
+            if j < n and toks[j].v == "," and not toks[j].first:
+                j += 1
+                continue
+            break
+    return stored, enums
+
+
+def _swift_case_values(toks, scopes):
+    """Every enum case with associated values: (the enum's names from the file down, joined by dots, the case's name,
+    line, [(label, type tokens)])."""
+    out = []
+    n = len(toks)
+    for i, tok in enumerate(toks):
+        if tok.v != "case" or scopes[i][-1].kind != "enum":
+            continue
+        j = i + 1
+        while j < n and _ident(toks[j].v):
+            case, line = toks[j].v, toks[j].line
+            j += 1
+            if j < n and toks[j].v == "(":
+                end = _swift_close(toks, j, "(", ")")
+                values, chunk, depth = [], [], 0
+                for t in toks[j + 1:end] + [Token(",", 0, 0, 0, False)]:
+                    depth += t.v in ("(", "[", "<")
+                    depth -= t.v in (")", "]", ">")
+                    if t.v == "," and depth == 0:
+                        if chunk:
+                            names = [c for c in chunk if c != "_"]
+                            colon = chunk.index(":") if ":" in chunk else -1
+                            typed = chunk[colon + 1:]
+                            typed = typed[:typed.index("=")] if "=" in typed else typed
+                            values.append((names[0] if colon > 0 else None, typed))
+                        chunk = []
+                    else:
+                        chunk.append(t.v)
+                out.append((".".join(s.name for s in scopes[i][1:] if s.name), case, line, values))
+                j = end + 1
+            while j < n and not toks[j].first and toks[j].v not in (",", ";", "}"):
+                j += 1  # a raw value
+            if j < n and toks[j].v == "," and not toks[j].first:
+                j += 1
+                continue
+            break
+    return out
+
+
+def swift_fields(texts):
+    """The names of the stored properties a target's structs declare, for the rule that a body returning one is a
+    getter."""
+    names = set()
+    for text in texts:
+        toks = tokens(strip(text, "swift"))
+        stored, _ = _swift_struct_state(toks, _swift_scopes(toks))
+        names.update(p.name for props in stored.values() for p in props)
+    return names
+
+
+def _swift_told(result, owner):
+    """Whether a member's declared result is one the accessor rule lets through: nothing, a Bool, its own type or an
+    Outcome of it."""
+    plain = "".join(result or [])
+    return plain in ("", "Void", "()", "Bool", owner, "Self") or (
+        (result or [])[:1] == ["Outcome"] and _first_type_argument(result) in (owner, "Self") and "?" not in plain)
+
+
+def _swift_function(toks, i):
+    """For the func or subscript at i: (parameter names, result tokens, body token values or None)."""
+    n = len(toks)
+    j = i + 1 if toks[i].v == "subscript" else i + 2
+    if j < n and toks[j].v == "<":
+        j = _swift_close(toks, j, "<", ">") + 1
+    inputs = set()
+    if j < n and toks[j].v == "(":
+        end = _swift_close(toks, j, "(", ")")
+        chunk, depth = [], 0
+        for t in toks[j + 1:end] + [Token(",", 0, 0, 0, False)]:
+            depth += t.v in ("(", "[", "<")
+            depth -= t.v in (")", "]", ">")
+            if t.v == "," and depth == 0:
+                if ":" in chunk:
+                    inputs.add(chunk[chunk.index(":") - 1])
+                chunk = []
+            else:
+                chunk.append(t.v)
+        j = end + 1
+    result = []
+    while j < n and toks[j].v not in ("->", "{", "where") and not (toks[j].first and toks[j].v in _SWIFT_HEAD_KEYWORDS):
+        j = _swift_close(toks, j, "(", ")") + 1 if toks[j].v == "(" else j + 1
+    if j < n and toks[j].v == "->":
+        j += 1
+        begin, depth = j, 0
+        while j < n and not (depth == 0 and toks[j].v in ("{", "where")):
+            depth += toks[j].v in ("<", "[", "(")
+            depth -= toks[j].v in (">", "]", ")")
+            j += 1
+        result = [t.v for t in toks[begin:j]]
+    while j < n and toks[j].v != "{" and (toks[j].v == "where" or not toks[j].first):
+        j += 1  # a where clause
+    if j < n and toks[j].v == "{":
+        end = _swift_close(toks, j, "{", "}")
+        return inputs, result, _swift_getter([t.v for t in toks[j + 1:end]])
+    return inputs, result, None
+
+
+def _swift_getter(body):
+    """An accessor block's getter (`get { x }` becomes `x`); None when it has a setter or observers."""
+    if body[:1] in (["set"], ["didSet"], ["willSet"]) or (body[:1] == ["get"] and "set" in body):
+        return None
+    if body[:2] == ["get", "{"] and body[-1:] == ["}"]:
+        body = body[2:-1]
+    return body
+
+
+def _swift_hands_out(toks, i, scope, fields):
+    """For the public func, subscript or var at i: (its label, what its body returns) when the body only returns an
+    input's field, else None. An instance member is read only when it returns what swift-accessor lets through in the
+    symbol graph (nothing, a Bool, its type or an Outcome of it); `id`, `wire` and @_spi members are left to their own
+    rules."""
+    n = len(toks)
+    mods = _swift_modifiers(toks, i)
+    name = "subscript" if toks[i].v == "subscript" else toks[i + 1].v
+    member = scope.kind != "file" and not mods & {"static", "class"}
+    if toks[i].v == "var":
+        annotated, j, follows = _swift_binding(toks, i)
+        body = None
+        if follows == "{" and not (j + 1 < n and toks[j + 1].v in ("didSet", "willSet")):
+            body = _swift_getter([t.v for t in toks[j + 1:_swift_close(toks, j, "{", "}")]])
+        inputs, result = set(), annotated or []
+    else:
+        inputs, result, body = _swift_function(toks, i)
+    if name in ("id", "wire") or "@_spi" in mods or body is None or (member and not _swift_told(result, scope.name)):
+        return None
+    read = _field_read(("block", body), inputs, "self" if member else None, fields, implicit_return=True)
+    if read and (result != ["Bool"] or read[1] in fields):
+        return (f"{scope.name}.{name}" if scope.name else name), read[0]
+    return None
+
+
+def swift_source_findings(path, text, target, fields=None):
+    """Findings for one Swift source file of a Domain target or of the kit. fields: the names of the stored properties
+    the target's structs declare (swift_fields; by default this file's)."""
     stripped = strip(text, "swift")
     found = []
     add = lambda line, rule, what: found.append(Finding(path, line, rule, what))  # noqa: E731
@@ -1722,6 +2074,27 @@ def swift_source_findings(path, text, target):
     toks = tokens(stripped)
     scopes = _swift_scopes(toks)
     n = len(toks)
+    stored, _ = _swift_struct_state(toks, scopes)
+    if fields is None:
+        fields = {p.name for props in stored.values() for p in props}
+    # From the inside out: beside other fields, no field is a primitive (the one wrapped field of a single-field value
+    # object is the exception), whatever its access.
+    for key, props in stored.items():
+        if len(props) < 2:
+            continue
+        for prop in props:
+            label = ".".join([name for _, name in key if name] + [prop.name])
+            if prop.type is None:
+                add(prop.line, "swift-primitive-field", f"{label} has no declared type, one of {len(props)} fields")
+            elif set(prop.type) & SWIFT_PRIMITIVES:
+                add(prop.line, "swift-primitive-field", f"{label} is {''.join(prop.type)}, one of {len(props)} fields")
+    for owner, case, line, values in _swift_case_values(toks, scopes):
+        if len(values) < 2:
+            continue
+        for label, typed in values:
+            if set(typed) & SWIFT_PRIMITIVES:
+                add(line, "swift-primitive-field", f"{owner}.{case}'s value {label or '_'} is {''.join(typed)}, one "
+                                                   f"of {len(values)} values")
     for i, tok in enumerate(toks):
         stack = scopes[i]
         scope = stack[-1]
@@ -1742,6 +2115,14 @@ def swift_source_findings(path, text, target):
             add(tok.line, "swift-state", f"uses {value}")
         if in_code:
             continue
+        # Tell, don't ask: whatever it returns and wherever it is declared, a body that only returns an input's field
+        # is a getter; an instance member that returns another type is swift-accessor's in the symbol graph already.
+        if value in ("func", "subscript", "var") and scope.kind != "protocol" and scope.exposed \
+                and _swift_public(_swift_modifiers(toks, i), scope) \
+                and (value == "subscript" or (i + 1 < n and _ident(toks[i + 1].v))):
+            handed = _swift_hands_out(toks, i, scope, fields)
+            if handed:
+                add(tok.line, "swift-accessor", f"{handed[0]} hands state out, returning {handed[1]}")
         if value == "@" and after == "_spi" and i + 4 < n and toks[i + 2].v == "(":
             group, keyword, name = _swift_spi_target(toks, i)
             label = f"{scope.name}.{name}" if scope.name else name
@@ -1820,21 +2201,14 @@ def _kit_exception(rule, target, path):
 
 
 def swift_closed_sets(texts):
-    """The structs that are closed sets: each holds a stored `let` of a private enum it declares."""
+    """The structs that are closed sets: the only stored property of each is a value of a private enum it declares."""
     closed = set()
     for text in texts:
         toks = tokens(strip(text, "swift"))
-        scopes = _swift_scopes(toks)
-        enums, lets = set(), set()
-        for i, tok in enumerate(toks):
-            scope = scopes[i][-1]
-            if scope.kind != "struct" or i + 3 >= len(toks):
-                continue
-            if tok.v == "enum" and _ident(toks[i + 1].v) and _swift_modifiers(toks, i) & {"private", "fileprivate"}:
-                enums.add((scope.name, toks[i + 1].v))
-            elif tok.v == "let" and toks[i + 2].v == ":" and _ident(toks[i + 3].v):
-                lets.add((scope.name, toks[i + 3].v))
-        closed.update(owner for owner, _ in enums & lets)
+        stored, enums = _swift_struct_state(toks, _swift_scopes(toks))
+        for key, props in stored.items():
+            if len(props) == 1 and props[0].type and _type_root(props[0].type) in enums.get(key, ()):
+                closed.add(key[-1][1])
     return closed
 
 
@@ -2023,10 +2397,25 @@ def swift_graph_findings(target, graphs, closed=frozenset()):
         plain = _fragments(returns).strip()
         builds_own = plain in (owner, "Self") or (
             result[:1] == ["Outcome"] and result[1:2] in ([owner], ["Self"]) and not plain.endswith("?"))
-        if kind == "swift.type.method" and builds_own and base not in FACTORY_NAMES | {"evolve", "apply"} and (
+        # A factory builds its type, optional or not: the name rule reads `Item?` as building an Item.
+        builds = builds_own or plain.rstrip("?!") in (owner, "Self") or (
+            result[:1] == ["Outcome"] and result[1:2] in ([owner], ["Self"]))
+        stage = len(result) == 1 and plain == result[0] and result[0] in declared and result[0].endswith(
+            ("Step", "Builder"))
+        if kind == "swift.type.method" and builds and base not in FACTORY_NAMES | {"evolve", "apply"} and (
                 owner not in closed or BANNED_FACTORY.match(base)):
             add("swift-factory", f"{label} builds a {owner} under a name other than parse, new, restore, newBuilder or "
                                  "restoreBuilder")
+        if kind == "swift.type.method" and builds and ("?" in plain or plain.endswith("!")):
+            add("swift-factory", f"{label} returns {plain}, which may be nil")
+        if kind == "swift.type.method" and base == "restore" and not (
+                result[:1] == ["Outcome"] and result[1:2] in ([owner], ["Self"])):
+            add("swift-factory", f"{label} returns {plain or 'Void'}, not an Outcome of {owner}")
+        elif kind == "swift.type.method" and base in ("parse", "new") and not builds and not (
+                base == "new" and (owner or "").endswith("Builder") and stage):
+            add("swift-factory", f"{label} returns {plain or 'Void'}, not a {owner} or an Outcome of it")
+        elif kind == "swift.type.method" and base in ("newBuilder", "restoreBuilder") and not stage:
+            add("swift-factory", f"{label} returns {plain or 'Void'}, not the first …Step or …Builder of {owner}")
         parse = kind == "swift.type.method" and base == "parse"
         loose = [p.get("name", "_") for p, kinds in zip(params, param_types) if set(kinds) & SWIFT_PRIMITIVES]
         if loose and not parse:
@@ -2140,12 +2529,13 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
         files = list(_walk(root / target.sources, (".swift",))) if (root / target.sources).is_dir() else []
         if not files:
             findings.append(Finding(target.sources, 0, "swift-discovery", f"{target.name} has no Swift sources here"))
-        for file in files:
-            text = _read(file)
+        texts = {_rel(root, file): _read(file) for file in files}
+        fields = swift_fields(texts.values())
+        for rel, text in texts.items():
             core_texts.append(text)
             target_texts.setdefault(target.name, []).append(text)
             inspected += 1
-            findings.extend(swift_source_findings(_rel(root, file), text, target))
+            findings.extend(swift_source_findings(rel, text, target, fields))
     visitors = swift_visitors(core_texts)
     functions = swift_public_functions(core_texts)
     core_dirs = {t.sources for t in cores}
@@ -2197,9 +2587,9 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
 
 _KT_DOMAIN_PACKAGE = re.compile(rb"(?m)^\s*package\s+persona\.core\.([a-z0-9_]+)\.(domain|adapt)\b")
 _KT_DOMAIN_IMPORT = re.compile(rb"(?m)^\s*import\s+persona\.core\.(?:([a-z0-9_]+)\.domain|(domainkit))\b")
-_SWIFT_DOMAIN_IMPORT = re.compile(rb"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t]+)*(?:(?:public|package|internal|fileprivate|"
-                                  rb"private)[ \t]+)?import[ \t]+(?:(?:typealias|struct|class|enum|protocol|let|var|"
-                                  rb"func)[ \t]+)?(PersonaDomainKit\w*|\w*Domain|\w*Adapt)\b")
+_SWIFT_DOMAIN_IMPORT = re.compile(rb"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t]+)*(?:(?:public|package|internal|"
+                                  rb"fileprivate|private)[ \t]+)?import[ \t]+(?:(?:typealias|struct|class|enum|"
+                                  rb"protocol|let|var|func)[ \t]+)?(PersonaDomainKit\w*|\w*Domain|\w*Adapt)\b")
 _KT_KIT_PACKAGE = re.compile(rb"(?m)^\s*package\s+persona\.core\.domainkit\b")
 
 
@@ -2298,12 +2688,13 @@ def scan_android(root, build_logic=True):
                 if place != "kit-adapt":
                     texts[rel] = _read(file)
             declared = kotlin_declared(texts.values())
+            fields = kotlin_fields(texts.values())
             ctx = module.ctx if module.kind == "domain" else None
             for rel, text in texts.items():
                 core_texts.append(text)
                 seen.add(rel)
                 inspected += 1
-                findings.extend(kotlin_source_findings(rel, text, module.kind, ctx, declared))
+                findings.extend(kotlin_source_findings(rel, text, module.kind, ctx, declared, fields))
     visitors = kotlin_visitors(core_texts)
     functions = kotlin_public_functions(core_texts)
     android = root / "android"

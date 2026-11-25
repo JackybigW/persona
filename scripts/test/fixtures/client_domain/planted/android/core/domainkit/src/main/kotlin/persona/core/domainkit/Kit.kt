@@ -58,12 +58,15 @@ public class Outcome<out T, out F : Fail> private constructor(private val outcom
     }
 }
 
-/** A point in time, in UTC nanoseconds. */
-@JvmInline
-public value class Instant private constructor(private val instant: Long) {
+/** A point in time, in UTC nanoseconds. A class, not a value class, so its toString prints no nanoseconds. */
+public class Instant private constructor(private val instant: Long) {
     public fun isBefore(other: Instant): Boolean = instant < other.instant
 
     @DomainBoundary public fun wire(): Long = instant
+
+    override fun equals(other: Any?): Boolean = other is Instant && other.instant == instant
+
+    override fun hashCode(): Int = instant.hashCode()
 
     public companion object {
         public fun parse(epochNanos: Long): Instant = Instant(epochNanos)

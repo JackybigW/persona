@@ -78,3 +78,39 @@ public object Registry {
 }
 
 private val cache = mutableMapOf<Instant, Broken>()
+
+/** Primitives beside other fields, a getter one step out, and factories that return null or another type. */
+public class Entry private constructor(
+    private val title: String,
+    private val count: Int,
+    internal val wakes: Instant,
+) {
+    private val total: Int = count
+
+    public companion object {
+        public fun wakesOf(entry: Entry): Instant = entry.wakes
+
+        public fun from(wakes: Instant): Entry? = null
+
+        public fun parse(raw: Long): Instant = Instant.parse(raw)
+
+        public fun restore(wakes: Instant): Entry = Entry("", 0, wakes)
+    }
+}
+
+public fun wakesAt(entry: Entry): Instant = entry.wakes
+
+/** A value class: its toString prints the code. */
+@JvmInline
+public value class Code private constructor(private val code: Long)
+
+/** A state beside another field: not a closed set, so it names no factory for a case. */
+public class Phase private constructor(private val phase: Case) {
+    private enum class Case { OPEN, DONE }
+
+    private val since: Instant = Instant.parse(0)
+
+    public companion object {
+        public fun draft(): Phase = Phase(Case.OPEN)
+    }
+}

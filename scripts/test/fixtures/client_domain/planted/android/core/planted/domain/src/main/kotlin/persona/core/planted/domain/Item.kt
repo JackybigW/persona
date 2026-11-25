@@ -9,10 +9,16 @@ import persona.core.domainkit.Instant
 import persona.core.domainkit.Now
 import persona.core.domainkit.Outcome
 
-/** An item's identity. Raw input becomes one only through parse; the adapter alone reads it back (wire). */
-@JvmInline
-public value class ItemId private constructor(private val item: String) {
+/**
+ * An item's identity. Raw input becomes one only through parse; the adapter alone reads it back (wire). A class, not a
+ * value class, so its toString prints no id.
+ */
+public class ItemId private constructor(private val item: String) {
     @DomainBoundary public fun wire(): String = item
+
+    override fun equals(other: Any?): Boolean = other is ItemId && other.item == item
+
+    override fun hashCode(): Int = item.hashCode()
 
     public companion object {
         public fun parse(raw: String): Outcome<ItemId, PlantedFail> =
@@ -88,3 +94,33 @@ public class Item private constructor(
         public fun new(id: ItemId, urgency: Urgency, arrived: Instant): Item = Item(id, urgency, arrived)
     }
 }
+
+/**
+ * When an item comes back to the owner: at an instant, or never. A closed set whose case with data has a factory named
+ * for the case.
+ */
+public class Wake private constructor(private val wake: Case) {
+    internal sealed interface Case {
+        class At(val instant: Instant) : Case
+        object Never : Case
+    }
+
+    public fun reached(now: Now): Boolean =
+        when (val case = wake) {
+            is Case.At -> now.reached(case.instant)
+            Case.Never -> false
+        }
+
+    public companion object {
+        public val never: Wake = Wake(Case.Never)
+
+        public fun at(instant: Instant): Wake = Wake(Case.At(instant))
+    }
+}
+
+/**
+ * When a snoozed item comes back to the owner: not again if it already needs them, else when the snooze ends. A domain
+ * service: it asks the item, and never reads its fields.
+ */
+public fun nextWake(item: Item, until: Instant, now: Now): Wake =
+    if (item.needsOwner(now)) Wake.never else Wake.at(until)

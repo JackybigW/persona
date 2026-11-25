@@ -75,3 +75,39 @@ public protocol ProbeStore {
 public protocol ProbeVisitor {
     mutating func read(_ probe: Probe)
 }
+
+/// Primitives beside other fields, a getter one step out, and factories that return nil or another type.
+public struct Entry: Sendable {
+    private let title: String, count: Int
+    fileprivate let wakes: Instant
+
+    private init(title: String, count: Int, wakes: Instant) {
+        self.title = title
+        self.count = count
+        self.wakes = wakes
+    }
+
+    public static func wakes(of entry: Entry) -> Instant { entry.wakes }
+
+    public static func from(_ wakes: Instant) -> Entry? { nil }
+
+    public static func parse(_ raw: Int64) -> Instant { .parse(nanosecondsSinceEpoch: raw) }
+
+    public static func restore(_ wakes: Instant) -> Entry { Entry(title: "", count: 0, wakes: wakes) }
+}
+
+public func wakesAt(_ entry: Entry) -> Instant { entry.wakes }
+
+/// A state beside another field: not a closed set, so it names no factory for a case.
+public struct Phase: Sendable {
+    private enum Case: Sendable { case open, done(at: Instant, by: String) }
+    private let phase: Case
+    private let since: Instant
+
+    private init(phase: Case, since: Instant) {
+        self.phase = phase
+        self.since = since
+    }
+
+    public static func draft(_ since: Instant) -> Phase { Phase(phase: .open, since: since) }
+}

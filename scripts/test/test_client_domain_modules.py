@@ -16,8 +16,8 @@ The rules are client_domain_rules.py's; this runs them.
   findings (expected.txt), and that the compliant twins there, the "Domain model" examples included, have none.
 
 With no domain module in the repository the scan classes print "no domain modules yet" and pass, after checking that
-nothing named like one went unfound or misnamed. CI's Scripts tests job runs the whole file before merge; Swift's symbol-graph
-rules run after merge, in the Apple lane.
+nothing named like one went unfound or misnamed. CI's Scripts tests job runs the whole file before merge; Swift's
+symbol-graph rules run after merge, in the Apple lane.
 
     python3 -B scripts/test/test_client_domain_modules.py [AppleDomain|AndroidDomain|RuleTests]
     python3 -B scripts/test/test_client_domain_modules.py --swift-packages   # what apple.sh builds, one per line
@@ -207,6 +207,20 @@ class RuleTests(unittest.TestCase):
                 "android/core/domainkit/src/main/kotlin/persona/core/domainkit/Kit.kt",
                 "public fun <T> ok(value: T): Outcome<T, Nothing> = Outcome(Case.Ok(value))"),
             "a predicate with parameters": (swift, "public func needsOwner(at now: Now) -> Bool"),
+            "a closed set's case factory (Kotlin, in a domain module)": (
+                kotlin, "public fun at(instant: Instant): Wake = Wake(Case.At(instant))"),
+            "a domain service taking the value (Swift)": (
+                swift, "public func nextWake(of item: Item, snoozedUntil until: Instant, at now: Now) -> Wake {"),
+            "a domain service taking the value (Kotlin)": (
+                kotlin, "public fun nextWake(item: Item, until: Instant, now: Now): Wake ="),
+            "a single-field value object over a primitive (Swift)": (swift, "    private let item: String\n"),
+            "a single-field value object over a primitive (Kotlin)": (
+                kotlin, "public class ItemId private constructor(private val item: String) {"),
+            "a plain class with equals and hashCode, not a value class": (
+                kotlin, "override fun equals(other: Any?): Boolean = other is ItemId && other.item == item"),
+            "the core settings without runtime reflection metadata": (
+                "apple/Packages/PersonaPlanted/Package.swift",
+                '"-Xfrontend", "-reflection-metadata-for-debugger-only",'),
         }
         for case, (path, snippet) in twins.items():
             self.assertTrue(path.startswith(COMPLIANT), case)
@@ -387,6 +401,55 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(["swift-accessor ItemUrgencyStep.label(_:) hands out Urgency",
                           "swift-accessor Other.build() hands out Outcome"],
                          sorted(f"{f.rule} {f.what}" for f in found))
+
+    def test_fields_factories_and_getters_by_shape(self):
+        """The rules of a value's fields, its factories' results and the getter one step out, on inline inputs: what
+        each lets through and what it refuses."""
+        kotlin = (
+            "package persona.core.planted.domain\n"
+            "public class Flag private constructor(private val flag: Case, private val since: Instant) {\n"
+            "    private enum class Case { ON, OFF }\n"
+            "    public val isOn: Boolean get() = flag == Case.ON\n"
+            "    private val raised get() = since\n"  # a getter on the name's line: computed, not a field
+            "    private val previous: Flag = this\n"
+            "    public fun again(): Flag = this\n"
+            "    public fun undone(): Flag = previous\n"
+            "    public companion object { public fun on(since: Instant): Flag = Flag(Case.ON, since) }\n"
+            "}\n"
+            "public class Lit private constructor(private val lit: Boolean) {\n"
+            "    public val isLit: Boolean get() = lit\n"
+            "    public companion object { public fun lit(of: Lit): Boolean = of.lit }\n"
+            "}\n"
+            "public fun asks(flag: Flag): Boolean = flag.isOn\n"
+            "public class ItemBuilder private constructor(private val id: ItemId) {\n"
+            "    public companion object { public fun new(id: ItemId): ItemIdStep = ItemIdStep.new(id) }\n"
+            "}\n")
+        found = rules.kotlin_source_findings("Flag.kt", kotlin, "domain", "planted", {
+            "Flag", "Case", "Lit", "ItemBuilder", "ItemIdStep", "ItemId", "Instant"})
+        self.assertEqual(["kotlin-accessor 12 Lit.isLit hands state out, returning lit",
+                          "kotlin-accessor 13 Lit.lit() hands state out, returning of.lit",
+                          "kotlin-accessor 8 Flag.undone() hands state out, returning previous",
+                          "kotlin-factory 9 Flag.on() builds a Flag under a name other than parse, new, restore, "
+                          "newBuilder or restoreBuilder"],
+                         sorted(f"{f.rule} {f.line} {f.what}" for f in found))
+        swift = (
+            "public struct Flag {\n"
+            "    private enum Case { case on, off\n"
+            "        var isOn: Bool { self == .on } }\n"
+            "    private let flag: Case\n"
+            "    public var isOn: Bool { flag.isOn }\n"
+            "    public static func asks(_ f: Flag) -> Bool { f.isOn }\n"
+            "    public func again() -> Flag { self }\n"
+            "}\n"
+            "public struct Entry {\n"
+            "    private let count: Count, label: Label\n"
+            "    public static func label(of entry: Entry) -> Label { entry.label }\n"
+            "}\n")
+        target = rules.SwiftTarget("apple/Packages/PersonaPlanted", "PersonaPlantedDomain", "domain", "", "", 0, [], "")
+        found = rules.swift_source_findings("Flag.swift", swift, target)
+        self.assertEqual(["swift-accessor 11 Entry.label hands state out, returning entry.label"],
+                         [f"{f.rule} {f.line} {f.what}" for f in found])
+        self.assertEqual({"Flag"}, rules.swift_closed_sets([swift]))
 
     def test_planted_graphs_match_the_planted_sources(self):
         """A planted Swift edit without --planted-graphs leaves graphs that point at other lines."""

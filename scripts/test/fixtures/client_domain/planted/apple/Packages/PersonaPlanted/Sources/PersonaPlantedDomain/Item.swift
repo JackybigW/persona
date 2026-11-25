@@ -97,3 +97,9 @@ public struct Wake: Sendable {
         }
     }
 }
+
+/// When a snoozed item comes back to the owner: not again if it already needs them, else when the snooze ends. A
+/// domain service: it asks the item, and never reads its fields.
+public func nextWake(of item: Item, snoozedUntil until: Instant, at now: Now) -> Wake {
+    item.needsOwner(at: now) ? .never : .at(until)
+}
