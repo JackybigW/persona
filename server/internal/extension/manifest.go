@@ -73,11 +73,12 @@ type Manifest struct {
 	// Upgrade is what the extension asks of the hub around an automatic upgrade: a backup it may not go without, a
 	// prepare call to the old program, a health check of the new one (docs/extensions/extensions.md "Backup before an
 	// upgrade"). Hubs before it refuse the manifest (strict).
-	Upgrade *UpgradeSpec `json:"upgrade,omitempty"`
+	Upgrade *upgradeSpec `json:"upgrade,omitempty"`
 }
 
-// UpgradeSpec is a manifest's upgrade object.
-type UpgradeSpec struct {
+// upgradeSpec is a manifest's upgrade object; it is read through BackupRequired, UpgradePrepare and
+// UpgradeHealthCheck.
+type upgradeSpec struct {
 	// Backup is BackupAuto (the default: the hub snapshots the data and upgrades even when the snapshot fails) or
 	// BackupRequired (no snapshot, no upgrade).
 	Backup string `json:"backup,omitempty"`
@@ -88,7 +89,7 @@ type UpgradeSpec struct {
 	HealthCheck bool `json:"health_check,omitempty"`
 }
 
-// Backup choices of UpgradeSpec.
+// Backup choices of a manifest's upgrade.backup.
 const (
 	BackupAuto     = "auto"
 	BackupRequired = "required"

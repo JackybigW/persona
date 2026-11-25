@@ -27,7 +27,7 @@ const (
 // new version stays.
 type pendingBackup struct {
 	from, to string
-	backup   extension.DataBackup
+	backup   string // the archive, "" when there was no data directory
 }
 
 // pendingBackups are the snapshots held for a rollback, by storage key.
@@ -92,7 +92,7 @@ func (ps *extensions) backupBeforeUpgrade(ctx context.Context, p *extension.Exte
 	if hp != nil && hp.proc != nil {
 		hp.proc.Stop() // nothing writes its data while it is copied
 	}
-	b, err := ps.reg.BackupData(id, from)
+	path, files, err := ps.reg.BackupData(id, from)
 	if err != nil {
 		if p.Manifest.BackupRequired() || next.BackupRequired() {
 			ps.logf("plugin %s: backing up its data before %s: %v (not upgraded: it requires a backup)", id, to, err)
@@ -102,10 +102,10 @@ func (ps *extensions) backupBeforeUpgrade(ctx context.Context, p *extension.Exte
 		ps.logf("plugin %s: backing up its data before %s: %v (upgraded without a backup)", id, to, err)
 		return nil
 	}
-	if b.Path != "" {
-		ps.logf("plugin %s: its data (%d files) backed up to %s before upgrading to %s", id, b.Files, b.Path, to)
+	if path != "" {
+		ps.logf("plugin %s: its data (%d files) backed up to %s before upgrading to %s", id, files, path, to)
 	}
-	ps.upgradeBackups.hold(key, pendingBackup{from: from, to: to, backup: b})
+	ps.upgradeBackups.hold(key, pendingBackup{from: from, to: to, backup: path})
 	return nil
 }
 

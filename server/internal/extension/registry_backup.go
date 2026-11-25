@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 )
 
 // Snapshots of an extension's data directory taken before the hub upgrades it by itself (docs/extensions/extensions.md
@@ -22,14 +21,6 @@ import (
 const BackupsKept = 3
 
 const backupSuffix = ".tar.gz"
-
-// DataBackup is one snapshot of an extension's data directory.
-type DataBackup struct {
-	Path    string    // the archive; "" when there was no data directory to keep
-	Version string    // the version whose data it is
-	At      time.Time // when it was taken
-	Files   int       // regular files in it
-}
 
 // StorageKeyOf is the stable key of extension id's directories and rows (its id when it is not installed).
 func (r *Registry) StorageKeyOf(id string) string { return r.storageKey(id) }
@@ -54,42 +45,41 @@ func (r *Registry) Backups(id string) []string {
 	return out
 }
 
-// BackupData snapshots id's data directory (it is the data of version) and keeps the newest BackupsKept. Without a
-// data directory there is nothing to keep: the answer has no Path and no error. Nothing is left behind when it fails.
-func (r *Registry) BackupData(id, version string) (DataBackup, error) {
-	now := r.now().UTC()
-	b := DataBackup{Version: version, At: now}
+// BackupData snapshots id's data directory (it is the data of version), keeps the newest BackupsKept and says where
+// the archive is and how many regular files it holds. Without a data directory there is nothing to keep: the path is
+// "" and there is no error. Nothing is left behind when it fails.
+func (r *Registry) BackupData(id, version string) (path string, files int, err error) {
 	src := r.DataDir(id)
 	if info, err := os.Lstat(src); errors.Is(err, fs.ErrNotExist) {
-		return b, nil
+		return "", 0, nil
 	} else if err != nil {
-		return b, err
+		return "", 0, err
 	} else if !info.IsDir() {
-		return b, fmt.Errorf("%s is not a directory", src)
+		return "", 0, fmt.Errorf("%s is not a directory", src)
 	}
 	dir := r.BackupDir(id)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return b, err
+		return "", 0, err
 	}
-	name := now.Format("20060102T150405.000000000Z") + "-" + safeVersion(version) + backupSuffix
+	name := r.now().UTC().Format("20060102T150405.000000000Z") + "-" + safeVersion(version) + backupSuffix
 	tmp, err := os.CreateTemp(dir, ".partial-*")
 	if err != nil {
-		return b, err
+		return "", 0, err
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }() // gone once renamed
-	files, err := writeTarGz(tmp, src)
+	files, err = writeTarGz(tmp, src)
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
-		return b, err
+		return "", 0, err
 	}
-	b.Path, b.Files = filepath.Join(dir, name), files
-	if err := os.Rename(tmp.Name(), b.Path); err != nil {
-		return DataBackup{}, err
+	path = filepath.Join(dir, name)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return "", 0, err
 	}
 	r.pruneBackups(id)
-	return b, nil
+	return path, files, nil
 }
 
 // pruneBackups deletes all but the newest BackupsKept snapshots of id's data.
@@ -100,27 +90,27 @@ func (r *Registry) pruneBackups(id string) {
 	}
 }
 
-// RestoreData puts id's data directory back as backup has it. The directory is replaced whole: what the newer version
-// wrote goes. The program of id must not be running. A backup without a Path (there was no data directory) removes
-// the directory the newer version made.
-func (r *Registry) RestoreData(id string, backup DataBackup) error {
+// RestoreData puts id's data directory back as the archive at backup (one of BackupData's) has it. The directory is
+// replaced whole: what the newer version wrote goes. The program of id must not be running. An empty backup (there
+// was no data directory) removes the directory the newer version made.
+func (r *Registry) RestoreData(id, backup string) error {
 	dst := r.DataDir(id)
 	parent := filepath.Dir(dst)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return err
 	}
-	if backup.Path == "" {
+	if backup == "" {
 		return os.RemoveAll(dst)
 	}
-	if filepath.Dir(backup.Path) != r.BackupDir(id) {
-		return fmt.Errorf("backup %s is not one of %s", backup.Path, id)
+	if filepath.Dir(backup) != r.BackupDir(id) {
+		return fmt.Errorf("backup %s is not one of %s", backup, id)
 	}
 	staged, err := os.MkdirTemp(parent, ".restore-"+filepath.Base(dst)+"-")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(staged) }()
-	if err := readTarGz(backup.Path, staged); err != nil {
+	if err := readTarGz(backup, staged); err != nil {
 		return err
 	}
 	aside := staged + ".old"

@@ -19,8 +19,8 @@ func TestBackupDataKeepsThreeAndRestores(t *testing.T) {
 	data := r.DataDir("example")
 
 	// No data directory: nothing to keep, no error, no file.
-	if b, err := r.BackupData("example", "1.0.0"); err != nil || b.Path != "" {
-		t.Fatalf("without data: %+v %v", b, err)
+	if path, _, err := r.BackupData("example", "1.0.0"); err != nil || path != "" {
+		t.Fatalf("without data: %q %v", path, err)
 	}
 	if got := r.Backups("example"); len(got) != 0 {
 		t.Fatalf("backups without data: %v", got)
@@ -32,27 +32,27 @@ func TestBackupDataKeepsThreeAndRestores(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "db", "memory.sqlite"), []byte("v1 rows"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "state.json"), []byte(`{"schema":1}`), 0o600)
 	_ = os.Symlink("db/memory.sqlite", filepath.Join(data, "current"))
-	first, err := r.BackupData("example", "1.0.0")
-	if err != nil || first.Path == "" || first.Files != 2 || first.Version != "1.0.0" {
-		t.Fatalf("first backup: %+v %v", first, err)
+	first, files, err := r.BackupData("example", "1.0.0")
+	if err != nil || first == "" || files != 2 {
+		t.Fatalf("first backup: %q %d %v", first, files, err)
 	}
-	if filepath.Dir(first.Path) != r.BackupDir("example") || !strings.HasSuffix(first.Path, "-1.0.0.tar.gz") {
-		t.Fatalf("where: %s", first.Path)
+	if filepath.Dir(first) != r.BackupDir("example") || !strings.HasSuffix(first, "-1.0.0.tar.gz") {
+		t.Fatalf("where: %s", first)
 	}
 
 	// Four more: only the newest three are kept, the first one among those gone.
-	var last DataBackup
+	var last string
 	for i := range 4 {
 		_ = os.WriteFile(filepath.Join(data, "state.json"), []byte(`{"schema":`+string(rune('2'+i))+`}`), 0o600)
-		if last, err = r.BackupData("example", "1.0.0"); err != nil {
+		if last, _, err = r.BackupData("example", "1.0.0"); err != nil {
 			t.Fatal(err)
 		}
 	}
 	kept := r.Backups("example")
-	if len(kept) != BackupsKept || kept[0] != last.Path {
-		t.Fatalf("kept: %v (newest %s)", kept, last.Path)
+	if len(kept) != BackupsKept || kept[0] != last {
+		t.Fatalf("kept: %v (newest %s)", kept, last)
 	}
-	if _, err := os.Stat(first.Path); !os.IsNotExist(err) {
+	if _, err := os.Stat(first); !os.IsNotExist(err) {
 		t.Fatalf("the oldest is still there: %v", err)
 	}
 	entries, _ := os.ReadDir(r.BackupDir("example"))
@@ -87,7 +87,7 @@ func TestBackupDataKeepsThreeAndRestores(t *testing.T) {
 	}
 
 	// A snapshot taken without a data directory removes the one the newer version made.
-	if err := r.RestoreData("example", DataBackup{Version: "1.0.0"}); err != nil {
+	if err := r.RestoreData("example", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(data); !os.IsNotExist(err) {
@@ -115,13 +115,13 @@ func TestRestoreDataRefusesForeignArchives(t *testing.T) {
 	_ = tw.Close()
 	_ = gz.Close()
 	_ = f.Close()
-	if err := r.RestoreData("example", DataBackup{Path: bad}); err == nil {
+	if err := r.RestoreData("example", bad); err == nil {
 		t.Fatal("an entry leaving the directory was restored")
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(data), "escaped")); !os.IsNotExist(err) {
 		t.Fatalf("written outside: %v", err)
 	}
-	if err := r.RestoreData("example", DataBackup{Path: filepath.Join(t.TempDir(), "other.tar.gz")}); err == nil {
+	if err := r.RestoreData("example", filepath.Join(t.TempDir(), "other.tar.gz")); err == nil {
 		t.Fatal("an archive from elsewhere was restored")
 	}
 	if b, _ := os.ReadFile(filepath.Join(data, "keep")); string(b) != "as is" {
