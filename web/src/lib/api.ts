@@ -112,9 +112,9 @@ export function handleUnauthorized(fn: () => void): () => void {
 
 /**
  * Who this page is to the hub: the platform and version its socket's client_hello names, and every request's
- * X-Persona-Client; X-Persona-Client-Instance names this tab and matches client_hello.instance, so a capability such as
- * approval_mirrors cannot be borrowed from another tab. The hub answers a request with what this page's socket declared
- * request whose platform and version match a connection that declared them, docs/protocol/protocol.md "MCP elicitation").
+ * X-Persona-Client and X-Persona-Features. X-Persona-Client-Instance names this tab and matches client_hello.instance,
+ * so approval_mirrors cannot be borrowed from another tab. MCP forms and links are answered only to a request whose
+ * platform and version match a connection that declared them (docs/protocol/protocol.md "MCP elicitation").
  */
 export const CLIENT_PLATFORM = "web";
 export const CLIENT_VERSION = "1";
@@ -131,7 +131,7 @@ export const CLIENT_VERSION = "1";
  */
 export const CLIENT_PONG_TIMEOUT = 45;
 // Keep the socket replay features at 4–6 so the store can reuse them without repeating their strings.
-export const CLIENT_FEATURES = ["elicitation", "extension_operations", "extension_auth", "managers", "extension_ui_stream_v1", "persona_contracts_v1", "approval_mirrors", "persona_card_ring", "closeout.markdown.v1", "agent_message_hold"];
+export const CLIENT_FEATURES = ["elicitation", "extension_operations", "extension_auth", "managers", "extension_ui_stream_v1", "persona_contracts_v1", "approval_mirrors", "persona_card_ring", "closeout.markdown.v1", "agent_message_hold", "tool_views"];
 
 // A read the hub has not answered by then fails instead of loading forever (#4492): a restarting hub, a stuck node or a
 // half-dead network. Longer than the hub's own cut-offs for asking a computer (30–40 s), so when the hub has an error
@@ -223,6 +223,7 @@ async function request<T>(path: string, init: ApiOptions, binary = false): Promi
   if (!headers.has("Accept-Language")) headers.set("Accept-Language", currentLanguage());
   CLIENT_HEADERS.forEach(name => headers.set(name, `${CLIENT_PLATFORM}/${CLIENT_VERSION}`));
   headers.set(CLIENT_HEADERS[0] + "-Instance", clientInstance);
+  if (!headers.has("X-Persona-Features")) headers.set("X-Persona-Features", CLIENT_FEATURES.join(","));
   const op = OP_HEADERS.map(name => headers.get(name)).find(Boolean);
   if (op) OP_HEADERS.forEach(name => headers.set(name, op));
   // the manager the assistant page shows, on the assistant's requests (lib/manager-choice.ts); none for the default

@@ -90,6 +90,10 @@ nonisolated enum ServerEvent: Sendable {
     case directions
     /// Intake changed; values and notes are read through the health route, never broadcast.
     case healthIntake
+    /// The kept Dashboards pages changed (#15017): one kept, pinned, unpinned, renamed, removed or restored, or the switch
+    /// turned. No payload: the places (`GET /api/v1/extensions/-/ui`) are read again. A page's content comes as
+    /// `extension_ui` with extension `-pages`.
+    case assistantPages
     case assistantFeed(FeedItem)
     case assistantView(ExtensionAssistantView)
     case assistantViewAction(conversation: String, action: ExtensionViewAction)
@@ -326,6 +330,7 @@ nonisolated enum ServerEvent: Sendable {
         case "directions": return .directions
         // The app refreshes the home totals and any open reserved intake page for this hub.
         case "health_intake": return .healthIntake
+        case "assistant_pages": return .assistantPages
         case "assistant_feed": return e.item.map { .assistantFeed($0) }
         case "assistant_view":
             guard let view = e.view, !view.id.isEmpty, view.version > 0,
@@ -399,7 +404,7 @@ nonisolated extension ServerEvent {
             return .sessionsDelta(machineID: machine, upsert: upsert.map { var s = $0; s.group = group; return s }, remove: remove)
         case .sendReceipt(let receipt): var receipt = receipt; receipt.key.group = group; return .sendReceipt(receipt)
         case .sessionsList, .hello, .interactionResolved, .interactionResolvedOccurrence, .interactionReanswered, .toolCall, .revs, .lark, .messaging, .agents, .inbox, .fleet, .hubUpdate, .desktops, .todos,
-             .personas, .look, .managers, .directions, .healthIntake, .assistantFeed, .assistantView, .assistantViewAction, .assistantViewBlock, .taskPlan, .pluginBadge,
+             .personas, .look, .managers, .directions, .healthIntake, .assistantPages, .assistantFeed, .assistantView, .assistantViewAction, .assistantViewBlock, .taskPlan, .pluginBadge,
              .extensionInvalidate, .fsChanged, .extensionOperation, .extensionAuth, .meetingLive, .urgentCall, .savedPrompts, .starredMessages: return self
         }
     }
@@ -1045,10 +1050,14 @@ final class LiveConnection {
     /// `persona_card_ring` (```persona-card rings, `PersonaCard.swift`) from the apps that build the chat (iOS, Mac,
     /// visionOS), not the watch or the extensions: a client without it gets each ring as a stacked bar (the hub's
     /// card_compat.go), which every build before the ring draws.
+    /// `tool_views` (out-of-band declarative UI views on tool results, e.g. UI version 12 maps) from the iOS app alone
+    /// in this release; watch, widgets, extensions and un-updated apps omit it so hubs filter those fields out.
     nonisolated static func helloFeatures(_ client: RequestClientMetadata) -> [String] {
         let iOSApp = RequestClientMetadata.Platform.iOS.rawValue + "-" + RequestClientMetadata.Surface.app.rawValue
         let chatApps = [RequestClientMetadata.Platform.iOS, .macOS, .visionOS].map { $0.rawValue + "-" + RequestClientMetadata.Surface.app.rawValue }
-        return [HubNaming.feature] + (client.platform == iOSApp ? ["elicitation", UndeliveredMessage.agentHoldFeature, SendReceipt.todoFeature] : []) + (chatApps.contains(client.platform) ? [cardRingFeature, "closeout.markdown.v1", approvalMirrorsFeature] : [])
+        return [HubNaming.feature]
+            + (client.platform == iOSApp ? ["elicitation", UndeliveredMessage.agentHoldFeature, SendReceipt.todoFeature, toolViewsFeature] : [])
+            + (chatApps.contains(client.platform) ? [cardRingFeature, "closeout.markdown.v1", approvalMirrorsFeature] : [])
     }
 
     /// Whether this app asks for `todo_send_state` (`helloFeatures`), which the socket's URL then says as well.
@@ -1058,6 +1067,8 @@ final class LiveConnection {
 
     /// The client_hello feature that says this app draws ```persona-card rings (#3068).
     nonisolated static let cardRingFeature = "persona_card_ring"
+    /// The client_hello / X-Persona-Features feature that says this app draws `tool_views` inline in chats.
+    nonisolated static let toolViewsFeature = "tool_views"
 
     /// Main-conversation display copies are sent only to clients that deduplicate their aggregate views.
     nonisolated static let approvalMirrorsFeature = "approval_mirrors"

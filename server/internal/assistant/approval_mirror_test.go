@@ -800,6 +800,60 @@ func TestFeishuSensitiveAssistantApprovalDoesNotUseDirectChat(t *testing.T) {
 	}
 }
 
+func TestFeishuDirectWriteApprovalPassesNonOwnerRouting(t *testing.T) {
+	ft := newMirrorFleetTest(t)
+	ft.f.answerApp(AppFeishu, FeishuStatusGet, func(json.RawMessage) (any, error) {
+		return FeishuStatus{Ready: true, Enabled: true, Owner: "ou_a", PairedAt: time.Unix(100, 0),
+			Features: FeishuFeatures{Main: true, Cards: true, AllCards: false}}, nil
+	})
+	ft.f.answerApp(AppFeishu, FeishuPost, func(json.RawMessage) (any, error) {
+		return map[string]any{"message_id": "om_approval"}, nil
+	})
+	ix := mirrorTestCard("ix_direct_announce")
+	ix.ToolName = "Write"
+	ix.ToolInput = json.RawMessage(`{"file_path":"/tmp/approved.txt","content":"ok"}`)
+	ix.WriteOperation = false // a catalog write needs no command-gate metadata
+	ctx := context.Background()
+	if userApproval(ix) != "" {
+		t.Fatal("the fixture does not exercise the upstream non-owner interception")
+	}
+	if !ft.s.nonMainAssistantPermission(ctx, ix) || !ft.s.feishuCardWanted(ctx, ix) {
+		t.Fatal("the fixture is not an eligible direct write approval")
+	}
+	ready := make(chan error, 1)
+	returned := make(chan error, 1)
+	go func() {
+		_, err := ft.s.waitInteractionReady(ctx, ix, nil, ready)
+		returned <- err
+	}()
+	select {
+	case err := <-ready:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the approval was not registered")
+	}
+	t.Cleanup(func() {
+		_ = ft.s.resolve(ix.ID, proto.Resolution{Dismiss: true})
+		select {
+		case err := <-returned:
+			if err != nil {
+				t.Errorf("approval waiter: %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Error("approval waiter did not return after dismissal")
+		}
+	})
+	waitFor(t, "the direct owner card after announce", func() bool {
+		return len(ft.f.appParams(AppFeishu, FeishuPost)) == 1
+	})
+	posts := ft.f.appParams(AppFeishu, FeishuPost)
+	if posts[0]["chat_id"] != nil || posts[0]["in_thread"] != nil {
+		t.Fatalf("approval was redirected away from the owner's direct chat: %+v", posts[0])
+	}
+}
+
 func TestFeishuAssistantApprovalUsesDirectChatWithoutAllCards(t *testing.T) {
 	ft := newMirrorFleetTest(t)
 	setSettings(t, ft.s, func(v *Settings) { v.ApprovalMirrorMain = new(false) }) // bot routing has its own existing switch
