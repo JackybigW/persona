@@ -133,6 +133,57 @@ func TestInboxReplyPolicyQueueGate(t *testing.T) {
 	})
 }
 
+func TestInboxReplyPolicyRestrictedHandPassSkipsTaskSideEffectsLegacySchema(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, route string
+	}{
+		{name: "owner only", category: "approval_permission", route: ReplyRouteOwnerOnly},
+		{name: "bot", category: "technical_qa", route: ReplyRouteBot},
+		{name: "no reply", category: "no_reply", route: ReplyRouteNoReply},
+		{name: "ordinary positive control", category: "ordinary_coordination", route: ReplyRouteOwnerDraft},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			h := agentHub(t)
+			turnInboxSignalsOn(t, h.Service)
+			todo := supervisedTodo(t, h.Service, "Review the change")
+			h.setConfig(func(c *assistantwire.InboxConfig) {
+				c.Agent.Enabled = true
+				c.ReplyPolicy = legacyReplyPolicyTestConfig()
+			})
+			model, calls := captureModel(t, `{"task_id":"`+todo.ID+`","evidence":"Review the change"}`)
+			h.in.setModel(model)
+			it := actionItem("lark:hand-pass:"+tc.category, time.Now())
+			it.Source = "lark"
+			it.ReplyCategory, it.ReplyMode = tc.category, tc.route
+			it.ReplyClassifiedOf, it.ReplyPolicyRev = replyPolicyContentVersion(it), "test-v1"
+			h.inbox.items[it.ID] = it
+			h.handPass(ctx)
+			allowed := tc.route == ReplyRouteOwnerDraft
+			wantCalls := 0
+			if allowed {
+				wantCalls = 1
+			}
+			if got := len(calls()); got != wantCalls {
+				t.Fatalf("%s item reached the task judge %d times, want %d", tc.route, got, wantCalls)
+			}
+			if allowed {
+				if it.Agent == nil || it.Agent.TodoID != todo.ID {
+					t.Fatalf("ordinary item did not retain task linking: %+v", it.Agent)
+				}
+				return
+			}
+			checkPolicyReleased(t, it, h.inbox.userLang())
+			if it.Agent != nil && it.Agent.TodoID != "" {
+				t.Fatalf("%s item linked to task %s", tc.route, it.Agent.TodoID)
+			}
+			if g, ok := pendingInbox(h.Service, todo.ID); ok {
+				t.Fatalf("%s item raised a supervised Inbox signal: %+v", tc.route, g.Inbox)
+			}
+		})
+	}
+}
+
 func TestInboxReplyPolicyOverridesTwinFirstLegacySchema(t *testing.T) {
 	h := agentHub(t)
 	h.setConfig(func(c *assistantwire.InboxConfig) { c.ReplyPolicy = legacyReplyPolicyTestConfig() })

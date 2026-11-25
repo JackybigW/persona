@@ -241,9 +241,22 @@ func (s *Service) handPass(ctx context.Context) {
 	s.sweepInboxAgents(ctx, cfg, now)
 	s.gateReplyPolicyQueue(ctx, policy, now.Add(-agentMaxAge(cfg)))
 	escalated := b.escalateWithPolicy(now.Add(-agentMaxAge(cfg)), now, policy)
+	// The legacy queue gate runs in startInboxAgents below because escalateWithPolicy consumes compiled snapshots. Keep
+	// rows that gate will hold or release away from task judging and supervision first; their writes still persist and
+	// startInboxAgents still performs the same pending wait or release. Compiled rows were admitted by policy above.
+	taskWrites := escalated
+	if legacyReplyPolicyConfig(fullCfg.ReplyPolicy) {
+		taskWrites = make([]*inboxWrite, 0, len(escalated))
+		for _, w := range escalated {
+			if replyPolicyQueuePending(w.it, fullCfg.ReplyPolicy) || replyPolicyQueueBlocked(w.it, fullCfg.ReplyPolicy) {
+				continue
+			}
+			taskWrites = append(taskWrites, w)
+		}
+	}
 	linked := map[*InboxItem]bool{}
 	if tasks := s.activeTasks(ctx); len(tasks) > 0 { // which of the user's tasks a new one is about
-		for _, w := range escalated {
+		for _, w := range taskWrites {
 			b.mu.Lock()
 			a, todo := w.it.Agent, ""
 			fresh := a != nil && a.SessionID == "" && a.TodoID == ""
@@ -264,8 +277,8 @@ func (s *Service) handPass(ctx context.Context) {
 	}
 	// A failed row gives the event back its old state: the next pass escalates it again.
 	s.saveWrites(ctx, escalated, "its escalation")
-	items := make([]*InboxItem, 0, len(escalated))
-	for _, w := range escalated {
+	items := make([]*InboxItem, 0, len(taskWrites))
+	for _, w := range taskWrites {
 		items = append(items, w.it)
 	}
 	s.superviseInbox(ctx, items, linked) // a supervised task's supervisor hears of its new messages (supervise_inbox.go)
