@@ -508,9 +508,14 @@ func localID(id string) string {
 // list does whatever its age (up to maxDesktopOffline, the newest first), on a count of its own (#3304).
 func (x claudeDesktopIndex) listed(id string) bool { return x.visible[id] }
 
-// maxDesktopOffline bounds the desktop app's sessions the offline list shows (the newest, whatever their age); they are
-// counted on their own, not toward the 80 of the others.
+// maxDesktopOffline bounds the desktop app's sessions the offline list shows as rows of their own (the newest, whatever
+// their age); they are counted on their own, not toward the 80 of the others.
 const maxDesktopOffline = 100
+
+// maxDesktopFolded bounds the desktop app's sessions the offline list shows under another row (the index gives them a
+// parent, claudeDesktopIndex.parents): the newest, counted apart from maxDesktopOffline. A daily scheduled task leaves
+// one a day, and they took the places of the top-level sessions (#15279).
+const maxDesktopFolded = 300
 
 // hidden: the offline list leaves transcript id out as the desktop app's sidebar does. shown are the transcripts the
 // list has shown so far (newest first, so a session's current one comes before its earlier ones).
