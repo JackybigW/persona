@@ -82,6 +82,12 @@ func (s *Service) conversationCategories(ctx context.Context, sid string) (cats 
 // a row for it, infoNoneTagged for none found).
 func (s *Service) conversationCategoryState(ctx context.Context, sid string) (cats []string, tagged, ok bool) {
 	space, known := s.conversationSpace(ctx, sid)
+	return s.categoryStateIn(ctx, sid, space, known)
+}
+
+// categoryStateIn is conversationCategoryState of conversation sid of track space, known telling whether its track
+// is.
+func (s *Service) categoryStateIn(ctx context.Context, sid, space string, known bool) (cats []string, tagged, ok bool) {
 	floor, registered := s.trackFloor(ctx, space)
 	cats = append(cats, floor...)
 	ok = known && registered
@@ -192,12 +198,16 @@ func infoTagTurn(ask, answer string) string {
 	return text
 }
 
-// infoTagFocus are the categories a track's tagging looks for especially: its default categories for now.
+// infoTagFocus are the categories a track's tagging looks for especially (InfoTag.Focus): its effective tag_focus
+// (#13472) and its default categories, which everything from it carries anyway (the health space's focus stays health).
+// None for the main space or a track the registry does not know.
 func (s *Service) infoTagFocus(ctx context.Context, space string) []string {
-	if e, ok := s.trackEntryOf(ctx, space); ok {
-		return e.DefaultCategories
+	e, ok := s.trackEntryOf(ctx, space)
+	if !ok {
+		return nil
 	}
-	return nil
+	focus, _ := normalCategories(append(slices.Clone(e.DefaultCategories), e.Config.TagFocus...))
+	return focus
 }
 
 // infoTagFailure says why tagging failed, never the text: unconfigured, paused, timeout or the error.
