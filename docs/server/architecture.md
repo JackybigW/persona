@@ -137,6 +137,9 @@ domain code follows the rules from its first line. Code that predates them is he
 names in `server/internal/archguard/testdata/domain_layers`, which only fall: copy the domain kit
 (`server/internal/domainkit`) and the planted twins, never the packages those lists hold.
 
+The Swift and Kotlin clients follow the same rules in their domain modules: "Client modules", the last section here,
+names those modules and the checks that hold them.
+
 Each sentence below states a rule, and the rule holds whether or not a check sees a breach. The checks read syntax
 only (`go/ast`, no type information) and enforce each rule where the source shows it: in names, declarations,
 signatures, literals, imports and the calls they can resolve. The routes they do not see yet are listed in #15088, and
@@ -776,6 +779,197 @@ The hub links none of it.
 - `clock` (application): `Clock`, read once per operation, and `System`; `clock/clocktest` (testkit) has `Fixed` and
   `Fake`.
 - `domaintest` (testkit): `Ok`, `Fails` and `Describe`.
+
+### Client modules
+
+The Swift and Kotlin clients hold their domain code to the same rules, and the web joins them with its first domain
+folder. A client domain module is a functional core in a module of its own, so its compiler refuses much of what the
+rules forbid; `scripts/test/test_client_domain_modules.py` (the rules are in `scripts/test/client_domain_rules.py`)
+checks the rest. It finds the modules by their names, never through a list, so a module is checked from the day it
+exists. A folder, source file or import that is named like a domain module the manifests do not declare fails
+(`swift-discovery`, `kotlin-discovery`) rather than passing unseen. No client has a domain module yet: #10613 plans
+the first ones (items 6.1 for the web, 6.5 for Swift and 6.11 for Kotlin), and until then the guard finds none and
+says so.
+
+| | Swift | Kotlin | TypeScript |
+| --- | --- | --- | --- |
+| Core | target `Persona<Ctx>Domain` in `apple/Packages/Persona<Ctx>/Package.swift` | Gradle module `:core:<ctx>:domain` in `android/core/<ctx>/domain`, package `persona.core.<ctx>.domain` | `web/src/features/<ctx>/domain` |
+| Adapter | target `Persona<Ctx>Adapt` in the same package | package `persona.core.<ctx>.adapt` of `:core:<ctx>`, in `android/core/<ctx>/src/main/kotlin/persona/core/<ctx>/adapt` | `web/src/features/<ctx>/adapt` |
+| Kit | package `PersonaDomainKit` in `apple/Packages`: target `PersonaDomainKit`, and `PersonaDomainKitAdapt` with the clocks | Gradle module `:core:domainkit` in `android/core`, with the clocks in `persona.core.domainkit.adapt` | `domain-kit` in `web/src` |
+| Tests | `Persona<Ctx>DomainTests`, black-box | `android/core/<ctx>/domain/src/test` | beside the domain files |
+
+The `:core:domain` module (package `persona.core.domain`) predates these names and is not a domain module.
+
+**Each rule on each platform.** What the compiler refuses, and the guard's rules for the rest (the table under "The
+guard's rules" says what each reads). The TypeScript column gives the shape; the web's checks, its domain folder's
+own `tsconfig.json`, eslint blocks and a boundary test, come with its first domain folder, and so does its paragraph
+here.
+
+| Rule | Swift | Kotlin | TypeScript |
+| --- | --- | --- | --- |
+| Layers and bounded contexts | A Domain target depends on `PersonaDomainKit` and shared-kernel `*Domain` targets only. Compiler: the manifest's dependencies. Guard: `swift-manifest`, `swift-import` | A domain module depends on `:core:domainkit` and shared-kernel domain modules only. Compiler: the classpath. Guard: `kotlin-module`, `kotlin-import` | `domain/` imports only `domain/` and `domain-kit/` |
+| Values | A struct with private stored properties and a private `init`; raw input enters only through `static func parse`. Compiler: access control. Guard: `swift-stored-public`, `swift-primitive-api`, `swift-factory` | A class or `@JvmInline value class` with a `private constructor` and private vals; raw input enters only through companion `parse`. Compiler: `explicitApi()`. Guard: `kotlin-ctor-property`, `kotlin-public-constructor`, `kotlin-data-class`, `kotlin-primitive-api` | A class with `readonly #private` fields and a private constructor |
+| Tell, don't ask | Public members are Bool predicates, transitions returning `Self` or its `Outcome`, `accept`, or `id`; no setter and no `mutating func`. Guard: `swift-accessor`, `swift-stored-public`, `swift-mutating` | No `var`; a public `val` is a computed `Boolean`; a public `fun` without parameters returns `Boolean`, `Unit`, its class or its `Outcome`, or is `id()`. Guard: `kotlin-var`, `kotlin-accessor` | A method without parameters returns `boolean`, `void`, its class or its `Outcome`, or is `id()`; no getters |
+| Building always-valid objects | `static func parse`, `new` and `restore` (`newBuilder` and `restoreBuilder` above four inputs); no public `init`. Guard: `swift-factory` | Companion `parse`, `new` and `restore` (`newBuilder` and `restoreBuilder` above four inputs). Guard: `kotlin-factory`, `kotlin-public-constructor` | `static parse`, `new` and `restore` |
+| Visitors and the way out | `accept(_ v: inout some XVisitor)`; the one way out is `@_spi(Boundary) public var wire`, which only `*Adapt` targets import. Compiler: SPI. Guard: `swift-spi-import`, `swift-visitor-impl` | `accept(v: XVisitor)`; the one way out is `@DomainBoundary public fun wire()`, an opt-in at error level that only `.adapt` grants. Compiler: the opt-in. Guard: `kotlin-optin`, `kotlin-visitor-impl` | `accept(v)`; `domain/boundary.ts`, imported only from the feature's `adapt/` |
+| Closed sets and lifecycles | A struct over a private enum with `public static let` values; the kit's `Outcome` is the one public enum; `evolve` stays internal. Guard: `swift-public-enum`, `swift-public-evolve` | A class over a private enum class or an internal sealed interface, with companion values; no public sealed type, enum class or data object; `evolve` stays internal. Guard: `kotlin-public-sealed`, `kotlin-public-evolve` | A class with interned static values |
+| The functional core | No Foundation, no implicit `_Concurrency` or `_StringProcessing`; no printing, trapping, randomness, `Mirror` or clocks; `Now` comes from `PersonaDomainKitAdapt`, the only importer of its `@_spi(Clock)` initializer. Compiler: the core settings. Guard: `swift-import`, `swift-banned-call`, `swift-spi-import` | No platform API: an import or full name from `java.`, `kotlinx.`, `android.` and the like fails; no clock, id or printing; `Now.read` needs `@OptIn(ClockRead::class)`, granted only in `persona.core.domainkit.adapt`. Compiler: the classpath and the opt-in. Guard: `kotlin-import`, `kotlin-banned-call`, `kotlin-optin` | No DOM, Node or `Date`: the domain `tsconfig.json`'s `lib` and `types` |
+| Failures | `Outcome<Value, <Ctx>Fail>`; no `throws` or `Error`. A dropped result is an error inside the target (`-warnings-as-errors`) and a finding in the app. Guard: `swift-throws`, `swift-app-discard` | `Outcome`; `throw` only as `throw Defect(`, and no `!!`, `error()`, `require()` or `check()`. A dropped result is a compile error in the Android modules. Compiler: `-Xreturn-value-checker`. Guard: `kotlin-throw`, `kotlin-build-flags` | `Outcome`; a dropped one fails the boundary test |
+| Data objects and adapters | No `Codable`, description or raw value in a Domain target; the wire shape lives in `*Adapt`. Guard: `swift-conformance` | No `@Serializable`; records live in `:core:<ctx>`'s `.store` or `.adapt` package. Guard: `kotlin-serializable` | `domain/` imports no `lib/` wire type |
+| No generics | No generic public type or function, the kit's `Outcome` aside. Guard: `swift-generic` | No type parameters, the kit's `Outcome` aside; not checked yet | No type parameters on exported declarations |
+| Tests | Black-box: `swift test --disable-testable-imports`. Guard: `swift-testable` | The domain module's tests build through `parse`, `new` and `restore` and read through visitors | Tests import only the domain's exports |
+
+**The settings.** Every Domain target and the kit build with these settings; a Domain target depends on nothing but
+the kit and shared kernels, and the kit on nothing:
+
+```swift
+let coreSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v6),
+    .defaultIsolation(nil),
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("ExistentialAny"),
+    .unsafeFlags([
+        "-warnings-as-errors",
+        "-Xfrontend", "-disable-implicit-concurrency-module-import",
+        "-Xfrontend", "-disable-implicit-string-processing-module-import",
+    ]),
+]
+```
+
+A Kotlin domain module is a JVM library with explicit visibility, warnings as errors and every result must-use:
+
+```kotlin
+// The planted context's domain module: a JVM library on the kit alone.
+plugins {
+    id("persona.jvm.library")
+}
+
+kotlin {
+    explicitApi()
+    compilerOptions {
+        allWarningsAsErrors.set(true)
+        freeCompilerArgs.add("-Xreturn-value-checker=full")
+    }
+}
+
+dependencies {
+    implementation(project(":core:domainkit"))
+}
+```
+
+The Android modules already compile a dropped must-use result as an error
+(`android/build-logic/convention/src/main/kotlin/persona/buildlogic/ReturnValues.kt`; the few modules its warning-level
+list names keep a warning until their last such lines change), so a feature that drops a domain module's answer does
+not compile. `kotlin-build-flags` fails if that file loses `-Xreturn-value-checker=check` or
+`-Xwarning-level=RETURN_VALUE_NOT_USED:error`, if a convention stops applying it, or if its warning-level list names a
+domain module.
+
+**Where each part runs.**
+
+- **Kotlin, before merge.** `scripts/ci/android.sh`'s lint block runs `AndroidDomain` in the Android lane, which a
+  change under `android/` selects; check-fast runs the whole suite for any change under `android/` or `apple/`.
+- **Swift's text rules, before merge.** CI's Scripts tests job (`scripts/ci/python-tests.py`) runs the whole file,
+  `AppleDomain`'s scan of the manifests, the sources and `scripts/ci/apple.sh` included.
+- **Swift's public API, after merge.** The Apple lane needs a Mac, so it runs on `main`: `scripts/ci/apple.sh` tests
+  every package `python3 -B scripts/test/test_client_domain_modules.py --swift-packages` lists with
+  `--disable-testable-imports`, writes each module's symbol graph (`-emit-symbol-graph`, public symbols only, so
+  `@_spi` members are left out) and runs `AppleDomain` with `PERSONA_DOMAIN_SYMBOL_GRAPHS`; after the device build it
+  runs `AppleDomain` again on that build's log (`PERSONA_APP_BUILD_LOGS`) for the app's unused domain results.
+- **The web, before merge**, from its first domain folder.
+- **Every rule's planted cases, before merge**: `RuleTests` in the Scripts tests job.
+
+**The guard's rules.** Every finding is one line, `<path>:<line>: RULE <id> <what>. WHY <why>. FIX <the change>. GOOD
+<a compliant twin>. see docs/server/architecture.md "Domain model" ('Client modules')`, and there is no ignore marker.
+The kit's documented API may need a named exception (`KIT_EXCEPTIONS` in `scripts/test/client_domain_rules.py`, with
+its reason); today the kit's `Outcome` is the one public enum and the one generic type, and an exception the kit no
+longer needs fails. Comments and string literals are blanked before any rule reads a source.
+
+| Rule | Checks | Reads |
+| --- | --- | --- |
+| `swift-discovery` | every folder, manifest name or import named like a Domain or Adapt target belongs to a declared target | manifests, `apple/` |
+| `swift-manifest` | a Domain target's dependencies and its core settings | `Package.swift` |
+| `swift-testable` | `scripts/ci/apple.sh` tests the domain packages black-box and writes their symbol graphs; each such package has a `Persona<Ctx>DomainTests` target, and each Domain target its graph | manifests, `apple.sh`, graphs |
+| `swift-import` | a Domain target imports only `PersonaDomainKit` and `*Domain` modules | sources |
+| `swift-banned-call` | no `print`, `debugPrint`, `dump`, `fatalError`, `preconditionFailure`, `.random(`, `SystemRandomNumberGenerator`, `Mirror(` or clock types | sources |
+| `swift-throws` | no `throws`, `rethrows`, `throw` or `Error` | sources |
+| `swift-conformance` | no `Codable`, `Encodable`, `Decodable`, description, `RawRepresentable`, `CustomReflectable` or `CodingKey` | sources |
+| `swift-public-enum` | no public enum, an enum in a `public extension` included | sources, graphs |
+| `swift-mutating` | `mutating func` only as a protocol's requirement | sources |
+| `swift-stored-public` | no stored public property and no public setter, `public static let` values of the declaring type aside | sources, graphs |
+| `swift-primitive-api` | no `String`, `Character`, `Bool`, number, `Date`, `UUID`, `Data` or `URL` (or a collection of them) in the public API, but a static `parse`'s parameters, a computed `Bool` property and a `Bool` result | graphs |
+| `swift-accessor` | a public member without parameters is a `Bool`, `Void`, `Self` or `Outcome` of it, or `id` | graphs |
+| `swift-generic` | no generic public type, function or associated type | graphs |
+| `swift-public-evolve` | no public `evolve` or `apply` | graphs |
+| `swift-factory` | no public `init`; four parameters at most; a static factory is `parse`, `new`, `restore`, `newBuilder` or `restoreBuilder`, or is named for the closed-set value it returns, never `make…`, `from…`, `of…` and the like | graphs |
+| `swift-spi-import` | `@_spi(Boundary) import` only in `*Adapt` targets, `@_spi(Clock) import` only in `PersonaDomainKitAdapt` | `apple/` |
+| `swift-visitor-impl` | a domain visitor is implemented only in `*Adapt` targets and domain tests | `apple/` |
+| `swift-app-discard` | the app keeps every domain result: no `_ =` before a domain call, no unused-result warning naming one | `apple/Persona`, `apple/Shared`, build log |
+| `kotlin-discovery` | every folder or source in a domain or adapt package belongs to an included module | `settings.gradle.kts`, `android/` |
+| `kotlin-build-flags` | the module's `persona.jvm.library`, `explicitApi()`, `allWarningsAsErrors` and `-Xreturn-value-checker=full`; the Android-wide unused-result errors | build files, `android/build-logic` |
+| `kotlin-module` | a domain module applies no other plugin and depends only on the kit and shared kernels | build files |
+| `kotlin-var` | no `var` | sources |
+| `kotlin-ctor-property` | a public class's constructor properties are `private` or `internal` | sources |
+| `kotlin-public-constructor` | a public class has no public constructor, its default one included | sources |
+| `kotlin-data-class` | no `data class` | sources |
+| `kotlin-public-sealed` | no public sealed type, enum class or data object | sources |
+| `kotlin-primitive-api` | primitives in the public API only as a computed `Boolean`, a `Boolean` result, `id()`, companion `parse`'s parameters or a `@DomainBoundary` member | sources |
+| `kotlin-accessor` | a public `val` is a computed `Boolean` or a companion value of its class; a public `fun` without parameters returns `Boolean`, `Unit`, its class or its `Outcome`, or is `id()` or a `@DomainBoundary` `wire()` | sources |
+| `kotlin-import` | imports only from the kit, shared kernels and its own package; no full name from `java.`, `javax.`, `kotlinx.`, `android.`, `androidx.`, `kotlin.random` and the like | sources |
+| `kotlin-banned-call` | no `Instant.now`, `System.`, `UUID.randomUUID`, `Random`, `println` and the like | sources |
+| `kotlin-serializable` | no `@Serializable`, `@SerialName`, `Parcelable` or `Serializable` | sources |
+| `kotlin-optin` | `OptIn(DomainBoundary` only in `.adapt`; `ClockRead` only in `persona.core.domainkit.adapt`; neither through a build file | `android/` |
+| `kotlin-throw` | `throw` only as `throw Defect(`; no `!!`, `error()`, `require()`, `check()` or `TODO()` | sources |
+| `kotlin-public-evolve` | no public `evolve` or `apply` | sources |
+| `kotlin-visitor-impl` | a domain visitor is implemented only in `.adapt` and tests | `android/` |
+| `kotlin-factory` | four parameters at most; a companion factory is `parse`, `new`, `restore`, `newBuilder` or `restoreBuilder`, or is named for the closed-set value it returns, never `from…`, `make…`, `of…` and the like | sources |
+
+**Compliant twins.** `scripts/test/fixtures/client_domain/planted` is a tree laid out like the repository: a kit, a
+compliant context (`PersonaPlanted`, `:core:planted`) that breaks no rule, and a broken one (`PersonaBroken`,
+`:core:broken`, and the app files beside them) that breaks each rule once; `expected.txt` lists every finding, and
+`RuleTests` holds the scan to exactly that list. Its symbol graphs were written by the Swift compiler
+(`python3 -B scripts/test/test_client_domain_modules.py --planted-graphs` rewrites them after a planted Swift change),
+and `missed/` is a tree whose only domain modules discovery cannot read. Each example here is copied from a compliant
+twin there, and `RuleTests` checks both; the web's comes from its own rules until it has a twin. A closed set on
+each platform:
+
+```swift
+public struct Urgency: Hashable, Sendable {
+    private enum Case: Hashable, Sendable { case routine, urgent }
+    private let urgency: Case
+    private init(_ urgency: Case) { self.urgency = urgency }
+
+    public static let routine = Urgency(.routine)
+    public static let urgent = Urgency(.urgent)
+
+    /// Whether it may interrupt the owner's quiet hours.
+    public var breaksQuiet: Bool { urgency == .urgent }
+}
+```
+
+```kotlin
+public class Urgency private constructor(private val urgency: Case) {
+    private enum class Case { ROUTINE, URGENT }
+
+    /** Whether it may interrupt the owner's quiet hours. */
+    public val breaksQuiet: Boolean get() = urgency == Case.URGENT
+
+    public companion object {
+        public val routine: Urgency = Urgency(Case.ROUTINE)
+        public val urgent: Urgency = Urgency(Case.URGENT)
+    }
+}
+```
+
+```ts
+export class Urgency {
+  readonly #urgency: "routine" | "urgent";
+  private constructor(urgency: "routine" | "urgent") { this.#urgency = urgency; }
+  static readonly routine = new Urgency("routine");
+  static readonly urgent = new Urgency("urgent");
+  breaksQuiet(): boolean { return this.#urgency === "urgent"; }
+}
+```
 
 ## Registering a domain's entries
 
