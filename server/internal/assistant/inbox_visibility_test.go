@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
@@ -279,31 +280,32 @@ func TestInboxVisibilityFreshNonReplySuggestion(t *testing.T) {
 		}
 	})
 	t.Run("after association wait", func(t *testing.T) {
-		h := agentHub(t)
-		oldWait := inboxDraftWait
-		inboxDraftWait = time.Second
-		t.Cleanup(func() { inboxDraftWait = oldWait })
-		h.in.mu.Lock()
-		h.in.configQueue = []assistantwire.InboxConfig{{}, {Visibility: visibilityTestConfig()}}
-		h.in.mu.Unlock()
-		it := actionItem("lark:visibility-association-wait", time.Now())
-		it.Source = "lark"
-		it.Lark.FeedID = "synthetic-private"
-		it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
-		h.inbox.items[it.ID] = it
-		go func() {
-			time.Sleep(250 * time.Millisecond)
-			h.inbox.mu.Lock()
-			it.Agent.SessionID = "session-visibility-association"
-			h.inbox.mu.Unlock()
-		}()
-		_, _, err := h.suggest(context.Background(), "session-visibility-association", suggestIn{Kind: SuggestConclusion, Text: "Delayed private conclusion", Outcome: "fyi"})
-		if err == nil {
-			t.Fatal("conclusion used the pre-wait visibility configuration")
-		}
-		if currentSuggestion(it) != nil {
-			t.Fatalf("newly excluded delayed conclusion was stored: %+v", currentSuggestion(it))
-		}
+		synctest.Test(t, func(t *testing.T) {
+			h := agentHub(t)
+			oldWait := inboxDraftWait
+			inboxDraftWait = time.Second
+			t.Cleanup(func() { inboxDraftWait = oldWait })
+			h.in.mu.Lock()
+			h.in.configQueue = []assistantwire.InboxConfig{{}, {Visibility: visibilityTestConfig()}}
+			h.in.mu.Unlock()
+			it := actionItem("lark:visibility-association-wait", time.Now())
+			it.Source = "lark"
+			it.Lark.FeedID = "synthetic-private"
+			it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
+			h.inbox.items[it.ID] = it
+			h.inbox.waitHook = func() {
+				h.inbox.mu.Lock()
+				it.Agent.SessionID = "session-visibility-association"
+				h.inbox.mu.Unlock()
+			}
+			_, _, err := h.suggest(context.Background(), "session-visibility-association", suggestIn{Kind: SuggestConclusion, Text: "Delayed private conclusion", Outcome: "fyi"})
+			if err == nil {
+				t.Fatal("conclusion used the pre-wait visibility configuration")
+			}
+			if currentSuggestion(it) != nil {
+				t.Fatalf("newly excluded delayed conclusion was stored: %+v", currentSuggestion(it))
+			}
+		})
 	})
 }
 

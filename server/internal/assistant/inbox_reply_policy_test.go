@@ -284,12 +284,11 @@ func TestInboxReplyPolicyFreshAdmissionAndHandbackLegacySchema(t *testing.T) {
 			it.Source = "lark"
 			it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
 			h.inbox.items[it.ID] = it
-			go func() {
-				time.Sleep(250 * time.Millisecond)
+			h.inbox.waitHook = func() {
 				h.inbox.mu.Lock()
 				it.Agent.SessionID = "session-policy-association"
 				h.inbox.mu.Unlock()
-			}()
+			}
 			_, _, err := h.suggest(context.Background(), "session-policy-association", suggestIn{Kind: SuggestReply, Text: "Synthetic draft across a policy change"})
 			if !errors.Is(err, errReplyPolicyDenied) {
 				t.Fatalf("suggestion used the pre-wait policy, error = %v", err)
@@ -329,12 +328,11 @@ func TestInboxReplyPolicyFreshAdmissionAndHandbackLegacySchema(t *testing.T) {
 			it.Source = "lark"
 			it.Agent = &InboxAgent{State: AgentRunning, Task: "synthetic-task"}
 			h.inbox.items[it.ID] = it
-			go func() {
-				time.Sleep(250 * time.Millisecond)
+			h.inbox.waitHook = func() {
 				h.inbox.mu.Lock()
 				it.Agent.SessionID = "session-A"
 				h.inbox.mu.Unlock()
-			}()
+			}
 			_, _, err := h.suggest(context.Background(), "session-A", suggestIn{Kind: SuggestReply, Text: "Delayed synthetic suggestion"})
 			if !errors.Is(err, errNotProcessing) {
 				t.Fatalf("suggestion lost its session binding during the fresh read, error = %v", err)

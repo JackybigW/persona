@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
@@ -201,55 +202,45 @@ func TestInboxVisibilityFolderExamplesVetoBeforeModel(t *testing.T) {
 }
 
 func TestInboxVisibilityRejectedHandoffVetoBeforeModel(t *testing.T) {
-	h, _, it := handoffHub(t)
-	handOff(t, h, it)
-	if _, err := mainSuggest(h, "m1", `{"item":"lark:f1:100","kind":"agent","text":"SECRET-HANDOFF-SUGGESTION"}`); err != nil {
-		t.Fatal(err)
-	}
-	it.Source = "lark"
-	it.Lark.FeedID = "synthetic-private"
-	it.Title = "SECRET-HANDOFF-TITLE"
-	cfg := assistantwire.InboxConfig{Visibility: visibilityTestConfig()}
-	h.in.mu.Lock()
-	h.in.cfg = cfg
-	h.in.mu.Unlock()
-	// The action itself may use this valid display cache; tellHandoff must still make its own fresh authorization read.
-	h.inbox.cfgMu.Lock()
-	h.inbox.cfg = cfg
-	h.inbox.cfgAt = time.Now()
-	h.inbox.cfgMu.Unlock()
-	fresh := make(chan struct{})
-	var once sync.Once
-	h.in.mu.Lock()
-	h.in.configHook = func() { once.Do(func() { close(fresh) }) }
-	h.in.mu.Unlock()
-	if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestReject}, true); err != nil {
-		t.Fatal(err)
-	}
-
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		notes := strings.Join(notesOf(h.f, "m1"), "\n")
-		if strings.Contains(notes, "SECRET-HANDOFF-SUGGESTION") || strings.Contains(notes, "SECRET-HANDOFF-TITLE") {
-			t.Fatalf("rejecting an excluded handed suggestion sent its content to a model session: %s", notes)
+	synctest.Test(t, func(t *testing.T) {
+		h, _, it := handoffHub(t)
+		handOff(t, h, it)
+		if _, err := mainSuggest(h, "m1", `{"item":"lark:f1:100","kind":"agent","text":"SECRET-HANDOFF-SUGGESTION"}`); err != nil {
+			t.Fatal(err)
 		}
+		it.Source = "lark"
+		it.Lark.FeedID = "synthetic-private"
+		it.Title = "SECRET-HANDOFF-TITLE"
+		cfg := assistantwire.InboxConfig{Visibility: visibilityTestConfig()}
+		h.in.mu.Lock()
+		h.in.cfg = cfg
+		h.in.mu.Unlock()
+		// The action itself may use this valid display cache; tellHandoff must still make its own fresh authorization read.
+		h.inbox.cfgMu.Lock()
+		h.inbox.cfg = cfg
+		h.inbox.cfgAt = time.Now()
+		h.inbox.cfgMu.Unlock()
+		fresh := make(chan struct{})
+		var once sync.Once
+		h.in.mu.Lock()
+		h.in.configHook = func() { once.Do(func() { close(fresh) }) }
+		h.in.mu.Unlock()
+		if _, err := h.actOnSuggestion(t.Context(), it.ID, suggestionReq{Version: 1, Action: suggestReject}, true); err != nil {
+			t.Fatal(err)
+		}
+
 		select {
 		case <-fresh:
-			// The hook runs just before the configuration answer returns. Give a broken implementation a chance to
-			// perform its asynchronous send too, then assert the negative once more.
-			time.Sleep(100 * time.Millisecond)
-			notes = strings.Join(notesOf(h.f, "m1"), "\n")
-			if strings.Contains(notes, "SECRET-HANDOFF-SUGGESTION") || strings.Contains(notes, "SECRET-HANDOFF-TITLE") {
-				t.Fatalf("fresh visibility did not stop the rejected handoff notice: %s", notes)
-			}
-			return
-		default:
-		}
-		if time.Now().After(deadline) {
+		case <-time.After(3 * time.Second):
 			t.Fatal("the rejected handoff notice never re-read fresh visibility")
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
+		// Let a broken implementation finish an asynchronous send after the configuration hook before the negative assertion.
+		synctest.Wait()
+		notes := strings.Join(notesOf(h.f, "m1"), "\n")
+		if strings.Contains(notes, "SECRET-HANDOFF-SUGGESTION") || strings.Contains(notes, "SECRET-HANDOFF-TITLE") {
+			t.Fatalf("fresh visibility did not stop the rejected handoff notice: %s", notes)
+		}
+	})
 }
 
 func TestInboxVisibilityRechecksEachQueuedAgentStart(t *testing.T) {
