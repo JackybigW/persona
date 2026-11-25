@@ -39,17 +39,22 @@ public class FailPart private constructor(private val part: String) {
     }
 }
 
-/** A value or a failure of one family, read through fold. */
-public class Outcome<out T, out F : Fail> private constructor(private val value: T?, private val failure: F?) {
-    public fun <R> fold(onFail: (F) -> R, onOk: (T) -> R): R {
-        val failed = failure
-        @Suppress("UNCHECKED_CAST")
-        return if (failed != null) onFail(failed) else onOk(value as T)
+/** A value or a failure of one family, read through fold: a closed set whose two cases carry their data. */
+public class Outcome<out T, out F : Fail> private constructor(private val outcome: Case<T, F>) {
+    internal sealed interface Case<out T, out F> {
+        class Ok<out T>(val value: T) : Case<T, Nothing>
+        class Failed<out F>(val failure: F) : Case<Nothing, F>
     }
 
+    public fun <R> fold(onFail: (F) -> R, onOk: (T) -> R): R =
+        when (val case = outcome) {
+            is Case.Ok -> onOk(case.value)
+            is Case.Failed -> onFail(case.failure)
+        }
+
     public companion object {
-        public fun <T> ok(value: T): Outcome<T, Nothing> = Outcome(value, null)
-        public fun <F : Fail> failed(failure: F): Outcome<Nothing, F> = Outcome(null, failure)
+        public fun <T> ok(value: T): Outcome<T, Nothing> = Outcome(Case.Ok(value))
+        public fun <F : Fail> failed(failure: F): Outcome<Nothing, F> = Outcome(Case.Failed(failure))
     }
 }
 

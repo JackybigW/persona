@@ -1,4 +1,5 @@
 import PersonaHiddenDomain
+import NotesDomain
 
-/// App code importing a domain module discovery did not find.
+/// App code importing domain modules discovery did not find, with and without the Persona prefix.
 struct HiddenRow {}

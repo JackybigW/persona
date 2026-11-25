@@ -3,9 +3,10 @@
 
 The rules are client_domain_rules.py's; this runs them.
 
-- AppleDomain scans every Swift target named `*Domain` or `*Adapt` in apple/Packages/*/Package.swift, and
-  PersonaDomainKit, with what reads only text: the manifests, the sources, scripts/ci/apple.sh's domain package step,
-  and the SPI imports, visitor conformances and dropped results in the rest of apple/. scripts/ci/apple.sh runs it
+- AppleDomain scans every Swift target named `*Domain` or `*Adapt` in apple/Packages/*/Package.swift (and fails one
+  not named `Persona<Ctx>Domain` or `Persona<Ctx>Adapt`), and PersonaDomainKit, with what reads only text: the
+  manifests, the sources, scripts/ci/apple.sh's domain package step, and the SPI imports, adapter imports, visitor
+  conformances and dropped results in the rest of apple/. scripts/ci/apple.sh runs it
   again after building each domain package with -emit-symbol-graph (PERSONA_DOMAIN_SYMBOL_GRAPHS, the public API
   rules) and after the device build (PERSONA_APP_BUILD_LOGS, the app's unused domain results).
 - AndroidDomain scans every Gradle project android/core/<ctx>/domain, the packages persona.core.<ctx>.adapt and
@@ -15,7 +16,7 @@ The rules are client_domain_rules.py's; this runs them.
   findings (expected.txt), and that the compliant twins there, the "Domain model" examples included, have none.
 
 With no domain module in the repository the scan classes print "no domain modules yet" and pass, after checking that
-nothing named like one went unfound. CI's Scripts tests job runs the whole file before merge; Swift's symbol-graph
+nothing named like one went unfound or misnamed. CI's Scripts tests job runs the whole file before merge; Swift's symbol-graph
 rules run after merge, in the Apple lane.
 
     python3 -B scripts/test/test_client_domain_modules.py [AppleDomain|AndroidDomain|RuleTests]
@@ -98,8 +99,11 @@ class AppleDomain(unittest.TestCase):
         text = rules.strip("\n".join(p.read_text(encoding="utf-8")
                                      for p in sorted((ROOT / kit.sources).rglob("*.swift"))), "swift")
         shapes = {"swift-public-enum": r"\bpublic\s+(?:indirect\s+)?enum\s+{name}\b",
-                  "swift-generic": r"\b(?:enum|struct|class)\s+{name}\s*<"}
+                  "swift-generic": r"\b(?:enum|struct|class)\s+{name}\s*<",
+                  "swift-extensible": r"\bpublic\s+protocol\s+{name}\b"}
         for rule, target, path in rules.KIT_EXCEPTIONS:
+            if target != rules.SWIFT_KIT_NAME:
+                continue
             shape = shapes[rule].format(name=re.escape(path.split(".")[-1]))
             self.assertTrue(re.search(shape, text),
                             f"KIT_EXCEPTIONS keeps ({rule}, {path}), which {target} no longer needs: drop the line")
@@ -113,6 +117,30 @@ class AndroidDomain(unittest.TestCase):
         scan = rules.scan_android(ROOT)
         report("AndroidDomain", scan)
         self.assertEqual([], scan.findings, failure(scan.findings))
+
+    def test_kit_exceptions_are_needed_by_the_kit(self):
+        """An exception the kit no longer needs fails: without it, the kit's sources break its rule."""
+        kit = ROOT / "android" / "core" / "domainkit" / "src" / "main"
+        if not kit.is_dir():
+            print("AndroidDomain: no :core:domainkit yet, so no kit exception to check")
+            return
+        for key in [k for k in rules.KIT_EXCEPTIONS if k[1] == rules.KOTLIN_KIT_NAME]:
+            self.assertIn(key[0], kotlin_kit_rules_without(key, kit), f"{key} is not needed: drop the line")
+
+
+def kotlin_kit_rules_without(key, kit):
+    """The rules the Kotlin kit's sources under kit break with one exception taken out."""
+    saved = dict(rules.KIT_EXCEPTIONS)
+    try:
+        del rules.KIT_EXCEPTIONS[key]
+        found = []
+        for path in sorted(kit.rglob("*.kt")):
+            if "/persona/core/domainkit/adapt/" not in path.as_posix():
+                found += rules.kotlin_source_findings(path.name, path.read_text(encoding="utf-8"), "kit")
+        return {f.rule for f in found if key[2].split(".")[-1] in f.what}
+    finally:
+        rules.KIT_EXCEPTIONS.clear()
+        rules.KIT_EXCEPTIONS.update(saved)
 
 
 def planted_findings():
@@ -172,6 +200,13 @@ class RuleTests(unittest.TestCase):
             "a computed Boolean property": (kotlin, "public val breaksQuiet: Boolean get() = urgency == Case.URGENT"),
             "a companion parse": (kotlin, "public fun parse(raw: String): Outcome<ItemId, PlantedFail> ="),
             "a @DomainBoundary wire()": (kotlin, "@DomainBoundary public fun wire(): String = item"),
+            "an id() of the module's own Id class": (kotlin, "public fun id(): ItemId = identity"),
+            "a transition with parameters": (kotlin, "public fun snoozed(until: Instant, now: Now): Outcome<Item, "),
+            "a closed set's case factory (Swift)": (swift, "public static func at(_ instant: Instant) -> Wake"),
+            "a closed set's case factory (Kotlin)": (
+                "android/core/domainkit/src/main/kotlin/persona/core/domainkit/Kit.kt",
+                "public fun <T> ok(value: T): Outcome<T, Nothing> = Outcome(Case.Ok(value))"),
+            "a predicate with parameters": (swift, "public func needsOwner(at now: Now) -> Bool"),
         }
         for case, (path, snippet) in twins.items():
             self.assertTrue(path.startswith(COMPLIANT), case)
@@ -197,17 +232,21 @@ class RuleTests(unittest.TestCase):
 
     def test_modules_are_found_by_name(self):
         apple = rules.scan_apple(PLANTED, graphs_dir=GRAPHS)
-        self.assertEqual(["PersonaBrokenDomain", "PersonaDomainKit", "PersonaDomainKitAdapt", "PersonaPlantedAdapt",
-                          "PersonaPlantedDomain"], sorted(t.name for t in apple.modules))
+        self.assertEqual(["PersonaBrokenAdapt", "PersonaBrokenDomain", "PersonaDomainKit", "PersonaDomainKitAdapt",
+                          "PersonaPlantedAdapt", "PersonaPlantedDomain"], sorted(t.name for t in apple.modules))
         android = rules.scan_android(PLANTED, build_logic=False)
-        self.assertEqual(["adapt domainkit", "adapt planted", "domain broken", "domain planted", "kit domainkit"],
+        self.assertEqual(["adapt broken", "adapt domainkit", "adapt planted", "domain broken", "domain planted",
+                          "kit domainkit"],
                          sorted(f"{m.kind} {m.ctx}" for m in android.modules))
 
-    def test_a_missed_module_fails_instead_of_passing_as_none(self):
+    def test_a_missed_or_misnamed_module_fails_instead_of_passing_as_none(self):
         apple, android = rules.scan_apple(MISSED), rules.scan_android(MISSED, build_logic=False)
-        self.assertEqual(([], []), (apple.modules, android.modules))
+        # A target named like a domain target without the Persona prefix is checked, and its name fails.
+        self.assertEqual((["InboxDomain"], []), ([t.name for t in apple.modules], android.modules))
         self.assertEqual({"swift-discovery"}, {f.rule for f in apple.findings})
         self.assertEqual({"kotlin-discovery"}, {f.rule for f in android.findings})
+        misnamed = {f.what.split(" ", 1)[0] for f in apple.findings if "not Persona<Ctx>" in f.what}
+        self.assertEqual({"InboxDomain", "InboxDomainTests"}, misnamed)
 
     def test_no_modules_and_nothing_named_like_one_pass(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -277,7 +316,7 @@ class RuleTests(unittest.TestCase):
         texts = {p: p.read_text(encoding="utf-8") for p in sorted((PLANTED / kit.sources).rglob("*.swift"))}
         saved = dict(rules.KIT_EXCEPTIONS)
         try:
-            for key in saved:
+            for key in [k for k in saved if k[1] == rules.SWIFT_KIT_NAME]:
                 rules.KIT_EXCEPTIONS.clear()
                 rules.KIT_EXCEPTIONS.update({k: v for k, v in saved.items() if k != key})
                 found = rules.swift_graph_findings(kit.name, graphs)
@@ -287,6 +326,67 @@ class RuleTests(unittest.TestCase):
         finally:
             rules.KIT_EXCEPTIONS.clear()
             rules.KIT_EXCEPTIONS.update(saved)
+        kotlin_kit = PLANTED / "android" / "core" / "domainkit" / "src" / "main"
+        for key in [k for k in saved if k[1] == rules.KOTLIN_KIT_NAME]:
+            self.assertIn(key[0], kotlin_kit_rules_without(key, kotlin_kit), f"{key} is not needed")
+
+    def test_builders_and_identities_by_shape(self):
+        """The accessor rule's allowances on both platforms: a staged builder's stages and Build, and an id of the
+        module's own identity type; each refused once its shape is wrong."""
+        kotlin = (
+            "package persona.core.planted.domain\n"
+            "public class ItemId private constructor(private val item: Urgency)\n"
+            "public class ItemUrgencyStep private constructor(private val id: ItemId) {\n"
+            "    public fun urgency(urgency: Urgency): ItemBuilder = ItemBuilder.new(id, urgency)\n"
+            "    public fun label(urgency: Urgency): Urgency = urgency\n"
+            "}\n"
+            "public class ItemBuilder private constructor(private val id: ItemId, private val urgency: Urgency) {\n"
+            "    public fun build(): Outcome<ItemId, PlantedFail> = Outcome.ok(id)\n"
+            "    public companion object {\n"
+            "        public fun new(id: ItemId, urgency: Urgency): ItemBuilder = ItemBuilder(id, urgency)\n"
+            "    }\n"
+            "}\n"
+            "public class Other private constructor(private val id: ItemId) {\n"
+            "    public fun id(): ItemId = id\n"
+            "    public fun build(): Outcome<Urgency?, PlantedFail> = TODO_\n"
+            "}\n"
+            "public class Unknown private constructor(private val id: ItemId) {\n"
+            "    public fun id(): ItemId? = id\n"
+            "}\n")
+        found = rules.kotlin_source_findings("Builders.kt", kotlin, "domain", "planted", {
+            "ItemId", "ItemUrgencyStep", "ItemBuilder", "Other", "Unknown", "Urgency", "PlantedFail"})
+        self.assertEqual(["kotlin-accessor 15 Other.build() hands out Outcome < Urgency ? , PlantedFail >",
+                          "kotlin-accessor 18 Unknown.id() hands out ItemId ?",
+                          "kotlin-accessor 5 ItemUrgencyStep.label() hands out Urgency"],
+                         sorted(f"{f.rule} {f.line} {f.what}" for f in found))
+
+        def symbol(path, kind, returns=(), params=(), decl=""):
+            return {"identifier": {"precise": ".".join(path)}, "kind": {"identifier": kind}, "accessLevel": "public",
+                    "pathComponents": list(path), "location": {"uri": "file:///x/apple/Packages/X/S.swift",
+                                                               "position": {"line": 0}},
+                    "declarationFragments": [{"kind": "text", "spelling": decl}],
+                    "functionSignature": {
+                        "returns": [{"kind": "typeIdentifier", "spelling": r} for r in returns],
+                        "parameters": [{"name": p, "declarationFragments": [
+                            {"kind": "typeIdentifier", "spelling": "Urgency"}]} for p in params]}}
+        graph = {"symbols": [
+            symbol(["ItemID"], "swift.struct"), symbol(["ItemUrgencyStep"], "swift.struct"),
+            symbol(["ItemBuilder"], "swift.struct"), symbol(["Other"], "swift.struct"),
+            symbol(["ItemUrgencyStep", "urgency(_:)"], "swift.method", ["ItemBuilder"], ["urgency"]),
+            symbol(["ItemUrgencyStep", "label(_:)"], "swift.method", ["Urgency"], ["urgency"]),
+            symbol(["ItemBuilder", "build()"], "swift.method", ["Outcome", "<", "ItemID", ">"]),
+            symbol(["Other", "id()"], "swift.method", ["ItemID"]),
+            symbol(["Other", "build()"], "swift.method", ["Outcome"]),
+        ], "relationships": []}
+        for item in graph["symbols"]:
+            returns = item["functionSignature"]["returns"]
+            for fragment in returns:
+                if fragment["spelling"] in ("<", ">"):
+                    fragment["kind"] = "text"
+        found = rules.swift_graph_findings("PersonaPlantedDomain", [graph])
+        self.assertEqual(["swift-accessor ItemUrgencyStep.label(_:) hands out Urgency",
+                          "swift-accessor Other.build() hands out Outcome"],
+                         sorted(f"{f.rule} {f.what}" for f in found))
 
     def test_planted_graphs_match_the_planted_sources(self):
         """A planted Swift edit without --planted-graphs leaves graphs that point at other lines."""
@@ -315,10 +415,16 @@ class RuleTests(unittest.TestCase):
         target = rules.SwiftTarget("apple/Packages/PersonaDoc", "PersonaDocDomain", "domain",
                                    "apple/Packages/PersonaDoc/Sources/PersonaDocDomain", "", 0, [], "")
         for number, code in enumerate(swift, 1):
-            self.assertEqual([], rules.swift_source_findings(f"swift example {number}", code, target))
+            if "[SwiftSetting]" in code:  # the core settings, as a manifest declares them
+                manifest = code + ('let package = Package(name: "PersonaDoc", targets: [.target(name: '
+                                   '"PersonaDocDomain", swiftSettings: coreSettings)])\n')
+                doc_target, = rules.parse_manifest("apple/Packages/PersonaDoc", f"swift example {number}", manifest)
+                self.assertEqual([], rules.swift_manifest_findings(doc_target))
+            else:
+                self.assertEqual([], rules.swift_source_findings(f"swift example {number}", code, target))
         for number, code in enumerate(kotlin, 1):
             if "plugins {" in code:
-                self.assertEqual([], rules.kotlin_build_findings(f"kotlin example {number}", code, False, set()))
+                self.assertEqual([], rules.kotlin_build_findings(f"kotlin example {number}", code, False))
             else:
                 self.assertEqual([], rules.kotlin_source_findings(f"kotlin example {number}", code, "domain"))
 

@@ -1,6 +1,7 @@
 import Foundation
 @_spi(Clock) import PersonaDomainKit
 import PersonaBrokenSupport
+import PersonaPlantedDomain
 
 public enum State { case working }
 
@@ -32,4 +33,45 @@ public struct Box<Wrapped: Sendable>: Sendable {
 
 public extension Broken {
     enum Hidden { case hidden }
+}
+
+/// The rules on a value's API beyond its fields: what it hands out whatever the parameters, its id, its factories,
+/// its callbacks and its boundary.
+public struct Probe: Sendable {
+    private let at: Instant
+    private init(at: Instant) { self.at = at }
+
+    public static func blank() -> Probe { Probe(at: .parse(nanosecondsSinceEpoch: 0)) }
+
+    public var id: Instant { at }
+
+    public func wakes(at now: Now) -> Instant { at }
+
+    public subscript(_ item: ItemID) -> Instant { at }
+
+    @discardableResult public func touched() -> Probe { self }
+
+    public func whenDue(_ effect: (Probe) -> Void) { effect(self) }
+
+    public func pick(_ options: [Probe]) -> Probe { options.shuffled().first ?? self }
+
+    @_spi(Boundary) public var raw: Instant { at }
+}
+
+/// State that changes in place, and ports and visitors of the wrong shape.
+public final class Tally: @unchecked Sendable {
+    nonisolated(unsafe) private static var seen: [Instant] = []
+    private init() {}
+}
+
+actor Ledger {}
+
+private let defaultProbe = Probe.blank()
+
+public protocol ProbeStore {
+    func keep(_ probe: Probe)
+}
+
+public protocol ProbeVisitor {
+    mutating func read(_ probe: Probe)
 }

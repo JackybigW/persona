@@ -7,5 +7,6 @@ plugins {
 dependencies {
     implementation(project(":core:domainkit"))
     implementation(project(":core:contracts"))
+    implementation(project(":core:planted:domain"))
     testImplementation(libs.junit)
 }

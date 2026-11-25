@@ -78,3 +78,22 @@ public struct Item: Sendable {
         v.visitItem(identity, urgency: urgency, wakes: wakes)
     }
 }
+
+/// When an item comes back to the owner: at an instant, or never. A closed set whose case with data has a factory
+/// named for the case.
+public struct Wake: Sendable {
+    private enum Case: Sendable { case at(Instant), never }
+    private let wake: Case
+    private init(_ wake: Case) { self.wake = wake }
+
+    public static let never = Wake(.never)
+
+    public static func at(_ instant: Instant) -> Wake { Wake(.at(instant)) }
+
+    public func reached(by now: Now) -> Bool {
+        switch wake {
+        case .at(let instant): now.reached(instant)
+        case .never: false
+        }
+    }
+}

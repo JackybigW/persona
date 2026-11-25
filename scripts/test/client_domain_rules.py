@@ -6,7 +6,8 @@ The modules are found by their names, never through a list: a Swift target named
 `persona.core.<ctx>.adapt` under `android/core/<ctx>/src/main/kotlin`, and `android/core/domainkit`. The existing
 `:core:domain` module (package `persona.core.domain`) is not one. A directory, source file or import that is named like
 a domain module the manifests do not declare is a finding (`swift-discovery`, `kotlin-discovery`), so a module the
-scan missed fails instead of passing as "no modules".
+scan missed fails instead of passing as "no modules"; so is a Swift target found by those names but not named
+`Persona<Ctx>Domain`, `Persona<Ctx>Adapt` or `Persona<Ctx>DomainTests`, which every rule still reads.
 
 Every function here takes text (or a symbol graph already read from JSON) and returns findings; it reads no file and
 keeps no state. Walking the tree is `scan_apple` and `scan_android`, at the end, and the suites in
@@ -42,19 +43,27 @@ class Finding(namedtuple("Finding", "path line rule what")):
 # Each rule: why it holds, the change that fixes a finding, and the compliant twin that shows it done.
 RULES = {
     "swift-discovery": (
-        "the guard finds domain targets only by their names in a package manifest, and one it cannot see is checked by "
-        "nothing",
-        "declare the target with `.target(name: \"Persona<Ctx>Domain\")` (or `...Adapt`) in its package's "
-        "Package.swift, with its sources in Sources/<name>, or rename what only looks like one",
+        "the guard finds domain targets only by their names in a package manifest, and every context names its "
+        "targets one way, so a target, folder or import it cannot place is checked by nothing or hides which context "
+        "it belongs to",
+        "declare the target with `.target(name: \"Persona<Ctx>Domain\")` (or `...Adapt`, and its tests "
+        "`Persona<Ctx>DomainTests`) in its package's Package.swift, with its sources in Sources/<name>, or rename what "
+        "only looks like one",
         _SWIFT_GOOD + "Package.swift"),
     "swift-manifest": (
-        "a Domain target is a functional core: it links only the kit and shared kernels, and the compiler settings "
-        "stop Foundation, concurrency and dropped results from reaching it",
-        "depend only on PersonaDomainKit and shared-kernel *Domain targets, and pass the core settings: "
+        "a Domain target is a functional core: it links only the kit, and the compiler settings stop Foundation, "
+        "concurrency and dropped results from reaching it",
+        "depend only on PersonaDomainKit, and pass the core settings: "
         ".swiftLanguageMode(.v6), .defaultIsolation(nil), the upcoming features InternalImportsByDefault, "
         "MemberImportVisibility and ExistentialAny, and .unsafeFlags([\"-warnings-as-errors\", \"-Xfrontend\", "
         "\"-disable-implicit-concurrency-module-import\", \"-Xfrontend\", "
         "\"-disable-implicit-string-processing-module-import\"])",
+        _SWIFT_GOOD + "Package.swift"),
+    "swift-context": (
+        "one core is one bounded context: a core that uses another context's core, or an adapter another context's "
+        "adapter, ties two models together where only the application should join them",
+        "give the other context's concept a value type of this context's own, and let the application meet the two "
+        "contexts; the clients have no shared kernel yet, and the first one adds to this guard how it is told apart",
         _SWIFT_GOOD + "Package.swift"),
     "swift-testable": (
         "domain tests are black-box and the public API rules read the symbol graph scripts/ci/apple.sh emits; a "
@@ -65,13 +74,43 @@ RULES = {
         _SWIFT_GOOD + "Package.swift"),
     "swift-import": (
         "a core computes only from its arguments, so it imports no platform module",
-        "import only PersonaDomainKit and shared-kernel *Domain modules, and move what needs another module into the "
-        "*Adapt target",
+        "import only PersonaDomainKit, and move what needs another module into the *Adapt target",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift"),
     "swift-banned-call": (
         "a core takes time, randomness and output from its caller and stops only through an outcome",
-        "take the value as a parameter (Now, an id made by the adapter), return an Outcome, and log in the application",
+        "take the value as a parameter (Now, an id or an order made by the adapter), return an Outcome, and log in "
+        "the application",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (snoozed)"),
+    "swift-state": (
+        "a core is values: a class, an actor or a stored var keeps state that changes in place, and a global or an "
+        "unchecked escape hatch keeps state outside every value",
+        "make it a struct of private `let`s whose transitions return the next value; a type's constants are its "
+        "`public static let` values",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Item)"),
+    "swift-discardable": (
+        "a domain result is the next value or a failure, and @discardableResult lets every caller drop it unseen",
+        "remove @discardableResult; a call whose caller needs nothing back returns nothing",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (snoozed)"),
+    "swift-callback": (
+        "a closure in the API runs the caller's code inside the core: a port, an effect or a variation in disguise",
+        "take domain values; a variation the domain knows is a closed set's value, and effects stay in the "
+        "application",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Wake)"),
+    "swift-extensible": (
+        "a public protocol lets code outside the target supply a domain type: a port, or a value no constructor "
+        "checked",
+        "make it a struct with a private init; the only public protocols are *Visitor protocols",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (ItemVisitor)"),
+    "swift-visitor-name": (
+        "a visitor reads a value's parts, and a requirement named otherwise is a port or a callback on it",
+        "name each requirement visit<Part>, taking domain values",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (ItemVisitor)"),
+    "swift-boundary": (
+        "the boundary conversion is the one way out, and an @_spi member of another shape is a second way in or out "
+        "that the symbol graph does not show",
+        "mark only `public var wire` with @_spi(Boundary) (the kit may mark an init too), and @_spi(Clock) only the "
+        "kit's init of Now",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (ItemID.wire)"),
     "swift-throws": (
         "an expected failure is a value the caller has to read, and a thrown Error is neither typed nor visited",
         "return Outcome<Value, <Ctx>Fail> and read the failure through FailVisitor",
@@ -98,9 +137,9 @@ RULES = {
         "predicate or a function's result",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (ItemID.parse)"),
     "swift-accessor": (
-        "a member that hands state out lets the caller decide what the value should decide",
+        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters",
         "replace it with the behaviour the caller needs: a Bool predicate, a transition returning Self or Outcome, or "
-        "accept(_ v: inout some XVisitor); `id` stays",
+        "accept(_ v: inout some XVisitor); `id` stays when it returns the target's own <Name>ID type",
         _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (needsOwner)"),
     "swift-generic": (
         "a generic domain type carries a caller's object inside the core, where the core can neither check nor own it",
@@ -113,8 +152,9 @@ RULES = {
     "swift-factory": (
         "values are built only through constructors named for how they are built, with at most four inputs",
         "construct through a static parse (raw input), new (domain values) or restore (stored state) on a private "
-        "init, with a staged builder (newBuilder, restoreBuilder) above four inputs",
-        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Item.new)"),
+        "init, with a staged builder (newBuilder, restoreBuilder) above four inputs; only a closed set (a struct over "
+        "its private enum) names a factory for one of its cases",
+        _SWIFT_GOOD + "Sources/PersonaPlantedDomain/Item.swift (Item.new, Wake.at)"),
     "swift-spi-import": (
         "the boundary conversions are for adapters only, and only the kit's adapter reads the clock",
         "convert in a *Adapt target, which alone writes `@_spi(Boundary) import`; `@_spi(Clock) import` belongs to "
@@ -128,6 +168,10 @@ RULES = {
         "a domain transition returns the next value or a failure, and dropping it loses the change or the failure",
         "use the result: keep the next value, or read the outcome",
         GOOD + "apple/Persona/PlantedRow.swift"),
+    "kotlin-app-discard": (
+        "a domain transition returns the next value or a failure, and dropping it loses the change or the failure",
+        "use the result: keep the next value, or fold the outcome",
+        GOOD + "android/feature/planted/src/main/kotlin/persona/feature/planted/PlantedUse.kt"),
     "kotlin-discovery": (
         "the guard finds domain modules only by their names in settings.gradle.kts and their source paths, and one it "
         "cannot see is checked by nothing",
@@ -143,14 +187,54 @@ RULES = {
         "-Xwarning-level=RETURN_VALUE_NOT_USED:error in android/build-logic for every module",
         _KOTLIN_GOOD + "domain/build.gradle.kts"),
     "kotlin-module": (
-        "a domain module is a functional core that links only the kit and shared kernels",
-        "depend only on project(\":core:domainkit\") and shared-kernel domain modules; move the rest to "
-        ":core:<ctx>'s adapt package",
+        "a domain module is a functional core that links only the kit",
+        "depend only on project(\":core:domainkit\"); move the rest to :core:<ctx>'s adapt package",
+        _KOTLIN_GOOD + "domain/build.gradle.kts"),
+    "kotlin-context": (
+        "one core is one bounded context: a core that uses another context's core, or an adapter another context's "
+        "adapter, ties two models together where only the application should join them",
+        "give the other context's concept a value type of this context's own, and let the application meet the two "
+        "contexts; the clients have no shared kernel yet, and the first one adds to this guard how it is told apart",
         _KOTLIN_GOOD + "domain/build.gradle.kts"),
     "kotlin-var": (
         "a core value never changes in place",
         "use val and return the next value from a transition",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (snoozed)"),
+    "kotlin-state": (
+        "a core is values: a mutable collection or an array changes under its holder, and package-level state "
+        "outlives every call",
+        "hold read-only List, Set and Map values built once (listOf, buildList) and return the next value from a "
+        "transition; a class's constants live in its companion, and package-level code is functions",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (Item)"),
+    "kotlin-ignorable": (
+        "a domain result is the next value or a failure, and @IgnorableReturnValue lets every caller drop it unseen",
+        "remove the annotation; a call whose caller needs nothing back returns Unit",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (snoozed)"),
+    "kotlin-callback": (
+        "a function type in the API runs the caller's code inside the core: a port, an effect or a variation in "
+        "disguise",
+        "take domain values; a variation the domain knows is a closed set's value, and effects stay in the "
+        "application",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (snoozed)"),
+    "kotlin-extensible": (
+        "a public interface, abstract class or open class lets code outside the module supply a domain type: a port, "
+        "or a value no constructor checked",
+        "make it a final class with a private constructor; the only public interfaces are *Visitor interfaces",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemVisitor)"),
+    "kotlin-visitor-name": (
+        "a visitor reads a value's parts, and a member named otherwise is a port or a callback on it",
+        "name each function visit<Part>, taking domain values",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemVisitor)"),
+    "kotlin-boundary": (
+        "the boundary conversion is the one way out, and a member of another shape behind the opt-in is a second way "
+        "in or out that the API rules do not read",
+        "mark only `fun wire()` with @DomainBoundary (the kit may mark a companion function too), and @ClockRead only "
+        "a companion function of the kit",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemId.wire)"),
+    "kotlin-generic": (
+        "a type parameter carries a caller's object inside the core, where the core can neither check nor own it",
+        "use a concrete value type, or the kit's Slot for the caller's place",
+        _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt"),
     "kotlin-ctor-property": (
         "a public constructor property is a getter on the value's state",
         "make it private val (or internal val for the module's peers) and add the behaviour the caller needs",
@@ -174,18 +258,18 @@ RULES = {
         "computed predicate or a function's result",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (ItemId.parse)"),
     "kotlin-accessor": (
-        "a member that hands state out lets the caller decide what the value should decide",
+        "a member that hands state out lets the caller decide what the value should decide, whatever its parameters",
         "replace it with the behaviour the caller needs: a computed Boolean, a transition returning the class or its "
-        "Outcome, or accept(visitor); id() and a @DomainBoundary wire() stay",
+        "Outcome, or accept(visitor); id() stays when it returns the module's own <Name>Id class",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (needsOwner)"),
     "kotlin-import": (
-        "a core computes only from its arguments, so it uses no platform or library API",
-        "import only persona.core.domainkit, shared-kernel domain packages and its own package; move the rest to the "
-        "adapt package",
+        "a core computes only from its arguments, so it uses no platform, library or adapter API",
+        "import only persona.core.domainkit (not its adapt package) and its own package, by import or full name; "
+        "move the rest to the adapt package",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt"),
     "kotlin-banned-call": (
-        "a core takes time, ids and output from its caller",
-        "take Now and ids as parameters from the adapter, and log in the application",
+        "a core takes time, ids, randomness and output from its caller, and runs on its caller's thread",
+        "take Now, ids and orders as parameters from the adapter, compute eagerly, and log in the application",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (snoozed)"),
     "kotlin-serializable": (
         "a serializable core type is a stored or wire shape, which lives in the store or adapt package",
@@ -211,22 +295,32 @@ RULES = {
         _KOTLIN_GOOD + "src/main/kotlin/persona/core/planted/adapt/ItemWire.kt"),
     "kotlin-factory": (
         "values are built only through constructors named for how they are built, with at most four inputs",
-        "name a companion factory parse, new, restore, newBuilder or restoreBuilder (a closed set's value keeps its "
-        "own name), and use a staged builder above four inputs",
+        "name a companion factory parse, new, restore, newBuilder or restoreBuilder, and use a staged builder above "
+        "four inputs; only a closed set (a class over its private enum class or internal sealed type) names a factory "
+        "for one of its cases",
         _KOTLIN_GOOD + "domain/src/main/kotlin/persona/core/planted/domain/Item.kt (Item.new)"),
 }
 
-# Named, reviewed exceptions for the kit's documented API, by rule, target and declaration path. A line nothing needs
-# fails once the kit exists (test_client_domain_modules.py), so the list only holds what the kit declares.
+# Named, reviewed exceptions for the kit's documented API, by rule, kit and declaration path. A line nothing needs
+# fails (test_client_domain_modules.py), so the list only holds what the kit declares.
 KIT_EXCEPTIONS = {
     ("swift-public-enum", "PersonaDomainKit", "Outcome"): "the unpack: the one public enum, switched on at the edge",
     ("swift-generic", "PersonaDomainKit", "Outcome"): "carries every core's value and failure family",
+    ("swift-extensible", "PersonaDomainKit", "Fail"): "every core's failure family conforms to it",
+    ("kotlin-generic", ":core:domainkit", "Outcome"): "carries every core's value and failure family",
+    ("kotlin-callback", ":core:domainkit", "Outcome.fold"): "the unpack: the edge reads an outcome through it",
+    ("kotlin-accessor", ":core:domainkit", "Outcome.fold"): "the unpack: it returns what the edge computes",
+    ("kotlin-extensible", ":core:domainkit", "Fail"): "every core's failure family implements it",
 }
+SWIFT_KIT_NAME = "PersonaDomainKit"
+KOTLIN_KIT_NAME = ":core:domainkit"
 
-# A factory named for how it builds instead of parse, new, restore, newBuilder or restoreBuilder, or a constructor in
-# disguise. A closed set's value keeps its own name (ItemCommand.markDone(by:)).
+# The names a factory may have: how it builds. Only a closed set adds one per case that carries data, named for the
+# case (Decision.holdUntil(t), ItemCommand.markDone(by:)), and never a constructor in disguise.
+FACTORY_NAMES = frozenset(("parse", "new", "restore", "newBuilder", "restoreBuilder"))
 BANNED_FACTORY = re.compile(
-    r"^(?:make|create|build|init|from|to|get|set|reconstruct|must|of|valueOf|invoke)(?:[A-Z_]|$)")
+    r"^(?:make|create|build|init|from|to|get|set|reconstruct|must|of|valueOf|invoke|with|copy|blank|empty|default)"
+    r"(?:[A-Z_]|$)")
 MAX_PARAMS = 4
 SWIFT_PRIMITIVES = frozenset((
     "String", "Character", "Substring", "Bool", "Int", "Int8", "Int16", "Int32", "Int64", "Int128", "UInt", "UInt8",
@@ -419,7 +513,7 @@ class KtDecl:
         self.kind, self.name, self.line, self.mods, self.annos, self.parent = kind, name, line, mods, annos, parent
         self.params, self.type, self.receiver, self.supers, self.children = [], None, None, [], []
         self.ctor = None  # a class's primary constructor: None without one, else its visibility ("" for the default)
-        self.getter = self.initializer = False
+        self.getter = self.initializer = self.generic = False
         self.init_first = ""  # a property initializer's first token
 
     @property
@@ -604,7 +698,7 @@ class _KtParser:
                 if depth == 0:
                     break
                 depth -= 1
-            elif value == "{" and depth == 0:
+            elif value in ("{", "}", ";") and depth == 0:
                 break
             i += 1
         return i, [tok.v for tok in self.t[begin:i]]
@@ -657,6 +751,7 @@ class _KtParser:
         decl = KtDecl(keyword, name, self.t[k].line, mods, annos, owner)
         owner.children.append(decl)
         if self.v(i) == "<":
+            decl.generic = True
             i = self.skip_angles(i)
         j, _ = self.annotations(i)
         visibility = ""
@@ -729,11 +824,12 @@ class _KtParser:
 
     def fun(self, owner, k, mods, annos):
         i = k + 1
-        if self.v(i) == "<":
+        generic = self.v(i) == "<"
+        if generic:
             i = self.skip_angles(i)
         i, receiver, name = self.signature(i)
         decl = KtDecl("fun", name, self.t[k].line, mods, annos, owner)
-        decl.receiver = receiver
+        decl.receiver, decl.generic = receiver, generic
         owner.children.append(decl)
         i, decl.params = self.params(i)
         if self.v(i) == ":":
@@ -794,7 +890,7 @@ def _type_root(type_tokens):
     """The outermost type's name: Outcome for persona.core.domainkit.Outcome<Item, Fail>?, None for none."""
     root = None
     for value in type_tokens:
-        if value in ("<", "("):
+        if value in ("<", "(", ",", ">", ")", "?", "->"):
             break
         if _ident(value):
             root = value
@@ -827,26 +923,83 @@ def _in_companion(decl):
     return decl.parent is not None and decl.parent.kind == "object" and "companion" in decl.parent.mods
 
 
+def _kt_path(decl):
+    """A declaration's names from the file down, companion objects left out: ["Outcome", "fold"]."""
+    names = []
+    while decl is not None and decl.kind != "file":
+        if not (decl.kind == "object" and "companion" in decl.mods):
+            names.append(decl.name)
+        decl = decl.parent
+    return names[::-1]
+
+
 def _returns_own(type_tokens, owner):
-    root = _type_root(type_tokens or [])
-    return owner is not None and (root == owner or (root == "Outcome" and _first_type_argument(type_tokens) == owner))
+    """Whether a result is its owner's own type or an Outcome of it, not nullable (absence is not a transition)."""
+    if owner is None or not type_tokens or type_tokens[-1] == "?":
+        return False
+    root = _type_root(type_tokens)
+    return root == owner or (root == "Outcome" and _first_type_argument(type_tokens) == owner)
 
 
-def kotlin_source_findings(path, text, module):
-    """Findings for one Kotlin source file of a domain module (module "domain") or of the kit (module "kit")."""
+def _kt_closed_set(klass):
+    """Whether a class is a closed set: its private constructor takes one value of a private or internal enum class or
+    sealed type declared inside it (`Urgency private constructor(private val urgency: Case)`)."""
+    if klass is None or klass.kind != "class" or klass.ctor != "private" or len(klass.params) != 1:
+        return False
+    case = _type_root(klass.params[0].type)
+    return any(child.kind in ("class", "interface") and child.name == case and child.mods & {"enum", "sealed"}
+               and child.mods & {"private", "internal"} for child in klass.children)
+
+
+def _kt_identity(type_tokens, declared):
+    """Whether an id() result is the module's own identity class: one name, declared in the module, ending in Id."""
+    return (type_tokens is not None and len(type_tokens) == 1 and type_tokens[0] in declared
+            and type_tokens[0].endswith("Id") and len(type_tokens[0]) > 2)
+
+
+def _kt_reference(name, module, ctx):
+    """For a dotted name a domain module (or the kit) imports or writes out: None when it may, else (rule, what)."""
+    if name.startswith("persona.core.domainkit.") and not name.startswith("persona.core.domainkit.adapt."):
+        return None
+    m = re.match(r"persona\.core\.([a-z0-9_]+)\.domain(?:\.|$)", name)
+    if m and module == "domain":
+        if m.group(1) == ctx:
+            return None
+        return "kotlin-context", "from another context's domain module"
+    return "kotlin-import", None
+
+
+def kotlin_declared(texts):
+    """The classes, interfaces and objects a module's sources declare, nested ones included."""
+    names = set()
+    for text in texts:
+        _, _, root = parse_kotlin(strip(text, "kotlin"))
+        names.update(d.name for d in root.walk() if d.kind in ("class", "interface", "object") and d.name)
+    return names
+
+
+def kotlin_source_findings(path, text, module, ctx=None, declared=None):
+    """Findings for one Kotlin source file of a domain module (module "domain") or of the kit (module "kit"). ctx: the
+    module's context (by default the one its package names); declared: the classes the module declares (by default
+    this file's)."""
     stripped = strip(text, "kotlin")
-    _, imports, root = parse_kotlin(stripped)
+    package, imports, root = parse_kotlin(stripped)
+    if ctx is None:
+        m = re.match(r"persona\.core\.([a-z0-9_]+)\.domain(?:\.|$)", package)
+        ctx = m.group(1) if m else None
+    if declared is None:
+        declared = {d.name for d in root.walk() if d.kind in ("class", "interface", "object") and d.name}
     found = []
     add = lambda line, rule, what: found.append(Finding(path, line, rule, what))  # noqa: E731
     toks = tokens(stripped)
     for name, line in imports:
-        kit = name.startswith("persona.core.domainkit.") and not name.startswith("persona.core.domainkit.adapt.")
-        kernel = re.match(r"persona\.core\.[a-z0-9_]+\.domain\.", name) and not name.startswith("persona.core.domain.")
-        if not (kit or (kernel and module != "kit")):
-            add(line, "kotlin-import", f"imports {name}")
-    _kotlin_token_rules(toks, module, add)
+        refused = _kt_reference(name, module, ctx)
+        if refused:
+            rule, whose = refused
+            add(line, rule, f"imports {name}" + (f", {whose}" if whose else ""))
+    _kotlin_token_rules(toks, module, ctx, add)
     for decl in root.walk():
-        _kotlin_decl_rules(decl, add)
+        _kotlin_decl_rules(decl, add, module, declared)
     return sorted(set(found))
 
 
@@ -860,12 +1013,26 @@ _KT_BANNED_CALLS = {
     ("ZonedDateTime", "now"): "reads the clock", ("OffsetDateTime", "now"): "reads the clock",
 }
 _KT_BANNED_BARE = {"println": "prints", "print": "prints", "runBlocking": "blocks a thread", "readLine": "reads input",
-                   "Random": "draws a random number"}
+                   "Random": "draws a random number", "synchronized": "takes a lock",
+                   "lazy": "caches a value behind a lock"}
+# Members called on a value: `items.shuffled()`.
+_KT_BANNED_MEMBERS = {"random": "draws a random number", "randomOrNull": "draws a random number",
+                      "shuffled": "draws a random order", "shuffle": "draws a random order"}
+_KT_BANNED_ANNOTATIONS = {"Synchronized": "takes a lock", "Volatile": "shares state between threads"}
 _KT_HIDDEN_THROWS = frozenset(("error", "require", "requireNotNull", "check", "checkNotNull", "TODO"))
 _KT_CODEC_NAMES = frozenset(("Serializable", "SerialName", "Parcelize", "Parcelable", "Transient"))
+# Collections and arrays that change in place, their types and the calls that make them.
+_KT_MUTABLE = re.compile(
+    r"^(?:Mutable[A-Z]\w*|mutable[A-Z]\w*Of|toMutable[A-Z]\w*|asMutable[A-Z]\w*"
+    r"|(?:array|arrayList|hashMap|hashSet|linkedMap|linkedSet|sortedMap|sortedSet)Of|arrayOfNulls|emptyArray"
+    r"|(?:int|long|short|byte|char|float|double|boolean|uInt|uLong|uShort|uByte)ArrayOf|toTypedArray"
+    r"|to(?:Int|Long|Short|Byte|Char|Float|Double|Boolean|UInt|ULong|UShort|UByte)Array"
+    r"|Array|(?:Int|Long|Short|Byte|Char|Float|Double|Boolean|UInt|ULong|UShort|UByte)Array"
+    r"|ArrayList|ArrayDeque|HashMap|HashSet|LinkedHashMap|LinkedHashSet|TreeMap|TreeSet|WeakHashMap|IdentityHashMap"
+    r"|EnumMap|StringBuilder)$")
 
 
-def _kotlin_token_rules(toks, module, add):
+def _kotlin_token_rules(toks, module, ctx, add):
     n = len(toks)
     head = ""
     for i, tok in enumerate(toks):
@@ -883,8 +1050,14 @@ def _kotlin_token_rules(toks, module, add):
             add(tok.line, "kotlin-throw", "uses !!, which throws")
         elif value in _KT_HIDDEN_THROWS and after == "(" and prev not in (".", "fun", "::"):
             add(tok.line, "kotlin-throw", f"calls {value}(), which throws")
-        elif value in _KT_BANNED_BARE and after == "(" and prev not in (".", "fun", "::"):
+        elif value in _KT_BANNED_BARE and after in ("(", "{") and prev not in (".", "fun", "::"):
             add(tok.line, "kotlin-banned-call", f"calls {value}() ({_KT_BANNED_BARE[value]})")
+        elif value in _KT_BANNED_MEMBERS and prev in (".", "?.") and after in ("(", "{"):
+            add(tok.line, "kotlin-banned-call", f"calls .{value}() ({_KT_BANNED_MEMBERS[value]})")
+        elif value in _KT_BANNED_ANNOTATIONS and prev == "@":
+            add(tok.line, "kotlin-banned-call", f"marks a declaration @{value} ({_KT_BANNED_ANNOTATIONS[value]})")
+        elif value == "suspend" and prev != ".":
+            add(tok.line, "kotlin-banned-call", "declares a suspend function or type (runs off its caller's thread)")
         elif prev != "." and i + 2 < n and toks[i + 1].v == "." and (value, toks[i + 2].v) in _KT_BANNED_CALLS:
             member = toks[i + 2].v
             add(tok.line, "kotlin-banned-call", f"calls {value}.{member} ({_KT_BANNED_CALLS[value, member]})")
@@ -892,6 +1065,8 @@ def _kotlin_token_rules(toks, module, add):
             add(tok.line, "kotlin-banned-call", f"uses {value} ({_KT_BANNED_CALLS[value, None]})")
         elif value in _KT_CODEC_NAMES and prev in ("@", ".", ":", ","):
             add(tok.line, "kotlin-serializable", f"uses {value}")
+        elif value == "IgnorableReturnValue" and prev in ("@", ".", ":", "["):
+            add(tok.line, "kotlin-ignorable", "marks a result @IgnorableReturnValue")
         elif value == "OptIn" and prev in ("@", ".", ":") and after == "(":
             end = i + 2
             while end < n and toks[end].v != ")":
@@ -901,14 +1076,31 @@ def _kotlin_token_rules(toks, module, add):
                 add(tok.line, "kotlin-optin", f"opts in to {', '.join(sorted(marks))} in a domain module")
         elif value == "ClockRead" and prev == "@" and module != "kit":
             add(tok.line, "kotlin-optin", "marks a declaration @ClockRead outside the kit")
+        elif _KT_MUTABLE.match(value):
+            add(tok.line, "kotlin-state", f"uses {value}, which changes in place")
         if prev != "." and _KT_FQN.match(value) and after == ".":
             add(tok.line, "kotlin-import", f"names {value}.{toks[i + 2].v if i + 2 < n else ''} by its full name")
         if value == "kotlin" and prev != "." and after == "." and i + 2 < n and toks[i + 2].v in _KT_FQN_KOTLIN:
             add(tok.line, "kotlin-import", f"names kotlin.{toks[i + 2].v} by its full name")
+        if value == "persona" and prev != "." and after == ".":
+            j = i
+            while j + 2 < n and toks[j + 1].v == "." and _ident(toks[j + 2].v):
+                j += 2
+            name = "".join(t.v for t in toks[i:j + 1])
+            refused = _kt_reference(name, module, ctx)
+            if refused:
+                rule, whose = refused
+                add(tok.line, rule, f"names {name} by its full name" + (f", {whose}" if whose else ""))
 
 
-def _kotlin_decl_rules(decl, add):
+def _kotlin_decl_rules(decl, add, module, declared):
     public = decl.public
+    kit = module == "kit"
+    path = _kt_path(decl)
+
+    def excepted(rule, key):
+        return kit and _kit_exception(rule, KOTLIN_KIT_NAME, key)
+
     if decl.kind in ("class", "interface", "object"):
         label = decl.name or "an object"
         if "data" in decl.mods and decl.kind == "class":
@@ -917,6 +1109,27 @@ def _kotlin_decl_rules(decl, add):
             shape = ("an enum class" if "enum" in decl.mods else "a data object" if "data" in decl.mods
                      else "a sealed type")
             add(decl.line, "kotlin-public-sealed", f"{label} is public and {shape}")
+        if decl.kind == "object" and "companion" not in decl.mods:
+            if decl.parent.kind == "file":
+                add(decl.line, "kotlin-state", f"{label} is a package-level object")
+            else:
+                held = [c.name for c in decl.children if c.kind in ("val", "var")]
+                if held:
+                    add(decl.line, "kotlin-state", f"{label} is an object that holds {held[0]}")
+        if decl.kind == "interface" and decl.name.endswith("Visitor"):
+            for child in decl.children:
+                if child.kind == "fun" and not child.name.startswith("visit"):
+                    add(child.line, "kotlin-visitor-name", f"{decl.name}.{child.name}() is not named visit…")
+                elif child.kind in ("val", "var"):
+                    add(child.line, "kotlin-visitor-name", f"{decl.name}.{child.name} is a property, not a visit…")
+        if public and decl.generic and not excepted("kotlin-generic", path[0]):
+            add(decl.line, "kotlin-generic", f"{label} declares a type parameter")
+        if public and decl.kind == "interface" and "sealed" not in decl.mods and not decl.name.endswith("Visitor") \
+                and not excepted("kotlin-extensible", ".".join(path)):
+            add(decl.line, "kotlin-extensible", f"{label} is a public interface")
+        if public and decl.kind == "class" and decl.mods & {"abstract", "open"}:
+            shape = "abstract" if "abstract" in decl.mods else "open"
+            add(decl.line, "kotlin-extensible", f"{label} is a public {shape} class")
         if public and decl.kind == "class":
             for param in decl.params:
                 if param.binding and not (param.mods & {"private", "internal"}):
@@ -933,53 +1146,79 @@ def _kotlin_decl_rules(decl, add):
         return
     if decl.kind == "constructor":
         return
-    if not public or decl.parent is None:
+    if decl.kind in ("val", "var") and decl.parent.kind == "file" and decl.receiver is None \
+            and "const" not in decl.mods:
+        add(decl.line, "kotlin-state", f"{decl.name} is package-level state")
+    if not public:
         return
     owner = _kt_owner(decl)
-    boundary = "DomainBoundary" in decl.annos
+    marks = decl.annos & {"DomainBoundary", "ClockRead"}
     override = "override" in decl.mods
+    companion = _in_companion(decl)
+    method = decl.receiver is not None or (decl.parent.kind in ("class", "interface", "object") and not companion)
     name = decl.name
-    if decl.kind == "fun":
-        label = f"{owner}.{name}()" if owner else f"{name}()"
-        # The platform's contracts (equals, hashCode, compareTo), the identity and a staged builder's last step.
-        identity = (override and name in ("equals", "hashCode", "compareTo") or (name == "id" and not decl.params)
-                    or (name == "build" and not decl.params and (owner or "").endswith("Builder")))
+    is_fun = decl.kind == "fun"
+    label = (f"{owner}.{name}" if owner else name) + ("()" if is_fun else "")
+    key = ".".join(path)
+    # A member behind an opt-in is the boundary the way Swift's @_spi members are: the API rules below leave it to
+    # kotlin-boundary, which allows only the shapes of the documented boundary.
+    if marks:
+        wire = is_fun and name == "wire" and not decl.params and method
+        kit_factory = kit and is_fun and companion
+        for mark in sorted(marks):
+            allowed = kit_factory if mark == "ClockRead" else (wire or kit_factory)
+            if not allowed and (kit or mark == "DomainBoundary"):
+                add(decl.line, "kotlin-boundary", f"{label} is marked @{mark}")
+        return
+    types = [p.type for p in decl.params] + [decl.type or []]
+    if any("->" in t for t in types) and not excepted("kotlin-callback", key):
+        add(decl.line, "kotlin-callback", f"{label} takes or returns a function")
+    if is_fun:
+        identity = override and name in ("equals", "hashCode", "compareTo")
+        if decl.generic and not excepted("kotlin-generic", path[0]):
+            add(decl.line, "kotlin-generic", f"{label} declares a type parameter")
         if name in ("evolve", "apply"):
             add(decl.line, "kotlin-public-evolve", f"{label} is public")
         if len(decl.params) > MAX_PARAMS:
             add(decl.line, "kotlin-factory", f"{label} takes {len(decl.params)} parameters")
-        if _in_companion(decl) and _returns_own(decl.type, owner) and BANNED_FACTORY.match(name):
-            add(decl.line, "kotlin-factory", f"{label} builds a {owner} under a name other than parse, new or restore")
-        if not boundary and not identity:
-            parse = name == "parse" and _in_companion(decl)
+        if companion and _returns_own(decl.type, owner) and name not in FACTORY_NAMES:
+            if not _kt_closed_set(decl.parent.parent) or BANNED_FACTORY.match(name):
+                add(decl.line, "kotlin-factory",
+                    f"{label} builds a {owner} under a name other than parse, new, restore, newBuilder or "
+                    "restoreBuilder")
+        if not identity:
+            parse = name == "parse" and companion
             loose = [p.name for p in decl.params if set(p.type) & KOTLIN_PRIMITIVES] if not parse else []
             result = set(decl.type or []) & KOTLIN_PRIMITIVES
             if loose:
                 add(decl.line, "kotlin-primitive-api", f"{label} takes {', '.join(loose)} as a primitive")
             if result and decl.type != ["Boolean"]:
                 add(decl.line, "kotlin-primitive-api", f"{label} returns {' '.join(decl.type)}")
-        if not decl.params and not identity and not (boundary and name == "wire"):
+        if (method or not decl.params) and not identity and not excepted("kotlin-accessor", key):
             root = _type_root(decl.type or [])
-            if not (decl.type is None or root in ("Boolean", "Unit") and len(decl.type) == 1
-                    or _returns_own(decl.type, owner)):
+            told = decl.type is None or decl.type in (["Boolean"], ["Unit"]) or _returns_own(decl.type, owner)
+            told = told or (name == "id" and not decl.params and _kt_identity(decl.type, declared))
+            told = told or (name == "build" and not decl.params and (owner or "").endswith("Builder")
+                            and root == "Outcome" and _first_type_argument(decl.type) in declared)
+            told = told or ((owner or "").endswith("Step") and decl.type is not None and len(decl.type) == 1
+                            and root in declared and root.endswith(("Step", "Builder")))
+            if not told:
                 add(decl.line, "kotlin-accessor", f"{label} hands out {' '.join(decl.type)}")
         return
     # A val or var: the stored or computed value of a class, a companion value, or a package-level value.
-    label = f"{owner}.{name}" if owner else name
     typed = decl.type or []
     computed_bool = decl.getter and not decl.initializer and typed == ["Boolean"]
-    companion_value = _in_companion(decl) and (
+    companion_value = companion and (
         _type_root(typed) == owner or (not typed and decl.initializer and decl.init_first == owner))
-    if set(typed) & KOTLIN_PRIMITIVES and not computed_bool and not boundary:
+    if set(typed) & KOTLIN_PRIMITIVES and not computed_bool:
         add(decl.line, "kotlin-primitive-api", f"{label} is public and has the type {' '.join(typed)}")
     if not computed_bool and not companion_value:
         what = "a package-level value" if decl.parent.kind == "file" else "state visible outside the module"
         add(decl.line, "kotlin-accessor", f"{label} is {what}; a public val is a computed Boolean")
 
 
-def kotlin_build_findings(path, text, kit, kernels):
-    """Findings for a domain module's (or the kit's) build.gradle.kts. kernels: the Gradle paths of every domain module
-    (shared kernels it may depend on)."""
+def kotlin_build_findings(path, text, kit):
+    """Findings for a domain module's (or the kit's) build.gradle.kts."""
     source = strip(text, "kotlin", keep_strings=True)
     found = []
     add = lambda what, rule="kotlin-build-flags", line=0: found.append(Finding(path, line, rule, what))  # noqa: E731
@@ -1007,7 +1246,9 @@ def kotlin_build_findings(path, text, kit, kernels):
         project = None
         if target:
             project = target.group(1) or ":" + ":".join(target.group(2).strip(".").split("."))
-        if kit or project is None or not (project == ":core:domainkit" or project in kernels):
+        if not kit and project is not None and re.fullmatch(r":core:[a-z0-9_]+:domain", project):
+            add(f"depends on {project}, another context's domain module", "kotlin-context", line_number)
+        elif kit or project != ":core:domainkit":
             add(f"depends on {m.group(2).strip()}", "kotlin-module", line_number)
     return found
 
@@ -1055,9 +1296,10 @@ def kotlin_build_logic_findings(files):
     return found
 
 
-def kotlin_outside_findings(path, text, place, visitors):
+def kotlin_outside_findings(path, text, place, visitors, functions=frozenset(), ctx=None):
     """Findings for Android code outside the domain modules' main sources. place: "adapt", "kit-adapt", "test" or
-    "other". visitors: the domain visitor interfaces' names."""
+    "other"; visitors: the domain visitor interfaces' names; functions: the public functions the domain modules
+    declare; ctx: an adapt package's context."""
     stripped = strip(text, "kotlin")
     found = []
     for m in re.finditer(r"\b(DomainBoundary|ClockRead)\b", stripped):
@@ -1065,7 +1307,14 @@ def kotlin_outside_findings(path, text, place, visitors):
         allowed = place == "kit-adapt" or (place == "adapt" and mark == "DomainBoundary")
         if path.endswith(".kts") or not allowed:
             found.append(Finding(path, _line_of(stripped, m.start()), "kotlin-optin", f"names {mark}"))
-    if visitors and place not in ("adapt", "kit-adapt", "test") and path.endswith(".kt"):
+    if not path.endswith(".kt"):
+        return sorted(set(found))
+    if place == "adapt":
+        for m in re.finditer(r"(?m)^[ \t]*import[ \t]+persona\.core\.([a-z0-9_]+)\.adapt\b", stripped):
+            if m.group(1) not in (ctx, "domainkit"):
+                found.append(Finding(path, _line_of(stripped, m.start(1)), "kotlin-context",
+                                     f"imports persona.core.{m.group(1)}.adapt, another context's adapter"))
+    if visitors and place not in ("adapt", "kit-adapt", "test"):
         _, _, root = parse_kotlin(stripped)
         for decl in root.walk():
             hit = sorted(set(decl.supers) & visitors)
@@ -1077,6 +1326,12 @@ def kotlin_outside_findings(path, text, place, visitors):
             if hit:
                 found.append(Finding(path, _line_of(stripped, m.start()), "kotlin-visitor-impl",
                                      f"an object implements {', '.join(hit)}"))
+    if functions and place in ("adapt", "other"):
+        for m in re.finditer(r"\bval\s+_\s*(?::[^=\n]*)?=\s*([^\n;]*)", stripped):
+            called = [name for name in re.findall(r"\b([A-Za-z_]\w*)\s*[({]", m.group(1)) if name in functions]
+            if called:
+                found.append(Finding(path, _line_of(stripped, m.start()), "kotlin-app-discard",
+                                     f"drops the result of {called[0]}"))
     return sorted(set(found))
 
 
@@ -1088,20 +1343,34 @@ def kotlin_visitors(texts):
     return names
 
 
+def kotlin_public_functions(texts):
+    """The names of the functions the domain modules declare public that return something, for dropped results."""
+    names = set()
+    for text in texts:
+        _, _, root = parse_kotlin(strip(text, "kotlin"))
+        names.update(d.name for d in root.walk() if d.kind == "fun" and d.public and d.type not in (None, ["Unit"]))
+    return names
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Swift manifests
 
 SwiftTarget = namedtuple("SwiftTarget", "package name role sources manifest line deps settings")
 _TARGET_CALL = re.compile(r"\.(target|testTarget|executableTarget|binaryTarget|macro|plugin|systemLibrary)\s*\(")
-DOMAIN_TARGET = re.compile(r"^Persona\w*Domain$")
-ADAPT_TARGET = re.compile(r"^Persona\w*Adapt$")
+# Every target named like a domain module is one, whatever comes before Domain or Adapt; NAMED says how it must be
+# named (Persona<Ctx>Domain, Persona<Ctx>Adapt, Persona<Ctx>DomainTests), so a target missing the Persona prefix is
+# checked and fails discovery rather than passing unseen.
+DOMAIN_TARGET = re.compile(r"^\w*Domain$")
+ADAPT_TARGET = re.compile(r"^\w*Adapt$")
+DOMAIN_TESTS = re.compile(r"^\w*Domain(?:Kit)?Tests$")
+NAMED = re.compile(r"^Persona(?:[A-Z]\w*(?:Domain|Adapt|DomainTests)|DomainKitTests)$")
 KIT = "PersonaDomainKit"
 KIT_ADAPT = "PersonaDomainKitAdapt"
 
 
 def swift_role(name, call="target"):
     if call == "testTarget":
-        return "test-domain" if re.match(r"^Persona\w*Domain(?:Kit)?Tests$", name) else "other"
+        return "test-domain" if DOMAIN_TESTS.match(name) else "other"
     if name == KIT:
         return "kit"
     if name == KIT_ADAPT:
@@ -1200,9 +1469,12 @@ _SWIFT_FLAGS = (("-warnings-as-errors",), ("-Xfrontend", "-disable-implicit-conc
 def swift_manifest_findings(target):
     """A Domain target's (or the kit's) dependencies and settings."""
     found = []
-    add = lambda what: found.append(Finding(target.manifest, target.line, "swift-manifest", what))  # noqa: E731
+    add = lambda what, rule="swift-manifest": found.append(  # noqa: E731
+        Finding(target.manifest, target.line, rule, what))
     for dep in target.deps:
-        if target.role == "kit" or not (dep == KIT or DOMAIN_TARGET.match(dep)):
+        if target.role != "kit" and DOMAIN_TARGET.match(dep):
+            add(f"{target.name} depends on {dep}, another context's core", "swift-context")
+        elif target.role == "kit" or dep != KIT:
             add(f"{target.name} depends on {dep}")
     flat = re.sub(r"\s+", "", target.settings)
     for needle, label in _SWIFT_SETTINGS:
@@ -1215,6 +1487,23 @@ def swift_manifest_findings(target):
         if not any(tuple(flags[i:i + len(group)]) == group for i in range(len(flags))):
             add(f"{target.name}'s unsafeFlags lack {' '.join(group)}")
     return found
+
+
+def swift_adapt_manifest_findings(target):
+    """An *Adapt target depends on no other context's *Adapt target."""
+    return [Finding(target.manifest, target.line, "swift-context",
+                    f"{target.name} depends on {dep}, another context's adapter")
+            for dep in target.deps if ADAPT_TARGET.match(dep) and dep not in (KIT_ADAPT, target.name)]
+
+
+def swift_name_findings(target):
+    """A domain, adapter or domain test target is named Persona<Ctx>Domain, Persona<Ctx>Adapt or
+    Persona<Ctx>DomainTests."""
+    if target.role not in ("domain", "adapt", "test-domain") or NAMED.match(target.name):
+        return []
+    suffix = re.search(r"(Domain(?:Kit)?Tests|Domain|Adapt)$", target.name).group(1)
+    return [Finding(target.manifest, target.line, "swift-discovery",
+                    f"{target.name} is named like a domain target, but not Persona<Ctx>{suffix}")]
 
 
 def swift_testable_findings(apple_sh, packages, path="scripts/ci/apple.sh"):
@@ -1250,7 +1539,7 @@ _SWIFT_IMPORT = re.compile(
 _SWIFT_BANNED = (
     (re.compile(r"(?<![\w.])(print|debugPrint|dump)\s*\("), "prints"),
     (re.compile(r"(?<![\w.])(fatalError|preconditionFailure)\s*\("), "traps"),
-    (re.compile(r"\.random\s*\("), "draws a random number"),
+    (re.compile(r"\.(random|randomElement|shuffled|shuffle)\s*\("), "draws a random number or order"),
     (re.compile(r"\b(SystemRandomNumberGenerator)\b"), "draws a random number"),
     (re.compile(r"(?<![\w.])(Mirror)\s*\("), "reflects on a value"),
     (re.compile(r"\b(ContinuousClock|SuspendingClock)\b"), "reads the clock"),
@@ -1353,17 +1642,72 @@ def _swift_public(mods, scope):
     return scope.kind == "extension" and scope.public
 
 
+_SWIFT_UNSAFE = re.compile(r"^(?:Unsafe|withUnsafe|AutoreleasingUnsafe)\w*$")
+_SWIFT_NOT_A_CLASS = frozenset(("func", "var", "let", "subscript", "init", "deinit", "typealias")) | _SWIFT_MODIFIERS
+
+
+def _swift_binding(toks, i):
+    """For the let or var at i: (its annotated type's tokens or None, the index after the type, what follows the name
+    and type on its line: "=" for a stored value, "{" for accessors or observers, "" for neither)."""
+    n = len(toks)
+    j, annotated = i + 2, None
+    if j < n and toks[j].v == ":":
+        j += 1
+        begin = j
+        depth = 0
+        while j < n and not (depth == 0 and (toks[j].v in ("=", "{") or toks[j].first)):
+            depth += toks[j].v in ("<", "[", "(")
+            depth -= toks[j].v in (">", "]", ")")
+            j += 1
+        annotated = [t.v for t in toks[begin:j]]
+    follows = toks[j].v if j < n and (toks[j].v in ("=", "{") or not toks[j].first) else ""
+    return annotated, j, follows
+
+
+def _swift_spi_target(toks, i):
+    """For the @_spi attribute at i: (its group, the keyword of the declaration it marks, that declaration's name)."""
+    n = len(toks)
+    group = toks[i + 3].v if i + 3 < n else ""
+    j = i + 5
+    while j < n:
+        if toks[j].v == "@":
+            j += 2
+            if j < n and toks[j].v == "(":
+                depth = 0
+                while j < n:
+                    depth += toks[j].v == "("
+                    depth -= toks[j].v == ")"
+                    j += 1
+                    if depth == 0:
+                        break
+        elif toks[j].v in _SWIFT_MODIFIERS and not (toks[j].v == "class" and j + 1 < n
+                                                     and toks[j + 1].v not in _SWIFT_NOT_A_CLASS):
+            j += 1
+            if j < n and toks[j].v == "(":  # private(set)
+                j += 3
+        else:
+            break
+    keyword = toks[j].v if j < n else ""
+    name = toks[j + 1].v if j + 1 < n and _ident(toks[j + 1].v) else keyword
+    return group, keyword, name
+
+
 def swift_source_findings(path, text, target):
     """Findings for one Swift source file of a Domain target or of the kit."""
     stripped = strip(text, "swift")
     found = []
     add = lambda line, rule, what: found.append(Finding(path, line, rule, what))  # noqa: E731
+    kit = target.role == "kit"
     for m in _SWIFT_IMPORT.finditer(stripped):
         attributes, module = m.group(1), m.group(2)
         line = _line_of(stripped, m.start(2))
         if "@_spi" in attributes:
             add(line, "swift-spi-import", f"{target.name} imports {module} with {attributes.strip()}")
-        elif "@testable" in attributes or not (module == KIT or (DOMAIN_TARGET.match(module) and target.role != "kit")):
+        elif "@testable" not in attributes and module == KIT and not kit:
+            continue
+        elif "@testable" not in attributes and not kit and DOMAIN_TARGET.match(module) and module != target.name:
+            add(line, "swift-context", f"{target.name} imports {module}, another context's core")
+        else:
             add(line, "swift-import", f"{target.name} imports {module}")
     for pattern, why in _SWIFT_BANNED:
         for m in pattern.finditer(stripped):
@@ -1373,6 +1717,8 @@ def swift_source_findings(path, text, target):
         add(_line_of(stripped, m.start()), "swift-throws", f"uses {m.group(1)}")
     for m in _SWIFT_CONFORMANCES.finditer(stripped):
         add(_line_of(stripped, m.start()), "swift-conformance", f"names {m.group(1)}")
+    for m in re.finditer(r"@\s*discardableResult\b", stripped):
+        add(_line_of(stripped, m.start()), "swift-discardable", "marks a result @discardableResult")
     toks = tokens(stripped)
     scopes = _swift_scopes(toks)
     n = len(toks)
@@ -1380,42 +1726,70 @@ def swift_source_findings(path, text, target):
         stack = scopes[i]
         scope = stack[-1]
         in_code = any(s.kind == "code" for s in stack)
-        if tok.v == "mutating" and not in_code:
+        value, after = tok.v, (toks[i + 1].v if i + 1 < n else "")
+        prev = toks[i - 1].v if i else ""
+        # State: reference types, escape hatches and raw memory, wherever they are.
+        if value == "class" and _ident(after) and after not in _SWIFT_NOT_A_CLASS:
+            add(tok.line, "swift-state", f"declares class {after}")
+        elif value == "actor" and prev != "." and _ident(after) and i + 2 < n and toks[i + 2].v in ("{", ":", "<",
+                                                                                                    "where"):
+            add(tok.line, "swift-state", f"declares actor {after}")
+        elif value == "nonisolated" and after == "(" and i + 2 < n and toks[i + 2].v == "unsafe":
+            add(tok.line, "swift-state", "uses nonisolated(unsafe)")
+        elif value == "unchecked" and prev == "@":
+            add(tok.line, "swift-state", "uses @unchecked")
+        elif _SWIFT_UNSAFE.match(value):
+            add(tok.line, "swift-state", f"uses {value}")
+        if in_code:
+            continue
+        if value == "@" and after == "_spi" and i + 4 < n and toks[i + 2].v == "(":
+            group, keyword, name = _swift_spi_target(toks, i)
+            label = f"{scope.name}.{name}" if scope.name else name
+            wire = keyword == "var" and name == "wire"
+            allowed = (group == "Boundary" and (wire or (kit and keyword == "init"))) or (
+                kit and group == "Clock" and keyword == "init")
+            if keyword != "import" and not allowed:
+                add(tok.line, "swift-boundary", f"{label} is marked @_spi({group})")
+        elif value == "mutating":
             j = i + 1
             while j < n and toks[j].v in _SWIFT_MODIFIERS:
                 j += 1
             if j < n and toks[j].v == "func" and scope.kind != "protocol":
                 name = toks[j + 1].v if j + 1 < n else ""
                 add(tok.line, "swift-mutating", f"declares mutating func {name}")
-        elif tok.v == "enum" and not in_code and scope.exposed and i + 1 < n and _ident(toks[i + 1].v):
-            name = toks[i + 1].v
-            label = f"{scope.name}.{name}" if scope.name else name
+        elif value == "protocol" and _ident(after):
+            label = f"{scope.name}.{after}" if scope.name else after
+            public = scope.exposed and _swift_public(_swift_modifiers(toks, i), scope)
+            if public and not after.endswith("Visitor") and not _kit_exception(
+                    "swift-extensible", target.name, tuple(label.split("."))):
+                add(tok.line, "swift-extensible", f"{label} is a public protocol")
+        elif scope.kind == "protocol" and (scope.name or "").endswith("Visitor") and value in ("func", "var", "let"):
+            if value != "func":
+                add(tok.line, "swift-visitor-name", f"{scope.name}.{after} is a property, not a visit…")
+            elif not after.startswith("visit"):
+                add(tok.line, "swift-visitor-name", f"{scope.name}.{after} is not named visit…")
+        elif value == "enum" and scope.exposed and _ident(after):
+            label = f"{scope.name}.{after}" if scope.name else after
             if _swift_public(_swift_modifiers(toks, i), scope) and not _kit_exception(
                     "swift-public-enum", target.name, tuple(label.split("."))):
                 add(tok.line, "swift-public-enum", f"{label} is a public enum")
-        elif tok.v in ("let", "var") and not in_code and scope.exposed \
-                and scope.kind in (_SWIFT_TYPE_KINDS - {"protocol"}) | {"file"}:
+        elif value in ("let", "var") and scope.kind != "protocol" and i + 1 < n:
             mods = _swift_modifiers(toks, i)
-            if not _swift_public(mods, scope) or i + 1 >= n:
-                continue
-            name = toks[i + 1].v
+            name = after
             label = f"{scope.name}.{name}" if scope.name else name
+            annotated, j, follows = _swift_binding(toks, i)
+            observed = follows == "{" and j + 1 < n and toks[j + 1].v in ("didSet", "willSet")
+            stored = value == "let" or follows != "{" or observed
+            if scope.kind == "file":
+                add(tok.line, "swift-state", f"{label} is a global")
+            elif value == "var" and stored:
+                add(tok.line, "swift-state", f"{label} is a stored var")
+            if not (scope.exposed and _swift_public(mods, scope)):
+                continue
             if any(mod.endswith("(set)") for mod in mods):
                 add(tok.line, "swift-stored-public", f"{label} has a setter")
                 continue
-            j, annotated = i + 2, None
-            if j < n and toks[j].v == ":":
-                j += 1
-                begin = j
-                depth = 0
-                while j < n and not (depth == 0 and (toks[j].v in ("=", "{") or toks[j].first)):
-                    depth += toks[j].v in ("<", "[", "(")
-                    depth -= toks[j].v in (">", "]", ")")
-                    j += 1
-                annotated = [t.v for t in toks[begin:j]]
-            # What follows the name and type on its line: = for a stored value, { for accessors (or observers).
-            follows = toks[j].v if j < n and (toks[j].v in ("=", "{") or not toks[j].first) else ""
-            if tok.v == "let":
+            if value == "let":
                 if annotated:
                     own = scope.name is not None and _type_root(annotated) in (scope.name, "Self")
                 else:
@@ -1423,28 +1797,45 @@ def swift_source_findings(path, text, target):
                            and toks[j + 1].v in (scope.name, "Self"))
                 if not ({"static", "class"} & mods and own):
                     add(tok.line, "swift-stored-public", f"{label} is a stored public property")
+            elif observed:
+                add(tok.line, "swift-stored-public", f"{label} is a stored public property")
             elif follows == "{":
-                inner = toks[j + 1].v if j + 1 < n else ""
-                if inner in ("didSet", "willSet"):
-                    add(tok.line, "swift-stored-public", f"{label} is a stored public property")
-                else:
-                    end, depth = j, 0
-                    while end < n:
-                        depth += toks[end].v == "{"
-                        depth -= toks[end].v == "}"
-                        if depth == 0:
-                            break
-                        if depth == 1 and toks[end].v == "set" and toks[end - 1].v in ("{", "}"):
-                            add(tok.line, "swift-stored-public", f"{label} has a public setter")
-                            break
-                        end += 1
+                end, depth = j, 0
+                while end < n:
+                    depth += toks[end].v == "{"
+                    depth -= toks[end].v == "}"
+                    if depth == 0:
+                        break
+                    if depth == 1 and toks[end].v == "set" and toks[end - 1].v in ("{", "}"):
+                        add(tok.line, "swift-stored-public", f"{label} has a public setter")
+                        break
+                    end += 1
             else:
                 add(tok.line, "swift-stored-public", f"{label} is a stored public property")
     return sorted(set(found))
 
 
 def _kit_exception(rule, target, path):
-    return (rule, target, ".".join(path)) in KIT_EXCEPTIONS
+    return (rule, target, path if isinstance(path, str) else ".".join(path)) in KIT_EXCEPTIONS
+
+
+def swift_closed_sets(texts):
+    """The structs that are closed sets: each holds a stored `let` of a private enum it declares."""
+    closed = set()
+    for text in texts:
+        toks = tokens(strip(text, "swift"))
+        scopes = _swift_scopes(toks)
+        enums, lets = set(), set()
+        for i, tok in enumerate(toks):
+            scope = scopes[i][-1]
+            if scope.kind != "struct" or i + 3 >= len(toks):
+                continue
+            if tok.v == "enum" and _ident(toks[i + 1].v) and _swift_modifiers(toks, i) & {"private", "fileprivate"}:
+                enums.add((scope.name, toks[i + 1].v))
+            elif tok.v == "let" and toks[i + 2].v == ":" and _ident(toks[i + 3].v):
+                lets.add((scope.name, toks[i + 3].v))
+        closed.update(owner for owner, _ in enums & lets)
+    return closed
 
 
 def swift_public_functions(texts):
@@ -1474,6 +1865,9 @@ def swift_outside_findings(path, text, role, visitors, functions, app):
     found = []
     for m in _SWIFT_IMPORT.finditer(stripped):
         attributes, module = m.group(1), m.group(2)
+        if role == "adapt" and ADAPT_TARGET.match(module) and module != KIT_ADAPT:
+            found.append(Finding(path, _line_of(stripped, m.start(2)), "swift-context",
+                                 f"imports {module}, another context's adapter"))
         if not (module == KIT or DOMAIN_TARGET.match(module)):
             continue
         spis = set(re.findall(r"@_spi\(\s*(\w+)\s*\)", attributes))
@@ -1487,7 +1881,7 @@ def swift_outside_findings(path, text, role, visitors, functions, app):
             if hit:
                 found.append(Finding(path, _line_of(stripped, m.start()), "swift-visitor-impl",
                                      f"conforms to {', '.join(hit)}"))
-    if app and functions and re.search(r"\bimport\s+(?:PersonaDomainKit|Persona\w*Domain)\b", stripped):
+    if (app or role == "adapt") and functions and re.search(r"\bimport\s+(?:PersonaDomainKit|\w*Domain)\b", stripped):
         for m in re.finditer(r"(?<![\w.])_\s*=\s*([^\n;]*)", stripped):
             called = [name for name in re.findall(r"\b([A-Za-z_]\w*)\s*\(", m.group(1)) if name in functions]
             if called:
@@ -1546,9 +1940,14 @@ def _graph_location(symbol, root_marker="/apple/Packages/"):
     return path, (line + 1 if isinstance(line, int) else 0)
 
 
-def swift_graph_findings(target, graphs):
+_GRAPH_TYPES = frozenset(("swift.struct", "swift.enum", "swift.class", "swift.protocol", "swift.actor",
+                          "swift.typealias"))
+
+
+def swift_graph_findings(target, graphs, closed=frozenset()):
     """The public API rules over a Domain target's (or the kit's) symbol graphs: the parsed JSON of
-    <Target>.symbols.json and every <Target>@<Other>.symbols.json."""
+    <Target>.symbols.json and every <Target>@<Other>.symbols.json. closed: the target's closed sets
+    (swift_closed_sets), which alone name a factory for one of their cases."""
     symbols, parents = {}, {}
     for graph in graphs:
         for symbol in graph.get("symbols", []):
@@ -1556,6 +1955,8 @@ def swift_graph_findings(target, graphs):
         for relation in graph.get("relationships", []):
             if relation.get("kind") == "memberOf":
                 parents[relation["source"]] = relation["target"]
+    declared = {(s.get("pathComponents") or [""])[-1] for s in symbols.values()
+                if s["kind"]["identifier"] in _GRAPH_TYPES}
     found = []
     for precise, symbol in symbols.items():
         # Members the compiler adds (a protocol's default implementations, Codable's init(from:)) have no place in the
@@ -1586,18 +1987,23 @@ def swift_graph_findings(target, graphs):
             stored_let = re.match(r"^(?:static |class )?let ", decl)
             stored_var = re.match(r"^(?:static |class )?var ", decl) and "{" not in decl
             setter = "{ get set }" in decl
-            declared = _types(symbol.get("declarationFragments"))
+            declared_type = _types(symbol.get("declarationFragments"))
             if kind != "swift.typealias" and (stored_let or stored_var or setter):
-                own = declared[:1] in ([owner], ["Self"]) and len(declared) == 1
+                own = declared_type[:1] in ([owner], ["Self"]) and len(declared_type) == 1
                 if not (stored_let and decl.startswith(("static ", "class ")) and own):
                     what = "has a public setter" if setter else "is a stored public property"
                     add("swift-stored-public", f"{label} {what}")
-            computed_bool = "{ get }" in decl and declared == ["Bool"]
-            if set(declared) & SWIFT_PRIMITIVES and not computed_bool:
-                add("swift-primitive-api", f"{label} has the type {' '.join(declared)}")
-            if kind != "swift.typealias" and owner and base != "id" and not (
-                    declared == ["Bool"] or declared[:1] in ([owner], ["Self"]) and len(declared) == 1):
-                add("swift-accessor", f"{label} hands out {' '.join(declared) or 'state'}")
+            if "->" in decl:
+                add("swift-callback", f"{label} has a function type")
+            computed_bool = "{ get }" in decl and declared_type == ["Bool"]
+            if set(declared_type) & SWIFT_PRIMITIVES and not computed_bool:
+                add("swift-primitive-api", f"{label} has the type {' '.join(declared_type)}")
+            optional = "?" in decl.split(":", 1)[-1].split("{", 1)[0]
+            identity = base == "id" and kind == "swift.property" and not optional and _swift_identity(
+                declared_type, declared)
+            if kind != "swift.typealias" and owner and not identity and (optional or not (
+                    declared_type == ["Bool"] or declared_type[:1] in ([owner], ["Self"]) and len(declared_type) == 1)):
+                add("swift-accessor", f"{label} hands out {' '.join(declared_type) or 'state'}")
             continue
         if kind not in ("swift.method", "swift.type.method", "swift.func", "swift.init", "swift.subscript",
                         "swift.type.subscript", "swift.func.op"):
@@ -1610,22 +2016,42 @@ def swift_graph_findings(target, graphs):
             add("swift-factory", f"{label} takes {len(params)} parameters")
         if kind == "swift.init":
             add("swift-factory", f"{label} is a public initializer")
-        builds_own = result[:1] in ([owner], ["Self"]) or (
-            result[:1] == ["Outcome"] and result[1:2] in ([owner], ["Self"]))
-        if kind == "swift.type.method" and builds_own and BANNED_FACTORY.match(base):
-            add("swift-factory", f"{label} builds a {owner} under a name other than parse, new or restore")
+        if any("->" in _fragments(p.get("declarationFragments")) for p in params):
+            add("swift-callback", f"{label} takes a function")
+        if "->" in _fragments(returns):
+            add("swift-callback", f"{label} returns a function")
+        plain = _fragments(returns).strip()
+        builds_own = plain in (owner, "Self") or (
+            result[:1] == ["Outcome"] and result[1:2] in ([owner], ["Self"]) and not plain.endswith("?"))
+        if kind == "swift.type.method" and builds_own and base not in FACTORY_NAMES | {"evolve", "apply"} and (
+                owner not in closed or BANNED_FACTORY.match(base)):
+            add("swift-factory", f"{label} builds a {owner} under a name other than parse, new, restore, newBuilder or "
+                                 "restoreBuilder")
         parse = kind == "swift.type.method" and base == "parse"
         loose = [p.get("name", "_") for p, kinds in zip(params, param_types) if set(kinds) & SWIFT_PRIMITIVES]
         if loose and not parse:
             add("swift-primitive-api", f"{label} takes {', '.join(loose)} as a primitive")
         if set(result) & SWIFT_PRIMITIVES and result != ["Bool"]:
             add("swift-primitive-api", f"{label} returns {_fragments(returns)}")
-        built = base == "build" and owner is not None and owner.endswith("Builder")
-        if owner and not params and kind in ("swift.method", "swift.type.method") and base != "id" and not built:
-            plain = _fragments(returns).strip()
-            if not (plain in ("", "()", "Void") or result == ["Bool"] or builds_own):
+        # Tell, don't ask: an instance member answers with nothing, a Bool, its own type or an Outcome of it, whatever
+        # its parameters; a type method without parameters likewise.
+        method = kind in ("swift.method", "swift.subscript") or (kind == "swift.type.method" and not params)
+        if owner and method:
+            told = plain in ("", "()", "Void") or result == ["Bool"] or builds_own
+            told = told or (base == "id" and not params and _swift_identity([plain], declared))
+            told = told or (base == "build" and not params and owner.endswith("Builder")
+                            and result[:1] == ["Outcome"] and result[1:2] and result[1] in declared)
+            told = told or (owner.endswith("Step") and len(result) == 1 and result[0] in declared
+                            and result[0].endswith(("Step", "Builder")) and plain == result[0])
+            if not told:
                 add("swift-accessor", f"{label} hands out {plain}")
     return sorted(set(found))
+
+
+def _swift_identity(type_names, declared):
+    """Whether an id's type is the target's own identity type: one name, declared in the target, ending in ID."""
+    return (len(type_names) == 1 and type_names[0] in declared and type_names[0].endswith("ID")
+            and len(type_names[0]) > 2)
 
 
 def _own_generics(symbol, parent):
@@ -1673,7 +2099,7 @@ def swift_targets(root):
     declared = {t.name for t in targets}
     for package, text in texts.items():
         source = strip(text, "swift", keep_strings=True)
-        for m in re.finditer(r"\"(Persona\w*(?:Domain|Adapt)|PersonaDomainKit\w*)\"", source):
+        for m in re.finditer(r"\"(\w*(?:Domain|Adapt)|PersonaDomainKit\w*)\"", source):
             if m.group(1) not in declared:
                 problems.append(Finding(package + "/Package.swift", _line_of(source, m.start()), "swift-discovery",
                                         f"names {m.group(1)}, which no .target(name:) declares"))
@@ -1704,6 +2130,11 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
     cores = [t for t in modules if t.role in ("domain", "kit")]
     inspected = 0
     core_texts = []
+    target_texts = {}
+    for target in targets:
+        findings.extend(swift_name_findings(target))
+        if target.role == "adapt":
+            findings.extend(swift_adapt_manifest_findings(target))
     for target in cores:
         findings.extend(swift_manifest_findings(target))
         files = list(_walk(root / target.sources, (".swift",))) if (root / target.sources).is_dir() else []
@@ -1712,6 +2143,7 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
         for file in files:
             text = _read(file)
             core_texts.append(text)
+            target_texts.setdefault(target.name, []).append(text)
             inspected += 1
             findings.extend(swift_source_findings(_rel(root, file), text, target))
     visitors = swift_visitors(core_texts)
@@ -1732,11 +2164,12 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
                     findings.append(Finding(rel, data.count(b"\n", 0, m.start(1)) + 1, "swift-discovery",
                                             f"imports {module}, which no package declares"))
             app = rel.startswith(("apple/Persona/", "apple/Shared/"))
+            role = roles.get(owner, "other")
             if b"_spi" not in data and not any(v.encode() in data for v in visitors) \
-                    and not (app and b"_ =" in data):
+                    and not (app and b"_ =" in data) and role != "adapt":
                 continue
-            findings.extend(swift_outside_findings(rel, data.decode("utf-8", errors="replace"),
-                                                   roles.get(owner, "other"), visitors, functions, app))
+            findings.extend(swift_outside_findings(rel, data.decode("utf-8", errors="replace"), role, visitors,
+                                                   functions, app))
     for package in sorted({t.package for t in cores}):
         if not any(t.package == package and t.role == "test-domain" for t in targets):
             findings.append(Finding(package + "/Package.swift", 0, "swift-testable",
@@ -1755,7 +2188,8 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
             graphs += [json.loads(p.read_text(encoding="utf-8"))
                        for p in sorted(Path(graphs_dir).glob(f"{target.name}@*.symbols.json"))]
             inspected += 1
-            findings.extend(swift_graph_findings(target.name, graphs))
+            findings.extend(swift_graph_findings(target.name, graphs,
+                                                 swift_closed_sets(target_texts.get(target.name, []))))
     for log in build_logs:
         findings.extend(swift_build_log_findings(str(log), read_build_log(log), functions))
     return Scan(modules, sorted(set(findings)), inspected)
@@ -1764,7 +2198,8 @@ def scan_apple(root, apple_sh=None, graphs_dir=None, build_logs=()):
 _KT_DOMAIN_PACKAGE = re.compile(rb"(?m)^\s*package\s+persona\.core\.([a-z0-9_]+)\.(domain|adapt)\b")
 _KT_DOMAIN_IMPORT = re.compile(rb"(?m)^\s*import\s+persona\.core\.(?:([a-z0-9_]+)\.domain|(domainkit))\b")
 _SWIFT_DOMAIN_IMPORT = re.compile(rb"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t]+)*(?:(?:public|package|internal|fileprivate|"
-                                  rb"private)[ \t]+)?import[ \t]+(PersonaDomainKit\w*|Persona\w*Domain)\b")
+                                  rb"private)[ \t]+)?import[ \t]+(?:(?:typealias|struct|class|enum|protocol|let|var|"
+                                  rb"func)[ \t]+)?(PersonaDomainKit\w*|\w*Domain|\w*Adapt)\b")
 _KT_KIT_PACKAGE = re.compile(rb"(?m)^\s*package\s+persona\.core\.domainkit\b")
 
 
@@ -1840,7 +2275,6 @@ def scan_android(root, build_logic=True):
     """Every Kotlin rule over the tree at root."""
     root = Path(root)
     modules, findings = android_modules(root)
-    kernels = {f":core:{m.ctx}:domain" for m in modules if m.kind == "domain"}
     contexts = {m.ctx for m in modules if m.kind == "domain"}
     kit_found = any(m.kind == "kit" for m in modules)
     inspected = 0
@@ -1852,22 +2286,26 @@ def scan_android(root, build_logic=True):
             if not build.is_file():
                 findings.append(Finding(module.path, 0, "kotlin-discovery", "has no build.gradle.kts"))
             else:
-                findings.extend(kotlin_build_findings(_rel(root, build), _read(build), module.kind == "kit", kernels))
+                findings.extend(kotlin_build_findings(_rel(root, build), _read(build), module.kind == "kit"))
             main = root / module.path / "src" / "main"
             files = list(_walk(main, (".kt",))) if main.is_dir() else []
             if not files:
                 findings.append(Finding(module.path, 0, "kotlin-discovery", "has no Kotlin sources in src/main"))
+            texts = {}
             for file in files:
                 rel = _rel(root, file)
                 place, _ = _android_place(rel, modules)
-                if place == "kit-adapt":
-                    continue
-                text = _read(file)
+                if place != "kit-adapt":
+                    texts[rel] = _read(file)
+            declared = kotlin_declared(texts.values())
+            ctx = module.ctx if module.kind == "domain" else None
+            for rel, text in texts.items():
                 core_texts.append(text)
                 seen.add(rel)
                 inspected += 1
-                findings.extend(kotlin_source_findings(rel, text, module.kind))
+                findings.extend(kotlin_source_findings(rel, text, module.kind, ctx, declared))
     visitors = kotlin_visitors(core_texts)
+    functions = kotlin_public_functions(core_texts)
     android = root / "android"
     if android.is_dir():
         for file in _walk(android, (".kt", ".kts")):
@@ -1894,10 +2332,13 @@ def scan_android(root, build_logic=True):
                                                                     "android/core/domainkit"))
             if rel in seen:
                 continue
-            if b"DomainBoundary" not in data and b"ClockRead" not in data and not any(
-                    v.encode() in data for v in visitors):
+            discards = functions and re.search(rb"\bval\s+_\b", data)
+            if b"DomainBoundary" not in data and b"ClockRead" not in data and place != "adapt" and not discards \
+                    and not any(v.encode() in data for v in visitors):
                 continue
-            findings.extend(kotlin_outside_findings(rel, data.decode("utf-8", errors="replace"), place, visitors))
+            adapt = re.search(r"/persona/core/([a-z0-9_]+)/adapt/", rel)
+            findings.extend(kotlin_outside_findings(rel, data.decode("utf-8", errors="replace"), place, visitors,
+                                                    functions, adapt.group(1) if adapt else None))
     if build_logic:
         logic = root / "android" / "build-logic" / "convention" / "src" / "main" / "kotlin"
         files = {}
