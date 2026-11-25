@@ -500,6 +500,8 @@ button:disabled { cursor: default; }
 .prose-j code[data-copy-code] { cursor: pointer; }
 .prose-j code[data-copy-code]:hover { background: var(--hover-2); }
 .prose-j table { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: separate; border-spacing: 0; margin: .8em 0; font-size: 13px; border-radius: 10px; box-shadow: var(--shadow-hairline); }
+/* Extension tables keep their intrinsic column widths; only their bounded wrapper scrolls. */
+.prose-j .extension-md-table > table { display: table; max-width: none; overflow: visible; }
 /* The copy button's wrap is what the edge rule above sees, so pass that rule through to the table. The wrap
    adds no margin, padding or border; the table keeps its own box, scroll and margin collapse. */
 .prose-j > .md-table:first-child > table { margin-top: 0; }

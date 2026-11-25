@@ -803,7 +803,7 @@ const MD_ALLOWED = ["p", "h1", "h2", "h3", "ul", "ol", "li", "strong", "em", "de
 export function ViewMarkdown({ text, compact }: { text: string; compact?: boolean }) {
   const manager = useLinkManager();
   return (
-    <div className={cx("prose-j prose-sm px-4 py-2.5 select-text", compact && "prose-compact")}>
+    <div className={cx("prose-j prose-sm min-w-0 max-w-full px-4 py-2.5 select-text", compact && "prose-compact")}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         allowedElements={MD_ALLOWED}
@@ -811,6 +811,7 @@ export function ViewMarkdown({ text, compact }: { text: string; compact?: boolea
         skipHtml
         urlTransform={(url) => (isHttps(url) ? url : "")}
         components={{
+          table: ({ children }) => <div className="extension-md-table max-w-full overflow-x-auto"><table>{children}</table></div>,
           h1: ({ children }) => <h3>{children}</h3>,
           h2: ({ children }) => <h4>{children}</h4>,
           h3: ({ children }) => <h5>{children}</h5>,
