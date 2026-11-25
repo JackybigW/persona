@@ -12,6 +12,7 @@ import (
 
 	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/db"
+	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
 )
 
@@ -200,6 +201,15 @@ func TestDesktopAppDefaultOnEachComputer(t *testing.T) {
 	}
 	if st := startsOf(f)[1]; st["launcher"] != "claude-desktop" {
 		t.Fatalf("agent_start naming it: %v", st)
+	}
+	// A model the caller names goes with it to Claude Code.
+	out, err = s.runTool(ctx, "server", "conv9", "agent_start", json.RawMessage(`{"machine":"mac","cwd":"/Users/me/code","prompt":"Reply with pong","model":"sonnet"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := startsOf(f)[2]; st["launcher"] != "claude" || st["model"] != "sonnet" || !strings.Contains(out, i18n.T(s.lang(ctx), "assistant-tasks.launcher_desktop_default_model",
+		i18n.Args{"launcher": "claude-desktop", "machine": "mac", "to": "claude", "model": "sonnet"})) {
+		t.Fatalf("agent_start with a model: %v\n%s", st, out)
 	}
 	// A message resuming an Agent started outside Persona goes on Claude Code, as before.
 	params, err = s.AgentResumeParams(ctx, AgentResumeParams{MachineID: "mac", SessionID: "outside-1", Params: map[string]any{}})
