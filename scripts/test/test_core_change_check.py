@@ -4,13 +4,14 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "test"))
+from fake_gh import FAKE_GH, rows  # noqa: E402
 spec = importlib.util.spec_from_file_location("core_change_check", ROOT / "scripts/hooks/core-change-check.py")
 ccc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ccc)
@@ -29,7 +30,16 @@ class RuleTests(unittest.TestCase):
                       ["web/src/views/chat/Chat.test.tsx"], [],
                       # the default panel (tier panel) is not Core
                       ["web/src/views/chat/ChatView.tsx", "web/src/App.tsx"], ["android/feature/agents/src/main/kotlin/A.kt"],
-                      ["android/app/src/main/kotlin/A.kt", "apple/Persona/Views/Chat/ChatView.swift"]):
+                      ["android/app/src/main/kotlin/A.kt", "apple/Persona/Views/Chat/ChatView.swift"],
+                      # web/src/lib files that serve one page, menu or popover (the review of #14928)
+                      ["web/src/lib/model-panel.ts", "web/src/lib/session-panel.ts", "web/src/lib/node-palette.ts",
+                       "web/src/lib/model-id-input.ts", "web/src/lib/machine-alerts.ts", "web/src/lib/machine-capabilities.ts",
+                       "web/src/lib/todo-slim-row.ts", "web/src/lib/todo-detail-template.ts", "web/src/lib/session-insights.ts",
+                       "web/src/lib/todo-list-filter.ts", "web/src/lib/handoff.ts", "web/src/lib/agent-open.ts",
+                       "web/src/lib/todo-details.ts", "web/src/lib/todo-decision-label.ts", "web/src/lib/todo-thread.ts",
+                       "web/src/lib/todo-goal-fold.ts", "web/src/lib/todo-stage.ts", "web/src/lib/todo-wait-reason.ts",
+                       "web/src/lib/todo-shared-blockers.ts", "web/src/lib/todo-steps.ts", "web/src/lib/agent-actions.ts",
+                       "web/src/lib/node-actions.ts"]):
             ok, message = self.ok(files)
             self.assertTrue(ok, (files, message))
 
@@ -53,10 +63,10 @@ class RuleTests(unittest.TestCase):
         self.assertNotIn("add a section", message)
 
     def test_failure_names_the_tier_and_ignores_panel_files(self):
-        ok, message = self.ok(["web/src/views/chat/ChatView.tsx", "web/src/lib/task-board.ts"])
+        ok, message = self.ok(["web/src/views/chat/ChatView.tsx", "web/src/lib/model-config.ts"])
         self.assertFalse(ok)
         self.assertIn("tier core", message)
-        self.assertIn("web/src/lib/task-board.ts", message)
+        self.assertIn("web/src/lib/model-config.ts", message)
         self.assertNotIn("ChatView.tsx", message)
         for headless in ("android/core/hub/src/main/kotlin/A.kt", "apple/Packages/PersonaWire/Sources/A.swift", "native/app-core/src/lib.rs"):
             self.assertFalse(self.ok([headless])[0], headless)
@@ -85,6 +95,22 @@ class RuleTests(unittest.TestCase):
         self.assertIsNone(ccc.reason("### Why this must change the core\n\nBecause.\n"))
         self.assertIsNone(ccc.reason("Because.\n"))
 
+    def test_fenced_code_in_the_section(self):
+        h = ccc.HEADING
+        # A fence delimiter is neither content nor a heading; a `#` line in quoted code does not end the section.
+        self.assertEqual(ccc.reason(f"{h}\n\n```sh\n# build it\nmake core\n```\n"), "# build it")
+        self.assertEqual(ccc.reason(f"{h}\n\n```\n```\nBecause the hub routes it.\n"), "Because the hub routes it.")
+        self.assertEqual(ccc.reason(f"{h}\n\n~~~\n## Not a heading\n~~~\n"), "## Not a heading")
+        # An empty fence is no reason, and the next real heading still ends the section.
+        self.assertIsNone(ccc.reason(f"{h}\n\n```\n```\n\n## Verification\n\nRan the tests.\n"))
+        # A longer fence is not closed by a shorter one, nor a ~ fence by a backtick one.
+        self.assertEqual(ccc.reason(f"{h}\n\n````\n```\n# x\n````\n"), "```")
+        self.assertEqual(ccc.reason(f"{h}\n\n~~~\n```\n~~~\n\n## Next\ntext\n"), "```")
+        # A heading-looking line in a fence BEFORE the section is not the section.
+        self.assertIsNone(ccc.reason(f"```\n{h}\nBecause.\n```\n"))
+        # Prose after the closing fence is still the section; a fence before the section does not leak into it.
+        self.assertEqual(ccc.reason(f"```\ncode\n```\n{h}\n\nBecause.\n"), "Because.")
+
     def test_a_heading_in_a_comment_does_not_count(self):
         body = f"<!--\n{ccc.HEADING}\nBecause.\n-->\nFixes #1"
         self.assertIsNone(ccc.reason(body))
@@ -99,40 +125,62 @@ class CliTests(unittest.TestCase):
     def run_cli(self, state, *args):
         with tempfile.TemporaryDirectory() as d:
             gh = Path(d) / "gh"
-            gh.write_text("#!" + sys.executable + """
-import json, os, sys
-state = json.load(open(os.environ["FAKE_GH_STATE"]))
-a = sys.argv[1:]
-if a[:2] == ["repo", "view"]:
-    print("example/persona")
-elif a[:2] == ["pr", "view"]:
-    print(json.dumps({"labels": state["labels"], "body": state["body"]}))
-elif a[:1] == ["api"]:
-    print("\\n".join(state["files"]))
-""")
-            gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
-            (Path(d) / "state.json").write_text(json.dumps(state))
-            env = dict(os.environ, PATH=d + os.pathsep + os.environ["PATH"], FAKE_GH_STATE=str(Path(d) / "state.json"))
+            gh.write_text("#!" + sys.executable + "\n" + FAKE_GH)
+            gh.chmod(0o755)
+            (Path(d) / "state.json").write_text(json.dumps(dict(state, pr=state.get("pr", {"labels": state["labels"], "body": state["body"]}))))
+            env = dict(os.environ, PATH=d + os.pathsep + os.environ["PATH"], FAKE_GH_STATE=str(Path(d) / "state.json"),
+                       FAKE_GH_LOG=str(Path(d) / "log"))
             return subprocess.run([sys.executable, str(ROOT / "scripts/hooks/core-change-check.py"), *args], env=env,
                                   capture_output=True, text=True, timeout=60)
 
     def test_cli_verdicts(self):
-        r = self.run_cli({"labels": [], "body": "", "files": [CORE]}, "9")
+        r = self.run_cli({"labels": [], "body": "", "files": rows(CORE)}, "9")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn(CORE, r.stderr)
-        r = self.run_cli({"labels": [{"name": "core-change"}], "body": WHY, "files": [CORE + "\t"]}, "9")
+        r = self.run_cli({"labels": [{"name": "core-change"}], "body": WHY, "files": rows(CORE)}, "9")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        r = self.run_cli({"labels": [], "body": "", "files": ["docs/a.md\t"]}, "9")
+        r = self.run_cli({"labels": [], "body": "", "files": rows("docs/a.md")}, "9")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
-    def test_cli_counts_the_old_name_of_a_rename(self):
-        r = self.run_cli({"labels": [], "body": "", "files": ["web/src/modules/lark/A.tsx\tweb/src/lib/task-board.ts"]}, "9")
+    def test_the_jq_projection_reads_both_names_of_a_rename(self):
+        # The fake runs the real jq program per page: a rename out of a core path is found through `previous_filename`.
+        r = self.run_cli({"labels": [], "body": "", "files": rows("server/internal/hub/hub.go -> server/internal/modules/voice/hub.go")}, "9")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("web/src/lib/task-board.ts", r.stderr)
+        self.assertIn("server/internal/hub/hub.go", r.stderr)
 
-    def test_cli_usage_and_unreadable_pr(self):
-        self.assertEqual(self.run_cli({}, "not-a-number").returncode, 2)
-        self.assertEqual(self.run_cli({}, "9").returncode, 2)  # the fake state has no labels: the read fails
+    def test_a_core_file_beyond_the_first_page_is_found(self):
+        # 250 changed files, the one core file last: only --paginate (the fake serves 100 rows a page) reaches it.
+        names = [f"docs/note{i:03d}.md" for i in range(249)] + [CORE]
+        r = self.run_cli({"labels": [], "body": "", "files": rows(*names)}, "9")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(CORE, r.stderr)
+
+    def test_the_fake_serves_one_page_without_paginate(self):
+        # The fake itself: no --paginate means one page, like the real CLI (so a script that forgets it fails above).
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "gh").write_text("#!" + sys.executable + "\n" + FAKE_GH)
+            (Path(d) / "gh").chmod(0o755)
+            (Path(d) / "state.json").write_text(json.dumps({"files": rows(*[f"f{i:03d}" for i in range(250)])}))
+            env = dict(os.environ, FAKE_GH_STATE=str(Path(d) / "state.json"), FAKE_GH_LOG=str(Path(d) / "log"))
+            def call(*a):
+                return subprocess.run([str(Path(d) / "gh"), "api", *a], env=env, capture_output=True, text=True)
+            jq = ["--jq", '.[] | [.filename, (.previous_filename // "")] | @tsv']
+            url = "repos/o/r/pulls/9/files?per_page=100"
+            self.assertEqual(len(call(url, *jq).stdout.split()), 100)
+            self.assertEqual(len(call("--paginate", url, *jq).stdout.split()), 250)
+            self.assertEqual(call(url + "&page=3", *jq).stdout.split(), [f"f{i:03d}" for i in range(200, 250)])
+            self.assertNotEqual(call("--paginate", url, "--jq", ".[].filename").returncode, 0)  # an unknown program is refused
+
+    def test_files_from_overrides_the_api(self):
+        with tempfile.TemporaryDirectory() as d:
+            names = Path(d) / "names"
+            names.write_bytes(b"docs/a.md\0server/internal/hub/hub.go\0")
+            r = self.run_cli({"labels": [], "body": "", "files": []}, "--files-from", str(names), "9")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn(CORE, r.stderr)
+            names.write_bytes(b"docs/a.md\0")
+            r = self.run_cli({"labels": [], "body": "", "files": rows(CORE)}, "--files-from", str(names), "9")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)  # the API's rows are not read
 
 
 if __name__ == "__main__":

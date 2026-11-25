@@ -66,6 +66,24 @@ class CodeownersTests(unittest.TestCase):
                   "android/app/src/main/kotlin/A.kt", "web/src/modules/lark/module.ts", "docs/architecture/core-and-modules.md"):
             self.assertFalse(owned(f, patterns), f)
 
+    def test_no_wildcard_clears_owners(self):
+        # The block names each directory it un-owns; a `dir/*/` catch-all would also strip a sibling nobody listed.
+        for line in co.block().splitlines():
+            if line and not line.startswith("#"):
+                self.assertNotIn("*", line, line)
+
+    def test_unlisted_sibling_under_an_owned_directory_keeps_the_owner(self):
+        # Under an owned parent: three non-core directories (a module, the panel, one the tiers do not cover) and a core one.
+        tiers = {"p/core1": "core", "p/core2": "core", "p/mod": "module", "p/ui": "panel", "p/misc": "other"}
+        files = [f"{d}/f{i}.x" for d in tiers for i in range(40 if tiers[d] == "core" else 4)]  # p/ is 91% core: owned whole
+        block = co.block(files, tier=lambda f: tiers[f.rsplit("/", 1)[0]])
+        patterns = [(l.split()[0], len(l.split()) > 1) for l in block.splitlines() if l and not l.startswith("#")]
+        self.assertTrue(owned("p/core2/f1.x", patterns))
+        for d in ("mod", "ui", "misc"):
+            self.assertFalse(owned(f"p/{d}/f1.x", patterns), d)  # listed non-core directories lose the generated owner
+        self.assertTrue(owned("p/other-new/f.x", patterns))  # a directory the tree never listed is not stripped
+        self.assertNotIn("/p/*/", block)
+
     def test_few_patterns(self):
         self.assertLess(len(co.block().splitlines()), 250)
 

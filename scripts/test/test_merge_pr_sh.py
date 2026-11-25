@@ -30,33 +30,11 @@ CONFIG_ENV = set(_privacy_check.CONFIG_ENV)
 # The automated merge (docs/operations/pr-review-automation.md) takes the same lock.
 sys.path.insert(0, str(SCRIPTS / "operations"))
 import pr_watch_merge  # noqa: E402
+sys.path.insert(0, str(SCRIPTS / "test"))
+from fake_gh import FAKE_GH, rows  # noqa: E402
 
 RATCHET_SCRIPTS = ("changed_ratchets.py", "sleep_ratchet.py", "web_font_ratchet.py", "ratchet_base.py")  # scripts/ci
 GO_TEST = "server/internal/demo/demo_test.go"
-
-FAKE_GH = r'''
-import json, os, sys
-args = sys.argv[1:]
-state_path, log_path = os.environ["FAKE_GH_STATE"], os.environ["FAKE_GH_LOG"]
-state = json.load(open(state_path))
-entry = {"argv": args, "cwd": os.getcwd()}
-out = ""
-if args[:2] == ["pr", "view"]:
-    out = json.dumps({k: state["pr"].get(k, [] if k == "labels" else None) for k in args[args.index("--json") + 1].split(",")})
-elif args[:1] == ["api"] and any(a.endswith("/pulls/7/files?per_page=100") for a in args):
-    out = "\n".join(state.get("files", []))  # the changed files, as `filename<TAB>previous_filename` rows
-elif args[:2] == ["repo", "view"]:
-    out = "example/persona"
-elif args[:2] == ["pr", "merge"]:
-    now = state.get("at_merge") or state["pr"]
-    entry["subject"] = args[args.index("--subject") + 1] if "--subject" in args else now["title"] + " (#7)"
-    body_file = args[args.index("--body-file") + 1] if "--body-file" in args else None
-    entry["body"] = open(body_file, newline="").read() if body_file else now["body"]
-with open(log_path, "a") as log:
-    log.write(json.dumps(entry) + "\n")
-print(out)
-'''
-
 
 class MergePrTests(unittest.TestCase):
     def setUp(self):
@@ -132,9 +110,12 @@ class MergePrTests(unittest.TestCase):
     def merges(self, calls):
         return [c for c in calls if c["argv"][:2] == ["pr", "merge"]]
 
-    def merge_with_files(self, files, labels=(), body="Adds notes.\n\nFixes #6"):
-        pr = self.view(self.open_pr(), body=body, labels=[{"name": n} for n in labels])
-        self.state.write_text(json.dumps({"pr": pr, "files": files}))
+    def merge_with_files(self, files, labels=(), body="Adds notes.\n\nFixes #6", api_files=None):
+        """Merge a PR whose commit adds `files` (paths). The fake files API answers `api_files` (default: nothing at all):
+        the check reads the verified head's diff, so what the API says must not matter."""
+        head = self.open_pr(files={f: "x\n" for f in files})
+        pr = self.view(head, body=body, labels=[{"name": n} for n in labels])
+        self.state.write_text(json.dumps({"pr": pr, "files": rows(*(api_files or []))}))
         result = subprocess.run(["bash", str(self.repo / "scripts/hooks/merge-pr.sh"), "7"], cwd=self.repo, env=self.env,
                                 capture_output=True, text=True, timeout=60)
         calls = [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
@@ -163,22 +144,50 @@ class MergePrTests(unittest.TestCase):
     def test_module_docs_and_tests_only_changes_merge_untouched(self):
         for name, files in (("module", ["server/internal/modules/voice/voice.go", "web/src/modules/lark/a.ts"]),
                             ("docs", ["docs/architecture/core-and-modules.md"]),
-                            ("tests", ["server/internal/hub/hub_test.go", "web/src/views/chat/Chat.test.tsx"]),
-                            ("moved out of core", ["web/src/lib/task-board.ts\t"]),
-                            ("panel only", ["web/src/views/chat/ChatView.tsx", "android/feature/agents/src/main/kotlin/A.kt"])):
+                            ("tests", ["server/internal/hub/hub_test.go", "web/src/lib/model-config.test.ts"]),
+                            ("panel only", ["web/src/views/chat/ChatView.tsx", "web/src/lib/model-panel.ts",
+                                            "android/feature/agents/src/main/kotlin/A.kt"])):
             with self.subTest(name):
                 self.log.unlink(missing_ok=True)
                 result, calls = self.merge_with_files(files)
-                if name == "moved out of core":
-                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)  # it is a core file
-                else:
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    self.assertEqual(len(self.merges(calls)), 1)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(len(self.merges(calls)), 1)
+
+    def test_a_headless_web_file_is_core(self):
+        result, calls = self.merge_with_files(["web/src/lib/model-config.ts"])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("web/src/lib/model-config.ts", result.stderr)
+        self.assertEqual(self.merges(calls), [])
+
+    def test_the_check_reads_the_verified_head_not_the_files_api(self):
+        """The files come from the diff of the head merge-pr.sh verified: an API that says nothing (or something else,
+        as it would if the PR moved after the check) changes no verdict."""
+        for name, api in (("api empty", []), ("api names a panel file", ["web/src/views/chat/ChatView.tsx"])):
+            with self.subTest(name):
+                self.log.unlink(missing_ok=True)
+                result, calls = self.merge_with_files(["server/internal/hub/hub.go"], api_files=api)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("server/internal/hub/hub.go", result.stderr)
+                self.assertEqual(self.merges(calls), [])
+                self.assertEqual([c for c in calls if c["argv"][:1] == ["api"]], [])  # no files read from the API at all
 
     def test_a_rename_out_of_a_core_path_counts(self):
-        result, _ = self.merge_with_files(["web/src/modules/lark/A.tsx\tweb/src/lib/task-board.ts"])
+        self.git("checkout", "-q", "main")
+        (self.repo / "web/src/lib").mkdir(parents=True)
+        (self.repo / "web/src/lib/model-config.ts").write_text("export const a = 1;\n" * 20)
+        self.git("add", ".")
+        self.git("commit", "-q", "-m", "A headless file")
+        self.git("push", "-q", "origin", "main")
+        self.git("checkout", "-q", "-B", "feature", "main")
+        (self.repo / "web/src/modules/lark").mkdir(parents=True)
+        self.git("mv", "web/src/lib/model-config.ts", "web/src/modules/lark/model-config.ts")
+        self.git("commit", "-q", "-m", "Move it into a module")
+        self.git("push", "-q", "origin", "+HEAD:refs/pull/7/head")
+        pr = self.view(self.git("rev-parse", "HEAD"))
+        result, calls = self.merge_pr(pr)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("web/src/lib/task-board.ts", result.stderr)
+        self.assertIn("web/src/lib/model-config.ts", result.stderr)  # the name it moved away from
+        self.assertEqual(self.merges(calls), [])
 
     def test_merges_the_scanned_head_title_and_body_once(self):
         head = self.open_pr()

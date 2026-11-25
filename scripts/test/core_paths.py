@@ -12,7 +12,6 @@ CLI (the numbers in a PR description):  python3 scripts/test/core_paths.py --tab
 Used by test_core_paths.py, scripts/hooks/codeowners.py and scripts/hooks/core-change-check.py.
 """
 from dataclasses import dataclass
-import fnmatch
 from functools import lru_cache
 from pathlib import Path
 import re
@@ -32,6 +31,13 @@ class FormatError(ValueError):
     pass
 
 
+@lru_cache(maxsize=None)
+def _glob(pattern):
+    """A `*` glob as the CODEOWNERS model reads it: `*` stays inside one path segment (never crosses `/`), and a segment
+    the glob matches as a whole covers everything below it, like a directory path without `*`."""
+    return re.compile("".join("[^/]*" if c == "*" else re.escape(c) for c in pattern) + "(?:/.*)?\\Z")
+
+
 @dataclass(frozen=True)
 class Explicit:
     kind: str  # "core", "headless" (client code with no UI, tier core) or "guard"
@@ -40,7 +46,7 @@ class Explicit:
 
     def matches(self, path):
         if "*" in self.path:
-            return fnmatch.fnmatchcase(path, self.path)
+            return _glob(self.path).match(path) is not None
         return path == self.path or path.startswith(self.path.rstrip("/") + "/")
 
 
@@ -68,8 +74,10 @@ def parse(text):
     return classified, explicit
 
 
-_TEST_FILE = re.compile(r"(_test\.go|\.test\.[cm]?[jt]sx?|\.spec\.[cm]?[jt]sx?|(Tests?|Spec)\.(swift|kt))\Z")
-_TEST_DIR = re.compile(r"(^|/)(testdata|__tests__)/|/src/(test|androidTest|[A-Za-z]*Test)/")
+_TEST_FILE = re.compile(r"(_test\.go|\.test\.[cm]?[jt]sx?|\.spec\.[^./]+|(Tests?|Spec)\.(swift|kt))\Z")
+_TEST_DIR = re.compile(r"(^|/)(testdata|__tests__)/")
+# An Android source set of tests: src/test, src/androidTest, src/testFixtures, src/integrationTest, src/*Test...
+_ANDROID_TEST_SET = re.compile(r"(test|testFixtures|[A-Za-z]*Tests?|[A-Za-z]*TestFixtures)\Z")
 
 
 def is_test_only(path):
@@ -77,6 +85,8 @@ def is_test_only(path):
     parts = path.split("/")
     if _TEST_FILE.search(parts[-1]) or _TEST_DIR.search(path):
         return True
+    if parts[0] == "android" and any(_ANDROID_TEST_SET.fullmatch(d) for d in parts[1:-1]):
+        return True  # a source set of tests, wherever the project keeps its source sets (not only under src/)
     return parts[0] == "apple" and any(re.search(r"Tests?\Z", d) for d in parts[:-1])
 
 

@@ -4,7 +4,8 @@ TestCoreImportsNoModule; web: the ESLint boundary; Android: ./gradlew :app:modul
 This is one cheap check that runs wherever Python does (scripts/ci/scripts.sh, scripts/hooks/merge-pr.sh's checkout):
 
   1. each guard's baseline of known violations is still empty;
-  2. no core Go, web or Kotlin file has an import line that names a module (the Apple ratchet's own scan covers Swift).
+  2. no tier-core or tier-panel Go, web or Kotlin file has an import line that names a module (the Apple ratchet's own
+     scan covers Swift). Tier panel is the clients' interface code: it is scanned like the core under the same rule.
 
 Run: python3 scripts/test/test_core_references_no_module.py   (--list prints each violation)
 """
@@ -86,21 +87,29 @@ def kotlin_violations(path, text):
     return [f"{path}:{text.count(chr(10), 0, m.start()) + 1}: imports persona.module.*" for m in KOTLIN_IMPORT.finditer(text)]
 
 
-def scan(root=ROOT):
-    """Every core file that references a module, as readable lines."""
+def in_scope(core, f):
+    """Whether the rule covers this file: tier core AND tier panel (the clients' interface code is the default panel, built
+    on Core, and references no module either). A module's own files and everything outside both tiers are not scanned.
+    Selected by tier (schema/core-paths.txt), not by schema/module-classification.txt."""
+    return core.tier(f) in ("core", "panel")
+
+
+def scan(root=ROOT, texts=None):
+    """Every core or panel file that references a module, as readable lines. `texts` ({path: source}) replaces the
+    checkout's files (the tests use it to show what a given file would report)."""
     core = cp.Core(root)
     roots = composition_roots(root)
     out = []
-    for f in cp.tracked(root):
+    for f in (texts if texts is not None else cp.tracked(root)):
         if not f.endswith((".go", ".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".kt", ".java")):
             continue
-        if core.classification(f) != "core":
+        if not in_scope(core, f):
             continue
         # The module list and the host are core files that name modules by design (web/src/modules/*.ts, the web
         # host only through the list); the lint config's own rule covers the rest of web.
         if f.startswith("web/src/modules/") and f.count("/") == 3:
             continue
-        text = (root / f).read_text(encoding="utf-8", errors="replace")
+        text = texts[f] if texts is not None else (root / f).read_text(encoding="utf-8", errors="replace")
         if f.startswith(("server/", "sdk/go/")):
             out += go_violations(f, text, roots)
         elif f.startswith("web/src/"):
@@ -121,6 +130,28 @@ class CoreReferencesNoModuleTests(unittest.TestCase):
     def test_apple_core_names_no_module_type(self):
         counts, sites = apple.scan()
         self.assertEqual(counts, {}, "a core Apple file names a module's type:\n" + "\n".join(sites))
+
+    def test_scope_is_both_tiers_selected_by_tier(self):
+        c = cp.Core()
+        for f in ("server/internal/hub/hub.go", "web/src/lib/model-config.ts", "web/src/views/chat/ChatView.tsx",
+                  "web/src/App.tsx", "android/core/hub/src/main/kotlin/A.kt", "android/feature/agents/src/main/kotlin/A.kt",
+                  "android/app/src/main/kotlin/A.kt"):
+            self.assertTrue(in_scope(c, f), f)
+        for f in ("server/internal/modules/voice/voice.go", "web/src/modules/lark/page.ts", "android/module/voice/src/A.kt",
+                  "docs/a.md"):
+            self.assertFalse(in_scope(c, f), f)
+
+    def test_a_panel_file_that_imports_a_module_is_reported(self):
+        # Without selecting by tier these would be green: a panel file in web, in Android, and a headless web file.
+        bad_web = 'import { Page } from "../../modules/health/page";\n'
+        found = scan(texts={"web/src/views/chat/ChatView.tsx": bad_web,
+                            "web/src/lib/model-config.ts": bad_web,
+                            "android/feature/agents/src/main/kotlin/A.kt": "import persona.module.voice.VoiceModule\n",
+                            "android/app/src/main/java/persona/android/Modules.kt": "import persona.module.voice.VoiceModule\n",
+                            "web/src/modules/lark/page.ts": bad_web,  # a module may reach its own files
+                            "web/src/views/chat/ok.tsx": 'import { x } from "../../lib/model-config";\n'})
+        self.assertEqual(sorted(l.split(":")[0] for l in found),
+                         ["android/feature/agents/src/main/kotlin/A.kt", "web/src/lib/model-config.ts", "web/src/views/chat/ChatView.tsx"])
 
     # The rules themselves, on sample text.
     def test_go_rule(self):

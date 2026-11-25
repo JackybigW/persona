@@ -101,9 +101,12 @@ python3 "$root/scripts/privacy_check.py" --range "$base_sha..$head" --message "$
 python3 "$root/scripts/ci/changed_ratchets.py" --root "$root" --base "$base_sha" --head "$head" \
   || { echo "merge-pr: #$pr not merged: fix the ratchet failures above in the PR first" >&2; exit 1; }
 # A PR that changes Persona Core carries the `core-change` label and says why (schema/core-paths.txt, #14916). The
-# label and description come from the snapshot above; the changed files from the API. Module-only, docs-only and
-# tests-only PRs pass untouched.
-python3 "$root/scripts/hooks/core-change-check.py" --snapshot "$tmp/pr.json" "$pr" \
+# label and description come from the snapshot above; the changed files from the diff of the verified head itself
+# (no renames: a moved file lists both names), never from the PR files API, which follows the PR if it moves after
+# the check. Module-only, docs-only and tests-only PRs pass untouched.
+git -C "$root" diff --no-renames --name-only -z "$base_sha...$head" > "$tmp/changed-files" \
+  || { echo "merge-pr: could not list the files #$pr changes" >&2; exit 1; }
+python3 "$root/scripts/hooks/core-change-check.py" --snapshot "$tmp/pr.json" --files-from "$tmp/changed-files" "$pr" \
   || { echo "merge-pr: #$pr not merged: it changes Persona Core; fix what the check above asks for first" >&2; exit 1; }
 # From outside the repository, by name: gh then only merges on GitHub. (--delete-branch inside a worktree also checks
 # out the base branch locally and fails when another worktree holds it; and it fails when GitHub already deleted the

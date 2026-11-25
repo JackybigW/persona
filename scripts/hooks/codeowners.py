@@ -6,8 +6,9 @@
     python3 scripts/hooks/codeowners.py --check    exit 1 when the file's block is out of date
 
 CODEOWNERS cannot reference another file, so the block is generated. The last matching pattern wins: a directory that
-is mostly core is owned as a whole, a module directory inside it gets a later pattern with no owner (which un-assigns
-it), and a core directory inside that gets an owner again. Patterns are directory level; a test-only change in a core
+is mostly core is owned as a whole, a directory with no core file inside it gets a later pattern with no owner (which
+un-assigns it), and a core directory inside that gets an owner again. Each such directory is named on its own line, never
+by a `dir/*/` wildcard, which would also reach siblings the tree does not list. Patterns are directory level; a test-only change in a core
 directory still requests review (CODEOWNERS cannot tell it apart; core-change-check.py can). Whether a code-owner
 review is required depends on the branch ruleset, which this repository's administrator sets.
 Owners must be users with write access, or GitHub lists them in repos/<repo>/codeowners/errors.
@@ -24,20 +25,21 @@ FILE = ROOT / ".github" / "CODEOWNERS"
 BEGIN = "# BEGIN persona-core (generated from schema/core-paths.txt by scripts/hooks/codeowners.py; do not edit)"
 END = "# END persona-core"
 OWN_PERCENT = 75  # a directory with at least this share of core files is owned whole, its modules un-owned
-MIN_WILDCARD = 3  # this many non-core sibling directories become one `dir/*/` line
 
 
-def build_tree(files, core):
+def build_tree(files, tier):
+    """A tree of directories; each file is (path, is core)."""
     tree = {}
     for f in files:
         node = tree
         for part in f.split("/")[:-1]:
             node = node.setdefault(part, {})
-        node.setdefault("\0files", []).append((f, core(f)))
+        node.setdefault("\0files", []).append((f, tier(f) == "core"))
     return tree
 
 
 def counts(node):
+    """(files, core files) under node."""
     total = core = 0
     for k, v in node.items():
         if k == "\0files":
@@ -61,18 +63,13 @@ def lines_for(node, path, owned, out):
         if c and not owned:
             out.append((f"/{f}", True))
     if owned:
-        gone = [d for d in dirs if stat[d][1] == 0]
-        kept = [d for d in dirs if stat[d][1] > 0]
-        if len(gone) >= MIN_WILDCARD and len(gone) > len(kept):
-            # Mostly modules: un-own every child, then own the core ones again.
-            out.append((f"/{path}/*/" if path else "/*/", False))
-            for d in kept:
-                out.append((f"/{child(d)}/", True))
-        else:
-            for d in gone:
+        # Each directory that holds no core file is named on its own line and loses the owner (one line per directory
+        # that exists: never a `dir/*/` pattern, which would also reach a sibling this tree does not know).
+        for d in dirs:
+            if stat[d][1] == 0:
                 out.append((f"/{child(d)}/", False))
-        for d in kept:
-            if stat[d][1] != stat[d][0]:
+        for d in dirs:
+            if stat[d][1] > 0 and stat[d][1] != stat[d][0]:
                 lines_for(node[d], child(d), True, out)
         return
     for d in dirs:
@@ -87,11 +84,12 @@ def lines_for(node, path, owned, out):
             lines_for(node[d], child(d), False, out)
 
 
-def block(files=None):
-    c = cp.Core()
+def block(files=None, tier=None):
+    """The generated block; `files` and `tier` (path -> core | panel | module | other) default to the checkout's."""
+    tier = tier or cp.Core().tier
     files = files if files is not None else cp.tracked()
     out = []
-    lines_for(build_tree(files, lambda f: c.is_core(f, tests_count=True)), "", False, out)
+    lines_for(build_tree(files, tier), "", False, out)
     # A line that repeats an earlier one adds nothing; the last matching pattern wins.
     lines, seen = [], set()
     for pat, own in out:

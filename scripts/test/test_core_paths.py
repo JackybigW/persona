@@ -1,6 +1,5 @@
 """schema/core-paths.txt (#14916): it parses, every explicit path exists, module directories are never core, and sample
 paths classify as expected. Run: python3 scripts/test/test_core_paths.py"""
-import fnmatch
 import re
 from pathlib import Path
 import sys
@@ -17,7 +16,8 @@ SAMPLES = {
     "core": [
         "server/internal/hub/hub.go", "server/internal/modapi/modapi.go", "server/internal/modules/all/all.go",
         "server/internal/modules/all/node/node.go", "server/go.mod", "sdk/go/ext/ext.go",
-        "web/src/core/module-host.ts", "web/src/lib/task-board.ts", "web/src/lib/agent-actions.ts",
+        "web/src/core/module-host.ts", "web/src/lib/model-config.ts", "web/src/lib/todo-view-wire.ts",
+        "web/src/lib/hub-update.ts", "web/src/lib/session-review-agent.ts",
         "android/core/hub/src/main/kotlin/A.kt", "android/core/data/src/main/kotlin/A.kt",
         "android/core/moduleapi/src/main/kotlin/A.kt", "native/app-core/Cargo.toml",
         "apple/Packages/PersonaWire/Sources/PersonaWire/Wire.swift", "apple/Packages/PersonaModuleAPI/Package.swift",
@@ -29,6 +29,14 @@ SAMPLES = {
     "panel": [
         "web/src/views/chat/ChatView.tsx", "web/src/main.tsx", "web/src/App.tsx", "web/src/lib/use-hub.ts",
         "web/src/core/ModulePage.tsx", "web/src/ui/Button.tsx",
+        # web/src/lib files that serve one page, menu, popover or browser preference are panel (review of #14928)
+        "web/src/lib/model-panel.ts", "web/src/lib/session-panel.ts", "web/src/lib/node-palette.ts",
+        "web/src/lib/model-id-input.ts", "web/src/lib/machine-alerts.ts", "web/src/lib/machine-capabilities.ts",
+        "web/src/lib/todo-slim-row.ts", "web/src/lib/todo-detail-template.ts", "web/src/lib/session-insights.ts",
+        "web/src/lib/todo-list-filter.ts", "web/src/lib/handoff.ts", "web/src/lib/agent-open.ts",
+        "web/src/lib/todo-details.ts", "web/src/lib/todo-thread.ts", "web/src/lib/todo-stage.ts",
+        "web/src/lib/agent-actions.ts", "web/src/lib/node-actions.ts", "web/src/lib/task-board.ts",
+        "web/src/lib/taskdir/nested.ts", "web/src/lib/model-config-execution.ts",
         "android/app/src/main/kotlin/A.kt", "android/feature/agents/src/main/kotlin/A.kt",
         "android/core/designsystem/src/main/kotlin/A.kt", "android/core/navigation/src/main/kotlin/A.kt",
         "android/platform/notify/src/main/kotlin/A.kt",
@@ -50,6 +58,10 @@ TESTS_ONLY = [
     "apple/Packages/PersonaWire/Tests/PersonaWireTests/A.swift", "server/internal/modapi/modapi_test.go",
     "web/src/views/chat/ChatView.test.tsx", "android/app/src/test/kotlin/A.kt", "apple/PersonaTests/ChatTests.swift",
 ]
+
+# The web/src/lib modules that only the panel uses: a headless web file may not import them.
+PANEL_ONLY_WEB_IMPORT = re.compile(
+    r"""(?:from\s*|import\s*\(?\s*|require\(\s*)['"](?:\.\./(?:ui|views)/[^'"]*|\./(?:router|store|palette)(?:\.\w+)?)['"]""")
 
 # What a tier-core client directory must not contain (non-test files only): a UI framework import or a .tsx file.
 UI_IMPORT = re.compile(
@@ -75,10 +87,7 @@ class CorePathsTests(unittest.TestCase):
 
     def test_every_explicit_path_exists(self):
         for e in CORE.explicit:
-            if "*" in e.path:
-                hit = any(fnmatch.fnmatchcase(f, e.path) for f in FILES)
-            else:
-                hit = e.path in FILES or any(f.startswith(e.path.rstrip("/") + "/") for f in FILES)
+            hit = any(e.matches(f) for f in FILES)
             self.assertTrue(hit, f"core-paths.txt line {e.line}: `{e.kind} {e.path}` matches no tracked file (stale: "
                                  "delete the line or point it at the new place)")
 
@@ -136,8 +145,38 @@ class CorePathsTests(unittest.TestCase):
                 m = UI_IMPORT.search(text)
                 self.assertIsNone(m, f"{f}: imports a UI framework ({m and m.group(0).strip()}); it cannot be headless "
                                      f"(schema/core-paths.txt line {e.line}); move it to the panel or split the UI out")
+                if f.startswith("web/"):
+                    m = PANEL_ONLY_WEB_IMPORT.search(text)
+                    self.assertIsNone(m, f"{f}: imports a panel-only module ({m and m.group(0).strip()}); it cannot be "
+                                         f"headless (schema/core-paths.txt line {e.line})")
                 checked += 1
         self.assertGreater(checked, 500)
+
+    def test_the_headless_import_rule_catches_the_review_cases(self):
+        for text in ('import { toast } from "../ui/atoms";', "import { navigate } from './router';",
+                     'import { getState } from "./store";', 'import { reg } from "./palette";',
+                     "const m = await import('../ui/menu-model');"):
+            self.assertTrue(PANEL_ONLY_WEB_IMPORT.search(text), text)
+        for text in ('import { api } from "./api";', 'import type { Item } from "./types";', 'import { t } from "../i18n";',
+                     'import { storeRows } from "./store-rows";'):
+            self.assertIsNone(PANEL_ONLY_WEB_IMPORT.search(text), text)
+
+    def test_every_web_lib_file_in_core_is_listed_by_name(self):
+        # No prefix glob puts a page's helpers in core: each web/src/lib core entry is one .ts file (or `configuration/`).
+        for e in CORE.explicit:
+            if e.kind == "headless" and e.path.startswith("web/src/lib/"):
+                self.assertNotIn("*", e.path, f"line {e.line}: list the web/src/lib file by name")
+
+    def test_a_glob_star_stays_inside_one_path_segment(self):
+        glob = cp.Explicit("core", "web/src/core/module-*", 1)
+        self.assertTrue(glob.matches("web/src/core/module-host.ts"))
+        self.assertTrue(glob.matches("web/src/core/module-foo/bar/baz.ts"))  # a matched directory covers what is below it
+        self.assertFalse(glob.matches("web/src/core/x/module-host.ts"))
+        ts = cp.Explicit("headless", "web/src/lib/task*.ts", 1)
+        self.assertTrue(ts.matches("web/src/lib/task-board.ts"))
+        self.assertFalse(ts.matches("web/src/lib/taskdir/nested.ts"))
+        self.assertFalse(ts.matches("web/src/lib/task/nested.ts"))
+        self.assertFalse(ts.matches("web/src/lib/task.tsx"))
 
     def test_headless_paths_are_not_foundation_ui(self):
         # The UI-import guard above covers `headless`; the explicit foundation `core` lines may name a file that
