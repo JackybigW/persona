@@ -41,7 +41,7 @@ export async function verifyNarrowLayout({ sourceRoot = resolve(here, "../.."), 
     assert.ok(executablePath, "An installed Chromium is required on the Linux verifier");
     browser = await chromium.launch({ executablePath, headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
     for (const width of widths) for (const theme of themes) {
-      const context = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: theme, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block" });
+      const context = await browser.newContext({ viewport: { width, height: 844 }, deviceScaleFactor: 2, isMobile: width === 390, hasTouch: width === 390, colorScheme: theme, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block" });
       await context.addInitScript((theme) => {
         localStorage.setItem("persona.token", "synthetic-layout-token");
         localStorage.setItem("persona.language", "zh-Hans"); localStorage.setItem("persona.theme", theme);
@@ -95,14 +95,16 @@ export async function verifyNarrowLayout({ sourceRoot = resolve(here, "../.."), 
       });
       const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       if (screenshots) await page.screenshot({ path: join(output, `${width}-${theme}-rows.png`), fullPage: true });
-      // Sensitivity control: reproduce the old unconstrained-button failure without calling it the merge base.
+      // #3535 changed exactly this class in Row: removing it restores the pre-fix constraint, not the merge base.
       const control = await rows.first().evaluate((row) => {
-        const old = row.style.width; row.style.width = "max-content";
+        const hadWidth = row.classList.contains("w-full"); row.classList.remove("w-full");
+        const title = row.querySelector(".flex-1").firstElementChild;
+        const text = title.getBoundingClientRect();
         const arrow = row.lastElementChild.getBoundingClientRect();
         const card = row.closest("section").getBoundingClientRect();
         const clipped = arrow.right > Math.min(card.right, innerWidth);
-        row.style.width = old;
-        return { label: "deliberately unconstrained width, not baseline", arrowRight: arrow.right, clipRight: Math.min(card.right, innerWidth), clipped };
+        if (hadWidth) row.classList.add("w-full");
+        return { label: "pre-3535 row class control, not merge base", sourceFix: "c6fabd7cdc4884f01d362741c2c87fc28644bfe7", removedClass: "w-full", titleWidth: text.width, titleScrollWidth: title.scrollWidth, arrowRight: arrow.right, clipRight: Math.min(card.right, innerWidth), clipped };
       });
       await rows.first().click();
       await page.getByRole("heading", { name: detailView.title, exact: true }).waitFor();
@@ -125,7 +127,7 @@ export async function verifyNarrowLayout({ sourceRoot = resolve(here, "../.."), 
       }
       assert.equal(tableGeometry.length, 2, "Exact four-column sample and a separate four-column stress case");
       const pass = documentWidth <= width && detailDocumentWidth <= width && rowGeometry.every((r) => r.badge.visible && r.arrow.visible) && tableGeometry.every((t) => t.accessible);
-      report.results.push({ width, theme, pass, documentWidth, detailDocumentWidth, rowGeometry, tableGeometry, sensitivityControl: control });
+      report.results.push({ width, theme, deviceScaleFactor: 2, isMobile: width === 390, pass, documentWidth, detailDocumentWidth, rowGeometry, tableGeometry, historicalClassControl: control });
       assert.ok(rowGeometry[0].title.text.includes(rowTitle), "Unbroken Chinese fixture is intact");
       assert.ok(control.clipped, "Geometry check must detect a clipped trailing arrow");
       await context.close();
