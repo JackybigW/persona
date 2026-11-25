@@ -9,16 +9,18 @@ vi.hoisted(() => {
 });
 
 function draw(items: unknown[]) {
-  const view = readView({ sections: [{ items }] });
+  const view = readView({ sections: [{ title: "Synthetic titled section", items }] });
   return new DOMParser().parseFromString(renderToStaticMarkup(<ViewSections view={view} {...INERT} />), "text/html");
 }
 
 // Browser geometry and actual scrolling are covered by e2e/extension-narrow-layout.mjs.
 describe("extension narrow layout", () => {
   it("constrains standalone row actions while retaining their badge and chevron", () => {
-    const title = "A synthetic long title ".repeat(12);
-    const subtitle = "Synthetic supporting detail ".repeat(12);
-    const doc = draw([{ type: "row", title, subtitle, badge: { text: "Stable", tone: "positive" }, action: { id: "open" } }]);
+    // i18n-ignore: synthetic extension-authored Chinese wire content without spaces.
+    const title = "一段超过四十个汉字的条目正文用于复现窄屏行组件横向溢出问题的合成示例文本";
+    const subtitle = "具体 · 示例类型 · 14 次 · 4 种来源 · 最近 2026-11-23";
+    const doc = draw([{ type: "row", title, subtitle, badge: { text: "Stable", tone: "positive" }, action: { id: "open", push: { state: '{"tab":"facets","open":"e:sample"}' } } }]);
+    expect(doc.querySelector("section h3")?.textContent).toBe("Synthetic titled section");
     const row = doc.querySelector("button")!;
     expect(row.classList.contains("w-full")).toBe(true);
     expect(row.classList.contains("min-w-0")).toBe(true);
