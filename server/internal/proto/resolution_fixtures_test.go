@@ -801,7 +801,7 @@ func TestResolutionFixtureSourceEvidence(t *testing.T) {
 			"#expect(ApproveFirstIntent.authenticationPolicy == .requiresAuthentication)",
 		},
 		"apple/PersonaWidgets/FleetLiveActivity.swift": {
-			"Button(intent: ApprovePlanIntent(interactionID: id))", "Link(destination: FleetLink.url(item)!)", ".widgetURL(FleetLink.whole(state))",
+			"Button(intent: ApprovePlanIntent(interactionID: id, interactionCreatedAt: item.interactionCreatedAt))", "Link(destination: FleetLink.url(item)!)", ".widgetURL(FleetLink.whole(state))",
 		},
 	}
 	for path, snippets := range evidence {

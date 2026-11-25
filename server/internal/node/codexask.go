@@ -77,6 +77,7 @@ type codexCards struct {
 	dismissed       map[string]dismissedCard           // card id → handed back to the computer from the phone
 	approvals       map[string]bool                    // session id → last screen scan saw a Codex approval dialog
 	created         map[string]codexApprovalOccurrence // approval card id → its first-seen occurrence while open
+	askOccurrences  map[[2]string]codexAskOccurrence   // session, call id → last timestamp-less question occurrence
 	outsideAsks     map[string]string                  // session id → card id of the active clq_ card last listed to the hub
 	outsideAskCache map[string]outsideAskCacheEntry    // session id → stat-cached bounded read-only pending AskUserQuestion
 	pagerAt         map[string]time.Time               // pane → when its transcript pager was last closed to show a dialog
@@ -86,6 +87,14 @@ type codexCards struct {
 type codexApprovalOccurrence struct {
 	session string
 	at      time.Time
+}
+
+// A timestamp-less rollout question needs process-local lifecycle identity.
+// Keep the last timestamp after closure so an equal or backwards wall clock
+// cannot make a reopened same-ID question reuse the answered occurrence.
+type codexAskOccurrence struct {
+	at   time.Time
+	open bool
 }
 
 // approvalOccurrenceCard keeps one open dialog's identity stable across screen
@@ -313,6 +322,11 @@ func (c *codexCards) forget(live map[string]codexAgent) {
 			delete(c.created, id)
 		}
 	}
+	for key := range c.askOccurrences {
+		if _, ok := live[key[0]]; !ok {
+			delete(c.askOccurrences, key)
+		}
+	}
 	for id, until := range c.held {
 		if time.Now().After(until) {
 			delete(c.held, id)
@@ -393,7 +407,38 @@ func (c *codexCards) asks(id, path string) []transcript.CodexAsk {
 		c.tails[id] = t
 	}
 	t.read()
-	return t.asks.Open()
+	open := t.asks.Open()
+	now := time.Now().UTC()
+	seen := map[[2]string]bool{}
+	for i := range open {
+		key := [2]string{id, open[i].CallID}
+		if !open[i].At.IsZero() {
+			delete(c.askOccurrences, key)
+			continue
+		}
+		occurrence, ok := c.askOccurrences[key]
+		if !ok || !occurrence.open {
+			previous := occurrence.at
+			occurrence.at = now
+			if ok && !now.After(previous) {
+				occurrence.at = previous.Add(time.Nanosecond)
+			}
+		}
+		occurrence.open = true
+		if c.askOccurrences == nil {
+			c.askOccurrences = map[[2]string]codexAskOccurrence{}
+		}
+		c.askOccurrences[key] = occurrence
+		open[i].At = occurrence.at
+		seen[key] = true
+	}
+	for key, occurrence := range c.askOccurrences {
+		if key[0] == id && occurrence.open && !seen[key] {
+			occurrence.open = false
+			c.askOccurrences[key] = occurrence
+		}
+	}
+	return open
 }
 
 // hasBlockingAsk reports whether the session's rollout currently holds an open non-async question.

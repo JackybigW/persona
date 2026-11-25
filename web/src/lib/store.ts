@@ -104,6 +104,8 @@ export interface State {
   /** Messages other pages sent for a conversation (`mid/sid`), shown there until the transcript has them (lib/outbox.ts). */
   outbox: Record<string, OutboxEntry[]>;
   todos: Todo[];
+  /** Optional `shared_blockers` summary from GET /todos under todos_v2 (#14728); parsed lazily by the To-dos view. */
+  sharedBlockers: unknown[];
   todosSupported: boolean;
   todosLoaded: boolean;
   todosError: string | null;
@@ -150,6 +152,7 @@ let state: State = {
   launches: {},
   outbox: {},
   todos: [],
+  sharedBlockers: [],
   todosSupported: true,
   todosLoaded: false,
   todosError: null,
@@ -1515,6 +1518,8 @@ export function endInteraction(id: string, answer?: AnsweredCard, occurrence?: s
   if (current && laterTime(current.created_at, occurrence)) return;
   changeInteraction(id, null);
   if (!answer) return;
+  const previous = state.answered[id];
+  if (previous && laterTime(previous.ix.created_at, occurrence)) return;
   const card = { ...answer, at: answer.at ?? Date.now(), withdrawn: answer.withdrawn || answer.already === true || occurrenceCovered(resolvedSeen, answer.ix) };
   set({ answered: { ...state.answered, [id]: card } });
   setTimeout(() => dropAnswered(id, card), ANSWERED_MS);
@@ -1547,7 +1552,12 @@ export function dropAnswered(id: string, only?: AnsweredCard) {
  *  session history's to show. */
 function answeredForUser(msg: Record<string, unknown>) {
   const id = msg.id as string;
-  const ix = interactionByID(id) ?? state.answered[id]?.ix;
+  const occurrence = typeof msg.created_at === "string" ? msg.created_at : undefined;
+  const pending = interactionByID(id);
+  const answered = state.answered[id]?.ix;
+  const ix = occurrence
+    ? (pending?.created_at === occurrence ? pending : answered?.created_at === occurrence ? answered : undefined)
+    : pending ?? answered;
   if (ix) keepDelegated(ix, msg);
 }
 
@@ -1563,7 +1573,11 @@ export function keepDelegated(ix: Interaction, r: Record<string, unknown>) {
   if (!current || !laterTime(current.created_at, ix.created_at)) changeInteraction(ix.id, null);
   const answered = { ...state.answered };
   if (!state.answered[ix.id] || !laterTime(state.answered[ix.id].ix.created_at, ix.created_at)) delete answered[ix.id];
-  const card: DelegatedAnswer = state.delegated[ix.id] ?? { ix, answers: answersIn(r.answers), reason: typeof r.reason === "string" ? r.reason : "", at: Date.now() };
+  const previous = state.delegated[ix.id];
+  if (previous && laterTime(previous.ix.created_at, ix.created_at)) return;
+  const card: DelegatedAnswer = previous && !laterTime(ix.created_at, previous.ix.created_at)
+    ? previous
+    : { ix, answers: answersIn(r.answers), reason: typeof r.reason === "string" ? r.reason : "", at: Date.now() };
   const delegated = { ...state.delegated, [ix.id]: card };
   const ids = Object.keys(delegated);
   for (const old of ids.slice(0, Math.max(0, ids.length - DELEGATED_KEPT))) delete delegated[old];
@@ -1617,14 +1631,14 @@ function numbered<T>(path: string, read: () => Promise<T> = () => api<T>(path)) 
 // no body. Most {"type":"todos"} pushes change nothing the list holds, and the whole list is hundreds of KB on a busy
 // hub, so a read sends the tag and a 304 applies the kept answer again, as a 200 with those same bytes would. Memory
 // only, one login's: reset() drops it, and a tag kept under another login is not sent.
-let keptTodos: { owner: string; etag: string; revision: string; answer: { todos: Todo[] } } | null = null;
+let keptTodos: { owner: string; etag: string; revision: string; answer: { todos: Todo[]; shared_blockers?: unknown[] } } | null = null;
 
-async function readTodos(): Promise<{ todos: Todo[] }> {
+async function readTodos(): Promise<{ todos: Todo[]; shared_blockers?: unknown[] }> {
   const owner = credentialOwner();
   const kept = keptTodos?.owner === owner ? keptTodos : null;
   let status = 0;
   let reply: Headers | undefined;
-  const answer = await api<{ todos: Todo[] }>("/todos", {
+  const answer = await api<{ todos: Todo[]; shared_blockers?: unknown[] }>("/todos", {
     headers: kept?.etag ? { "If-None-Match": kept.etag } : undefined,
     onResponse: (headers, code) => { status = code; reply = headers; },
   });
@@ -1639,7 +1653,7 @@ async function readTodos(): Promise<{ todos: Todo[] }> {
   return answer;
 }
 
-const todosAsked = numbered<{ todos: Todo[] }>("/todos", readTodos);
+const todosAsked = numbered<{ todos: Todo[]; shared_blockers?: unknown[] }>("/todos", readTodos);
 const assistantAsked = numbered<AssistantInfo>("/assistant");
 
 // refresh() calls, numbered the same way: one that started before the last one applied, or before reset(), is older
@@ -1705,20 +1719,21 @@ export async function refresh() {
 }
 
 /** Both refresh paths share the list, error and unsupported-hub (404) handling; only a fresh answer finishes loading. */
-function applyTodos(todos: PromiseSettledResult<{ todos: Todo[] }>, fresh: () => boolean) {
+function applyTodos(todos: PromiseSettledResult<{ todos: Todo[]; shared_blockers?: unknown[] }>, fresh: () => boolean) {
   if (!fresh()) return; // a later answer is in place, or this one belongs to a login reset() ended
   if (todos.status === "fulfilled") {
     const list = todos.value.todos ?? [];
+    const sharedBlockers = Array.isArray(todos.value.shared_blockers) ? todos.value.shared_blockers : [];
     for (const t of list) {
       if (t.manager) noteItemManager(`/todos/${encodeURIComponent(t.id)}`, t.manager);
     }
-    set({ todos: list, todosSupported: true, todosLoaded: true, todosError: null, spacesSupported: computeSpacesSupported(list) });
+    set({ todos: list, sharedBlockers, todosSupported: true, todosLoaded: true, todosError: null, spacesSupported: computeSpacesSupported(list) });
     keepTaskRows([]);
     void lookUpTaskAgents();
     return;
   }
   const reason = todos.reason;
-  if (reason instanceof ApiError && reason.status === 404) return set({ todosSupported: false, todosLoaded: true, todosError: null, spacesSupported: false });
+  if (reason instanceof ApiError && reason.status === 404) return set({ sharedBlockers: [], todosSupported: false, todosLoaded: true, todosError: null, spacesSupported: false });
   set({ todosLoaded: true, todosError: errorText(reason) });
 }
 
@@ -2065,6 +2080,7 @@ export function reset() {
     mutes: { spaces: [], sessions: [], allowed: [] },
     pins: NO_PINS,
     todos: [],
+    sharedBlockers: [],
     todosSupported: true,
     todosLoaded: false,
     todosError: null,

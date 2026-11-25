@@ -127,10 +127,7 @@ func TestFeishuReplacementReplacesEarlierLedger(t *testing.T) {
 		ToolName: "Bash", CreatedAt: time.Now().UTC()}
 	replacement := first
 	replacement.CreatedAt = first.CreatedAt.Add(time.Second)
-	e.s.fbot.mu.Lock()
-	e.s.loadBotLocked(context.Background())
-	e.s.keepBotCardLocked(first.ID, &botCard{MessageID: "om_first", Ix: first})
-	e.s.fbot.mu.Unlock()
+	keepChatCard(e.s, first.ID, &botCard{MessageID: "om_first", Ix: first})
 	e.s.postInteractionCard(context.Background(), replacement)
 	posted := false
 	for _, p := range e.f.appParams(AppFeishu, FeishuPost) {
@@ -142,9 +139,7 @@ func TestFeishuReplacementReplacesEarlierLedger(t *testing.T) {
 	if !posted {
 		t.Fatal("the earlier occurrence's ledger entry suppressed the replacement's Feishu card")
 	}
-	e.s.fbot.mu.Lock()
-	got := e.s.fbot.cards[first.ID]
-	e.s.fbot.mu.Unlock()
+	got, _ := chatCard(e.s, first.ID)
 	if got.MessageID == "" || !got.Ix.CreatedAt.Equal(replacement.CreatedAt) {
 		t.Fatalf("the replacement did not replace the old ledger occurrence: %+v", got)
 	}
@@ -247,14 +242,11 @@ func TestOlderInFlightPostCannotReplaceNewerLedger(t *testing.T) {
 	e.s.chans.announcedOccurrence = map[string]time.Time{replacement.ID: replacement.CreatedAt}
 	e.s.chans.mu.Unlock()
 	e.s.postInteractionCard(context.Background(), replacement)
-	e.s.fbot.mu.Lock()
-	mid := e.s.fbot.cards[replacement.ID].MessageID
-	e.s.fbot.mu.Unlock()
+	postedReplacement, _ := chatCard(e.s, replacement.ID)
+	mid := postedReplacement.MessageID
 	close(release)
 	<-done
-	e.s.fbot.mu.Lock()
-	current := e.s.fbot.cards[replacement.ID]
-	e.s.fbot.mu.Unlock()
+	current, _ := chatCard(e.s, replacement.ID)
 	if mid == "" || current.MessageID != mid || !current.Ix.CreatedAt.Equal(replacement.CreatedAt) {
 		t.Fatalf("the older in-flight post displaced the replacement: before=%q after=%+v", mid, current)
 	}
@@ -311,10 +303,7 @@ func TestCatchUpClosesEarlierBotCardWithPendingReplacement(t *testing.T) {
 	replacement := first
 	replacement.CreatedAt = first.CreatedAt.Add(time.Second)
 	e.f.withQueue(replacement)
-	e.s.fbot.mu.Lock()
-	e.s.loadBotLocked(context.Background())
-	e.s.keepBotCardLocked(first.ID, &botCard{MessageID: "om_first", Ix: first})
-	e.s.fbot.mu.Unlock()
+	keepChatCard(e.s, first.ID, &botCard{MessageID: "om_first", Ix: first})
 	e.s.closeEndedBotCards(context.Background(), map[string]proto.Interaction{first.ID: replacement}, false)
 	waitFor(t, "the earlier Feishu card to close with a pending replacement", func() bool {
 		for _, p := range e.f.appParams(AppFeishu, FeishuUpdateCard) {
@@ -348,49 +337,18 @@ func TestCatchUpRemovesEarlierTextAskWithPendingReplacement(t *testing.T) {
 	}
 }
 
-func TestBotRestoreCardDoesNotOverwriteReplacement(t *testing.T) {
-	ft := newFleetTestNoStore(t)
-	preparedTestConversation(ft)
-	first := proto.Interaction{ID: "ix_bot_restore_occurrence", MachineID: "mac", SessionID: "s1",
-		Kind: proto.IxPermission, CreatedAt: time.Now().UTC()}
-	replacement := first
-	replacement.CreatedAt = first.CreatedAt.Add(time.Second)
-	startPreparedInteraction(t, ft, replacement, approvalops.Operation{})
-	ft.s.fbot.mu.Lock()
-	ft.s.loadBotLocked(context.Background())
-	if ft.s.fbot.cards == nil {
-		ft.s.fbot.cards = map[string]botCard{}
-	}
-	ft.s.fbot.cards[first.ID] = botCard{MessageID: "om_replacement", Ix: replacement}
-	ft.s.fbot.mu.Unlock()
-	if ft.s.botRestoreCard(context.Background(), first.ID, botCard{MessageID: "om_first", Ix: first}) {
-		t.Fatal("the earlier occurrence restored over a pending replacement")
-	}
-	ft.s.fbot.mu.Lock()
-	got := ft.s.fbot.cards[first.ID]
-	ft.s.fbot.mu.Unlock()
-	if got.MessageID != "om_replacement" || !got.Ix.CreatedAt.Equal(replacement.CreatedAt) {
-		t.Fatalf("the earlier occurrence replaced the bot-card ledger: %+v", got)
-	}
-}
-
 func TestEarlierOccurrenceCannotDeleteReplacementBotCard(t *testing.T) {
 	ft := newFleetTestNoStore(t)
 	first := proto.Interaction{ID: "ix_bot_ledger_occurrence", MachineID: "mac", SessionID: "s1",
 		Kind: proto.IxPermission, CreatedAt: time.Now().UTC()}
 	replacement := first
 	replacement.CreatedAt = first.CreatedAt.Add(time.Second)
-	ft.s.fbot.mu.Lock()
-	ft.s.loadBotLocked(context.Background())
-	ft.s.keepBotCardLocked(first.ID, &botCard{MessageID: "om_replacement", Ix: replacement})
-	ft.s.fbot.mu.Unlock()
+	keepChatCard(ft.s, first.ID, &botCard{MessageID: "om_replacement", Ix: replacement})
 	if _, _, same := ft.s.takeBotCardOccurrence(first.ID, first); same {
 		t.Fatal("an earlier occurrence removed the replacement ledger entry")
 	}
 	ft.s.feishuInteractionEnded(first, "ended", false)
-	ft.s.fbot.mu.Lock()
-	got := ft.s.fbot.cards[first.ID]
-	ft.s.fbot.mu.Unlock()
+	got, _ := chatCard(ft.s, first.ID)
 	if got.MessageID != "om_replacement" || !got.Ix.CreatedAt.Equal(replacement.CreatedAt) {
 		t.Fatalf("an earlier terminal event damaged the replacement ledger: %+v", got)
 	}
@@ -471,26 +429,18 @@ func TestFeishuStaleCallbackCannotActOnReplacement(t *testing.T) {
 							swapped.Store(true)
 							// This is the replacement announcement's ledger write. It
 							// must survive the stale press's later cleanup/restore.
-							ft.s.fbot.mu.Lock()
-							ft.s.fbot.cards[first.ID] = botCard{MessageID: "om_replacement", Ix: replacement}
-							ft.s.fbot.mu.Unlock()
+							keepChatCard(ft.s, first.ID, &botCard{MessageID: "om_replacement", Ix: replacement})
 						}
 					}
 					return map[string]any{}, nil
 				})
-				ft.s.fbot.mu.Lock()
-				ft.s.loadBotLocked(context.Background())
-				if ft.s.fbot.cards == nil {
-					ft.s.fbot.cards = map[string]botCard{}
-				}
 				ledger := replacement
 				messageID := "om_replacement"
 				if swapAfterGet {
 					ledger = first
 					messageID = "om_first"
 				}
-				ft.s.fbot.cards[first.ID] = botCard{MessageID: messageID, Ix: ledger}
-				ft.s.fbot.mu.Unlock()
+				keepChatCard(ft.s, first.ID, &botCard{MessageID: messageID, Ix: ledger})
 				var a botcard.CardAction
 				a.Action.Value = map[string]any{"a": "ix", "id": first.ID, "created_at": first.CreatedAt.Format(time.RFC3339Nano)}
 				if action == "resolve" {
@@ -500,7 +450,7 @@ func TestFeishuStaleCallbackCannotActOnReplacement(t *testing.T) {
 					a.Action.FormValue = map[string]any{"question": "stale question"}
 				}
 				a.Context.ChatID, a.Context.MessageID = "oc_owner", "om_card"
-				resp := ft.s.botCardAction(context.Background(), &a, "stale-owner-action")
+				resp := ft.s.larkModule().Action(context.Background(), &a, "stale-owner-action")
 				if swapAfterGet {
 					waitFor(t, "the real replacement at the owner-action boundary", swapped.Load)
 				}
@@ -527,9 +477,7 @@ func TestFeishuStaleCallbackCannotActOnReplacement(t *testing.T) {
 				if got := len(ownerQuestionSends(ft)); got != 0 {
 					t.Fatalf("stale clarification sent %d questions to the replacement conversation", got)
 				}
-				ft.s.fbot.mu.Lock()
-				gotLedger := ft.s.fbot.cards[first.ID]
-				ft.s.fbot.mu.Unlock()
+				gotLedger, _ := chatCard(ft.s, first.ID)
 				if gotLedger.MessageID != "om_replacement" || !gotLedger.Ix.CreatedAt.Equal(replacement.CreatedAt) {
 					t.Fatalf("stale %s damaged the replacement bot-card ledger: %+v", action, gotLedger)
 				}

@@ -68,6 +68,10 @@ func (st *ownerActionAttributionStore) PutPlacement(ctx context.Context, p db.Pl
 	return st.ownerActionTestStore.PutPlacement(ctx, p)
 }
 
+func (st *ownerActionAttributionStore) PutModelRouting(ctx context.Context, row db.ModelRoutingRow) error {
+	return st.fleetMem.PutModelRouting(ctx, row)
+}
+
 func TestOwnerActionCompletionKeepsDeviceAttribution(t *testing.T) {
 	f, _ := feishuHub("ou_owner", time.Unix(100, 0))
 	on := true

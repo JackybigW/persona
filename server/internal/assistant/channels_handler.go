@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/nwverse/persona/server/internal/assistantwire"
 	"github.com/nwverse/persona/server/internal/channel"
 	"github.com/nwverse/persona/server/internal/i18n"
 	"github.com/nwverse/persona/server/internal/proto"
@@ -35,7 +36,7 @@ func (s *Service) ChannelReceive(ctx context.Context, p ChannelReceive) error {
 	if m.Owner != nil && !*m.Owner {
 		return badRequest(errors.New(i18n.T(s.botLang(ctx), "assistant-channels_plugin.mention_owner_required")))
 	}
-	admission, err := s.admitChannelMessage(p.Channel, m)
+	admission, err := s.admitChannelMessage(ctx, p.Channel, m)
 	if err != nil {
 		return &rpc.Error{Code: CodeTryAgain, Message: err.Error()} // the hub hands it over again
 	}
@@ -228,7 +229,7 @@ func (s *Service) channelsReconnected(ctx context.Context) {
 		s.askFollow(ctx, k[0], k[1]) // a failure is asked again by the run's watcher
 	}
 	s.forgetChannelList()
-	s.feishuForgetStatus()
+	s.larkModule().ForgetStatus()
 	if _, err := s.chat().Status(ctx); err != nil { // the pairing as it is now (feishuReconcile)
 		s.logf("channels: the Feishu bot's status: %v", err)
 	}
@@ -328,22 +329,20 @@ func (s *Service) channelsCatchUp(ctx context.Context) {
 // after this runs), so each is closed only once the history says it ended for good (botCardOver). One that may still
 // be waiting is looked at again a little later, once (again).
 func (s *Service) closeEndedBotCards(ctx context.Context, pending map[string]proto.Interaction, again bool) {
-	b := &s.fbot
-	b.mu.Lock()
-	s.loadBotLocked(ctx) // cards posted before a restart are in the chat's state
 	type candidate struct {
 		card     botCard
 		replaced bool
 	}
 	var maybe []candidate
-	for id, card := range b.cards {
-		current, ok := pending[id]
-		replaced := ok && !card.Ix.CreatedAt.IsZero() && !current.CreatedAt.IsZero() && card.Ix.CreatedAt.Before(current.CreatedAt)
-		if (!ok || replaced) && card.MessageID != "" {
-			maybe = append(maybe, candidate{card: card, replaced: replaced})
+	s.larkModule().Book(ctx, func(b assistantwire.ChatBook) { // cards posted before a restart are in the chat's state
+		for id, card := range b.Cards() {
+			current, ok := pending[id]
+			replaced := ok && !card.Ix.CreatedAt.IsZero() && !current.CreatedAt.IsZero() && card.Ix.CreatedAt.Before(current.CreatedAt)
+			if (!ok || replaced) && card.MessageID != "" {
+				maybe = append(maybe, candidate{card: card, replaced: replaced})
+			}
 		}
-	}
-	b.mu.Unlock()
+	})
 	var unsure []botCard
 	for _, candidate := range maybe {
 		card := candidate.card

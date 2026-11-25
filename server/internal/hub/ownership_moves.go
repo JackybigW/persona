@@ -345,7 +345,7 @@ func (h *Hub) withdrawCardsOn(mid, to string) {
 	}
 	f.mu.Unlock()
 	for _, ix := range gone {
-		h.broadcast(interactionResolvedEvent(ix))
+		h.broadcastInteractionResolved(ix, interactionResolvedEvent(ix))
 	}
 }
 

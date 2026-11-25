@@ -87,7 +87,7 @@ func (h *Hub) forgetManagerState(id string) {
 	}
 	f.mu.Unlock()
 	for _, ix := range gone {
-		h.broadcast(interactionResolvedEvent(ix))
+		h.broadcastInteractionResolved(ix, interactionResolvedEvent(ix))
 	}
 	h.forgetMachineEntries(id) // what it reported of its machines (machine_entries.go)
 }

@@ -288,6 +288,31 @@ func TestEarlierOccurrenceUpdateCannotReplaceLaterCards(t *testing.T) {
 	}
 }
 
+func TestEarlierOccurrenceSnapshotCannotReplaceLaterCards(t *testing.T) {
+	h := newTestHub(t)
+	first := proto.Interaction{ID: "ix_snapshot_reused", SessionID: "side", Kind: proto.IxPermission,
+		MirrorMain: true, Summary: "first", CreatedAt: time.Unix(1000, 1).UTC(), ExpiresAt: time.Now().Add(time.Hour).UTC()}
+	second := first
+	second.CreatedAt = first.CreatedAt.Add(time.Nanosecond)
+	second.Summary = "replacement"
+	secondMirror := second
+	secondMirror.ID, secondMirror.MirrorOf, secondMirror.MirrorMain, secondMirror.SessionID = proto.ApprovalMirrorID(second.ID, second.CreatedAt), second.ID, false, "main"
+	reportInteraction(t, h, second)
+	reportInteraction(t, h, secondMirror)
+	h.takeFleetInteractions([]proto.Interaction{first})
+	pending := h.pendingInteractions()
+	ids := map[string]proto.Interaction{}
+	for _, ix := range pending {
+		ids[ix.ID] = ix
+	}
+	if got := ids[second.ID]; got.Summary != "replacement" || !got.CreatedAt.Equal(second.CreatedAt) {
+		t.Fatalf("delayed snapshot restored the earlier original: pending=%+v", pending)
+	}
+	if got := ids[secondMirror.ID]; got.Summary != "replacement" || !got.CreatedAt.Equal(second.CreatedAt) {
+		t.Fatalf("delayed snapshot withdrew the later mirror: pending=%+v", pending)
+	}
+}
+
 func TestDisplayMirrorSnapshotRejectsPrivateAndOrphanedCopies(t *testing.T) {
 	h := newTestHub(t)
 	origin := proto.Interaction{ID: "ix_private", SessionID: "side", Kind: proto.IxPermission, MirrorMain: true, Private: true}
@@ -468,6 +493,71 @@ func TestApprovalMirrorsRequireClientCapabilityEverywhere(t *testing.T) {
 	}
 	if !seen[origin.ID] || !seen[mirror.ID] || len(replayCapable.out) != 0 {
 		t.Fatalf("capable replay cards = %v", seen)
+	}
+}
+
+func TestMirrorResolutionRequiresClientCapabilityLiveAndReplay(t *testing.T) {
+	h := newTestHub(t)
+	legacy := &client{out: make(chan []byte, 16)}
+	capable := &client{out: make(chan []byte, 16), urlFeatures: map[string]bool{featureApprovalMirrors: true}}
+	addTestClient(h, legacy, capable)
+	origin := proto.Interaction{ID: "ix_resolution_capability", SessionID: "side", Kind: proto.IxPermission, MirrorMain: true,
+		CreatedAt: time.Unix(1000, 1).UTC(), ExpiresAt: time.Now().Add(time.Hour).UTC()}
+	mirror := origin
+	mirror.ID, mirror.MirrorOf, mirror.MirrorMain, mirror.SessionID = proto.ApprovalMirrorID(origin.ID, origin.CreatedAt), origin.ID, false, "main"
+	reportInteraction(t, h, origin)
+	reportInteraction(t, h, mirror)
+	_ = wireReceive(t, legacy)
+	for range 2 {
+		_ = wireReceive(t, capable)
+	}
+	reportResolvedAt(t, h, origin.ID, origin.CreatedAt)
+	var event struct {
+		Type        string            `json:"type"`
+		ID          string            `json:"id"`
+		Interaction proto.Interaction `json:"interaction"`
+	}
+	if json.Unmarshal(wireReceive(t, legacy), &event) != nil || event.Type != "interaction_resolved" || event.ID != origin.ID {
+		t.Fatalf("legacy live resolution = %+v, want only the original", event)
+	}
+	select {
+	case raw := <-legacy.out:
+		t.Fatalf("legacy client received a mirror resolution: %s", raw)
+	default:
+	}
+	resolved := map[string]bool{}
+	for range 2 {
+		if json.Unmarshal(wireReceive(t, capable), &event) != nil {
+			t.Fatal("bad capable resolution")
+		}
+		resolved[event.ID] = true
+	}
+	if !resolved[origin.ID] || !resolved[mirror.ID] {
+		t.Fatalf("capable resolutions = %v", resolved)
+	}
+
+	h.mu.Lock()
+	stream := h.events.stream
+	replayLegacy := &client{out: make(chan []byte, 16)}
+	replayCapable := &client{out: make(chan []byte, 16), urlFeatures: map[string]bool{featureApprovalMirrors: true}}
+	h.helloLocked(replayLegacy, map[string]any{"type": "hello"}, stream, 0, true)
+	h.helloLocked(replayCapable, map[string]any{"type": "hello"}, stream, 0, true)
+	h.mu.Unlock()
+	<-replayLegacy.out
+	<-replayCapable.out
+	for i, want := range []struct{ typ, id string }{{"interaction", origin.ID}, {"interaction_resolved", origin.ID}} {
+		if json.Unmarshal(wireReceive(t, replayLegacy), &event) != nil || event.Type != want.typ || (event.Type == "interaction" && event.Interaction.ID != want.id) || (event.Type == "interaction_resolved" && event.ID != want.id) {
+			t.Fatalf("legacy replay event %d = %+v, want %s %s", i, event, want.typ, want.id)
+		}
+	}
+	if len(replayLegacy.out) != 0 {
+		t.Fatalf("legacy replay retained a mirror resolution: %d extra events", len(replayLegacy.out))
+	}
+	for range 4 {
+		_ = wireReceive(t, replayCapable)
+	}
+	if len(replayCapable.out) != 0 {
+		t.Fatalf("capable replay has %d extra events", len(replayCapable.out))
 	}
 }
 

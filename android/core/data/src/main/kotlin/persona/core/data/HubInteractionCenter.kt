@@ -70,11 +70,13 @@ class HubInteractionCenter(
                         val incoming = event.interaction
                         val previous = mutablePending.value.firstOrNull { it.id == incoming.id }
                         val stale = previous != null && laterTime(previous.createdAt, incoming.createdAt)
-                        if (!stale && incoming.id !in discarded && !endedOccurrence(incoming, endedHere) && !endedOccurrence(incoming, ended)) {
+                        if (!stale && incoming.id !in discarded && !endedOccurrence(incoming, endedHere) && !earlierThanEnded(incoming, ended)) {
                             // Looking is quiet. A handover or a genuinely newer occurrence is an arrival; an edit or replay is not.
                             val replacement = previous != null && laterTime(incoming.createdAt, previous.createdAt)
                             val announces = !incoming.isDelegating && (previous == null || previous.isDelegating || replacement)
-                            // Keep an older terminal marker: it still fences a delayed old live event after this replacement.
+                            // A live card may be raised again after a hub withdrawal. An older replay is rejected above,
+                            // so accepting this event also lets a later snapshot keep the card the hub just raised.
+                            ended.remove(incoming.id)
                             change(incoming.id, incoming)
                             if (announces && !incoming.isDisplayMirror) mutableArrivals.tryEmit(incoming)
                         }
@@ -148,8 +150,11 @@ class HubInteractionCenter(
         val since = asked?.let { key -> sessions?.value?.firstOrNull { it.key == key }?.stateSince }
         val marked = handoffCard && resolution.allow == true && card?.isSecretHandoff == true
         val outcome = try {
-            // A displayed card pins its exact occurrence; a direct ID-only caller keeps the legacy transport path.
-            if (card != null) transport.resolveOccurrence(card, resolution, handoffCard = marked)
+            // Only an exact-occurrence caller uses the new transport method. In particular, an ID-only caller must keep
+            // its existing dispatch: Kotlin interface delegation forwards a new default method straight to the delegate,
+            // bypassing the legacy resolveOutcome override on the delegating transport.
+            if (displayed != null) transport.resolveOccurrence(displayed, resolution, handoffCard = marked)
+            else if (marked) transport.resolveOutcome(id, resolution, handoffCard = true)
             else transport.resolveOutcome(id, resolution)
         } catch (gone: InteractionGoneException) {
             lock.withLock { end(id, here = true, occurrence = card?.createdAt) }
@@ -229,6 +234,11 @@ class HubInteractionCenter(
         if (!markers.containsKey(interaction.id)) return false
         val ended = markers[interaction.id]
         return ended == null || !laterTime(interaction.createdAt, ended)
+    }
+
+    private fun earlierThanEnded(interaction: Interaction, markers: Map<String, String?>): Boolean {
+        val ended = markers[interaction.id] ?: return false
+        return laterTime(ended, interaction.createdAt)
     }
 
     private fun rememberEnded(markers: LinkedHashMap<String, String?>, id: String, occurrence: String?) {

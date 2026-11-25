@@ -232,9 +232,10 @@ function notify(s: Session | undefined, kind: "needs" | "finished", card?: Inter
   // a permission card's gets Allow / Deny (#4464), when the session can be answered from here and nothing has to be
   // filled in first (fields: as the hub's push and the overview's quick answers); the rest need the conversation
   // (never on a card a task's supervisor holds: it is not the user's to answer, lib/supervisor-held.ts)
-  const ix = waiting.ix?.kind === "permission" && !supervisorHeld(waiting.ix) && !needsFieldValues(waiting.ix) && interactionCanAnswer(waiting.ix, s) ? waiting.ix.id : undefined;
+  const answerable = waiting.ix?.kind === "permission" && !supervisorHeld(waiting.ix) && !needsFieldValues(waiting.ix) && interactionCanAnswer(waiting.ix, s) ? waiting.ix : undefined;
+  const ix = answerable?.id;
   // inside quiet hours a "Needs you" one comes without a sound (a finished one doesn't come at all: wants)
-  postNotification({ title, body, tag, url: href(route), icon, ix, silent: inQuietHours(notifyPrefs()) }, () => navigate(route));
+  postNotification({ title, body, tag, url: href(route), icon, ix, created_at: answerable?.created_at, silent: inQuietHours(notifyPrefs()) }, () => navigate(route));
   return { about: waiting.ix?.id };
 }
 
@@ -494,7 +495,8 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
       if (Date.now() < quietUntil.current) return;
       const state = getState();
       const ixId = typeof msg.interaction_id === "string" ? msg.interaction_id : "";
-      const cardLevel = ixId ? state.interactions.find((c) => c.id === ixId)?.push_level : undefined;
+      const occurrence = typeof msg.interaction_created_at === "string" ? msg.interaction_created_at : undefined;
+      const cardLevel = ixId ? state.interactions.find((c) => c.id === ixId && (!occurrence || c.created_at === occurrence))?.push_level : undefined;
       const msgLevel = typeof msg.push_level === "string" ? msg.push_level : undefined;
       if (state.pushGrading && (isHeldLevel(msgLevel) || isHeldLevel(cardLevel))) return;
       const n = hubNotice(msg, (k) => prev.current.has(k), state.interactions);
@@ -510,11 +512,12 @@ export function useAttentionSignals(label: string, pane: { mid: string; sid: str
       const looking = inFront() && Boolean(n.key) && (n.key === viewing.current || (on.name === "persona" && (on.sid ?? state.assistant?.main) === sid));
       if (attentionSoundEnabled() && !hushed && !looking && allow.current(Date.now())) play("needs");
       if (unannounced() || !claimNotification(n.card ? `${n.tag}@${n.card}` : n.tag)) return;
-      const ix = n.card ? state.interactions.find((c) => c.id === n.card) : undefined;
-      const answer = ix?.kind === "permission" && !supervisorHeld(ix) && !needsFieldValues(ix) && interactionCanAnswer(ix, row) ? ix.id : undefined;
+      const ix = n.card ? state.interactions.find((c) => c.id === n.card && (!n.created_at || c.created_at === n.created_at)) : undefined;
+      const answerable = ix?.kind === "permission" && !supervisorHeld(ix) && !needsFieldValues(ix) && interactionCanAnswer(ix, row) ? ix : undefined;
+      const answer = answerable?.id;
       const route = parse(n.path);
       const icon = document.querySelector<HTMLLinkElement>(ICONS)?.dataset.original ?? document.querySelector<HTMLLinkElement>(ICONS)?.href;
-      postNotification({ title: n.title, body: n.body, tag: n.tag, url: href(route), icon, ix: answer, silent: hushed }, () => navigate(route));
+      postNotification({ title: n.title, body: n.body, tag: n.tag, url: href(route), icon, ix: answer, created_at: answerable?.created_at, silent: hushed }, () => navigate(route));
       // taken back once its card is answered or withdrawn (answeredTags), as a card the page announced itself
       if (n.card && n.key) announced.current.set(n.key, n.card);
     });

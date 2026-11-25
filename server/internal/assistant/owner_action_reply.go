@@ -80,23 +80,22 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 		return false
 	}
 
-	b := &s.fbot
-	b.mu.Lock()
-	s.loadBotLocked(ctx)
 	id := ""
 	ambiguous := false
-	for candidate, ref := range b.st.Cards {
-		if ref == nil || !ref.OwnerProposal || ref.MessageID != msg.ParentID {
-			continue
+	// An ambiguous persisted mapping answers none: never guess which operation was approved.
+	s.larkModule().Book(ctx, func(b assistantwire.ChatBook) {
+		for candidate, card := range b.Cards() {
+			if !card.Ix.OwnerProposal || card.MessageID != msg.ParentID {
+				continue
+			}
+			if id != "" {
+				id = ""
+				ambiguous = true
+				break
+			}
+			id = candidate
 		}
-		if id != "" {
-			id = ""
-			ambiguous = true // ambiguous persisted mapping: never guess which operation was approved
-			break
-		}
-		id = candidate
-	}
-	b.mu.Unlock()
+	})
 	if id == "" && !ambiguous {
 		return false
 	}
@@ -115,9 +114,9 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 		return true
 	}
 	ix, pending := s.pendingIx(id)
-	b.mu.Lock()
-	ref := b.st.Cards[id]
-	b.mu.Unlock()
+	var ref assistantwire.ChatCardRef
+	hasRef := false
+	s.larkModule().Book(ctx, func(b assistantwire.ChatBook) { ref, hasRef = b.CardRef(id) })
 	if !pending {
 		book, err := s.ownerActions()
 		if err != nil {
@@ -129,7 +128,7 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 			fail(err)
 			return true
 		}
-		if found && origin.Terminal && ref != nil && origin.MachineID == ref.MachineID && origin.SessionID == ref.SessionID &&
+		if found && origin.Terminal && hasRef && origin.MachineID == ref.MachineID && origin.SessionID == ref.SessionID &&
 			(ref.CreatedAt.IsZero() || origin.CreatedAt.Equal(ref.CreatedAt)) {
 			s.chat().Note(ctx, larkhost.Target{}, msg.MessageID, i18n.T(s.botLang(ctx), "assistant-channels_plugin.answered_elsewhere"))
 		} else {
@@ -143,7 +142,7 @@ func (s *Service) botApproveOwnerAction(ctx context.Context, ev botcard.MessageE
 		fail(errOwnerActionProof)
 		return true
 	}
-	validLocation := ref != nil && ref.ChatID == "" && ref.MessageID == msg.ParentID &&
+	validLocation := hasRef && ref.ChatID == "" && ref.MessageID == msg.ParentID &&
 		ref.ApprovalBatchID == ix.ApprovalBatchID && ref.ApprovalItemID == ix.ApprovalItemID &&
 		ref.MachineID == ix.MachineID && ref.SessionID == ix.SessionID &&
 		(ref.CreatedAt.IsZero() || ix.CreatedAt.IsZero() || ref.CreatedAt.Equal(ix.CreatedAt))

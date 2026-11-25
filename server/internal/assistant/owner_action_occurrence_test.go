@@ -181,9 +181,9 @@ func TestOwnerActionFeishuRejectsStaleCardOccurrence(t *testing.T) {
 	batch := createOwnerTestBatch(t, book, `{"body":"feishu occurrence"}`)
 	ix := ownerReplyBatchIX(batch)
 	keepOwnerReplyCard(s, ix, "om_stale")
-	s.fbot.mu.Lock()
-	s.fbot.st.Cards[ix.ID].CreatedAt = ix.CreatedAt.Add(-time.Nanosecond)
-	s.fbot.mu.Unlock()
+	updateChatCard(s, ix.ID, func(card *botCard) {
+		card.Ix.CreatedAt = ix.CreatedAt.Add(-time.Nanosecond)
+	})
 	calls := 0
 	answerOwnerProof(f, "oa_reply", ix.ID, &calls, nil)
 	if !s.botApproveOwnerAction(context.Background(), ownerReplyEvent("om_stale"), "发", "oa_reply") {

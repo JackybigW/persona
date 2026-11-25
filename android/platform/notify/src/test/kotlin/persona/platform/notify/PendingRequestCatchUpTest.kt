@@ -53,6 +53,7 @@ class PendingRequestCatchUpTest {
         sessions: List<Session>,
         var settings: Map<String?, DeviceNotificationPreferences> = mapOf(null to DeviceNotificationPreferences()),
         notified: MutableSet<String> = mutableSetOf(),
+        occurrences: Map<String, String?> = emptyMap(),
         visible: SessionKey? = null,
         desktops: Map<String, Boolean> = emptyMap(),
     ) {
@@ -71,6 +72,7 @@ class PendingRequestCatchUpTest {
             retract = { retracted += it },
             preferences = { settings[null] },
             notified = { notified },
+            notifiedOccurrences = { occurrences },
             desktopOnline = { desktops[it] },
             now = { this@PendingRequestCatchUpTest.now },
             catchUpPreferences = { settings },
@@ -141,6 +143,15 @@ class PendingRequestCatchUpTest {
         assertEquals(listOf(genuinelyExpired.id), fixture.retracted)
         fixture.delivery.catchUp()
         assertEquals(listOf(retained.id), fixture.posted.map { it.first.id })
+    }
+
+    @Test fun catchUpDoesNotLetThePreviousOccurrenceSuppressItsReplacement() = runBlocking {
+        val original = request.copy(createdAt = "2030-01-01T00:00:00.000000001Z")
+        val replacement = request.copy(createdAt = "2030-01-01T00:00:00.000000002Z")
+        val fixture = Fixture(listOf(replacement), emptyList(), notified = mutableSetOf(original.id),
+            occurrences = mapOf(original.id to original.createdAt))
+        fixture.delivery.catchUp()
+        assertEquals(listOf(replacement.id), fixture.posted.map { it.first.id })
     }
 
     @Test fun desktopMuteUsesTheRequestsOwnHubGroup() = runBlocking {

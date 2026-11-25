@@ -559,6 +559,55 @@ func TestOldLocalCompletionCannotFinalizeReplacement(t *testing.T) {
 	}
 }
 
+type expiryOccurrenceStore struct {
+	Store
+	onFinish func()
+	finishes int
+}
+
+func (s *expiryOccurrenceStore) ReserveConversationInteraction(context.Context, proto.Interaction, string, string, string, string, int64) error {
+	return nil
+}
+func (s *expiryOccurrenceStore) ConversationInteraction(context.Context, string) (*db.ConversationInteractionRoute, error) {
+	return nil, nil
+}
+func (s *expiryOccurrenceStore) FinishConversationInteraction(context.Context, string) error {
+	s.finishes++
+	s.onFinish()
+	return nil
+}
+
+func TestLocalExpiryCannotFinalizeReplacement(t *testing.T) {
+	ft := newFleetTest(t)
+	original := permission("ix_local_expiry_replacement")
+	original.CreatedAt = time.Now().UTC()
+	original.ExpiresAt = original.CreatedAt.Add(-time.Second)
+	replacement := original
+	replacement.CreatedAt = original.CreatedAt.Add(time.Second)
+	replacement.ExpiresAt = replacement.CreatedAt.Add(time.Hour)
+	p := &pending{ix: original, local: func(context.Context, proto.Resolution) error { return nil }}
+	ft.s.fleet.mu.Lock()
+	ft.s.ixMapLocked()[original.ID] = p
+	ft.s.fleet.mu.Unlock()
+	routes := &expiryOccurrenceStore{Store: ft.st}
+	routes.onFinish = func() {
+		// The route write is the deterministic race window: B replaces A after
+		// the expiry pass collected A but before its old ID-only finalizer returns.
+		ft.s.fleet.mu.Lock()
+		ft.s.ixMapLocked()[replacement.ID] = &pending{ix: replacement, local: func(context.Context, proto.Resolution) error { return nil }}
+		ft.s.fleet.mu.Unlock()
+	}
+	ft.s.store = func() Store { return routes }
+	ft.s.expireLocalInteractions(time.Now())
+	current, ok := ft.s.pendingIx(original.ID)
+	if !ok || !current.CreatedAt.Equal(replacement.CreatedAt) {
+		t.Fatalf("the earlier occurrence's expiry finalized its replacement: current=%+v ok=%v", current, ok)
+	}
+	if routes.finishes != 1 {
+		t.Fatalf("logical route finalizations = %d, want the original's one finalization", routes.finishes)
+	}
+}
+
 func TestAlwaysForANewOccurrenceDoesNotResolveThePendingOriginal(t *testing.T) {
 	ft := newFleetTest(t)
 	old := alwaysIx("ix_always_reused", "s1", "tool:old")

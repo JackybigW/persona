@@ -63,6 +63,17 @@ func interactionResolvedEvent(ix proto.Interaction) map[string]any {
 	return event
 }
 
+// Resolved mirror events carry no interaction object for the generic broadcast
+// classifier to inspect. Pass their display-only identity explicitly so both
+// live delivery and event-log replay retain the approval_mirrors capability fence.
+func (h *Hub) broadcastInteractionResolved(ix proto.Interaction, event map[string]any) {
+	b, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	h.broadcastToApprovalMirror("interaction_resolved", b, false, ix.MirrorOf != "")
+}
+
 func init() {
 	handleBusEvent(assistantwire.EventFleetSessions, func(h *Hub, c *busConn, params json.RawMessage) {
 		rest, rows, scanned := proto.ScanSessionList(params)
@@ -164,8 +175,8 @@ func init() {
 			h.broadcast(map[string]any{"type": "interaction", "interaction": ix})
 		}
 		for _, ix := range resolved {
-			h.push.withdraw(ix.ID)
-			h.broadcast(interactionResolvedEvent(ix))
+			h.push.withdraw(ix.ID, ix.CreatedAt)
+			h.broadcastInteractionResolved(ix, interactionResolvedEvent(ix))
 		}
 		if !h.cardAllowed(c.managerID(), p.Interaction) { // its machine moved meanwhile (dropCard)
 			h.dropCard(c.managerID(), p.Interaction.ID)
@@ -202,7 +213,7 @@ func init() {
 		}
 		f.mu.Unlock()
 		for _, ix := range ids {
-			h.push.withdraw(ix.ID) // a suspended app hears it by push (#4349)
+			h.push.withdraw(ix.ID, ix.CreatedAt) // a suspended app hears it by push (#4349)
 			if todo := assistantwire.TodoOfAskCard(ix.ID); todo != "" {
 				h.push.todoPushOver(todo) // the to-do no longer waits on the owner: its next push rings (push_todo_dedup.go)
 			}
@@ -216,7 +227,7 @@ func init() {
 					event["answers"] = p.Answers // what "Change answer" (POST …/reanswer) starts from
 				}
 			}
-			h.broadcast(event)
+			h.broadcastInteractionResolved(ix, event)
 		}
 	})
 	handleBusEvent(assistantwire.EventFleetInteractions, func(h *Hub, c *busConn, params json.RawMessage) {
@@ -329,6 +340,17 @@ func (h *Hub) takeFleetInteractionsFrom(owner string, list []proto.Interaction) 
 		list[i].Manager = owner
 		now[list[i].ID] = list[i]
 	}
+	// A delayed reconnect snapshot has the same occurrence fence as a live
+	// fleet.interaction event. Retain the newer card in both the authoritative map
+	// and the ordered broadcast list; merely skipping the assignment would make
+	// the withdrawal pass below remove the newer occurrence instead.
+	for i, ix := range list {
+		current, ok := f.interactions[ix.ID]
+		if ok && !ix.CreatedAt.IsZero() && !current.CreatedAt.IsZero() && ix.CreatedAt.Before(current.CreatedAt) {
+			list[i] = current
+			now[ix.ID] = current
+		}
+	}
 	// A display copy belongs to the hub's display state, not to the manager's
 	// pending-operation list. Keep an already-published copy when a reconnect
 	// snapshot contains its still-live original but omits the copy (for example
@@ -393,8 +415,8 @@ func (h *Hub) takeFleetInteractionsFrom(owner string, list []proto.Interaction) 
 	}()
 	for id, ix := range old {
 		if _, ok := now[id]; !ok {
-			h.push.withdraw(id)
-			h.broadcast(interactionResolvedEvent(ix))
+			h.push.withdraw(id, ix.CreatedAt)
+			h.broadcastInteractionResolved(ix, interactionResolvedEvent(ix))
 		}
 	}
 	for _, ix := range list {
@@ -427,8 +449,8 @@ func (h *Hub) dropCard(owner, id string) {
 	f.mu.Unlock()
 	if !other {
 		for _, gone := range ids {
-			h.push.withdraw(gone.ID)
-			h.broadcast(interactionResolvedEvent(gone))
+			h.push.withdraw(gone.ID, gone.CreatedAt)
+			h.broadcastInteractionResolved(gone, interactionResolvedEvent(gone))
 		}
 	}
 }
@@ -963,16 +985,16 @@ func (h *Hub) deliverPushFrom(from string, n assistantwire.Notification) (out *p
 			// The same to-do's push about the same reason rang and the to-do still waits on the owner for it.
 			return &pushOutcome{held: interceptReasonDedup}, nil
 		}
-		policy := pushPolicy{level: levelFor(n.Kind, n.Level), relatedKey: n.RelatedKey, todoID: relatedTodoID(n.RelatedKey, !n.Asked),
+		policy := pushPolicy{kind: assistantwire.NotifyPush, level: levelFor(n.Kind, n.Level), relatedKey: n.RelatedKey, todoID: relatedTodoID(n.RelatedKey, !n.Asked),
 			depth: n.Depth, track: n.Track, cardID: n.CardID}
-		policy.level = h.pushGradingNotifyLevel(n, policy.level)
+		policy.level = h.pushGradingNotifyLevel(from, n, policy.level)
 		o := h.notifyDoneUnder(from, "assistant", n.DeviceID, n.Subtitle, n.SessionID, n.Title, n.Body, pushWants{}, managerPushCollapseID(from, n.ID),
 			pushRecordingID(n.RecordingID), policy)
 		out = &o
 	case assistantwire.NotifyDone:
 		o := h.notifyDoneUnder(from, "done", n.DeviceID, n.Subtitle, n.SessionID, n.Title, n.Body,
 			pushWants{Kind: "done", Took: time.Duration(n.TookMS) * time.Millisecond, Long: time.Duration(n.LongMS) * time.Millisecond},
-			"", "", pushPolicy{level: levelFor(n.Kind, n.Level), relatedKey: n.RelatedKey, todoID: relatedTodoID(n.RelatedKey, false),
+			"", "", pushPolicy{kind: assistantwire.NotifyDone, level: levelFor(n.Kind, n.Level), relatedKey: n.RelatedKey, todoID: relatedTodoID(n.RelatedKey, false),
 				done: true, track: n.Track})
 		out = &o
 	case assistantwire.NotifyReply:
@@ -995,8 +1017,8 @@ func (h *Hub) deliverPushFrom(from string, n assistantwire.Notification) (out *p
 // owner talking to Persona directly keeps its alerts. Every other conversation's ordinary notice is P1 — held for the
 // "Needs you" list and the briefing instead of alerting. With the switch off the level the caller named stands, so
 // delivery is exactly as before.
-func (h *Hub) pushGradingNotifyLevel(n assistantwire.Notification, derived string) string {
-	if h.push == nil || !h.push.filtering() { // hub.ln_mode on, or an attention mode in force (push_attention.go)
+func (h *Hub) pushGradingNotifyLevel(manager string, n assistantwire.Notification, derived string) string {
+	if h.push == nil || !h.push.filteringFor(manager) { // hub.ln_mode on, attention mode in force, or active extension layer
 		return derived
 	}
 	if n.Level != "" {

@@ -231,9 +231,10 @@ type FleetItem struct {
 	Background bool `json:"background,omitempty"`
 	// Progress: the counts of the workflow Detail names, for the expanded island's bar (#3437). Nil when the item is not
 	// a background workflow or its workflow has started no agent yet. It moves only when Detail does, so it costs no push.
-	Progress    *FleetProgress `json:"progress,omitempty"`
-	Interaction string         `json:"interaction,omitempty"` // what "Allow" / "Deny" / "Approve" resolve
-	Since       float64        `json:"since,omitempty"`
+	Progress             *FleetProgress `json:"progress,omitempty"`
+	Interaction          string         `json:"interaction,omitempty"`          // what "Allow" / "Deny" / "Approve" resolve
+	InteractionCreatedAt string         `json:"interactionCreatedAt,omitempty"` // exact occurrence those buttons displayed
+	Since                float64        `json:"since,omitempty"`
 }
 
 // FleetProgress is a background workflow's agents done of those it started so far, as Detail prints them ("169/185"):

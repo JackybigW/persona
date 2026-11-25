@@ -251,6 +251,8 @@ func TestApprovalMirrorRoutesOnlyWriteTools(t *testing.T) {
 		{"todo_delete", `{"id":"todo_example"}`},
 		{"todo_reopen", `{"id":"todo_example"}`},
 		{"repository_add", `{"url":"https://example.com/repository"}`},
+		{"kb_update", `{"content":"Remember this"}`},
+		{"task_scope", `{"scope":"current"}`},
 		{"skill_import", `{"op":"install","reference":"example"}`},
 		{"agent_autoname", `{"agent_id":"agent_example"}`},
 		{"mcp__persona__mail_send", `{"to":"me@example.com","subject":"Review"}`},
@@ -385,6 +387,16 @@ func TestApprovalMirrorToolAllowlistIsConfigurable(t *testing.T) {
 	configuredGET.AlwaysKeys = []string{"lark:GET /messages"}
 	if ft.s.nonMainAssistantPermission(ctx, configuredGET) {
 		t.Fatal("a custom gate title bypassed the GET classification")
+	}
+	configuredReads := []string{"todo_list", "conversation_read", "phone_notifications_list", "a2a_read"}
+	setSettings(t, ft.s, func(v *Settings) { v.ApprovalMirrorTools = &configuredReads })
+	for _, name := range configuredReads {
+		ix := mirrorTestCard("ix_custom_builtin_read_" + name)
+		ix.ToolName = name
+		ix.WriteOperation = true // even forged write metadata cannot turn a known read into a write
+		if ft.s.nonMainAssistantPermission(ctx, ix) {
+			t.Errorf("custom allowlist routed built-in read-only tool %q", name)
+		}
 	}
 	empty := []string{}
 	setSettings(t, ft.s, func(v *Settings) { v.ApprovalMirrorTools = &empty })

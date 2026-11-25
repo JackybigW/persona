@@ -276,6 +276,25 @@ struct QuestionSendingTests {
         #expect(model.interactions[first.uid]?.createdAtWire == replacement.createdAtWire)
     }
 
+    @Test func catchUpInstallsANanosecondOnlyReplacement() throws {
+        let first = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","machine_id":"m","session_id":"","kind":"permission","created_at":"2026-11-21T01:02:03.000000001Z"}"#.utf8))
+        let replacement = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","machine_id":"m","session_id":"","kind":"permission","created_at":"2026-11-21T01:02:03.000000002Z"}"#.utf8))
+        #expect(first == replacement) // Compatibility Date equality is why this exercises the store's occurrence fence.
+        let model = model(FakeHub(), first)
+        model.replaceInteractions("", [replacement])
+        #expect(model.interactions[first.uid]?.createdAtWire == replacement.createdAtWire)
+    }
+
+    @Test func watchAnswerCompletionRemovesOnlyItsDisplayedOccurrence() throws {
+        let first = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","machine_id":"m","session_id":"","kind":"permission","created_at":"2026-11-21T01:02:03.000000001Z"}"#.utf8))
+        let replacement = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","machine_id":"m","session_id":"","kind":"permission","created_at":"2026-11-21T01:02:03.000000002Z"}"#.utf8))
+        #expect(interactionRemovalMatches(first, resolved: first))
+        #expect(!interactionRemovalMatches(replacement, resolved: first))
+        var legacy = first
+        legacy.createdAt = nil
+        #expect(interactionRemovalMatches(replacement, resolved: legacy))
+    }
+
     @Test func aSameIDReplacementIsANewArrivalButItsReplayIsNot() throws {
         let first = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","kind":"permission","created_at":"2026-11-21T01:02:03.000000001Z"}"#.utf8))
         let replacement = try JSON.decoder.decode(Interaction.self, from: Data(#"{"id":"ix_1","kind":"permission","created_at":"2026-11-21T01:02:03.000000002Z"}"#.utf8))

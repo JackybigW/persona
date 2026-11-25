@@ -1357,21 +1357,25 @@ func hasSecretField(ix proto.Interaction) bool {
 	return false
 }
 
-// finishPending removes only the exact occurrence the caller finished. A stale
-// waiter, orphan timer or prepared finalizer must not delete a same-ID
+// takePending atomically removes only the exact occurrence the caller finished.
+// A stale waiter, orphan timer or prepared finalizer must not delete a same-ID
 // replacement that has already been admitted.
-func (s *Service) finishPending(expected *pending) {
+func (s *Service) takePending(expected *pending) *pending {
 	s.fleet.mu.Lock()
+	defer s.fleet.mu.Unlock()
 	p := s.fleet.interactions[expected.ix.ID]
-	ok := p == expected
-	if ok {
-		delete(s.fleet.interactions, expected.ix.ID)
-		if p.orphaned != nil {
-			p.orphaned.Stop()
-		}
+	if p != expected {
+		return nil
 	}
-	s.fleet.mu.Unlock()
-	if ok {
+	delete(s.fleet.interactions, expected.ix.ID)
+	if p.orphaned != nil {
+		p.orphaned.Stop()
+	}
+	return p
+}
+
+func (s *Service) finishPending(expected *pending) {
+	if p := s.takePending(expected); p != nil {
 		s.finished(p)
 	}
 }
@@ -1394,6 +1398,23 @@ func (s *Service) finishInteraction(id string) {
 	if ok {
 		s.finished(p)
 	}
+}
+
+// finishExpiredPending retains the logical-route finalization of finishInteraction
+// while removing only the occurrence collected by the expiry pass. The database
+// call stays outside fleet.mu; a same-ID replacement admitted meanwhile is not
+// removed or announced as ended by the older card's expiry.
+func (s *Service) finishExpiredPending(expected *pending) {
+	p := s.takePending(expected)
+	if p == nil {
+		return
+	}
+	if routes, ok := s.store().(logicalInteractionStore); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = routes.FinishConversationInteraction(ctx, p.ix.ID)
+		cancel()
+	}
+	s.finished(p)
 }
 
 // finished tells everyone an interaction, already out of the pending set, is over.
@@ -1557,17 +1578,23 @@ func (s *Service) expireLoop(ctx context.Context) {
 		for _, m := range plans {
 			s.syncPlanInteractions(m) // also converge after a lost rev/status event
 		}
-		s.fleet.mu.Lock()
-		var ids []string
-		for id, p := range s.fleet.interactions {
-			if p.local != nil && !p.ix.ExpiresAt.IsZero() && time.Now().After(p.ix.ExpiresAt) {
-				ids = append(ids, id)
-			}
+		s.expireLocalInteractions(time.Now())
+	}
+}
+
+// expireLocalInteractions finishes local cards whose deadlines have passed.
+// The tick supplies one cutoff for the whole pass.
+func (s *Service) expireLocalInteractions(now time.Time) {
+	s.fleet.mu.Lock()
+	var expired []*pending
+	for _, p := range s.fleet.interactions {
+		if p.local != nil && !p.ix.ExpiresAt.IsZero() && now.After(p.ix.ExpiresAt) {
+			expired = append(expired, p)
 		}
-		s.fleet.mu.Unlock()
-		for _, id := range ids {
-			s.finishInteraction(id)
-		}
+	}
+	s.fleet.mu.Unlock()
+	for _, p := range expired {
+		s.finishExpiredPending(p)
 	}
 }
 
@@ -1797,6 +1824,7 @@ func (s *Service) keepAlways(ix proto.Interaction, r proto.Resolution) {
 // NodeDetached: a machine's node connection ended (devices.Options.Detached): the cards waiting on it that cannot be
 // claimed again end (resumable ones wait for their hook through the next connection), its list shows it.
 func (s *Service) NodeDetached(machine string) {
+	s.noteNodeOffline(machine, time.Now())
 	if !s.fleetOn() {
 		return
 	}
@@ -1829,6 +1857,29 @@ func (s *Service) cancelMachineInteractions(machineID string) {
 	s.feishuDetach(ids)
 	for _, id := range ids {
 		if s.endPreparedByID(id, "cancelled", "The computer that owned this approval disconnected; nothing changed.") {
+			continue
+		}
+		s.finishInteraction(id)
+	}
+}
+
+// cancelSessionInteractions withdraws leftover approval gates and pending cards
+// for one superseded session on a returning node (node_recovery.go, #14781).
+func (s *Service) cancelSessionInteractions(machineID, sessionID string) {
+	s.fleet.mu.Lock()
+	var ids []string
+	for id, p := range s.fleet.interactions {
+		if p.ix.MachineID == machineID && p.ix.SessionID == sessionID {
+			ids = append(ids, id)
+		}
+	}
+	s.fleet.mu.Unlock()
+	if len(ids) == 0 {
+		return
+	}
+	s.feishuDetach(ids)
+	for _, id := range ids {
+		if s.endPreparedByID(id, "cancelled", "The superseded Agent was released during node recovery; nothing changed.") {
 			continue
 		}
 		s.finishInteraction(id)

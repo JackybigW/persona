@@ -118,6 +118,21 @@ describe("a card this page ended", () => {
     expect(mergeInteractions([replacement], Number.MAX_SAFE_INTEGER)).toEqual([replacement]);
   });
 
+  it("keeps a newer answered receipt when the earlier occurrence's response arrives late", async () => {
+    const s = online();
+    let finish!: (value: Record<string, unknown>) => void;
+    op.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const answering = answerCard(card, { allow: true });
+    const replacement: Interaction = { ...card, created_at: "2026-01-02T03:04:05.000000002Z", summary: "replacement" };
+    s.push({ type: "interaction", interaction: replacement });
+    op.mockResolvedValueOnce({ ok: true });
+    expect((await answerCard(replacement, { allow: true })).ok).toBe(true);
+    expect(getState().answered.ix1.ix).toEqual(replacement);
+    finish({ ok: true });
+    expect((await answering).ok).toBe(true);
+    expect(getState().answered.ix1.ix).toEqual(replacement);
+  });
+
   it("keeps a replacement when the earlier answer was already delegated", async () => {
     const s = online();
     const first: Interaction = { ...card, kind: "question" };

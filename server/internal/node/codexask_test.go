@@ -225,6 +225,26 @@ func TestCodexTimestamplessQuestionDoesNotReannounce(t *testing.T) {
 	}
 }
 
+func TestCodexTimestamplessQuestionReplacementGetsANewOccurrence(t *testing.T) {
+	n, f, path := codexNode(t, proto.StatusIdle, cxTimestamplessAsk)
+	f.setScreen(cxPane, cxEmpty)
+	sent := codexTUI(t, f, path)
+	first := onlyCard(t, n).ix
+	appendLine(t, path, cxUserLine("moving on"))
+	if cards := n.codexCardsNow(context.Background(), ""); len(cards) != 0 {
+		t.Fatalf("the answered timestamp-less question is still open: %+v", cards)
+	}
+	appendLine(t, path, cxTimestamplessAsk)
+	second := onlyCard(t, n).ix
+	if !second.CreatedAt.After(first.CreatedAt) {
+		t.Fatalf("a reopened same-ID question kept the old occurrence: first=%s second=%s", first.CreatedAt, second.CreatedAt)
+	}
+	err := n.codexAnswerAt(context.Background(), cxID, first.ID, first.CreatedAt, proto.Resolution{Answers: map[string]string{"Which color?": "Red"}})
+	if refusalCode(err) != screen.PromptChanged || len(*sent) != 0 {
+		t.Fatalf("the earlier occurrence answered its replacement: err=%v code=%s typed=%q", err, refusalCode(err), *sent)
+	}
+}
+
 func TestCodexAnswerAsyncWithSingleRowFooter(t *testing.T) {
 	for _, answer := range []string{"Blue", "Use a custom color"} {
 		t.Run(answer, func(t *testing.T) {

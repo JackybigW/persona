@@ -35,6 +35,26 @@ var defaultApprovalMirrorReadTools = map[string]bool{
 	"larkcli_chats": true, "larkcli_messages": true, "larkcli_search": true,
 }
 
+// Built-in read families that are not connector declarations or Inbox-policy entries.
+var approvalMirrorAssistantReadTools = map[string]bool{
+	"a2a_get": true, "a2a_read": true, "a2a_sessions": true,
+	"mail_accounts": true, "mail_read": true, "mail_search": true,
+	"resource_get": true, "resource_status": true, "todo_decisions": true,
+}
+
+func approvalMirrorKnownReadTool(name string) bool {
+	if defaultApprovalMirrorReadTools[name] || approvalMirrorAssistantReadTools[name] {
+		return true
+	}
+	// The Inbox policy deliberately permits a few internal writes (kb_update and task_scope).
+	// Approval routing's explicit write catalog wins for those; every other Inbox/phone read is
+	// still a read when a custom allowlist or forged write metadata names it.
+	if slices.Contains(defaultApprovalMirrorTools, name) {
+		return false
+	}
+	return inboxReadOnlyTools[name] || inboxReadOnlyPhoneTools[name]
+}
+
 func approvalMirrorToolName(name string) string {
 	name = compat.CanonicalMCPToolName(strings.TrimSpace(name))
 	rest, ok := strings.CutPrefix(name, "mcp__")
@@ -69,7 +89,7 @@ func approvalMirrorToolNames(v Settings) []string {
 func (s *Service) approvalMirrorToolAllowed(ctx context.Context, ix proto.Interaction) bool {
 	v := s.settings(ctx)
 	name := approvalMirrorToolName(ix.ToolName)
-	if defaultApprovalMirrorReadTools[name] {
+	if approvalMirrorKnownReadTool(name) {
 		return false
 	}
 	// A command gate's explicit classification wins over any configured name:
